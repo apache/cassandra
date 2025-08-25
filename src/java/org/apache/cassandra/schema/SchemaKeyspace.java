@@ -521,7 +521,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder, boolean isView)
+    public static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder, boolean isView)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -553,6 +553,14 @@ public final class SchemaKeyspace
 
         if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && !isView)
             builder.add("strict_mv_consistency", params.strictMVConsistency);
+
+        // As above, only add the auto_repair column if the scheduler is enabled
+        // to avoid RTE in pre-5.1 versioned node during upgrades
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.add("auto_repair", params.autoRepair.asMap());
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -945,30 +953,37 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        return TableParams.builder()
-                          .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
-                          .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
-                          .comment(row.getString("comment"))
-                          .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
-                          .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                          .memtable(MemtableParams.getWithFallback(row.has("memtable")
-                                                                   ? row.getString("memtable")
-                                                                   : null)) // memtable column was introduced in 4.1
-                          .defaultTimeToLive(row.getInt("default_time_to_live"))
-                          .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
-                          .gcGraceSeconds(row.getInt("gc_grace_seconds"))
-                          .maxIndexInterval(row.getInt("max_index_interval"))
-                          .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
-                          .minIndexInterval(row.getInt("min_index_interval"))
-                          .crcCheckChance(row.getDouble("crc_check_chance"))
-                          .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
-                          .additionalWritePolicy(row.has("additional_write_policy") ?
-                                                     SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
-                                                     SpeculativeRetryPolicy.fromString("99PERCENTILE"))
-                          .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                          .readRepair(getReadRepairStrategy(row))
-                          .strictMVConsistency(row.has("strict_mv_consistency") && row.getBoolean("strict_mv_consistency"))
-                          .build();
+        TableParams.Builder builder = TableParams.builder()
+                                                 .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+                                                 .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
+                                                 .comment(row.getString("comment"))
+                                                 .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
+                                                 .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                                                 .memtable(MemtableParams.getWithFallback(row.has("memtable")
+                                                                                          ? row.getString("memtable")
+                                                                                          : null)) // memtable column was introduced in 4.1
+                                                 .defaultTimeToLive(row.getInt("default_time_to_live"))
+                                                 .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
+                                                 .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+                                                 .maxIndexInterval(row.getInt("max_index_interval"))
+                                                 .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
+                                                 .minIndexInterval(row.getInt("min_index_interval"))
+                                                 .crcCheckChance(row.getDouble("crc_check_chance"))
+                                                 .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
+                                                 .additionalWritePolicy(row.has("additional_write_policy") ?
+                                                                        SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
+                                                                        SpeculativeRetryPolicy.fromString("99PERCENTILE"))
+                                                 .cdc(row.has("cdc") && row.getBoolean("cdc"))
+                                                 .readRepair(getReadRepairStrategy(row))
+                                                 .strictMVConsistency(row.has("strict_mv_consistency") && row.getBoolean("strict_mv_consistency"));
+
+        // auto_repair column was introduced in 5.1
+        if (row.has("auto_repair"))
+        {
+            builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
+        }
+
+        return builder.build();
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)

@@ -60,8 +60,6 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
@@ -103,9 +101,9 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -142,7 +140,6 @@ public class NodeProbe implements AutoCloseable
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final String mnObjName = "org.apache.cassandra.db:type=MonitoringService";
-    private static final String autoRepairObjName = "org.apache.cassandra.db:type=AutoRepairService";
     private static final String rateLimiterObjName = "org.apache.cassandra.db:type=RateLimiterService";
     private static final int defaultPort = 7199;
 
@@ -159,7 +156,6 @@ public class NodeProbe implements AutoCloseable
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
     protected MonitoringServiceMBean monitoringProxy;
-    protected AutoRepairServiceMBean autoRepairProxy;
     protected RateLimiterServiceMBean rateLimiterProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
@@ -181,6 +177,7 @@ public class NodeProbe implements AutoCloseable
     protected RolesCacheMBean rcProxy;
     protected GuardrailsMBean grProxy;
     protected CompactionStrategyMigrationManagerMBean csmmProxy;
+    protected AutoRepairServiceMBean autoRepairProxy;
     protected Output output;
     private boolean failed;
 
@@ -194,7 +191,7 @@ public class NodeProbe implements AutoCloseable
     public NodeProbe(String host, int port, String username, String password) throws IOException
     {
         assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
-               : "neither username nor password can be blank";
+        : "neither username nor password can be blank";
 
         this.host = host;
         this.port = port;
@@ -273,8 +270,6 @@ public class NodeProbe implements AutoCloseable
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(mnObjName);
             monitoringProxy = JMX.newMBeanProxy(mbeanServerConn, name, MonitoringServiceMBean.class);
-            name = new ObjectName(autoRepairObjName);
-            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
             name = new ObjectName(rateLimiterObjName);
             rateLimiterProxy = JMX.newMBeanProxy(mbeanServerConn, name, RateLimiterServiceMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
@@ -316,23 +311,19 @@ public class NodeProbe implements AutoCloseable
             grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
             name = new ObjectName(CompactionStrategyMigrationManager.MBEAN_NAME);
             csmmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionStrategyMigrationManagerMBean.class);
+            name = new ObjectName(AutoRepairService.MBEAN_NAME);
+            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
-                    "Invalid ObjectName? Please report this as a bug.", e);
+            "Invalid ObjectName? Please report this as a bug.", e);
         }
 
         memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
-                ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
+                                                            ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
-                mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
-    }
-
-    @VisibleForTesting
-    public void setAutoRepairProxy(AutoRepairServiceMBean bean)
-    {
-        autoRepairProxy = bean;
+        mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
     }
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
@@ -764,7 +755,7 @@ public class NodeProbe implements AutoCloseable
 
     public CompactionManagerMBean getCompactionManagerProxy()
     {
-      return compactionProxy;
+        return compactionProxy;
     }
 
     public List<String> getTokens()
@@ -868,7 +859,7 @@ public class NodeProbe implements AutoCloseable
      *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
      */
     public void takeMultipleTableSnapshot(String snapshotName, Map<String, String> options, String... tableList)
-            throws IOException
+    throws IOException
     {
         if (null != tableList && tableList.length != 0)
         {
@@ -1137,7 +1128,7 @@ public class NodeProbe implements AutoCloseable
         {
             String type = cf.contains(".") ? "IndexColumnFamilies" : "ColumnFamilies";
             Set<ObjectName> beans = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
+            new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
 
             if (beans.isEmpty())
                 throw new MalformedObjectNameException("couldn't find that bean");
@@ -1738,22 +1729,22 @@ public class NodeProbe implements AutoCloseable
                 case "HitRate":
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Requests":
                 case "Hits":
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
                 case "MissLatency":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
                 case "MissLatencyUnit":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
                 default:
                     throw new RuntimeException("Unknown Cache metric name " + metricName);
 
@@ -1782,13 +1773,13 @@ public class NodeProbe implements AutoCloseable
                 case "Capacity":
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                           new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
-                           CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Hits":
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
-                    CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
+                                             new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
                 default:
                     throw new RuntimeException("Unknown BufferPool metric name " + metricName);
             }
@@ -1806,8 +1797,8 @@ public class NodeProbe implements AutoCloseable
             Multimap<String, String> threadPools = HashMultimap.create();
 
             Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
-                    null);
+            new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
+            null);
 
             for (ObjectName oName : threadPoolObjectNames)
             {
@@ -1828,35 +1819,35 @@ public class NodeProbe implements AutoCloseable
 
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-      String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
-              pathName, poolName, metricName);
+        String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
+                                    pathName, poolName, metricName);
 
-      try
-      {
-          ObjectName oName = new ObjectName(name);
-          if (!mbeanServerConn.isRegistered(oName))
-          {
-              return "N/A";
-          }
+        try
+        {
+            ObjectName oName = new ObjectName(name);
+            if (!mbeanServerConn.isRegistered(oName))
+            {
+                return "N/A";
+            }
 
-          switch (metricName)
-          {
-              case ThreadPoolMetrics.ACTIVE_TASKS:
-              case ThreadPoolMetrics.PENDING_TASKS:
-              case ThreadPoolMetrics.COMPLETED_TASKS:
-              case ThreadPoolMetrics.MAX_POOL_SIZE:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
-              case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
-              case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
-              default:
-                  throw new AssertionError("Unknown ThreadPools metric name " + metricName);
-          }
-      }
-      catch (Exception e)
-      {
-          throw new RuntimeException("Error reading: " + name, e);
-      }
+            switch (metricName)
+            {
+                case ThreadPoolMetrics.ACTIVE_TASKS:
+                case ThreadPoolMetrics.PENDING_TASKS:
+                case ThreadPoolMetrics.COMPLETED_TASKS:
+                case ThreadPoolMetrics.MAX_POOL_SIZE:
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
+                case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
+                case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
+                default:
+                    throw new AssertionError("Unknown ThreadPools metric name " + metricName);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error reading: " + name, e);
+        }
     }
 
     /**
@@ -1965,8 +1956,8 @@ public class NodeProbe implements AutoCloseable
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
-                    CassandraMetricsRegistry.JmxTimerMBean.class);
+                                     new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
+                                     CassandraMetricsRegistry.JmxTimerMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -2000,18 +1991,18 @@ public class NodeProbe implements AutoCloseable
             {
                 case "BytesCompacted":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxCounterMBean.class);
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxCounterMBean.class);
                 case "CompletedTasks":
                 case "PendingTasks":
                 case "PendingTasksByTableName":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "TotalCompactionsCompleted":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class);
+                                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class);
                 default:
                     throw new RuntimeException("Unknown compaction metric.");
             }
@@ -2037,8 +2028,8 @@ public class NodeProbe implements AutoCloseable
                 case "connectedNativeClientsByUser": // number of native clients by username
                 case "clientsByProtocolVersion": // number of native clients by username
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 default:
                     throw new RuntimeException("Unknown client metric " + metricName);
             }
@@ -2058,8 +2049,8 @@ public class NodeProbe implements AutoCloseable
         try
         {
             return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
-                    CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                                     new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
+                                     CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
         }
         catch (MalformedObjectNameException e)
         {
@@ -2070,12 +2061,12 @@ public class NodeProbe implements AutoCloseable
     public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
     {
         return new Double[]{ metric.get50thPercentile(),
-                Double.valueOf(metric.get75thPercentile()),
-                Double.valueOf(metric.get95thPercentile()),
-                Double.valueOf(metric.get98thPercentile()),
-                Double.valueOf(metric.get99thPercentile()),
-                Double.valueOf(metric.getMin()),
-                Double.valueOf(metric.getMax())};
+                             Double.valueOf(metric.get75thPercentile()),
+                             Double.valueOf(metric.get95thPercentile()),
+                             Double.valueOf(metric.get98thPercentile()),
+                             Double.valueOf(metric.get99thPercentile()),
+                             Double.valueOf(metric.getMin()),
+                             Double.valueOf(metric.getMax())};
     }
 
     public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
@@ -2249,8 +2240,8 @@ public class NodeProbe implements AutoCloseable
     }
 
     public void enableAuditLog(Boolean withRoleFiltering, String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
-                                             String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
-                                             Long maxLogSize, Integer maxQueueWeight, String archiveCommand) {
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) {
         ssProxy.enableAuditLog(withRoleFiltering, loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
                                maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
@@ -2263,7 +2254,7 @@ public class NodeProbe implements AutoCloseable
     public void disableOldProtocolVersions()
     {
         ssProxy.disableNativeTransportOldProtocolVersions();
-	}
+    }
 
     public MessagingServiceMBean getMessagingServiceProxy()
     {
@@ -2419,25 +2410,6 @@ public class NodeProbe implements AutoCloseable
         monitoringProxy.setBadQueryIgnoreKeyspacesPattern(badQueryIgnoreKeyspaces);
     }
 
-    public AutoRepairConfig getAutoRepairConfig() {
-        return autoRepairProxy.getAutoRepairConfig();
-    }
-
-    public void runAutoRepairOnce(RepairType type, long millisToWait)
-    {
-        autoRepairProxy.runAutoRepairOnce(type, millisToWait);
-    }
-
-    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
-    {
-        autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
-    }
-
-    public void setRepairThreads(RepairType repairType, int repairThreads)
-    {
-        autoRepairProxy.setRepairThreads(repairType, repairThreads);
-    }
-
     public void setThrottlingOptionsEnabled(boolean enabled)
     {
         rateLimiterProxy.setEnabled(enabled);
@@ -2553,108 +2525,6 @@ public class NodeProbe implements AutoCloseable
         return rateLimiterProxy.getThrottlingOptionsToString();
     }
 
-    public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
-    {
-        autoRepairProxy.setRepairPriorityForHosts(repairType, hosts);
-    }
-
-    public Set<InetAddressAndPort> getRepairPriorityForHosts(RepairType repairType)
-    {
-        return autoRepairProxy.getRepairHostPriority(repairType);
-    }
-
-    public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts){
-        autoRepairProxy.setForceRepairForHosts(repairType, hosts);
-    }
-
-    public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
-    {
-        autoRepairProxy.setRepairSubRangeNum(repairType, repairSubRanges);
-    }
-
-    public void setRepairMinIntervalInHours(RepairType repairType, int repairMinIntervalInHours)
-    {
-        autoRepairProxy.setRepairMinIntervalInHours(repairType, repairMinIntervalInHours);
-    }
-
-    public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds)
-    {
-        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(seconds);
-    }
-
-    public void setAutoRepairMaxRetriesCount(int retries)
-    {
-        autoRepairProxy.setAutoRepairMaxRetriesCount(retries);
-    }
-
-    public void setAutoRepairRetryBackoffInSec(long seconds)
-    {
-        autoRepairProxy.setAutoRepairRetryBackoffInSec(seconds);
-    }
-
-    public void setAutoRepairMinRepairTaskDurationInSec(long seconds)
-    {
-        autoRepairProxy.setAutoRepairMinRepairTaskDurationInSec(seconds);
-    }
-
-    public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold)
-    {
-        autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
-    }
-
-    public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex)
-    {
-        autoRepairProxy.setRepairIgnoreKeyspaces(repairType, ignoreKeyspaceRegex);
-    }
-
-    public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex)
-    {
-        autoRepairProxy.setRepairOnlyKeyspaces(repairType, repairOnlyKeyspacesRegex);
-    }
-
-    public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec)
-    {
-        autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(repairType, autoRepairTableMaxRepairTimeInSec);
-    }
-
-    public void setAutoRepairIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
-    {
-        autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
-    }
-
-    public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType type, int groupHash)
-    {
-        return autoRepairProxy.getOnGoingRepairHostIdsByGroupHash(type, groupHash);
-    }
-
-    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType type, int groupHash)
-    {
-        return autoRepairProxy.getOnGoingForceRepairHostIdsByGroupHash(type, groupHash);
-    }
-
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup) {
-        autoRepairProxy.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
-    }
-
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup) {
-        autoRepairProxy.setParallelRepairCountInGroup(repairType, countInGroup);
-    }
-
-    public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
-    {
-        autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
-    }
-
-    public void setMVRepairEnabled(RepairType repairType, boolean enabled)
-    {
-        autoRepairProxy.setMVRepairEnabled(repairType, enabled);
-    }
-
-    public void setRepairByKeyspace(RepairType repairType, boolean enabled)
-    {
-        autoRepairProxy.setRepairByKeyspace(repairType, enabled);
-    }
-
     public boolean isDecommissionFailed()
     {
         return ssProxy.isDecommissionFailed();
@@ -2698,7 +2568,7 @@ public class NodeProbe implements AutoCloseable
 
     public Long getGossipServiceCacheMismatchComparisonIntervalInSec()
     {
-       return gossProxy.getGossipServiceCacheMismatchComparisonIntervalInSec();
+        return gossProxy.getGossipServiceCacheMismatchComparisonIntervalInSec();
     }
 
     public void setGossipServiceCacheMismatchComparisonIntervalInSec(Long intervalInSec)
@@ -2739,15 +2609,6 @@ public class NodeProbe implements AutoCloseable
     public List<String> mutateSSTableRepairedState(boolean repair, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException
     {
         return ssProxy.mutateSSTableRepairedState(repair, preview, keyspace, tables);
-    }
-
-    public List<String> getTablesForKeyspace(String keyspace) {
-        return ssProxy.getTablesForKeyspace(keyspace);
-    }
-
-    public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter)
-    {
-        return autoRepairProxy.filterHostsInLocalGroup(repairType, hostsToFilter);
     }
 
     public boolean getPersistPreparedStatementsEnabled()
@@ -2834,6 +2695,141 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.setAllowedClientLibDrivers(drivers);
     }
+
+    public boolean isAutoRepairDisabled()
+    {
+        return autoRepairProxy.isAutoRepairDisabled();
+    }
+
+    public String autoRepairConfiguration()
+    {
+        return autoRepairProxy.getAutoRepairConfiguration();
+    }
+
+    public void runAutoRepairOnce(AutoRepairConfig.RepairType type)
+    {
+        autoRepairProxy.runAutoRepairOnce(type);
+    }
+
+    public void setAutoRepairTokenRangeSplitterParameter(String repairType, String key, String value)
+    {
+        autoRepairProxy.setAutoRepairTokenRangeSplitterParameter(repairType, key, value);
+    }
+
+    public void setAutoRepairEnabled(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
+    }
+
+    public void setAutoRepairThreads(String repairType, int repairThreads)
+    {
+        autoRepairProxy.setRepairThreads(repairType, repairThreads);
+    }
+
+    public void setAutoRepairPriorityForHosts(String repairType, String commaSeparatedHostSet)
+    {
+        autoRepairProxy.setRepairPriorityForHosts(repairType, commaSeparatedHostSet);
+    }
+
+    public void setAutoRepairForceRepairForHosts(String repairType, String commaSeparatedHostSet)
+    {
+        autoRepairProxy.setForceRepairForHosts(repairType, commaSeparatedHostSet);
+    }
+
+    public void setAutoRepairMinInterval(String repairType, String minRepairInterval)
+    {
+        autoRepairProxy.setRepairMinInterval(repairType, minRepairInterval);
+    }
+
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferDuration(duration);
+    }
+
+    public void startAutoRepairScheduler()
+    {
+        autoRepairProxy.startScheduler();
+    }
+
+    public void setAutoRepairMinRepairTaskDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairMinRepairTaskDuration(duration);
+    }
+
+    public void setAutoRepairSSTableCountHigherThreshold(String repairType, int ssTableHigherThreshold)
+    {
+        autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
+    }
+
+    public void setAutoRepairTableMaxRepairTime(String repairType, String autoRepairTableMaxRepairTime)
+    {
+        autoRepairProxy.setAutoRepairTableMaxRepairTime(repairType, autoRepairTableMaxRepairTime);
+    }
+
+    public void setAutoRepairIgnoreDCs(String repairType, Set<String> ignoreDCs)
+    {
+        autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
+    }
+
+    public void setAutoRepairParallelRepairPercentage(String repairType, int percentage)
+    {
+        autoRepairProxy.setParallelRepairPercentage(repairType, percentage);
+    }
+
+    public void setAutoRepairParallelRepairCount(String repairType, int count)
+    {
+        autoRepairProxy.setParallelRepairCount(repairType, count);
+    }
+
+    public void setAutoRepairAllowParallelReplicaRepair(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepair(repairType, enabled);
+    }
+
+    public void setAutoRepairAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepairAcrossSchedules(repairType, enabled);
+    }
+
+    public void setAutoRepairPrimaryTokenRangeOnly(String repairType, boolean primaryTokenRangeOnly)
+    {
+        autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
+    }
+
+    public void setAutoRepairMaterializedViewRepairEnabled(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setMVRepairEnabled(repairType, enabled);
+    }
+
+    public List<String> getAutoRepairTablesForKeyspace(String keyspace)
+    {
+        return ssProxy.getTablesForKeyspace(keyspace);
+    }
+
+    public void setAutoRepairSessionTimeout(String repairType, String timeout)
+    {
+        autoRepairProxy.setRepairSessionTimeout(repairType, timeout);
+    }
+
+    public Set<String> getAutoRepairOnGoingRepairHostIds(String repairType)
+    {
+        return autoRepairProxy.getOnGoingRepairHostIds(repairType);
+    }
+
+    public void setAutoRepairRepairByKeyspace(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setRepairByKeyspace(repairType, enabled);
+    }
+
+    public void setAutoRepairMaxRetriesCount(String repairType, int retries)
+    {
+        autoRepairProxy.setAutoRepairMaxRetriesCount(repairType, retries);
+    }
+
+    public void setAutoRepairRetryBackoff(String repairType, String interval)
+    {
+        autoRepairProxy.setAutoRepairRetryBackoff(repairType, interval);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
@@ -2842,7 +2838,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     Iterator<Entry<String, ColumnFamilyStoreMBean>> mbeans;
 
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
-        throws MalformedObjectNameException, NullPointerException, IOException
+    throws MalformedObjectNameException, NullPointerException, IOException
     {
         this.mbeanServerConn = mbeanServerConn;
         List<Entry<String, ColumnFamilyStoreMBean>> cfMbeans = getCFSMBeans(mbeanServerConn, "ColumnFamilies");
@@ -2882,7 +2878,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     }
 
     private List<Entry<String, ColumnFamilyStoreMBean>> getCFSMBeans(MBeanServerConnection mbeanServerConn, String type)
-            throws MalformedObjectNameException, IOException
+    throws MalformedObjectNameException, IOException
     {
         ObjectName query = new ObjectName("org.apache.cassandra.db:type=" + type +",*");
         Set<ObjectName> cfObjects = mbeanServerConn.queryNames(query, null);

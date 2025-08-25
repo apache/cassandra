@@ -29,18 +29,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import static junit.framework.TestCase.assertEquals;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for {@link org.apache.cassandra.tools.nodetool.AutoRepairStatus}
+ */
 @RunWith(Parameterized.class)
 public class AutoRepairStatusTest
 {
@@ -49,73 +51,58 @@ public class AutoRepairStatusTest
 
     private ByteArrayOutputStream cmdOutput;
 
-    @Mock
-    private static AutoRepairConfig config;
-
     private static AutoRepairStatus cmd;
 
     @Parameterized.Parameter()
-    public RepairType repairType;
+    public AutoRepairConfig.RepairType repairType;
 
     @Parameterized.Parameters(name = "repairType={0}")
-    public static Collection<RepairType> repairTypes()
+    public static Collection<AutoRepairConfig.RepairType> repairTypes()
     {
-        return Arrays.asList(RepairType.values());
+        return Arrays.asList(AutoRepairConfig.RepairType.values());
     }
 
     @Before
-    public void setUp()
+    public void setUp() throws Exception
     {
         MockitoAnnotations.initMocks(this);
         cmdOutput = new ByteArrayOutputStream();
         PrintStream out = new PrintStream(cmdOutput);
         when(probe.output()).thenReturn(new Output(out, out));
-        when(probe.getAutoRepairConfig()).thenReturn(config);
         cmd = new AutoRepairStatus();
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.loadConfig();
+        setAutoRepairEnabled(true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.FULL, true);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, true);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testExecuteWithoutRepairType()
+    {
+        cmd.repairType = null;
+        cmd.execute(probe);
     }
 
     @Test
     public void testExecuteWithNoNodes()
     {
-        cmd.repairType = repairType;
+        cmd.repairType = repairType.name();
 
         cmd.execute(probe);
-
-        assertEquals("Data center group Active repairs Acitve force repairs\n" +
-                     "ALL NODES         EMPTY          EMPTY               \n" +
-                     "Total             EMPTY          EMPTY               \n", cmdOutput.toString());
+        assertEquals("Active Repairs\n" +
+        "NONE          \n", cmdOutput.toString());
     }
 
     @Test
-    public void testExecuteWithNoGroups()
+    public void testExecute()
     {
-        when(config.getDCGroups(repairType)).thenReturn(ImmutableSet.of());
-        when(probe.getOnGoingRepairHostIdsByGroupHash(eq(repairType), anyInt())).thenReturn(ImmutableSet.of("host1", "host2"));
-        when(probe.getOnGoingForceRepairHostIdsByGroupHash(eq(repairType), anyInt())).thenReturn(ImmutableSet.of("host3", "host4"));
-        cmd.repairType = repairType;
+        when(probe.getAutoRepairOnGoingRepairHostIds(repairType.name())).thenReturn(ImmutableSet.of("host1", "host2", "host3", "host4"));
+        cmd.repairType = repairType.name();
 
         cmd.execute(probe);
 
-        assertEquals("Data center group Active repairs Acitve force repairs\n" +
-                     "ALL NODES         host1,host2    host3,host4         \n" +
-                     "Total             host1,host2    host4,host3         \n", cmdOutput.toString());
-    }
-
-    @Test
-    public void testExecuteWithGroups()
-    {
-        when(config.getDCGroups(repairType)).thenReturn(ImmutableSet.of("group1", "group2"));
-        when(probe.getOnGoingRepairHostIdsByGroupHash(repairType, "group1".hashCode())).thenReturn(ImmutableSet.of("host1", "host2"));
-        when(probe.getOnGoingForceRepairHostIdsByGroupHash(repairType, "group1".hashCode())).thenReturn(ImmutableSet.of("host3", "host4"));
-        when(probe.getOnGoingRepairHostIdsByGroupHash(repairType, "group2".hashCode())).thenReturn(ImmutableSet.of("host5", "host6"));
-        when(probe.getOnGoingForceRepairHostIdsByGroupHash(repairType, "group2".hashCode())).thenReturn(ImmutableSet.of("host7", "host8"));
-        cmd.repairType = repairType;
-
-        cmd.execute(probe);
-
-        assertEquals("Data center group Active repairs          Acitve force repairs   \n" +
-                     "[group2]          host5,host6             host7,host8            \n" +
-                     "[group1]          host1,host2             host3,host4            \n" +
-                     "Total             host5,host6,host1,host2 host4,host7,host3,host8\n", cmdOutput.toString());
+        assertEquals("Active Repairs         \n" +
+                     "host1,host2,host3,host4\n", cmdOutput.toString());
     }
 }

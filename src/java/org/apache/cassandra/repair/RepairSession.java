@@ -36,6 +36,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
@@ -256,7 +257,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     private String repairedNodes()
     {
         StringBuilder sb = new StringBuilder();
-        if (!AutoRepairUtilsV2.isBootstrapRepair())
+        if (!AutoRepairUtils.isBootstrapRepair())
         {
             sb.append(FBUtilities.getBroadcastAddressAndPort());
         }

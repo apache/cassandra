@@ -381,7 +381,7 @@ public class StorageServiceTest
         doReturn(Keyspaces.of(KeyspaceMetadata.create("ks1", KeyspaceParams.create(true, configOptions)),
                               KeyspaceMetadata.create("ks2", KeyspaceParams.create(true, configOptions)),
                               KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.create(true, configOptions))))
-        .when(schema).getNonLocalStrategyKeyspaces();
+        .when(schema).distributedKeyspaces();
         List<Range<Token>> dummyRanges = new ArrayList<>();
         doReturn(dummyRanges).when(storageService).getLocalAndPendingRanges(any());
         doReturn(ImmediateFuture.success(null)).when(activeRepairService).repairPaxosForTopologyChange(any(), any(), any(), any());
@@ -414,7 +414,7 @@ public class StorageServiceTest
         doReturn(Keyspaces.of(KeyspaceMetadata.create("ks1", KeyspaceParams.create(true, configOptions)),
                               KeyspaceMetadata.create("ks2", KeyspaceParams.create(true, configOptions)),
                               KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.create(true, configOptions))))
-        .when(schema).getNonLocalStrategyKeyspaces();
+        .when(schema).distributedKeyspaces();
         List<Range<Token>> dummyRanges = new ArrayList<>();
         doReturn(dummyRanges).when(storageService).getLocalAndPendingRanges(any());
         // throw ExecutionException

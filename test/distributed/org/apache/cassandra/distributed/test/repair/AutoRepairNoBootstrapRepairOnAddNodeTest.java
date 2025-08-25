@@ -36,9 +36,9 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairUtilsV2;
-import org.apache.cassandra.repair.state.AutoRepairStateFactory;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.streaming.StreamSession;
 
@@ -46,7 +46,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
+import static org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType.BOOTSTRAP;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -83,17 +83,17 @@ public class AutoRepairNoBootstrapRepairOnAddNodeTest extends TestBaseImpl
             .set("auto_repair",
                  ImmutableMap.of(
                  "repair_type_overrides",
-                 ImmutableMap.of(bootstrap.toString(),
+                 ImmutableMap.of(BOOTSTRAP.getConfigName(),
                                  ImmutableMap.<String, String>builder()
-                                             .put("initial_scheduler_delay_in_sec", "5")
+                                             .put("initial_scheduler_delay", "5s")
                                              .put("enabled", "false")
-                                             .put("parallel_repair_count_in_group", "1")
-                                             .put("parallel_repair_percentage_in_group", "0")
-                                             .put("min_repair_interval_in_hours", "-1")
-                                             .put("repair_only_keyspaces", KEYSPACE).build()
+                                             .put("parallel_repair_count", "1")
+                                             .put("parallel_repair_percentage", "0")
+                                             .put("min_repair_interval", "1s")
+                                             .put("repair_max_retries", "0").build()
                  )))
             .set("auto_repair.enabled", "true")
-            .set("auto_repair.repair_check_interval_in_sec", "10")
+            .set("auto_repair.repair_check_interval", "5s")
             .set("auto_repair.repair_task_min_duration", "0s");
 
             IInvokableInstance newInstance = cluster.bootstrap(config);
@@ -104,7 +104,7 @@ public class AutoRepairNoBootstrapRepairOnAddNodeTest extends TestBaseImpl
             cluster.get(1).runOnInstance(
             () -> {
                 // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
                 BBStreamFailure.failStream.set(false);
             }
             );
@@ -112,8 +112,9 @@ public class AutoRepairNoBootstrapRepairOnAddNodeTest extends TestBaseImpl
             newInstance.runOnInstance(
             () -> {
                 AutoRepairService.setup();
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
-                assertFalse(AutoRepairUtilsV2.isBootstrapRepair());
+                AutoRepair.instance.setup();
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
+                assertFalse(AutoRepairUtils.isBootstrapRepair());
             }
             );
         }

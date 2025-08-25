@@ -49,6 +49,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -57,7 +58,6 @@ import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
-import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.slf4j.Logger;
@@ -97,6 +97,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -387,7 +388,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
@@ -404,8 +406,6 @@ public class DatabaseDescriptor
         applySnitch();
 
         applyTokensConfig();
-
-        applyAutoRepairConfig();
 
         applySeedProvider();
 
@@ -1367,20 +1367,6 @@ public class DatabaseDescriptor
         else if (conf.num_tokens == null)
         {
             conf.num_tokens = 1;
-        }
-    }
-
-    public static void applyAutoRepairConfig()
-    {
-        applyAutoRepairConfig(conf.auto_repair);
-    }
-
-    public static void applyAutoRepairConfig(AutoRepairConfig config)
-    {
-        // set the number of subranges of global_settings if the value is not set
-        if (config.global_settings.number_of_subranges == null)
-        {
-            config.global_settings.number_of_subranges = Math.min(16, Math.max(1, 256 / DatabaseDescriptor.getNumTokens()));
         }
     }
 
@@ -4421,16 +4407,6 @@ public class DatabaseDescriptor
         conf.reject_repair_compaction_threshold = value;
     }
 
-    public static double getIncrementalRepairDiskHeadroomRejectRatio()
-    {
-        return conf.incremental_repair_disk_headroom_reject_ratio;
-    }
-
-    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
-    {
-        conf.incremental_repair_disk_headroom_reject_ratio = value;
-    }
-
     public static int getInitialRangeTombstoneListAllocationSize()
     {
         return conf.initial_range_tombstone_list_allocation_size;
@@ -5202,11 +5178,6 @@ public class DatabaseDescriptor
         conf.clear_snapshot_files_log_enabled = enabled;
     }
 
-    public static AutoRepairConfig getAutoRepairConfig()
-    {
-        return conf.auto_repair;
-    }
-
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {
         return conf.orphan_node_hint_files_cleanup_enabled;
     }
@@ -5436,5 +5407,30 @@ public class DatabaseDescriptor
 
     public static void setMinimumCassandraVersionForAnyClusterNode(@Nullable CassandraVersion minimumCassandraVersionForAnyClusterNode) {
         conf.minimum_cassandra_version_for_any_cluster_node = minimumCassandraVersionForAnyClusterNode;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        if (value < 0.0 || value > 1.0)
+        {
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for incremental_repair_disk_headroom_reject_ratio");
+        }
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
+    @VisibleForTesting
+    public static void setPartitioner(String name)
+    {
+        partitioner = FBUtilities.newPartitioner(name);
     }
 }

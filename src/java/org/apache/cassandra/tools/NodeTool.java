@@ -145,10 +145,10 @@ public class NodeTool
                 GetAuditLogRoleFilter.class,
                 GetAuthCacheConfig.class,
                 GetAuthEnforcementFlag.class,
+                GetAutoRepairConfig.class,
                 GetBatchlogReplayTrottle.class,
                 GetColumnIndexSize.class,
                 GetBadQueryThreshold.class,
-                GetAutoRepairConfig.class,
                 GetCfsWithNonDefaultCompactionParams.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
@@ -223,6 +223,7 @@ public class NodeTool
                 ResetFullQueryLog.class,
                 ResetLocalSchema.class,
                 ResumeHandoff.class,
+                RunAutoRepairOnce.class,
                 Ring.class,
                 Scrub.class,
                 SetAuditLogRoleFilter.class,
@@ -230,12 +231,11 @@ public class NodeTool
                 SetValueForConfig.class,
                 GetValueForConfig.class,
                 SetBadQueryThreshold.class,
-                SetAutoRepairConfig.class,
-                RunAutoRepairOnce.class,
                 Shutdown.class,
                 SetAndOverrideLocalCompactionStrategy.class,
                 SetAuthEnforcementFlag.class,
                 SetGossipServiceCacheMismatchConfig.class,
+                SetAutoRepairConfig.class,
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,
                 SetCacheKeysToSave.class,
@@ -270,6 +270,7 @@ public class NodeTool
                 SetUseWeightBasedPreparedStatementsCacheEnabled.class,
                 Sjk.class,
                 Snapshot.class,
+                SSTableRepairedSet.class,
                 Status.class,
                 StatusAutoCompaction.class,
                 StatusBackup.class,
@@ -289,8 +290,7 @@ public class NodeTool
                 ViewBuildStatus.class,
                 GetRateLimiterConfig.class,
                 SetRateLimiterConfig.class,
-                ForceCompact.class,
-                SSTableRepairedSet.class
+                ForceCompact.class
         );
 
         Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");

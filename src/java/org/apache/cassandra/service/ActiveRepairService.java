@@ -109,6 +109,13 @@ import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
+import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -621,11 +628,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public TimeUUID prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
         if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
-        {
-            for (ColumnFamilyStore cfs : columnFamilyStores)
-                cfs.metric.repairFailuresDueToInsufficientDisk.inc();
             failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
-        }
+
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
         {
             for (ColumnFamilyStore cfs : columnFamilyStores)

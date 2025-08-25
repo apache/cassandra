@@ -60,7 +60,7 @@ public class EnforceLCSTest extends CQLTester
     public static final Config.LCSEnforcementLevel originalLevel = DatabaseDescriptor.getLCSEnforcementLevel();
     public static final int originalSSTableSize = DatabaseDescriptor.getLCSSSTableSizeInMB();
     Set<String> sysKeyspaces = ImmutableSet.of(SchemaConstants.SYSTEM_KEYSPACE_NAME, SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                               SchemaConstants.AUTH_KEYSPACE_NAME, SchemaConstants.TRACE_KEYSPACE_NAME, SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME);
+                                               SchemaConstants.AUTH_KEYSPACE_NAME, SchemaConstants.TRACE_KEYSPACE_NAME);
     List<String> systemTablesToBeVerified = Arrays.asList(
     "system.IndexInfo", "system.available_ranges", "system.available_ranges_v2",
     "system.batches", "system.built_views", "system.compaction_history",
@@ -72,10 +72,10 @@ public class EnforceLCSTest extends CQLTester
     "system.view_builds_in_progress",
     "system_auth.network_permissions", "system_auth.resource_role_permissons_index",
     "system_auth.role_members", "system_auth.role_permissions", "system_auth.roles",
-    "system_auto_repair.auto_repair_history_v2", "system_auto_repair.auto_repair_priority_v2",
     "system_distributed.audit_users", "system_distributed.parent_repair_history",
     "system_distributed.partition_denylist", "system_distributed.repair_history",
-    "system_distributed.view_build_status",
+    "system_distributed.view_build_status", "system_distributed.auto_repair_history",
+    "system_distributed.auto_repair_priority",
     "system_schema.aggregates", "system_schema.columns", "system_schema.dropped_columns",
     "system_schema.functions", "system_schema.indexes", "system_schema.keyspaces",
     "system_schema.tables", "system_schema.triggers", "system_schema.types",
@@ -354,17 +354,16 @@ public class EnforceLCSTest extends CQLTester
                                        defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.AUDIT_USER,
                                        LeveledCompactionStrategy.class);
+        schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+                                       LeveledCompactionStrategy.class);
+        schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
+                                       LeveledCompactionStrategy.class);
 
         // system_trace (all using default compaction strategy)
         schemaToCompactionStrategy.put(SchemaConstants.TRACE_KEYSPACE_NAME + '.' + TraceKeyspace.SESSIONS, defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.TRACE_KEYSPACE_NAME + '.' + TraceKeyspace.EVENTS, defaultCS);
 
         // system_views, system_virtual_schema are virtual keyspaces. Virtual tables won't create SSTables
-
-        // system_auto_repair (all using default compaction strategy)
-        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_history_v2", defaultCS);
-        schemaToCompactionStrategy.put(SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME + '.' + "auto_repair_priority_v2", defaultCS);
-
         return schemaToCompactionStrategy;
     }
 }

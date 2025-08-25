@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.repair;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -45,13 +46,12 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.RepairException;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairUtilsV2;
-import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.repair.state.AutoRepairStateFactory;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -61,7 +61,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.schema.SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -96,7 +96,7 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
             cluster.get(1).runOnInstance(
             () -> {
                 // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(AutoRepairConfig.RepairType.BOOTSTRAP).calcRepairTurn(null));
                 BBStreamFailure.failStream.set(true);
             }
             );
@@ -107,18 +107,17 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
             .set("auto_repair",
                  ImmutableMap.of(
                  "repair_type_overrides",
-                 ImmutableMap.of(AutoRepairConfig.RepairType.bootstrap.toString(),
-                                 ImmutableMap.of(
-                                 "initial_scheduler_delay_in_sec", "5",
-                                 "enabled", "false",
-                                 "parallel_repair_count_in_group", "1",
-                                 "parallel_repair_percentage_in_group", "0",
-                                 "min_repair_interval_in_hours", "-1"))))
+                 ImmutableMap.of(AutoRepairConfig.RepairType.BOOTSTRAP.getConfigName(),
+                                 Map.of(
+                                 "initial_scheduler_delay", "5s",
+                                 "enabled", "true",
+                                 "parallel_repair_count", "1",
+                                 "parallel_repair_percentage", "0",
+                                    "repair_max_retries", "0",
+                                 "min_repair_interval", "0s"))))
             .set("auto_repair.enabled", "true")
-            .set("auto_repair.repair_check_interval_in_sec", "10")
-            .set("auto_repair.repair_task_min_duration", "0s")
-            .set("auto_repair.repair_max_retries", "0")
-            .set("auto_repair.repair_retry_backoff_in_sec", "0");
+            .set("auto_repair.repair_check_interval", "2s")
+            .set("auto_repair.repair_task_min_duration", "0s");
 
 
             cluster.get(2).shutdown();
@@ -140,12 +139,13 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
             // looks among its local ranges only.
             cluster.get(1).runOnInstance(
             () -> {
-                AutoRepairV2.instance.setup();
+                AutoRepairService.setup();
+                AutoRepair.instance.setup();
 
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
-                assertFalse(AutoRepairUtilsV2.isBootstrapRepair());
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(AutoRepairConfig.RepairType.BOOTSTRAP).calcRepairTurn(null));
+                assertFalse(AutoRepairUtils.isBootstrapRepair());
                 RepairOption option = new RepairOption(RepairParallelism.PARALLEL, true, true, false,
-                                                       AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(AutoRepairConfig.RepairType.full), tokenRangesNode2,
+                                                       AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(AutoRepairConfig.RepairType.FULL), tokenRangesNode2,
                                                        !tokenRangesNode2.isEmpty(), false, false, PreviewKind.NONE, false, true, false, false);
                 RepairRunnable repairRunnable = new RepairRunnable(StorageService.instance, 0, option, KEYSPACE);
                 try
@@ -165,12 +165,15 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
             // (127.0.0.2, 127.0.0.4, 127.0.0.4)
             newInstance.runOnInstance(
             () -> {
+                AutoRepairService.setup();
+                AutoRepair.instance.setup();
+
                 AutoRepairConfig autoRepairConfig = AutoRepairService.instance.getAutoRepairConfig();
-                autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.bootstrap, true);
-                assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
-                assertTrue(AutoRepairUtilsV2.isBootstrapRepair());
+                autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.BOOTSTRAP, true);
+                assertEquals(AutoRepairUtils.RepairTurn.MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(AutoRepairConfig.RepairType.BOOTSTRAP).calcRepairTurn(null));
+                assertTrue(AutoRepairUtils.isBootstrapRepair());
                 RepairOption option = new RepairOption(RepairParallelism.PARALLEL, true, true, false,
-                                                       autoRepairConfig.getRepairThreads(AutoRepairConfig.RepairType.full), tokenRangesNode2,
+                                                       autoRepairConfig.getRepairThreads(AutoRepairConfig.RepairType.FULL), tokenRangesNode2,
                                                        !tokenRangesNode2.isEmpty(), false, false, PreviewKind.NONE, false, true, false, false);
                 RepairRunnable repairRunnable = new RepairRunnable(StorageService.instance, 0, option, KEYSPACE);
                 RepairRunnable.NeighborsAndRanges neighborsAndRanges;
@@ -187,7 +190,7 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
                                                             .collect(Collectors.toCollection(TreeSet::new)));
                 // disable bootstrap repair type and it should throw an exception
                 // because the local token range is empty
-                autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.bootstrap, false);
+                autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.BOOTSTRAP, false);
                 try
                 {
                     repairRunnable.getNeighborsAndRanges();
@@ -218,10 +221,11 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
         return cluster.get(nodeId).callOnInstance(() -> {
             try
             {
-                AutoRepairV2.instance.setup();
+                AutoRepairService.setup();
+                AutoRepair.instance.setup();
 
                 Set<Range<Token>> ranges = new HashSet<>();
-                Collection<Range<Token>> tokenRanges = StorageService.instance.getPrimaryRanges(AUTO_REPAIR_KEYSPACE_NAME);
+                Collection<Range<Token>> tokenRanges = StorageService.instance.getPrimaryRanges(DISTRIBUTED_KEYSPACE_NAME);
                 for (Range<Token> token : tokenRanges)
                 {
                     ranges.add(token);

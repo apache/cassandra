@@ -56,8 +56,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.assertj.core.api.Assertions;
 import org.reflections.Reflections;
@@ -121,8 +121,9 @@ public class JMXStandardsTest
                                                        // used in RateLimiterService
                                                        .add(ThrottlingOptions.class)
                                                          // used in AutoRepairService
-                                                       .add(AutoRepairConfig.class)
                                                        .add(AutoRepairConfig.RepairType.class)
+                                                       .add(InetAddressAndPort.class)
+                                                       .add(AutoRepairConfig.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not

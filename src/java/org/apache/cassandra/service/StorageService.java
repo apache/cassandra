@@ -101,14 +101,13 @@ import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.GetEndpointsForAllTokenRangesMetrics;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
-import org.apache.cassandra.repair.AutoRepairUtilsV2;
-import org.apache.cassandra.repair.AutoRepairV2;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.sqel.SampledQueryEventLogger;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptionsCompositeData;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -195,7 +194,6 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -269,6 +267,7 @@ import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFami
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
+import static org.apache.cassandra.locator.InetAddressAndPort.stringify;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -397,13 +396,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return getLocalReplicasEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+        return getReplicas(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
     }
 
-    public RangesAtEndpoint getLocalReplicasEndpoint(String keyspaceName, InetAddressAndPort ep)
+    public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                       .getAddressReplicas(ep);
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(getTokenMetadata().cloneOnlyTokenMap(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -475,11 +478,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
 
-    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     private Collection<Token> bootstrapTokens = null;
 
@@ -1310,13 +1314,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (dataAvailable)
             {
                 finishJoiningRing(shouldBootstrap, bootstrapTokens);
-                AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
-                if (forceRepair && repairConfig.isAutoRepairSchedulingEnabled())
-                {
-                    for (RepairType rType : RepairType.values())
-                        if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
-                            AutoRepairUtilsV2.setForceRepairNewNode(rType);
-                }
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
                 {
@@ -1426,8 +1423,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         doBadQuerySetup();
 
-        doAutoRepairSetup();
-
         doGossipServiceCacheMismatchSetup();
 
         doRateLimiterSetup();
@@ -1521,13 +1516,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public static boolean doAutoRepairSetup()
     {
+        AutoRepairService.setup();
         if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             logger.info("Auto-repair scheduling is disabled");
             return false;
         }
         logger.info("Enable auto-repair scheduling");
-        AutoRepairV2.instance.setup();
+        AutoRepair.instance.setup();
         logger.info("AutoRepair setup complete!");
         return true;
     }
@@ -1570,7 +1566,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
-        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AutoRepairKeyspace.metadata(), AutoRepairKeyspace.GENERATION));
     }
 
     public boolean isJoined()
@@ -4224,16 +4219,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
     }
 
-    private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
-    {
-        List<String> stringEndpoints = new ArrayList<>();
-        for (InetAddressAndPort ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress(withPort));
-        }
-        return stringEndpoints;
-    }
-
     public int getCurrentGenerationNumber()
     {
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddressAndPort());
@@ -4957,7 +4942,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
-            Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+            Keyspaces keyspaces = Schema.instance.distributedKeyspaces();
             for (String ksName : keyspaces.names())
             {
                 if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
@@ -7876,11 +7861,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (String tableName : tableNames) {
             ColumnFamilyStore table = tables.get(tableName);
             Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
-                    Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
-                    if (!preview)
-                        table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
-                    return sstables;
-                }, predicate, true, false, true);
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, true, false, true);
             sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFilename()).collect(Collectors.toList()));
         }
         return sstablesTouched;
@@ -7971,15 +7956,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             try
             {
-                AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairStarted.inc();
-                if (AutoRepairUtilsV2.runBootstrapRepair())
+                AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairStarted.inc();
+                if (AutoRepairUtils.runBootstrapRepair())
                 {
-                    AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairSucceded.inc();
+                    AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairSucceded.inc();
                     logger.info("Bootstrap repair during node replacement succeeded");
                 }
                 else
                 {
-                    AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairDisabledOrFailed.inc();
+                    AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairDisabledOrFailed.inc();
                     logger.info("Bootstrap repair either not enabled or failed");
                 }
             }

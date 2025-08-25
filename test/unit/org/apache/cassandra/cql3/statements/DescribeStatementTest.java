@@ -258,6 +258,7 @@ public class DescribeStatementTest extends CQLTester
     public void testDescribe() throws Throwable
     {
         DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(false);
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(false);
         helperTestDescribe();
     }
 
@@ -268,8 +269,14 @@ public class DescribeStatementTest extends CQLTester
         helperTestDescribe();
     }
 
+    @Test
+    public void testDescribeWithAutoRepair() throws Throwable
+    {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
+        helperTestDescribe();
+    }
 
-    private void helperTestDescribe() throws Throwable
+    public void helperTestDescribe() throws Throwable
     {
         try
         {
@@ -315,7 +322,6 @@ public class DescribeStatementTest extends CQLTester
                                                   row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
                                                   row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
                                                   row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
-                                                  row(AUTO_REPAIR_KEYSPACE_NAME, "keyspace", AUTO_REPAIR_KEYSPACE_NAME),
                                                   row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
                                                   row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
                                                   row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
@@ -998,7 +1004,42 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
+        String baseCQL = "additional_write_policy = '99p'\n" +
+                         "    AND bloom_filter_fp_chance = 0.01\n" +
+                         "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                         "    AND cdc = false\n" +
+                         "    AND comment = ''\n" +
+                         "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+                         "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                         "    AND memtable = 'default'\n" +
+                         "    AND crc_check_chance = 1.0\n" +
+                         "    AND default_time_to_live = 0\n" +
+                         "    AND extensions = {}\n" +
+                         "    AND gc_grace_seconds = 864000\n" +
+                         "    AND max_index_interval = 2048\n" +
+                         "    AND memtable_flush_period_in_ms = 0\n" +
+                         "    AND min_index_interval = 128\n" +
+                         "    AND read_repair = 'BLOCKING'\n" +
+                         "    AND speculative_retry = '99p'";
+
         if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled())
+        {
+            baseCQL += "\n    AND strict_mv_consistency = false";
+        }
+
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            baseCQL += "\n    AND auto_repair = {'bootstrap_enabled': 'true', 'full_enabled': 'true', 'incremental_enabled': 'true', 'paxos_cleanup_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'}";
+        }
+
+        baseCQL += ";";
+
+        return baseCQL;
+    }
+
+    private static String mvParametersCql()
+    {
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             return "additional_write_policy = '99p'\n" +
                    "    AND bloom_filter_fp_chance = 0.01\n" +
@@ -1009,7 +1050,25 @@ public class DescribeStatementTest extends CQLTester
                    "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                    "    AND memtable = 'default'\n" +
                    "    AND crc_check_chance = 1.0\n" +
-                   "    AND default_time_to_live = 0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p';";
+        }
+        else
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
                    "    AND extensions = {}\n" +
                    "    AND gc_grace_seconds = 864000\n" +
                    "    AND max_index_interval = 2048\n" +
@@ -1017,45 +1076,8 @@ public class DescribeStatementTest extends CQLTester
                    "    AND min_index_interval = 128\n" +
                    "    AND read_repair = 'BLOCKING'\n" +
                    "    AND speculative_retry = '99p'\n" +
-                   "    AND strict_mv_consistency = false;";
+                   "    AND auto_repair = {'bootstrap_enabled': 'true', 'full_enabled': 'true', 'incremental_enabled': 'true', 'paxos_cleanup_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
         }
-        return "additional_write_policy = '99p'\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
-    }
-
-    private static String mvParametersCql()
-    {
-        return "additional_write_policy = '99p'\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
     }
 
     private static String keyspaceOutput()

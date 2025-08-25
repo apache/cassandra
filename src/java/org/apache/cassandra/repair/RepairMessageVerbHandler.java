@@ -95,6 +95,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         logger.debug("Duplicate prepare message found for {}", state.id);
                         return;
                     }
+                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind, prepareMessage.isIncremental))
+                    {
+                        // error is logged in verifyDiskHeadroomThreshold
+                        state.phase.fail("Not enough disk headroom to perform incremental repair");
+                        sendFailureResponse(message);
+                        return;
+                    }
+
                     List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.tableIds.size());
                     for (TableId tableId : prepareMessage.tableIds)
                     {
@@ -115,15 +123,6 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             cfs.metric.repairFailuresDueToPendingCompactions.inc();
                         // error is logged in verifyCompactionsPendingThreshold
                         state.phase.fail("Too many pending compactions");
-                        sendFailureResponse(message);
-                        return;
-                    }
-                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind, prepareMessage.isIncremental))
-                    {
-                        for (ColumnFamilyStore cfs : columnFamilyStores)
-                            cfs.metric.repairFailuresDueToInsufficientDisk.inc();
-                        // error is logged in verifyDiskHeadroomThreshold
-                        state.phase.fail("Not enough disk headroom to perform incremental repair");
                         sendFailureResponse(message);
                         return;
                     }

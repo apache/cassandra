@@ -1377,6 +1377,33 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return keyCache != null && metadata().params.caching.cacheKeys();
     }
 
+    public long onDiskSizeForPartitionPositions(Collection<PartitionPositionBounds> positionBounds)
+    {
+        long total = 0;
+        if (!compression)
+        {
+            for (PartitionPositionBounds position : positionBounds)
+                total += position.upperPosition - position.lowerPosition;
+        }
+        else
+        {
+            final CompressionMetadata compressionMetadata = getCompressionMetadata();
+            long lastEnd = 0;
+            for (PartitionPositionBounds position : positionBounds)
+            {
+                // The end of the chunk that contains the last required byte from the range.
+                long upperChunkEnd = compressionMetadata.chunkFor(position.upperPosition - 1).chunkEnd();
+                // The start of the chunk that contains the first required byte from the range.
+                long lowerChunkStart = compressionMetadata.chunkFor(position.lowerPosition).offset;
+                if (lowerChunkStart < lastEnd)  // if regions include the same chunk, count it only once
+                    lowerChunkStart = lastEnd;
+                total += upperChunkEnd - lowerChunkStart;
+                lastEnd = upperChunkEnd;
+            }
+        }
+        return total;
+    }
+
     /**
      * Retrieves the position while updating the key cache and the stats.
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to

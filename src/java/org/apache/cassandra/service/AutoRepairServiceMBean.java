@@ -19,136 +19,65 @@ package org.apache.cassandra.service;
 
 import java.util.Set;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 
+/**
+ * Defines all the MBeans exposed for AutoRepair.
+ */
 public interface AutoRepairServiceMBean
 {
     /**
      * run Auto repair once on this node
      */
-    public void runAutoRepairOnce(RepairType type, long millisToWait);
+    public void runAutoRepairOnce(AutoRepairConfig.RepairType type);
 
-    /**
-     * Enable or disable auto-repair for a given repair type
-     */
-    public void setAutoRepairEnabled(RepairType repairType, boolean enabled);
+    public void setAutoRepairEnabled(String repairType, boolean enabled);
 
-    /**
-     * Set repair threads
-     */
-    public void setRepairThreads(RepairType repairType, int repairThreads);
+    public void setRepairThreads(String repairType, int repairThreads);
 
-    /**
-     * Get current ongoing repair host ids by group hash
-     */
-    public Set<String> getOnGoingRepairHostIdsByGroupHash(RepairType type, int groupHash);
+    public void setRepairPriorityForHosts(String repairType, String commaSeparatedHostSet);
 
-    /**
-     * Get current force repair host ids by group hash
-     */
-    public Set<String> getOnGoingForceRepairHostIdsByGroupHash(RepairType type, int groupHash);
+    public void setForceRepairForHosts(String repairType, String commaSeparatedHostSet);
 
-    /**
-     * Set repair priority for hosts
-     */
-    public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> host);
+    public void setRepairMinInterval(String repairType, String minRepairInterval);
 
-    /**
-     * Set force repair for hosts
-     */
-    public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> host);
+    void startScheduler();
 
-    /**
-     * Get repair priority
-     */
-    public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType);
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration);
 
-    /**
-     * Set repair subrange numbers
-     */
-    public void setRepairSubRangeNum(RepairType repairType, int repairSubRangeNum);
+    public void setAutoRepairMinRepairTaskDuration(String duration);
 
-    /**
-     * Set repair interval in hours
-     */
-    public void setRepairMinIntervalInHours(RepairType repairType, int repairMinIntervalInHours);
+    public void setRepairSSTableCountHigherThreshold(String repairType, int ssTableHigherThreshold);
 
-    /**
-     * Set auto repair history clear
-     */
-    public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds);
+    public void setAutoRepairTableMaxRepairTime(String repairType, String autoRepairTableMaxRepairTime);
 
-    /**
-     * Set auto repair max retries count
-     */
-    public void setAutoRepairMaxRetriesCount(int retries);
+    public void setIgnoreDCs(String repairType, Set<String> ignorDCs);
 
-    /**
-     * Set auto repair retry backoff in seconds
-     */
-    public void setAutoRepairRetryBackoffInSec(long seconds);
+    public void setPrimaryTokenRangeOnly(String repairType, boolean primaryTokenRangeOnly);
 
-    /**
-     * Set minimum duration for a single repair job
-     */
-    public void setAutoRepairMinRepairTaskDurationInSec(long duration);
+    public void setParallelRepairPercentage(String repairType, int percentage);
 
-    /**
-     * Set repair sstable count higher threshold
-     */
-    public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
+    public void setParallelRepairCount(String repairType, int count);
 
-    /**
-     * Set repair ignore keyspaces regex
-     */
-    public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex);
+    public void setAllowParallelReplicaRepair(String repairType, boolean enabled);
 
-    /**
-     * Set repair only keyspaces regex
-     */
-    public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex);
+    public void setAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled);
 
-    /**
-     * Set table max repair time in sec
-     */
-    public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec);
+    public void setMVRepairEnabled(String repairType, boolean enabled);
 
-    /**
-     * Set ignore dcs list
-     */
-    public void setIgnoreDCs(RepairType repairType, Set<String> ignorDCs);
+    public boolean isAutoRepairDisabled();
 
-    /**
-     * Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
-     */
-    public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly);
+    public String getAutoRepairConfiguration();
 
-    /**
-     * Set percentage of the nodes in one group should run repair parallelly
-     */
-    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup);
+    public void setRepairSessionTimeout(String repairType, String timeout);
 
-    /**
-     * Return number of the nodes in one group should run repair parallelly
-     */
-    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup);
+    public Set<String> getOnGoingRepairHostIds(String repairType);
 
-    /**
-     * Set if MVs should be included in the AutoRepair or not
-     */
-    public void setMVRepairEnabled(RepairType repairType, boolean enabled);
+    public void setAutoRepairTokenRangeSplitterParameter(String repairType, String key, String value);
 
-    /**
-     * Set if repair should be scheduled keyspace-by-keyspace
-     */
-    public void setRepairByKeyspace(RepairType repairType, boolean enabled);
+    public void setRepairByKeyspace(String repairType, boolean repairByKeyspace);
 
-    public AutoRepairConfig getAutoRepairConfig();
+    public void setAutoRepairMaxRetriesCount(String repairType, int retries);
 
-    /**
-     * Returns hosts that are in the same group as this node
-     */
-    public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter);
+    public void setAutoRepairRetryBackoff(String repairType, String interval);
 }

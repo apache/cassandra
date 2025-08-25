@@ -48,6 +48,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import org.junit.*;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,6 +118,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 
 /**
  * Base class for CQL tests.
@@ -331,6 +334,13 @@ public abstract class CQLTester
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+    }
+
+    // So derived classes can get enough intialization to start setting DatabaseDescriptor options
+    public static void daemonInitialization()
+    {
+        ServerTestUtils.daemonInitialization();
     }
 
     @AfterClass

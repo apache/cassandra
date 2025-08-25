@@ -33,10 +33,9 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairUtilsV2;
-import org.apache.cassandra.repair.AutoRepairV2;
-import org.apache.cassandra.repair.state.AutoRepairStateFactory;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.streaming.StreamSession;
 
@@ -50,9 +49,9 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.full;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.incremental;
+import static org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType.BOOTSTRAP;
+import static org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType.FULL;
+import static org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType.INCREMENTAL;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -90,17 +89,18 @@ public class AutoRepairInvokeBootstrapRepairOnReplacementTest extends TestBaseIm
             .set("auto_repair",
                  ImmutableMap.of(
                  "repair_type_overrides",
-                 ImmutableMap.of(bootstrap.toString(),
+                 ImmutableMap.of(BOOTSTRAP.getConfigName(),
                                  ImmutableMap.<String, String>builder()
-                                             .put("initial_scheduler_delay_in_sec", "5")
+                                             .put("initial_scheduler_delay", "5s")
                                              .put("enabled", "false")
-                                             .put("parallel_repair_count_in_group", "1")
-                                             .put("parallel_repair_percentage_in_group", "0")
-                                             .put("min_repair_interval_in_hours", "-1")
-                                             .put("repair_only_keyspaces", KEYSPACE).build()
+                                             .put("parallel_repair_count", "1")
+                                             .put("parallel_repair_percentage", "0")
+                                             .put("min_repair_interval", "0s")
+                                             .put("repair_max_retries", "0")
+                                             .build()
                  )))
             .set("auto_repair.enabled", "true")
-            .set("auto_repair.repair_check_interval_in_sec", "10")
+            .set("auto_repair.repair_check_interval", "5s")
             .set("auto_repair.repair_task_min_duration", "0s");
 
             InetSocketAddress node2Address = cluster.get(2).broadcastAddress();
@@ -115,7 +115,7 @@ public class AutoRepairInvokeBootstrapRepairOnReplacementTest extends TestBaseIm
             cluster.get(1).runOnInstance(
             () -> {
                 // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
                 BBStreamFailure.failStream.set(false);
             }
             );
@@ -125,42 +125,43 @@ public class AutoRepairInvokeBootstrapRepairOnReplacementTest extends TestBaseIm
                 try
                 {
                     AutoRepairService.setup();
+                    AutoRepair.instance.setup();
                     AutoRepairConfig cfg = AutoRepairService.instance.getAutoRepairConfig();
-                    cfg.setAutoRepairEnabled(bootstrap, true);
+                    cfg.setAutoRepairEnabled(BOOTSTRAP, true);
                     // we won't run a full repair on UJ-this is just to ensure that the config value for "full"
                     // and other repair types is preserved post-bootstrap repair round
-                    cfg.setAutoRepairEnabled(full, true);
+                    cfg.setAutoRepairEnabled(FULL, true);
 
-                    assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN,
-                                 AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                    assertEquals(AutoRepairUtils.RepairTurn.MY_TURN,
+                                 AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
                     // "bootstrap" repair should be run successfully
                     validateConfigAndBootstrapRepairExecution(cfg, true);
 
-                    AutoRepairV2.instance.getRepairState(bootstrap).setNodeRepairTimeInSec(0);
+                    AutoRepair.instance.getRepairState(BOOTSTRAP).setNodeRepairTimeInSec(0);
 
                     // "bootstrap" repair should not be run because it is disabled
                     validateConfigAndBootstrapRepairExecution(cfg, false);
 
                     // enable "bootstrap" repair but allocate an extremely short quota "1s"
                     // in this scenario; the expectation is that the bootstrap repair should abort after "1s" of execution
-                    cfg.setAutoRepairEnabled(bootstrap, true);
-                    cfg.setAbortAutoRepairAfter(bootstrap, "1s");
+                    cfg.setAutoRepairEnabled(BOOTSTRAP, true);
+                    cfg.setAbortAutoRepairAfter(BOOTSTRAP, "1s");
 
-                    assertTrue(cfg.isAutoRepairEnabled(bootstrap));
-                    assertTrue(cfg.isAutoRepairEnabled(full));
-                    assertFalse(cfg.isAutoRepairEnabled(incremental));
+                    assertTrue(cfg.isAutoRepairEnabled(BOOTSTRAP));
+                    assertTrue(cfg.isAutoRepairEnabled(FULL));
+                    assertFalse(cfg.isAutoRepairEnabled(INCREMENTAL));
 
-                    boolean completedSuccessfully = AutoRepairUtilsV2.runBootstrapRepair();
+                    boolean completedSuccessfully = AutoRepairUtils.runBootstrapRepair();
                     assertFalse("One round of repair should not have completed as we want to abort earlier",
                                 completedSuccessfully);
                     assertEquals(0,
-                                 AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue());
-                    assertEquals(1, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairAborted.getCount());
+                                 AutoRepairMetricsManager.getMetrics(BOOTSTRAP).nodeRepairTimeInSec.getValue().longValue());
+                    assertEquals(1, AutoRepairMetricsManager.getMetrics(BOOTSTRAP).bootstrapRepairAborted.getCount());
                     // after one round, the "bootstrap" repair should be automatically disabled
                     // but the other repairs, such as "full" should continue to maintain its original enablement state
-                    assertFalse(cfg.isAutoRepairEnabled(bootstrap));
-                    assertTrue(cfg.isAutoRepairEnabled(full));
-                    assertFalse(cfg.isAutoRepairEnabled(incremental));
+                    assertFalse(cfg.isAutoRepairEnabled(BOOTSTRAP));
+                    assertTrue(cfg.isAutoRepairEnabled(FULL));
+                    assertFalse(cfg.isAutoRepairEnabled(INCREMENTAL));
                 }
                 catch (InterruptedException e)
                 {
@@ -174,39 +175,39 @@ public class AutoRepairInvokeBootstrapRepairOnReplacementTest extends TestBaseIm
     private static void validateConfigAndBootstrapRepairExecution(AutoRepairConfig cfg, boolean bootstrapRepairEnabled) throws InterruptedException
     {
         assertTrue("Bootstrap repair should not have been run previously",
-                   AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue() == 0);
+                   AutoRepairMetricsManager.getMetrics(BOOTSTRAP).nodeRepairTimeInSec.getValue().longValue() == 0);
         if (bootstrapRepairEnabled)
         {
-            assertTrue(cfg.isAutoRepairEnabled(bootstrap));
+            assertTrue(cfg.isAutoRepairEnabled(BOOTSTRAP));
         }
         else
         {
-            assertFalse(cfg.isAutoRepairEnabled(bootstrap));
+            assertFalse(cfg.isAutoRepairEnabled(BOOTSTRAP));
         }
-        assertTrue(cfg.isAutoRepairEnabled(full));
-        assertFalse(cfg.isAutoRepairEnabled(incremental));
+        assertTrue(cfg.isAutoRepairEnabled(FULL));
+        assertFalse(cfg.isAutoRepairEnabled(INCREMENTAL));
 
-        boolean completedSuccessfully = AutoRepairUtilsV2.runBootstrapRepair();
+        boolean completedSuccessfully = AutoRepairUtils.runBootstrapRepair();
         if (bootstrapRepairEnabled)
         {
             assertTrue("One round of repair should have completed successfully",
                        completedSuccessfully);
             assertTrue("Bootstrap repair could not finish one round",
-                       AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue() > 0);
+                       AutoRepairMetricsManager.getMetrics(BOOTSTRAP).nodeRepairTimeInSec.getValue().longValue() > 0);
         }
         else
         {
             assertFalse("The bootstrap repair should not have been run as it was disabled",
                         completedSuccessfully);
             assertEquals(0,
-                         AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue());
+                         AutoRepairMetricsManager.getMetrics(BOOTSTRAP).nodeRepairTimeInSec.getValue().longValue());
         }
         // after one round, the "bootstrap" repair should be automatically disabled
         // but the other repairs, such as "full" should continue to maintain its original enablement state
-        assertFalse(cfg.isAutoRepairEnabled(bootstrap));
-        assertTrue(cfg.isAutoRepairEnabled(full));
-        assertFalse(cfg.isAutoRepairEnabled(incremental));
-        assertEquals(0, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairAborted.getCount());
+        assertFalse(cfg.isAutoRepairEnabled(BOOTSTRAP));
+        assertTrue(cfg.isAutoRepairEnabled(FULL));
+        assertFalse(cfg.isAutoRepairEnabled(INCREMENTAL));
+        assertEquals(0, AutoRepairMetricsManager.getMetrics(BOOTSTRAP).bootstrapRepairAborted.getCount());
     }
 
     public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)

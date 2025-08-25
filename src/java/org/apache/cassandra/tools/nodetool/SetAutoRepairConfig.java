@@ -23,43 +23,46 @@ import com.google.common.base.Splitter;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 import java.io.PrintStream;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Allows to set AutoRepair configuration through nodetool.
+ */
 @Command(name = "setautorepairconfig", description = "sets the autorepair configuration")
 public class SetAutoRepairConfig extends NodeToolCmd
 {
     @VisibleForTesting
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
     description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
-                  "[threads|subranges|minrepairintervalinhours|sstablehigherthreshold|ignorekeyspacesregex" +
-                  "|enabled|repaironlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs" +
-                  "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage" +
-                  "|mvrepairenabled|maxretriescount|retrybackoffinsec|minrepairtaskdurationinsec|repairbykeyspace]",
+                  "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
+                  "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
+                  "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
+                  "|parallel_repair_count|parallel_repair_percentage" +
+                  "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
+                  "|materialized_view_repair_enabled|repair_max_retries" +
+                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
+                  "|repair_by_keyspace|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
     @VisibleForTesting
-    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type (uses v2 framework)")
-    protected RepairType repairType;
-
-    @VisibleForTesting
-    @Option(title = "v2", name = { "--v2" }, description = "(Deprecated) Use v2 repair framework")
-    protected boolean v2 = true;
+    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    protected String repairTypeStr;
 
     @VisibleForTesting
     protected PrintStream out = System.out;
+
+    private static final String TOKEN_RANGE_SPLITTER_PROPERTY_PREFIX = "token_range_splitter.";
 
     @Override
     public void execute(NodeProbe probe)
@@ -68,7 +71,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
         String paramType = args.get(0);
         String paramVal = args.get(1);
 
-        if (!probe.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        if (probe.isAutoRepairDisabled() && !paramType.equalsIgnoreCase("start_scheduler"))
         {
             out.println("Auto-repair is not enabled");
             return;
@@ -77,17 +80,17 @@ public class SetAutoRepairConfig extends NodeToolCmd
         // options that do not require --repair-type option
         switch (paramType)
         {
-            case "historydeletehostsclearbufferinsec":
-                probe.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(Integer.parseInt(paramVal));
+            case "start_scheduler":
+                if (Boolean.parseBoolean(paramVal))
+                {
+                    probe.startAutoRepairScheduler();
+                }
                 return;
-            case "repairmaxretries":
-                probe.setAutoRepairMaxRetriesCount(Integer.parseInt(paramVal));
+            case "history_clear_delete_hosts_buffer_interval":
+                probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
                 return;
-            case "retrybackoffinsec":
-                probe.setAutoRepairRetryBackoffInSec(Long.parseLong(paramVal));
-                return;
-            case "minrepairtaskdurationinsec":
-                probe.setAutoRepairMinRepairTaskDurationInSec(Long.parseLong(paramVal));
+            case "min_repair_task_duration":
+                probe.setAutoRepairMinRepairTaskDuration(paramVal);
                 return;
             default:
                 // proceed to options that require --repair-type option
@@ -95,92 +98,81 @@ public class SetAutoRepairConfig extends NodeToolCmd
         }
 
         // options below require --repair-type option
-        checkArgument(repairType != null, "--repair-type is required for this parameter.");
-        Set<InetAddressAndPort> hosts;
+        Objects.requireNonNull(repairTypeStr, "--repair-type is required for this parameter.");
+
+        if(paramType.startsWith(TOKEN_RANGE_SPLITTER_PROPERTY_PREFIX))
+        {
+            final String key = paramType.replace(TOKEN_RANGE_SPLITTER_PROPERTY_PREFIX, "");
+            probe.setAutoRepairTokenRangeSplitterParameter(repairTypeStr, key, paramVal);
+            return;
+        }
+
         switch (paramType)
         {
             case "enabled":
-                probe.setAutoRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+                probe.setAutoRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
-            case "threads":
-                probe.setRepairThreads(repairType, Integer.parseInt(paramVal));
+            case "number_of_repair_threads":
+                probe.setAutoRepairThreads(repairTypeStr, Integer.parseInt(paramVal));
                 break;
-            case "subranges":
-                probe.setRepairSubRangeNum(repairType, Integer.parseInt(paramVal));
+            case "min_repair_interval":
+                probe.setAutoRepairMinInterval(repairTypeStr, paramVal);
                 break;
-            case "minrepairintervalinhours":
-                probe.setRepairMinIntervalInHours(repairType, Integer.parseInt(paramVal));
+            case "sstable_upper_threshold":
+                probe.setAutoRepairSSTableCountHigherThreshold(repairTypeStr, Integer.parseInt(paramVal));
                 break;
-            case "sstablehigherthreshold":
-                probe.setRepairSSTableCountHigherThreshold(repairType, Integer.parseInt(paramVal));
+            case "table_max_repair_time":
+                probe.setAutoRepairTableMaxRepairTime(repairTypeStr, paramVal);
                 break;
-            case "ignorekeyspacesregex":
-                probe.setRepairIgnoreKeyspaces(repairType, paramVal);
-                break;
-            case "repaironlykeyspacesregex":
-                probe.setRepairOnlyKeyspaces(repairType, paramVal);
-                break;
-            case "tablemaxrepairtimeinsec":
-                probe.setAutoRepairTableMaxRepairTimeInSec(repairType, Long.parseLong(paramVal));
-                break;
-            case "priorityhost":
-                hosts = validateLocalGroupHosts(probe, repairType, paramVal);
-                if (!hosts.isEmpty())
+            case "priority_hosts":
+                if (paramVal!= null && !paramVal.isEmpty())
                 {
-                    probe.setRepairPriorityForHosts(repairType, hosts);
+                    probe.setAutoRepairPriorityForHosts(repairTypeStr, paramVal);
                 }
                 break;
-            case "forcerepairhosts":
-                hosts = validateLocalGroupHosts(probe, repairType, paramVal);
-                if (!hosts.isEmpty())
-                {
-                    probe.setForceRepairForHosts(repairType, hosts);
-                }
+            case "forcerepair_hosts":
+                probe.setAutoRepairForceRepairForHosts(repairTypeStr, paramVal);
                 break;
-            case "ignoredcs":
+            case "ignore_dcs":
                 Set<String> ignoreDCs = new HashSet<>();
                 for (String dc : Splitter.on(',').split(paramVal))
                 {
                     ignoreDCs.add(dc);
                 }
-                probe.setAutoRepairIgnoreDCs(repairType, ignoreDCs);
+                probe.setAutoRepairIgnoreDCs(repairTypeStr, ignoreDCs);
                 break;
-            case "primarytokenrangeonly":
-                probe.setPrimaryTokenRangeOnly(repairType, Boolean.parseBoolean(paramVal));
+            case "repair_primary_token_range_only":
+                probe.setAutoRepairPrimaryTokenRangeOnly(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
-            case "parallelrepaircount":
-                probe.setParallelRepairCountInGroup(repairType, Integer.parseInt(paramVal));
+            case "parallel_repair_count":
+                probe.setAutoRepairParallelRepairCount(repairTypeStr, Integer.parseInt(paramVal));
                 break;
-            case "parallelrepairpercentage":
-                probe.setParallelRepairPercentageInGroup(repairType, Integer.parseInt(paramVal));
+            case "parallel_repair_percentage":
+                probe.setAutoRepairParallelRepairPercentage(repairTypeStr, Integer.parseInt(paramVal));
                 break;
-            case "mvrepairenabled":
-                probe.setMVRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+            case "allow_parallel_replica_repair":
+                probe.setAutoRepairAllowParallelReplicaRepair(repairTypeStr, Boolean.parseBoolean(paramVal));
                 break;
-            case "repairbykeyspace":
-                probe.setRepairByKeyspace(repairType, Boolean.parseBoolean(paramVal));
+            case "allow_parallel_replica_repair_across_schedules":
+                probe.setAutoRepairAllowParallelReplicaRepairAcrossSchedules(repairTypeStr, Boolean.parseBoolean(paramVal));
+                break;
+            case "materialized_view_repair_enabled":
+                probe.setAutoRepairMaterializedViewRepairEnabled(repairTypeStr, Boolean.parseBoolean(paramVal));
+                break;
+            case "repair_session_timeout":
+                probe.setAutoRepairSessionTimeout(repairTypeStr, paramVal);
+                break;
+            case "repair_by_keyspace":
+                probe.setAutoRepairRepairByKeyspace(repairTypeStr, Boolean.parseBoolean(paramVal));
+                break;
+            case "repair_max_retries":
+                probe.setAutoRepairMaxRetriesCount(repairTypeStr, Integer.parseInt(paramVal));
+                break;
+            case "repair_retry_backoff":
+                probe.setAutoRepairRetryBackoff(repairTypeStr, paramVal);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
         }
-    }
-
-    // some commands require user to input a list of hosts that is in the local group, this function helps to filter out
-    // any hosts that are not part of same local group with the node running this command
-    private Set<InetAddressAndPort> validateLocalGroupHosts(NodeProbe probe, RepairType repairType, String paramVal) {
-        Set<InetAddressAndPort> hosts = new HashSet<>();
-        for (String host : Splitter.on(',').split(paramVal))
-        {
-            try
-            {
-                hosts.add(InetAddressAndPort.getByName(host));
-            }
-            catch (UnknownHostException e)
-            {
-                out.println("invalid ip address: " + host);
-            }
-        }
-
-        return probe.filterHostsInLocalGroup(repairType, hosts);
     }
 }

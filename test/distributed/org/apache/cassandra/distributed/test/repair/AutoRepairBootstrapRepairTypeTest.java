@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.repair;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableMap;
@@ -29,6 +30,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -37,10 +39,11 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.AutoRepairMetrics;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.repair.AutoRepairConfig;
-import org.apache.cassandra.repair.AutoRepairUtilsV2;
-import org.apache.cassandra.repair.state.AutoRepairStateFactory;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.streaming.StreamSession;
 
@@ -48,7 +51,8 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
+import static org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType.BOOTSTRAP;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -85,17 +89,17 @@ public class AutoRepairBootstrapRepairTypeTest extends TestBaseImpl
             .set("auto_repair",
                  ImmutableMap.of(
                  "repair_type_overrides",
-                 ImmutableMap.of(bootstrap.toString(),
+                 ImmutableMap.of(BOOTSTRAP.getConfigName(),
                                  ImmutableMap.<String, String>builder()
-                                             .put("initial_scheduler_delay_in_sec", "5")
+                                             .put("initial_scheduler_delay", "5s")
                                              .put("enabled", "false")
-                                             .put("parallel_repair_count_in_group", "1")
-                                             .put("parallel_repair_percentage_in_group", "0")
-                                             .put("min_repair_interval_in_hours", "-1")
-                                             .put("repair_only_keyspaces", KEYSPACE).build()
+                                             .put("parallel_repair_count", "1")
+                                             .put("parallel_repair_percentage", "0")
+                                             .put("repair_max_retries", "0")
+                                             .put("min_repair_interval", "0s").build()
                  )))
             .set("auto_repair.enabled", "true")
-            .set("auto_repair.repair_check_interval_in_sec", "10")
+            .set("auto_repair.repair_check_interval", "2s")
             .set("auto_repair.repair_task_min_duration", "0s");
 
             InetSocketAddress node2Address = cluster.get(2).broadcastAddress();
@@ -110,31 +114,26 @@ public class AutoRepairBootstrapRepairTypeTest extends TestBaseImpl
             cluster.get(1).runOnInstance(
             () -> {
                 // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                assertEquals(AutoRepairUtils.RepairTurn.NOT_MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
                 BBStreamFailure.failStream.set(false);
-            }
-            );
+            });
             // run bootstrap repair on the UJ node
             newInstance.runOnInstance(
             () -> {
-                AutoRepairService.instance.getAutoRepairConfig().setAutoRepairEnabled(bootstrap, true);
-                assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairStateFactory.getAutoRepairState(bootstrap).calcRepairTurn(null));
-                assertTrue(AutoRepairUtilsV2.isBootstrapRepair());
+                AutoRepairService.setup();
+                AutoRepair.instance.setup();
+                AutoRepairService.instance.getAutoRepairConfig().setAutoRepairEnabled(BOOTSTRAP, true);
+                assertEquals(AutoRepairUtils.RepairTurn.MY_TURN, AutoRepairConfig.RepairType.getAutoRepairState(BOOTSTRAP).calcRepairTurn(null));
+                assertTrue(AutoRepairUtils.isBootstrapRepair());
 
                 // ensure that the "bootstrap" repair has finished one round
-                while (AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue() <= 0)
-                {
-                    try
-                    {
-                        Thread.sleep(1000);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-            );
+                AutoRepairMetrics bootstrapMetrics = AutoRepairMetricsManager.getMetrics(BOOTSTRAP);
+                Util.spinAssert("AutoRepair has not yet completed one BOOTSTRAP repair cycle",
+                                greaterThan(0L),
+                                () -> bootstrapMetrics.nodeRepairTimeInSec.getValue().longValue(),
+                                1,
+                                TimeUnit.MINUTES);
+            });
         }
     }
 
@@ -162,6 +161,7 @@ public class AutoRepairBootstrapRepairTypeTest extends TestBaseImpl
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
+
 
         public static void startStreamingFiles(StreamSession.PrepareDirection prepareDirection, @SuperCall Callable<Boolean> zuper) throws Exception
         {

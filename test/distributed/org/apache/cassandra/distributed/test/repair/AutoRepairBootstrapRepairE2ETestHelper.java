@@ -30,14 +30,12 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.metrics.AutoRepairMetricsV2;
-import org.apache.cassandra.repair.AutoRepairConfig;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
 import static org.junit.Assert.assertEquals;
 
 public class AutoRepairBootstrapRepairE2ETestHelper extends TestBaseImpl
@@ -64,17 +62,18 @@ public class AutoRepairBootstrapRepairE2ETestHelper extends TestBaseImpl
             .set("auto_repair",
                  ImmutableMap.of(
                  "repair_type_overrides",
-                 ImmutableMap.of(bootstrap.toString(),
+                 ImmutableMap.of(AutoRepairConfig.RepairType.BOOTSTRAP.getConfigName(),
                                  ImmutableMap.<String, String>builder()
-                                             .put("initial_scheduler_delay_in_sec", "5")
+                                             .put("initial_scheduler_delay", "5s")
                                              .put("enabled", Boolean.toString(bootstrapRepairEnabled))
-                                             .put("parallel_repair_count_in_group", "1")
-                                             .put("parallel_repair_percentage_in_group", "0")
-                                             .put("min_repair_interval_in_hours", "-1")
-                                             .put("repair_only_keyspaces", KEYSPACE).build()
+                                             .put("parallel_repair_count", "1")
+                                             .put("parallel_repair_percentage", "0")
+                                             .put("min_repair_interval", "0s")
+                                             .put("repair_max_retries", "0")
+                                             .build()
                  )))
             .set("auto_repair.enabled", "true")
-            .set("auto_repair.repair_check_interval_in_sec", "10")
+            .set("auto_repair.repair_check_interval", "10s")
             .set("auto_repair.repair_task_min_duration", "0s");
 
             InetSocketAddress node2Address = cluster.get(2).broadcastAddress();
@@ -94,14 +93,14 @@ public class AutoRepairBootstrapRepairE2ETestHelper extends TestBaseImpl
             }
             newInstance.runOnInstance(
             () -> {
-                assertEquals(1, AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.bootstrap).bootstrapRepairStarted.getCount());
+                assertEquals(1, AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairStarted.getCount());
                 if (bootstrapRepairEnabled)
                 {
-                    assertEquals(1, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairSucceded.getCount());
+                    assertEquals(1, AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairSucceded.getCount());
                 }
                 else
                 {
-                    assertEquals(1, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairDisabledOrFailed.getCount());
+                    assertEquals(1, AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.BOOTSTRAP).bootstrapRepairDisabledOrFailed.getCount());
                 }
             });
         }

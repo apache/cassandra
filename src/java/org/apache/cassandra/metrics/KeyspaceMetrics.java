@@ -219,6 +219,11 @@ public class KeyspaceMetrics
     public final Gauge<Long> lcsTables;
     /** Number of TWCS tables within this keyspace */
     public final Gauge<Long> twcsTables;
+    public final Meter bytesAnticompacted;
+    public final Meter bytesMutatedAnticompaction;
+    public final Meter bytesPreviewed;
+    public final Meter tokenRangesPreviewedDesynchronized;
+    public final Meter bytesPreviewedDesynchronized;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -377,6 +382,11 @@ public class KeyspaceMetrics
         rangeReadThrottles = createKeyspaceCounter("RangeReadThrottles");
         singleMutationThrottles = createKeyspaceCounter("SingleMutationThrottles");
         serialMutationThrottles = createKeyspaceCounter("SerialMutationThrottles");
+        bytesAnticompacted =  createKeyspaceMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createKeyspaceMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createKeyspaceMeter("BytesPreviewed");
+        tokenRangesPreviewedDesynchronized = createKeyspaceMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createKeyspaceMeter("BytesPreviewedDesynchronized");
     }
 
     /**

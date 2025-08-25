@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -30,6 +31,9 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
+/**
+ * Provides a way to set the repaired state of SSTables without any downtime through nodetool.
+ */
 @Command(name = "sstablerepairedset", description = "Set the repaired state of SSTables for given keyspace/tables")
 public class SSTableRepairedSet extends NodeTool.NodeToolCmd
 {
@@ -69,13 +73,13 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
             message = "Previewing repaired state mutation of SSTables for";
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
-        List<String> tables = List.of(parseOptionalTables(args));
+        List<String> tables = new ArrayList<>(Arrays.asList(parseOptionalTables(args)));
 
         if (args.isEmpty())
             message += " all keyspaces";
         else
             message += tables.isEmpty() ? " all tables" : " tables " + String.join(", ", tables)
-                                                              + " in keyspace " + keyspaces.get(0);
+                                                          + " in keyspace " + keyspaces.get(0);
         message += " to " + (isRepaired ? "repaired" : "unrepaired");
         out.println(message);
 
@@ -86,8 +90,8 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
             {
                 sstableList.addAll(probe.mutateSSTableRepairedState(isRepaired, !reallySet, keyspace,
                                                                     tables.isEmpty()
-                                                                        ? probe.getTablesForKeyspace(keyspace) // mutate all tables
-                                                                        : tables)); // mutate specific tables
+                                                                    ? probe.getAutoRepairTablesForKeyspace(keyspace) // mutate all tables
+                                                                    : tables)); // mutate specific tables
             }
             catch (InvalidRequestException e)
             {

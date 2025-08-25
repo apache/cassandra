@@ -42,8 +42,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.cassandra.service.QueryAnalyticsConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
-import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.apache.cassandra.utils.CassandraVersion;
 
@@ -364,11 +364,14 @@ public class Config
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
-    public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2; // at least 20% of disk must be unused to run incremental repair
 
     // debug log
     public boolean blocking_read_repair_debug_log_enabled = false;
     public boolean service_level_indicator_error_log_enabled = true;
+
+    // at least 20% of disk must be unused to run incremental repair
+    // if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason) then set the ratio to 0.0
+    public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
@@ -765,8 +768,6 @@ public class Config
      */
     public int prepared_statements_cache_max_capacity = 5_000;
 
-    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
-
     public volatile QueryAnalyticsConfig query_analytics = new QueryAnalyticsConfig();
 
     // Set this to be true if compaction should ignore repair status of the SSTables and reset them to be unrepaired
@@ -1097,7 +1098,7 @@ public class Config
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
-
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
      */

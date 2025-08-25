@@ -21,7 +21,6 @@ package org.apache.cassandra.service.throttler.dynamic;
 import com.codahale.metrics.Counter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.RateLimiterService;
 import org.junit.Assert;
 import org.junit.Before;
@@ -77,7 +76,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public CassandraResourceUtilizationTest()
     {
         requireNetwork();
-        AutoRepairV2.instance.setup();
     }
 
     @BeforeClass
@@ -1365,7 +1363,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
                 new String[]{"system_traces","events"},
                 new String[]{"system_auth","role_members"},
                 new String[]{"system_distributed","parent_repair_history"},
-                new String[]{"system_auto_repair","auto_repair_history_v2"},
             };
             for (String[] keyspaceAndTable : systemKeyspaceTables)
             {

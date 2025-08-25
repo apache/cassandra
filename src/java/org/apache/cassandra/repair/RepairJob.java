@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.repair.state.JobState;
@@ -121,7 +122,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
-        if (!AutoRepairUtilsV2.isBootstrapRepair())
+        if (!AutoRepairUtils.isBootstrapRepair())
         {
             allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
         }

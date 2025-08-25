@@ -23,7 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -31,20 +31,12 @@ import org.apache.cassandra.tools.NodeTool;
 public class RunAutoRepairOnce extends NodeTool.NodeToolCmd
 {
     @VisibleForTesting
-    @Arguments(title = "millis_to_wait", usage = "<value>", description = "Millis seconds to wait if repair finished too fast", required = true)
-    protected Long millisToWait = null;
-
-    @VisibleForTesting
-    @Option(title = "v2", name = { "--v2" }, description = "(Deprecated) Use v2 repair framework")
-    protected boolean v2 = true;
-
-    @VisibleForTesting
     @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type", required = true)
-    protected RepairType repairType;
+    protected AutoRepairConfig.RepairType repairType;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.runAutoRepairOnce(repairType, millisToWait);
+        probe.runAutoRepairOnce(repairType);
     }
 }

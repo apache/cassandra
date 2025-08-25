@@ -35,9 +35,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.FutureTask;
-import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.metrics.AutoRepairMetricsV2;
-import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;

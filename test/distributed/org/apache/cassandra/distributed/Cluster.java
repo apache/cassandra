@@ -86,7 +86,6 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             super(Cluster::new);
             withVersion(CURRENT_VERSION);
             this.appendConfig(c -> {
-                c.set("auto_repair", ImmutableMap.of("enabled", false));
                 c.set("block_unqualified_prepared_statement_enabled", false);
             });
         }

@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -63,10 +63,9 @@ public class RunAutoRepairOnceTest
     public void testExecuteWithRepairType()
     {
         cmd.repairType = repairType;
-        cmd.millisToWait = (long) 1;
 
         cmd.execute(probe);
 
-        verify(probe, times(1)).runAutoRepairOnce(repairType, 1);
+        verify(probe, times(1)).runAutoRepairOnce(repairType);
     }
 }

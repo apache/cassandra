@@ -89,7 +89,7 @@ public class SyncStatSummary
 
         final Map<Pair<InetSocketAddress, InetSocketAddress>, Session> sessions = new HashMap<>();
 
-        Table(String keyspace, String table)
+        public Table(String keyspace, String table)
         {
             this.keyspace = keyspace;
             this.table = table;

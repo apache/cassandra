@@ -52,10 +52,12 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
@@ -75,7 +77,6 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTasks;
@@ -84,7 +85,6 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -126,6 +126,7 @@ import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
@@ -273,7 +274,7 @@ public class Util
      */
     public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
                                          List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
-        throws UnknownHostException
+    throws UnknownHostException
     {
         // Expand pool of host IDs as necessary
         for (int i = hostIdPool.size(); i < howMany; i++)
@@ -409,7 +410,7 @@ public class Util
             return getAllUnfiltered(command, controller);
         }
     }
-    
+
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command, ReadExecutionController controller)
     {
         List<ImmutableBTreePartition> results = new ArrayList<>();
@@ -433,7 +434,7 @@ public class Util
             return getAll(command, controller);
         }
     }
-    
+
     public static List<FilteredPartition> getAll(ReadCommand command, ReadExecutionController controller)
     {
         List<FilteredPartition> results = new ArrayList<>();
@@ -492,7 +493,7 @@ public class Util
             return getOnlyPartitionUnfiltered(cmd, controller);
         }
     }
-    
+
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd, ReadExecutionController controller)
     {
         try (UnfilteredPartitionIterator iterator = cmd.executeLocally(controller))
@@ -510,7 +511,7 @@ public class Util
     {
         return getOnlyPartition(cmd, false);
     }
-    
+
     public static FilteredPartition getOnlyPartition(ReadCommand cmd, boolean trackRepairedStatus)
     {
         try (ReadExecutionController executionController = cmd.executionController(trackRepairedStatus);
@@ -582,8 +583,8 @@ public class Util
     public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
     {
         return Objects.equals(a.columns(), b.columns())
-            && Objects.equals(a.stats(), b.stats())
-            && sameContent(a, b);
+               && Objects.equals(a.stats(), b.stats())
+               && sameContent(a, b);
     }
 
     // Test equality of the iterators, but without caring too much about the "metadata" of said iterator. This is often
@@ -593,11 +594,11 @@ public class Util
     public static boolean sameContent(UnfilteredRowIterator a, UnfilteredRowIterator b)
     {
         return Objects.equals(a.metadata(), b.metadata())
-            && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
-            && Objects.equals(a.partitionKey(), b.partitionKey())
-            && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
-            && Objects.equals(a.staticRow(), b.staticRow())
-            && Iterators.elementsEqual(a, b);
+               && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
+               && Objects.equals(a.partitionKey(), b.partitionKey())
+               && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
+               && Objects.equals(a.staticRow(), b.staticRow())
+               && Iterators.elementsEqual(a, b);
     }
 
     public static boolean sameContent(RowIterator a, RowIterator b)
@@ -824,12 +825,12 @@ public class Util
     public static PagingState makeSomePagingState(ProtocolVersion protocolVersion, int remainingInPartition)
     {
         TableMetadata metadata =
-            TableMetadata.builder("ks", "tbl")
-                         .addPartitionKeyColumn("k", AsciiType.instance)
-                         .addClusteringColumn("c1", AsciiType.instance)
-                         .addClusteringColumn("c2", Int32Type.instance)
-                         .addRegularColumn("myCol", AsciiType.instance)
-                         .build();
+        TableMetadata.builder("ks", "tbl")
+                     .addPartitionKeyColumn("k", AsciiType.instance)
+                     .addClusteringColumn("c1", AsciiType.instance)
+                     .addClusteringColumn("c2", Int32Type.instance)
+                     .addRegularColumn("myCol", AsciiType.instance)
+                     .build();
 
         ByteBuffer pk = ByteBufferUtil.bytes("someKey");
 

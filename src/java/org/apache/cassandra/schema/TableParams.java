@@ -59,7 +59,8 @@ public final class TableParams
         CRC_CHECK_CHANCE,
         CDC,
         READ_REPAIR,
-        STRICT_MV_CONSISTENCY;
+        STRICT_MV_CONSISTENCY,
+        AUTO_REPAIR;
 
         @Override
         public String toString()
@@ -87,6 +88,8 @@ public final class TableParams
     public final ReadRepairStrategy readRepair;
     public final boolean strictMVConsistency;
 
+    public final AutoRepairParams autoRepair;
+
     private TableParams(Builder builder)
     {
         comment = builder.comment;
@@ -109,6 +112,7 @@ public final class TableParams
         cdc = builder.cdc;
         readRepair = builder.readRepair;
         strictMVConsistency = builder.strictMVConsistency;
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -135,7 +139,8 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .strictMVConsistency(params.strictMVConsistency);
+                            .strictMVConsistency(params.strictMVConsistency)
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()
@@ -149,7 +154,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  Option.BLOOM_FILTER_FP_CHANCE,
@@ -190,6 +195,8 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        autoRepair.validate();
     }
 
     private static void fail(String format, Object... args)
@@ -224,7 +231,8 @@ public final class TableParams
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair
-            && strictMVConsistency == p.strictMVConsistency;
+            && strictMVConsistency == p.strictMVConsistency
+            && autoRepair.equals(p.autoRepair);
     }
 
     @Override
@@ -246,7 +254,8 @@ public final class TableParams
                                 extensions,
                                 cdc,
                                 readRepair,
-                                strictMVConsistency);
+                                strictMVConsistency,
+                                autoRepair);
     }
 
     @Override
@@ -270,6 +279,7 @@ public final class TableParams
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
                           .add(Option.STRICT_MV_CONSISTENCY.toString(), strictMVConsistency)
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -324,6 +334,12 @@ public final class TableParams
             builder.newLine();
             builder.append("AND strict_mv_consistency = ").append(strictMVConsistency);
         }
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.newLine()
+                .append("AND auto_repair = ").append(autoRepair.asMap());
+        }
     }
 
     public static final class Builder
@@ -347,6 +363,7 @@ public final class TableParams
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
         private boolean strictMVConsistency;
 
+        private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
         public Builder()
         {
         }
@@ -461,6 +478,12 @@ public final class TableParams
         public Builder strictMVConsistency(boolean val)
         {
             strictMVConsistency = val;
+            return this;
+        }
+
+        public Builder automatedRepair(AutoRepairParams val)
+        {
+            autoRepair = val;
             return this;
         }
     }

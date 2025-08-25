@@ -119,17 +119,4 @@ public class CassandraSreamReceiverTest extends CQLTester
 
         assertFalse(receiver.requiresWritePath(cfs));
     }
-
-    @Test
-    public void testRequiresWritePathMVWithSystemProp()
-    {
-        System.setProperty("cassandra.streaming.requires_view_build", "false");
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(MV_TABLE);
-        when(session.streamOperation()).thenReturn(StreamOperation.BULK_LOAD);
-        CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, session, 1);
-
-        assertFalse(receiver.requiresWritePath(cfs));
-
-        System.clearProperty("cassandra.streaming.requires_view_build");
-    }
 }

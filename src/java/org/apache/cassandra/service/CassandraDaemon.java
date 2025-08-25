@@ -530,6 +530,8 @@ public class CassandraDaemon
         // Initialize the SampledQueryEventLogger on instance start
         SampledQueryEventLogger.instance.initialize();
 
+        StorageService.instance.doAutoRepairSetup();
+
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling
         // due to scheduling errors or race conditions
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);

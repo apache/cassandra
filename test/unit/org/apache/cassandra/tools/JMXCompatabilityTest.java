@@ -153,7 +153,10 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff40() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList();
+        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=Table,name=BytesMutatedAnticompaction",
+                                                    "org.apache.cassandra.metrics:type=ColumnFamily,name=BytesMutatedAnticompaction",
+                                                    "org.apache.cassandra.metrics:type=Table,name=BytesAnticompacted",
+                                                    "org.apache.cassandra.metrics:type=ColumnFamily,name=BytesAnticompacted");
         List<String> excludeAttributes = Arrays.asList();
         List<String> excludeOperations = Arrays.asList();
 
@@ -163,7 +166,10 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff41() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList();
+        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=Table,name=BytesMutatedAnticompaction",
+                                                    "org.apache.cassandra.metrics:type=ColumnFamily,name=BytesMutatedAnticompaction",
+                                                    "org.apache.cassandra.metrics:type=Table,name=BytesAnticompacted",
+                                                    "org.apache.cassandra.metrics:type=ColumnFamily,name=BytesAnticompacted");
         List<String> excludeAttributes = Arrays.asList();
         List<String> excludeOperations = Arrays.asList();
 

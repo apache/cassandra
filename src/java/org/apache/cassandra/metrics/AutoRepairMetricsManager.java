@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.metrics;
 
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
-public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType, AutoRepairMetricsV2>
+public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType, AutoRepairMetrics>
 {
     public final static AutoRepairMetricsManager instance = new AutoRepairMetricsManager(false);
 
@@ -30,9 +30,9 @@ public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType,
     }
 
     @Override
-    protected AutoRepairMetricsV2 createMetric(RepairType repairType)
+    protected AutoRepairMetrics createMetric(RepairType repairType)
     {
-        return new AutoRepairMetricsV2(repairType);
+        return new AutoRepairMetrics(repairType);
     }
 
     @Override
@@ -44,7 +44,7 @@ public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType,
         return ((RepairType) objects[0]);
     }
 
-    public static AutoRepairMetricsV2 getMetrics(RepairType repairType)
+    public static AutoRepairMetrics getMetrics(RepairType repairType)
     {
         return instance.getMetricsSync(repairType);
     }
