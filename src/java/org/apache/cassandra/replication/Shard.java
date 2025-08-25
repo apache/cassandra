@@ -175,7 +175,7 @@ public class Shard
         CoordinatorLog.CoordinatorLogPrimary log =
             new CoordinatorLog.CoordinatorLogPrimary(localHostId, logId, participants);
         onNewLog.accept(this, log);
-        return new CoordinatorLog.CoordinatorLogPrimary(localHostId, logId, participants);
+        return log;
     }
 
     private CoordinatorLog getOrCreate(Mutation mutation)
