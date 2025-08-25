@@ -788,6 +788,14 @@ public class OffsetsTest
         testRemove(offsets(5, 7, 9, 9, 11, 13), 12, offsets(5, 7, 9, 9, 11, 11, 13, 13));
         // single element range
         testRemove(offsets(5, 7, 9, 9, 11, 13), 9, offsets(5, 7, 11, 13));
+
+        // single element ranges at different positions
+        testRemove(offsets(5, 5, 10, 12), 5, offsets(10, 12));
+        testRemove(offsets(1, 3, 5, 5, 7, 9), 5, offsets(1, 3, 7, 9));
+
+        // range splitting at boundaries
+        testRemove(offsets(5, 10), 7, offsets(5, 6, 8, 10));
+        testRemove(offsets(5, 10, 15, 17), 7, offsets(5, 6, 8, 10, 15, 17));
     }
 
     private void testRemove(Offsets.Mutable from, int toRemove, Offsets.Mutable expectedAfter)
