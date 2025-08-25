@@ -85,7 +85,6 @@ public class MutationTrackingService
     public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
-    private final ReplicatedOffsetsBroadcaster broadcaster = new ReplicatedOffsetsBroadcaster();
     private final ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
 
@@ -125,8 +124,8 @@ public class MutationTrackingService
 
     public void shutdownBlocking() throws InterruptedException
     {
-        broadcaster.shutdown();
-        broadcaster.awaitTermination(1, TimeUnit.MINUTES);
+        offsetsBroadcaster.shutdown();
+        offsetsBroadcaster.awaitTermination(1, TimeUnit.MINUTES);
         activeReconciler.shutdownBlocking();
         ExpiredStatePurger.instance.shutdownBlocking();
     }
