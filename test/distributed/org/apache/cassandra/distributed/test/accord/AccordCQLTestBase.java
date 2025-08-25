@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -3376,6 +3377,39 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             // there are lets but no returning
             node.execute(wrapInTxn("LET a = (" + selectStmt + " LIMIT 1" + ')', deleteStmt), QUORUM);
             Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_IGNORED_READS).getResult()).isNotEmpty();
+        });
+    }
+
+    @Test
+    public void multiPartitionUpdate() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            var node = cluster.coordinator(1);
+            int numPartitions = 10;
+            for (int i = 0; i < numPartitions; i++)
+                node.execute("INSERT INTO " + qualifiedAccordTableName + "(k, v) VALUES (?, ?)", QUORUM, i, 0);
+
+            Object[] binds = IntStream.range(0, numPartitions).boxed().toArray();
+            String where = "WHERE k IN (" + IntStream.range(0, numPartitions).mapToObj(i -> "?").collect(Collectors.joining(", ")) + ')';
+            String updateCQL = "UPDATE " + qualifiedAccordTableName + " SET v=1 " + where;
+            String deleteCQL = "DELETE FROM " + qualifiedAccordTableName + ' ' + where;
+
+            // update multiple partitions at once
+            node.execute(wrapInTxn(updateCQL), QUORUM, binds);
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEqualTo(QueryResults.builder().row(1).build());
+            }
+
+            // now delete
+            node.execute(wrapInTxn(deleteCQL), QUORUM, binds);
+
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEmpty();
+            }
         });
     }
 }
