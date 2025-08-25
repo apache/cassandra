@@ -19,9 +19,7 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -33,23 +31,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
-import com.datastax.driver.core.exceptions.ReadFailureException;
-import com.datastax.driver.core.exceptions.WriteFailureException;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -63,6 +53,7 @@ import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Statement;
 import org.apache.cassandra.cql3.ast.TableReference;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.cql3.ast.Visitor;
 import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
@@ -81,7 +72,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.distributed.util.DriverUtils;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.repair.RepairGenerators;
@@ -97,7 +88,6 @@ import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
-import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 
@@ -612,6 +602,29 @@ public class StatefulASTBase extends TestBaseImpl
             });
         }
 
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Txn txn)
+        {
+            return command(rs, txn, null);
+        }
+
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Txn txn, @Nullable String annotate)
+        {
+            var inst = selectInstance(rs);
+            String postfix = "on " + inst;
+            if (model.isConditional(txn))
+                postfix += ", would apply " + model.shouldApply(txn);
+            if (annotate == null) annotate = postfix;
+            else annotate += ", " + postfix;
+
+            return new Property.SimpleCommand<>(humanReadable(txn, annotate), s -> {
+                boolean hasMutation = txn.ifBlock.isPresent() || !txn.mutations.isEmpty();
+                ConsistencyLevel cl = hasMutation ? s.mutationCl() : s.selectCl();
+                s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
+                if (hasMutation)
+                    s.mutation();
+            });
+        }
+
         protected IInvokableInstance selectInstance(RandomSource rs)
         {
             return cluster.get(rs.nextInt(0, cluster.size()) + 1);
@@ -686,82 +699,7 @@ public class StatefulASTBase extends TestBaseImpl
                 instance.executeInternal(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 return new ByteBuffer[0][];
             }
-            else
-            {
-                SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
-                if (fetchSize != Integer.MAX_VALUE)
-                    ss.setFetchSize(fetchSize);
-                if (stmt.kind() == Statement.Kind.MUTATION)
-                {
-                    switch (cl)
-                    {
-                        case SERIAL:
-                            ss.setSerialConsistencyLevel(toDriverCL(cl));
-                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
-                            break;
-                        case LOCAL_SERIAL:
-                            ss.setSerialConsistencyLevel(toDriverCL(cl));
-                            ss.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM);
-                            break;
-                        default:
-                            ss.setConsistencyLevel(toDriverCL(cl));
-                    }
-                }
-                else
-                {
-                    ss.setConsistencyLevel(toDriverCL(cl));
-                }
-
-                InetSocketAddress broadcastAddress = instance.config().broadcastAddress();
-                var host = client.getMetadata().getAllHosts().stream()
-                                 .filter(h -> h.getBroadcastSocketAddress().getAddress().equals(broadcastAddress.getAddress()))
-                                 .filter(h -> h.getBroadcastSocketAddress().getPort() == broadcastAddress.getPort())
-                                 .findAny()
-                                 .get();
-                ss.setHost(host);
-                ResultSet result;
-                try
-                {
-                    result = session.execute(ss);
-                }
-                catch (ReadFailureException t)
-                {
-                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
-                }
-                catch (WriteFailureException t)
-                {
-                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
-                }
-                return getRowsAsByteBuffer(result);
-            }
-        }
-
-        private static String safeErrorCode(Integer code)
-        {
-            try
-            {
-                return RequestFailureReason.fromCode(code).name();
-            }
-            catch (IllegalArgumentException e)
-            {
-                return "Unexpected code " + code + ": " + e.getMessage();
-            }
-        }
-
-        @VisibleForTesting
-        static ByteBuffer[][] getRowsAsByteBuffer(ResultSet result)
-        {
-            ColumnDefinitions columns = result.getColumnDefinitions();
-            List<ByteBuffer[]> ret = new ArrayList<>();
-            for (Row rowVal : result)
-            {
-                ByteBuffer[] row = new ByteBuffer[columns.size()];
-                for (int i = 0; i < columns.size(); i++)
-                    row[i] = rowVal.getBytesUnsafe(i);
-                ret.add(row);
-            }
-            ByteBuffer[][] a = new ByteBuffer[ret.size()][];
-            return ret.toArray(a);
+            return DriverUtils.executeQuery(session, instance, fetchSize, cl, stmt);
         }
 
         protected String humanReadable(Statement stmt, @Nullable String annotate)

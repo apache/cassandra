@@ -444,28 +444,33 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
             cluster.forEach(i -> i.nodetoolResult("disableautocompaction", metadata.keyspace, this.metadata.name).asserts().success());
 
-            List<LinkedHashMap<Symbol, Object>> uniquePartitions;
-            {
-                int unique = rs.nextInt(1, 10);
-                List<Symbol> columns = model.factory.partitionColumns;
-                List<Gen<?>> gens = new ArrayList<>(columns.size());
-                for (int i = 0; i < columns.size(); i++)
-                    gens.add(toGen(getTypeSupport(columns.get(i).type()).valueGen));
-                uniquePartitions = Gens.lists(r2 -> {
-                    LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
-                    for (int i = 0; i < columns.size(); i++)
-                        vs.put(columns.get(i), gens.get(i).next(r2));
-                    return vs;
-                }).uniqueBestEffort().ofSize(unique).next(rs);
-            }
-
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
-                                                                  .withoutTransaction()
-                                                                  .withoutTtl()
-                                                                  .withoutTimestamp()
-                                                                  .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
+                                                                  .withTxnSafe()
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
+
+            // Run the test with and without bound partitions
+            // When using fixed partitions, each mutation will be for a single partition and will use pk=? syntax
+            // When using unbounded partitions then IN clause is used on partition keys, leading to mutations touching multiple partitions
+            if (rs.nextBoolean())
+            {
+                List<LinkedHashMap<Symbol, Object>> uniquePartitions;
+                {
+                    int unique = rs.nextInt(1, 10);
+                    List<Symbol> columns = model.factory.partitionColumns;
+                    List<Gen<?>> gens = new ArrayList<>(columns.size());
+                    for (int i = 0; i < columns.size(); i++)
+                        gens.add(toGen(getTypeSupport(columns.get(i).type()).valueGen));
+                    uniquePartitions = Gens.lists(r2 -> {
+                        LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
+                        for (int i = 0; i < columns.size(); i++)
+                            vs.put(columns.get(i), gens.get(i).next(r2));
+                        return vs;
+                    }).uniqueBestEffort().ofSize(unique).next(rs);
+                }
+                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
+            }
+
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
                 model.factory.regularAndStaticColumns.stream()

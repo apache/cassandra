@@ -39,6 +39,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -886,15 +887,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
+    public List<PartitionUpdate> getTxnUpdate(ClientState state, QueryOptions options)
     {
         List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
-        // TODO: Temporary fix for CASSANDRA-20079
         if (mutations.isEmpty())
-            return PartitionUpdate.emptyUpdate(metadata, metadata.partitioner.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        if (mutations.size() != 1)
-            throw new IllegalArgumentException("When running withing a transaction, modification statements may only mutate a single partition");
-        return Iterables.getOnlyElement(mutations.get(0).getPartitionUpdates());
+            return Collections.emptyList();
+        List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
+        for (IMutation m : mutations)
+            updates.addAll(m.getPartitionUpdates());
+        return updates;
     }
 
     private static List<TxnReferenceOperation> getTxnReferenceOps(List<ReferenceOperation> operations, QueryOptions options)
@@ -948,20 +949,33 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.allSubstitutions();
     }
 
-    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
     {
-        PartitionUpdate baseUpdate = getTxnUpdate(state, options);
-        TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
-        long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
-        return new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp);
+        return getTxnWriteFragment(index, state, options, baseUpdate -> {
+            Invariants.require(baseUpdate.partitionKey().equals(partitionKey.partitionKey()), "PartitionUpdate generated a partition key different than the one expected");
+            return partitionKey;
+        });
     }
 
-    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
     {
-        PartitionUpdate baseUpdate = getTxnUpdate(state, options);
+        return getTxnWriteFragment(index, state, options, baseUpdate -> keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()));
+    }
+
+    private List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, java.util.function.Function<PartitionUpdate, PartitionKey> keyCollector)
+    {
+        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
-        return new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp);
+        if (baseUpdates.size() == 1)
+        {
+            PartitionUpdate baseUpdate = baseUpdates.get(0);
+            return Collections.singletonList(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp));
+        }
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
+        for (PartitionUpdate baseUpdate : baseUpdates)
+            fragments.add(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp));
+        return fragments;
     }
 
     final void addUpdates(UpdatesCollector collector,

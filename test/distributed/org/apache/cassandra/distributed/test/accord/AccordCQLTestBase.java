@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -78,6 +79,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
@@ -3347,6 +3349,67 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             node.execute("DELETE FROM " + qualifiedAccordTableName + " USING TIMESTAMP 8 WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM);
             QueryResultUtil.assertThat(node.executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM))
                            .isEmpty();
+        });
+    }
+
+    @Test
+    public void emptyModification() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, s int static, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String deleteStmt = "DELETE FROM " + qualifiedAccordTableName + " WHERE k=0 AND c < 0 AND c > 0";
+            String selectStmt = "SELECT * FROM " + qualifiedAccordTableName + " WHERE k=0";
+            ICoordinator node = cluster.coordinator(1);
+            node.execute("INSERT INTO " + qualifiedAccordTableName + " (k, s, c, v) VALUES (0, 0, 0, 0)", QUORUM);
+
+            // CAS rejects
+            Assertions.assertThatThrownBy(() -> node.execute(deleteStmt + " IF s=0", QUORUM))
+                      .is(AssertionUtils.isInstanceof(InvalidRequestException.class))
+                      .hasMessageContaining("DELETE statements must restrict all PRIMARY KEY columns with equality relations");
+
+            // BEGIN TRANSACTION does not!  This should no-op (user has no way to know it did)
+            node.execute(wrapInTxn(deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_NO_READS).getResult()).isNotEmpty();
+
+            // if there was a read, the txn was downgraded to a read txn
+            var results = node.execute(wrapInTxn(selectStmt, deleteStmt), QUORUM);
+            Assertions.assertThat(results).hasDimensions(1, 4);
+
+            // there are lets but no returning
+            node.execute(wrapInTxn("LET a = (" + selectStmt + " LIMIT 1" + ')', deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_IGNORED_READS).getResult()).isNotEmpty();
+        });
+    }
+
+    @Test
+    public void multiPartitionUpdate() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            var node = cluster.coordinator(1);
+            int numPartitions = 10;
+            for (int i = 0; i < numPartitions; i++)
+                node.execute("INSERT INTO " + qualifiedAccordTableName + "(k, v) VALUES (?, ?)", QUORUM, i, 0);
+
+            Object[] binds = IntStream.range(0, numPartitions).boxed().toArray();
+            String where = "WHERE k IN (" + IntStream.range(0, numPartitions).mapToObj(i -> "?").collect(Collectors.joining(", ")) + ')';
+            String updateCQL = "UPDATE " + qualifiedAccordTableName + " SET v=1 " + where;
+            String deleteCQL = "DELETE FROM " + qualifiedAccordTableName + ' ' + where;
+
+            // update multiple partitions at once
+            node.execute(wrapInTxn(updateCQL), QUORUM, binds);
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEqualTo(QueryResults.builder().row(1).build());
+            }
+
+            // now delete
+            node.execute(wrapInTxn(deleteCQL), QUORUM, binds);
+
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEmpty();
+            }
         });
     }
 }

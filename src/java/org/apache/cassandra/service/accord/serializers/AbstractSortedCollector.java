@@ -97,6 +97,14 @@ public abstract class AbstractSortedCollector<T, C> extends AbstractList<T>
         return add;
     }
 
+    public void clear()
+    {
+        if (count > 1)
+            cachedAny().forceDiscard((Object[])buffer, count);
+        buffer = null;
+        count = 0;
+    }
+
     public C build()
     {
         if (count == 0)

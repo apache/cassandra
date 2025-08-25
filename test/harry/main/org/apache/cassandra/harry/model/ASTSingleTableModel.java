@@ -596,7 +596,7 @@ public class ASTSingleTableModel
             }
             // table has clustering but non are in the write, so only pk/static can be updated
             if (!factory.clusteringColumns.isEmpty() && remaining.isEmpty())
-                return;
+                continue;
             BytesPartitionState finalPartition = partition;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
@@ -621,7 +621,7 @@ public class ASTSingleTableModel
         for (Clustering<ByteBuffer> pd : pks)
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));
-            if (partition == null) return; // can't delete a partition that doesn't exist...
+            if (partition == null) continue; // can't delete a partition that doesn't exist...
 
             DeleteKind kind = DeleteKind.PARTITION;
             if (!delete.columns.isEmpty())

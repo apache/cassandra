@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -35,6 +36,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+
+import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.primitives.Keys;
@@ -90,6 +93,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static accord.primitives.Txn.Kind.Read;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -125,6 +129,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
     public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
     public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
+    public static final String WRITE_TXN_EMPTY_WITH_IGNORED_READS = "Write txn produced no mutation, and its reads do not return to the caller; ignoring...";
+    public static final String WRITE_TXN_EMPTY_WITH_NO_READS = "Write txn produced no mutation, and had no reads; ignoring...";
+
+    private static NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(LoggerFactory.getLogger(TransactionStatement.class), 1, TimeUnit.MINUTES);
 
     static class NamedSelect
     {
@@ -350,9 +358,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx, state, options, keyCollector);
-            minEpoch = Math.max(minEpoch, fragment.baseUpdate.metadata().epoch.getEpoch());
-            fragments.add(fragment);
+            minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
+            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector));
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {
@@ -447,6 +454,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     }
 
     @VisibleForTesting
+    @Nullable
     public Txn createTxn(ClientState state, QueryOptions options)
     {
         ClusterMetadata cm = ClusterMetadata.current();
@@ -467,13 +475,45 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
             List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector);
-            ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
+            if (writeFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
+            {
+                // cleanup memory
+                keyCollector.clear();
+                autoReads.clear();
+                return maybeCreateTxnFromEmptyWrites(cm, options, tables);
+            }
+            ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
             AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, PreserveTimestamp.no);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }
+    }
+
+    @Nullable
+    private Txn.InMemory maybeCreateTxnFromEmptyWrites(ClusterMetadata cm, QueryOptions options, TableMetadatas.Complete tables)
+    {
+        TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
+        List<TxnNamedRead> reads = createNamedReads(options, null, keyCollector);
+        if (reads.isEmpty())
+        {
+            // no reads, this is a no-op
+            noSpamLogger.info(WRITE_TXN_EMPTY_WITH_NO_READS);
+            return null;
+        }
+        if (returningSelect == null && returningReferences == null)
+        {
+            // the reads were for the mutation, and since the mutation doesn't exist the reads are not needed
+            noSpamLogger.info(WRITE_TXN_EMPTY_WITH_IGNORED_READS);
+            return null;
+        }
+
+        // Return a read only txn
+        Keys keys = keyCollector.build();
+        TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
+        Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read);
+        return new Txn.InMemory(kind, keys, read, TxnQuery.ALL, null, new TableMetadatasAndKeys(tables, keys));
     }
 
     /**
@@ -514,6 +554,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
 
         Txn txn = createTxn(state.getClientState(), options);
+        if (txn == null)
+            return new ResultMessage.Void();
 
         TxnResult txnResult = AccordService.instance().coordinate(minEpoch, txn, options.getConsistency(), requestTime);
         if (txnResult.kind() == retry_new_protocol)
