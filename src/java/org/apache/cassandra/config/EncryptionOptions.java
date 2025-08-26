@@ -74,11 +74,15 @@ public class EncryptionOptions
      * truststore_passwords configurations as they are in plaintext format.
      */
     public final ParameterizedClass ssl_context_factory;
+    @Redacted
     public final String keystore;
     @Nullable
+    @Redacted
     public final String keystore_password;
+    @Redacted
     public final String truststore;
     @Nullable
+    @Redacted
     public final String truststore_password;
     public final List<String> cipher_suites;
     protected String protocol;
