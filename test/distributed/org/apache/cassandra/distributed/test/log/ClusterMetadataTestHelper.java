@@ -801,7 +801,8 @@ public class ClusterMetadataTestHelper
         addEndpoint(i, NodeVersion.CURRENT);
     }
 
-    public static void addEndpoint(int i, NodeVersion nodeVersion) {
+    public static void addEndpoint(int i, NodeVersion nodeVersion)
+    {
         try
         {
             addEndpoint(InetAddressAndPort.getByName("127.0.0." + i), new Murmur3Partitioner.LongToken(i), nodeVersion);
@@ -812,7 +813,8 @@ public class ClusterMetadataTestHelper
         }
     }
 
-    public static void addEndpoint(InetAddressAndPort endpoint, Token t) {
+    public static void addEndpoint(InetAddressAndPort endpoint, Token t)
+    {
         addEndpoint(endpoint, t, NodeVersion.CURRENT);
     }
 

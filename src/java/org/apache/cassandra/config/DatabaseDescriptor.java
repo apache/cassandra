@@ -5940,16 +5940,6 @@ public class DatabaseDescriptor
         conf.incremental_repair_disk_headroom_reject_ratio = value;
     }
 
-    public static boolean getMixedMajorVersionRepairEnabled()
-    {
-        return conf.auto_repair.mixed_major_version_repair_enabled;
-    }
-
-    public static void setMixedMajorVersionRepairEnabled(boolean mixed_major_version_repair_enabled)
-    {
-        conf.auto_repair.mixed_major_version_repair_enabled = mixed_major_version_repair_enabled;
-    }
-
     @VisibleForTesting
     public static void setPartitioner(String name)
     {

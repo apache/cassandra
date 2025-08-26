@@ -271,6 +271,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.setRepairRetryBackoff(RepairType.parse(repairType), interval);
     }
 
+    @Override
+    public void setMixedMajorVersionRepairEnabled(boolean enabled)
+    {
+        config.setMixedMajorVersionRepairEnabled(enabled);
+    }
+
     private String formatRepairTypeConfig(RepairType repairType, AutoRepairConfig config)
     {
         StringBuilder sb = new StringBuilder();

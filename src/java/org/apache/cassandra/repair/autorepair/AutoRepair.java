@@ -165,8 +165,8 @@ public class AutoRepair
             logger.debug("Auto-repair is disabled for repair type {}", repairType);
             return;
         }
-        if (!DatabaseDescriptor.getMixedMajorVersionRepairEnabled() &&
-            AutoRepairUtils.hasMultipleLiveMajorVersions()) {
+        if (!config.isMixedMajorVersionRepairEnabled() && AutoRepairUtils.hasMultipleLiveMajorVersions())
+        {
             logger.info("Auto-repair is disabled when nodes in the cluster have different major versions");
             return;
         }

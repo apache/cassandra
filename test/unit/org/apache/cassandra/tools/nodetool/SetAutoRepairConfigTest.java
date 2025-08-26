@@ -268,7 +268,8 @@ public class SetAutoRepairConfigTest
             forEachRepairType("ignore_dcs", "dc1,dc2", (type) -> verify(probe, times(1)).setAutoRepairIgnoreDCs(type.name(), ImmutableSet.of("dc1", "dc2"))),
             forEachRepairType("token_range_splitter.max_bytes_per_schedule", "500GiB", (type) -> verify(probe, times(1)).setAutoRepairTokenRangeSplitterParameter(type.name(), "max_bytes_per_schedule", "500GiB")),
             forEachRepairType("repair_max_retries", "3", (type) -> verify(probe, times(1)).setAutoRepairMaxRetriesCount(type.name(), 3)),
-            forEachRepairType("repair_retry_backoff", "60s", (type) -> verify(probe, times(1)).setAutoRepairRetryBackoff(type.name(), "60s"))
+            forEachRepairType("repair_retry_backoff", "60s", (type) -> verify(probe, times(1)).setAutoRepairRetryBackoff(type.name(), "60s")),
+            forEachRepairType("mixed_major_version_repair_enabled", "false", (type) -> verify(probe, times(1)).setMixedMajorVersionRepairEnabled(false))
             ).flatMap(Function.identity()).collect(Collectors.toList());
         }
 

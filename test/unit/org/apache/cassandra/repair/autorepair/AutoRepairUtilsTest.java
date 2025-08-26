@@ -256,7 +256,7 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfSameMajorVersionDifferentMinorVersions()
     {
-        // add two nodes with cassandra 5 major version, but different minor version
+        // add two nodes with the current cassandra major version, but different minor version
         CassandraVersion differentCassandraVersion = new CassandraVersion(
             String.format("%d.%d",
                           NodeVersion.CURRENT.cassandraVersion.major,
@@ -272,7 +272,7 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfDifferentMajorVersions()
     {
-        // add two nodes with cassandra 5 major version, but different minor version
+        // add two nodes with different cassandra major versions
         CassandraVersion differentCassandraVersion = new CassandraVersion(
             String.format("%d.%d", NodeVersion.CURRENT.cassandraVersion.major - 1, 0));
         ClusterMetadataTestHelper.addEndpoint(2, new NodeVersion(differentCassandraVersion,
