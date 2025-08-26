@@ -17,13 +17,19 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Set;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.statements.SelectOptions;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
 /**
@@ -100,24 +106,31 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
      */
     public String toCQLString()
     {
-        StringBuilder sb = new StringBuilder().append("SELECT ")
-                                              .append(columnFilter().toCQLString())
-                                              .append(" FROM ")
-                                              .append(ColumnIdentifier.maybeQuote(metadata().keyspace))
-                                              .append('.')
-                                              .append(ColumnIdentifier.maybeQuote(metadata().name));
-        appendCQLWhereClause(sb);
+        CqlBuilder builder = new CqlBuilder();
+        builder.append("SELECT ").append(columnFilter().toCQLString());
+        builder.append(" FROM ").append(ColumnIdentifier.maybeQuote(metadata().keyspace))
+                                .append('.')
+                                .append(ColumnIdentifier.maybeQuote(metadata().name));
+
+        appendCQLWhereClause(builder);
 
         if (limits() != DataLimits.NONE)
-            sb.append(' ').append(limits());
+            builder.append(' ').append(limits());
 
         // ALLOW FILTERING might not be strictly necessary
-        sb.append(" ALLOW FILTERING");
+        builder.append(" ALLOW FILTERING");
 
-        return sb.toString();
+        builder.appendOptions(b -> {
+            IndexHints indexHints = rowFilter().indexHints;
+            Set<String> included = IndexMetadata.toNames(indexHints.included);
+            Set<String> excluded = IndexMetadata.toNames(indexHints.excluded);
+            b.append(SelectOptions.INCLUDED_INDEXES, included).append(SelectOptions.EXCLUDED_INDEXES, excluded);
+        });
+
+        return builder.toString();
     }
 
-    protected abstract void appendCQLWhereClause(StringBuilder sb);
+    protected abstract void appendCQLWhereClause(CqlBuilder builder);
 
     @Override
     public String monitoredOnKeyspace()

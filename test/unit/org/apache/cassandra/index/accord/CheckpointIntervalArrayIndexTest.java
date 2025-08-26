@@ -41,6 +41,7 @@ import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
@@ -390,7 +391,7 @@ public class CheckpointIntervalArrayIndexTest
         var metas = writer.write(sortedIntervals.toArray(Interval[]::new));
 
         // going through the RouteIndexFormat isn't required for this test, but it helps improve coverage there...
-        Segment segment = new Segment(ImmutableMap.of(new Group(0, TableId.fromUUID(new UUID(0, 0))), new Segment.Metadata(metas, ByteArrayUtil.EMPTY_BYTE_ARRAY, ByteArrayUtil.EMPTY_BYTE_ARRAY)));
+        Segment segment = new Segment(ImmutableMap.of(new Key(0, TableId.fromUUID(new UUID(0, 0))), new Segment.Metadata(metas, ByteArrayUtil.EMPTY_BYTE_ARRAY, ByteArrayUtil.EMPTY_BYTE_ARRAY, TxnId.NONE, TxnId.MAX, TxnId.NONE)));
         RouteIndexFormat.appendSegment(descriptor, segment);
 
         Map<IndexComponent, FileHandle> files = new EnumMap<>(IndexComponent.class);

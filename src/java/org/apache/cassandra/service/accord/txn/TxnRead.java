@@ -71,6 +71,7 @@ import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
+import static org.apache.cassandra.utils.ArraySerializers.skipArray;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
@@ -419,6 +420,23 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 out.write(read.domain == Domain.Key ? TYPE_EMPTY_KEY : TYPE_EMPTY_RANGE);
             }
         }
+
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            byte type = in.readByte();
+            switch (type)
+            {
+                default:
+                    throw new IllegalStateException("Unhandled type " + type);
+                case TYPE_EMPTY_KEY:
+                case TYPE_EMPTY_RANGE:
+                    return;
+                case TYPE_NOT_EMPTY:
+                    skipArray(tablesAndKeys, in, version, TxnNamedRead.serializer);
+                    deserializeNullable(in, consistencyLevelSerializer);
+            }
+        }
+
 
         @Override
         public TxnRead deserialize(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException

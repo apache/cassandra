@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
@@ -110,13 +112,13 @@ public class FixedLossNetworkScheduler implements FutureActionScheduler
 
     private Map<DeliveryPair, Integer> pairs = new HashMap<>();
     private static final int TIMEOUTS_IN_A_ROW = 1;
-    public Deliver shouldDeliver(int from, int to)
+    public DeliverResult shouldDeliver(int from, int to, IInvokableInstance invoker, IMessage message)
     {
         DeliveryPair pair = new DeliveryPair(from, to);
         if (!dropMessage.get(random, from, to))
         {
             pairs.put(pair, 0);
-            return Deliver.DELIVER;
+            return DELIVER_UNPROTECTED_RESULT;
         }
 
         int subsequentFailures = pairs.compute(pair, (k, v) -> v == null ? 1 : v+1);
@@ -125,28 +127,28 @@ public class FixedLossNetworkScheduler implements FutureActionScheduler
         {
             logger.info("Delivering {} after {} failures in a row", pair, TIMEOUTS_IN_A_ROW);
             pairs.put(pair, 0);
-            return Deliver.DELIVER;
+            return DELIVER_UNPROTECTED_RESULT;
         }
 
         logger.info("Timing out {} for the {}th time", pair, subsequentFailures);
-        return Deliver.TIMEOUT;
+        return TIMEOUT_RESULT;
     }
 
-    public long messageDeadlineNanos(int from, int to)
+    public long messageDeadlineNanos(int from, int to, boolean protectedMessage)
     {
         return time.nanoTime() + (delayMessage.get(random, from, to)
                                   ? normalLatency.get(random, from, to)
                                   : delayLatency.get(random, from, to));
     }
 
-    public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos)
+    public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos, boolean protectedMessage)
     {
         return expiresAfterNanos + random.uniform(0, expirationIntervalNanos / 2);
     }
 
-    public long messageFailureNanos(int from, int to)
+    public long messageFailureNanos(int from, int to, boolean protectedMessage)
     {
-        return messageDeadlineNanos(from, to);
+        return messageDeadlineNanos(from, to, protectedMessage);
     }
 
     public long schedulerDelayNanos()

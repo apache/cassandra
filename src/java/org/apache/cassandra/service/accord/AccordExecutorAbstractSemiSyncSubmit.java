@@ -27,14 +27,14 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
 {
-    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
     }
 
     abstract void awaitExclusive() throws InterruptedException;
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         if (!lock.tryLock())
         {

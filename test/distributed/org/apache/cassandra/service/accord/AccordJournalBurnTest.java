@@ -122,6 +122,11 @@ public class AccordJournalBurnTest extends BurnTestBase
         FieldUtil.setInstanceUnsafe(TopologySerializers.class,
                                     new TopologySerializers.ShardSerializer(BurnTestKeySerializers.range),
                                     "shard");
+        // compact topology inlines all serialziation and uses TokenRange directly, so it has to be fully stubbed out
+        // for this class.
+        FieldUtil.setInstanceUnsafe(TopologySerializers.class,
+                                    TopologySerializers.topology,
+                                    "compactTopology");
     }
 
     private static final AtomicInteger counter = new AtomicInteger();
@@ -327,7 +332,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                              private TreeMap<JournalKey, Command> read(CommandStores commandStores)
                              {
                                  TreeMap<JournalKey, Command> result = new TreeMap<>(JournalKey.SUPPORT::compare);
-                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null))
                                  {
                                      JournalKey prev = null;
                                      while (iter.hasNext())

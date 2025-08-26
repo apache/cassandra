@@ -34,6 +34,14 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.schema.*;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,8 +59,6 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
-import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -287,6 +293,49 @@ public class ClusterMetadataService
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
         ClusterMetadataService.setInstance(cms);
     }
+
+    public static void empty(Keyspaces keyspaces)
+    {
+        if (instance != null)
+            return;
+        String localDC = DatabaseDescriptor.getLocalDataCenter();
+        ClusterMetadata empty = new ClusterMetadata(Epoch.EMPTY,
+                                                    DatabaseDescriptor.getPartitioner(),
+                                                    new DistributedSchema(keyspaces),
+                                                    Directory.EMPTY,
+                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                   DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
+                                   LockedRanges.EMPTY,
+                                   InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
+                                   Collections.emptyMap(),
+                                   AccordStaleReplicas.EMPTY);
+
+
+        LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                .withInitialState(empty)
+                .loadSSTables(false)
+                .withDefaultListeners(false)
+                .sync()
+                .withStorage(new AtomicLongBackedProcessor.InMemoryStorage());
+        LocalLog log = logSpec.createLog();
+        ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
+                                                                MetadataSnapshots.NO_OP,
+                                                                log,
+                                                                new AtomicLongBackedProcessor(log),
+                                                                new LogState.ReplicationHandler(log),
+                                                                new LogState.LogNotifyHandler(log),
+                                                                new CurrentEpochRequestHandler(),
+                                                                null,
+                                                                null,
+                                                                null);
+
+        log.readyUnchecked();
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
+        ClusterMetadataService.setInstance(cms);
+    }
+
 
     @SuppressWarnings("resource")
     public static void initializeForClients()

@@ -29,9 +29,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.EventListener;
+import accord.api.CoordinatorEventListener;
+import accord.api.LocalEventListener;
 import accord.api.ProgressLog.BlockedUntil;
-import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.api.TraceEventType;
@@ -128,11 +128,6 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onRecover(Node node, Result success, Throwable fail)
-    {
-    }
-
-    @Override
     public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next)
     {
         // TODO (expected): better reporting
@@ -209,10 +204,11 @@ public class AccordAgent implements Agent
         return SECONDS.toMicros(1);
     }
 
+    // TODO (expected): I don't think we even need this - just prune each time we have doubled in size
     @Override
     public long maxConflictsPruneInterval()
     {
-        return 100;
+        return 1024;
     }
 
     /**
@@ -226,7 +222,13 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public EventListener eventListener()
+    public CoordinatorEventListener coordinatorEvents()
+    {
+        return AccordMetrics.Listener.instance;
+    }
+
+    @Override
+    public LocalEventListener localEvents()
     {
         return AccordMetrics.Listener.instance;
     }
@@ -244,11 +246,15 @@ public class AccordAgent implements Agent
         Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long oneSecond = SECONDS.toMicros(1L);
-        long mostRecentStart = Math.max(command.txnId().hlc(), command.promised().hlc());
-        long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        Invariants.expect(mostRecentStart <= nowMicros + SECONDS.toMicros(1L), "max(%s,%s)>%d", command.txnId(), command.promised(), nowMicros);
+        long oneSecond = SECONDS.toMicros(1L);
+        long promisedHlc = command.promised().hlc();
+        if (promisedHlc > nowMicros + TimeUnit.MINUTES.toMicros(1))
+            promisedHlc = 0;
+        long mostRecentStart = Math.max(command.txnId().hlc(), promisedHlc);
+        long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
+        if (mostRecentStart > nowMicros + SECONDS.toMicros(1L))
+            logger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
         long startTime = mostRecentStart + waitMicros;
         if (startTime < nowMicros)
             startTime = nowMicros + waitMicros/2;
@@ -359,7 +365,7 @@ public class AccordAgent implements Agent
 
         logger.debug("Waiting {} micros for {} to be stale", waitMicros, staleId);
         AsyncResult.Settable<TxnId> result = AsyncResults.settable();
-        node.scheduler().selfRecurring(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
+        node.scheduler().once(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
         return result;
     }
 

@@ -34,6 +34,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
+import org.apache.cassandra.tools.nodetool.RemoveNode;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEnacting;
@@ -42,6 +43,11 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactm
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.RemoveNode
+ * @see org.apache.cassandra.tools.nodetool.RemoveNode.Abort
+ * @see RemoveNode.Status
+ */
 public class RemoveNodeTest extends TestBaseImpl
 {
     @Test

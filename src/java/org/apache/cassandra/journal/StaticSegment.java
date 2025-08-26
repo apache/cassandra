@@ -164,6 +164,8 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      */
     void discard(Journal<K, V> journal)
     {
+        logger.debug("Discarding {}", this);
+
         ((Tidier)selfRef.tidier()).discard = true;
         close(journal);
     }
@@ -239,6 +241,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         return index;
     }
 
+    public int entryCount()
+    {
+        return index.entryCount();
+    }
+
     @Override
     boolean isActive()
     {
@@ -284,7 +291,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     /**
      * Iterate over and invoke the supplied callback on every record.
      */
-    void forEachRecord(RecordConsumer<K> consumer)
+    public void forEachRecord(RecordConsumer<K> consumer)
     {
         try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit))
         {

@@ -23,24 +23,32 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "viewbuildstatus", description = "Show progress of a materialized view build")
-public class ViewBuildStatus extends NodeTool.NodeToolCmd
+public class ViewBuildStatus extends AbstractCommand
 {
     private final static String SUCCESS = "SUCCESS";
 
-    @Arguments(usage = "<keyspace> <view> | <keyspace.view>", description = "The keyspace and view name")
+    @CassandraUsage(usage = "<keyspace> <view> | <keyspace.view>", description = "The keyspace and view name")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", description = "Keyspace or keyspace and view in format <keyspace> <view> | <keyspace.view>", arity = "0..1")
+    private String keyspaceView;
+
+    @Parameters(index = "1", description = "View name", arity = "0..1")
+    private String view;
 
     protected void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspaceView, view);
         PrintStream out = probe.output().out;
         String keyspace = null, view = null;
         if (args.size() == 2)
@@ -73,14 +81,15 @@ public class ViewBuildStatus extends NodeTool.NodeToolCmd
             builder.add(status.getKey(), status.getValue());
         }
 
-        if (failed) {
-            out.println(String.format("%s.%s has not finished building; node status is below.", keyspace, view));
+        if (failed)
+        {
+            String message = String.format("%s.%s has not finished building; node status is below.", keyspace, view);
+            out.println(message);
             out.println();
             builder.printTo(out);
-            System.exit(1);
-        } else {
-            out.println(String.format("%s.%s has finished building", keyspace, view));
-            System.exit(0);
+            throw new RuntimeException(message);
         }
+        else
+            out.println(String.format("%s.%s has finished building", keyspace, view));
     }
 }

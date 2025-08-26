@@ -40,8 +40,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -163,10 +164,11 @@ public class CassandraEntireSSTableStreamWriterTest
 
             CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
 
-            SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
-            Collection<SSTableReader> newSstables = sstableWriter.finished();
-
+            SSTableTxnSingleStreamWriter sstableWriter = (SSTableTxnSingleStreamWriter) reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
+            StreamingLifecycleTransaction stt = new StreamingLifecycleTransaction();
+            Collection<SSTableReader> newSstables = sstableWriter.transferOwnershipTo(stt);
             assertEquals(1, newSstables.size());
+            stt.abort();
         }
     }
 

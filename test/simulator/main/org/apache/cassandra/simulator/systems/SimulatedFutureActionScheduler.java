@@ -20,6 +20,8 @@ package org.apache.cassandra.simulator.systems;
 
 import java.util.BitSet;
 
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.cluster.Topology;
@@ -30,11 +32,6 @@ import org.apache.cassandra.simulator.utils.KindOfSequence.Decision;
 import org.apache.cassandra.simulator.utils.KindOfSequence.LinkLatency;
 import org.apache.cassandra.simulator.utils.KindOfSequence.NetworkDecision;
 import org.apache.cassandra.simulator.utils.KindOfSequence.Period;
-
-import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
-import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER_AND_TIMEOUT;
-import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.FAILURE;
-import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.TIMEOUT;
 
 public class SimulatedFutureActionScheduler implements FutureActionScheduler, TopologyListener
 {
@@ -142,27 +139,27 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
     }
 
     @Override
-    public FutureActionScheduler.Deliver shouldDeliver(int from, int to)
+    public DeliverResult shouldDeliver(int from, int to, IInvokableInstance invoker, IMessage message)
     {
         Network config = config(from, to);
 
         if (isInDropPartition.get(from) != isInDropPartition.get(to))
-            return TIMEOUT;
+            return TIMEOUT_RESULT;
 
         if (!config.dropMessage.get(random, from, to))
-            return DELIVER;
+            return DELIVER_UNPROTECTED_RESULT;
 
         if (random.decide(0.5f))
-            return DELIVER_AND_TIMEOUT;
+            return DELIVER_AND_TIMEOUT_RESULT;
 
         if (random.decide(0.5f))
-            return TIMEOUT;
+            return TIMEOUT_RESULT;
 
-        return FAILURE;
+        return FAILURE_RESULT;
     }
 
     @Override
-    public long messageDeadlineNanos(int from, int to)
+    public long messageDeadlineNanos(int from, int to, boolean protectedMessage)
     {
         Network config = config(from, to);
         return time.nanoTime() + (config.delayMessage.get(random, from, to)
@@ -171,15 +168,15 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
     }
 
     @Override
-    public long messageTimeoutNanos(long expiresAtNanos, long expirationIntervalNanos)
+    public long messageTimeoutNanos(long expiresAtNanos, long expirationIntervalNanos, boolean protectedMessage)
     {
         return expiresAtNanos + random.uniform(0, expirationIntervalNanos / 2);
     }
 
     @Override
-    public long messageFailureNanos(int from, int to)
+    public long messageFailureNanos(int from, int to, boolean protectedMessage)
     {
-        return messageDeadlineNanos(from, to);
+        return messageDeadlineNanos(from, to, protectedMessage);
     }
 
     @Override

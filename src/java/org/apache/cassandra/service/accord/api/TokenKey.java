@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -146,6 +147,32 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         return prefix() + ":" + printableSuffix();
     }
 
+    public static TokenKey parse(String str, IPartitioner partitioner)
+    {
+        TableId tableId;
+        {
+            int split = str.indexOf(':', str.startsWith("tid:") ? 4 : 0);
+            tableId = TableId.fromString(str.substring(0, split));
+            str = str.substring(split + 1);
+        }
+        if (str.endsWith("Inf"))
+        {
+            return new TokenKey(tableId, str.charAt(0) == '-' ? MIN_TABLE_SENTINEL : MAX_TABLE_SENTINEL, partitioner.getMinimumToken());
+        }
+        if (str.endsWith(")"))
+        {
+            boolean isBefore = str.startsWith("before(");
+            boolean isAfter = str.startsWith("after(");
+            if (isBefore || isAfter)
+            {
+                byte sentinel = isBefore ? BEFORE_TOKEN_SENTINEL : AFTER_TOKEN_SENTINEL;
+                str = str.substring(isBefore ? 7 : 6, str.length() - 1);
+                return new TokenKey(tableId, sentinel, partitioner.getTokenFactory().fromString(str));
+            }
+        }
+        return new TokenKey(tableId, partitioner.getTokenFactory().fromString(str));
+    }
+
     public long estimatedSizeOnHeap()
     {
         return EMPTY_SIZE + token().getHeapSize();
@@ -228,6 +255,55 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
     public static TokenKey before(TableId table, Token token)
     {
         return new TokenKey(table, BEFORE_TOKEN_SENTINEL, token);
+    }
+
+    public static final NoTableSerializer noTableSerializer = new NoTableSerializer();
+
+
+    public static class NoTableSerializer implements ParameterisedUnversionedSerializer<TokenKey, TableId>
+    {
+        @Override
+        public void serialize(TokenKey key, TableId tableId, DataOutputPlus out) throws IOException
+        {
+            IPartitioner partitioner = key.token.getPartitioner();
+            int fixedLength = partitioner.accordFixedLength();
+            if (fixedLength < 0)
+            {
+                int len = partitioner.accordSerializedSize(key.token);
+                out.writeUnsignedVInt32(len);
+            }
+            serializer.serializeWithoutPrefixOrLength(key, out);
+        }
+
+        public void serialize(TokenKey key, DataOutputPlus out) throws IOException
+        {
+            serialize(key, key.table, out);
+        }
+
+        @Override
+        public long serializedSize(TokenKey key, TableId tableId)
+        {
+            IPartitioner partitioner = key.token.getPartitioner();
+            int tokenSize = partitioner.accordFixedLength();
+            if (tokenSize >= 0)
+                return 2 + tokenSize;
+            tokenSize = partitioner.accordSerializedSize(key.token);
+            return 2 + tokenSize + VIntCoding.sizeOfUnsignedVInt(tokenSize);
+        }
+
+        public long serializedSize(TokenKey key)
+        {
+            return serializedSize(key, key.table);
+        }
+
+        @Override
+        public TokenKey deserialize(TableId tableId, DataInputPlus in) throws IOException
+        {
+            IPartitioner partitioner = getPartitioner();
+            int len = partitioner.accordFixedLength();
+            if (len < 0) len = in.readUnsignedVInt32();
+            return serializer.deserializeWithPrefix(tableId, len + 2, in, partitioner);
+        }
     }
 
     public static final class Serializer implements AccordSearchableKeySerializer<TokenKey>

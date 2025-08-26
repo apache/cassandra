@@ -37,7 +37,10 @@ import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.UnhandledEnum;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -88,6 +91,29 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         return success();
     }
 
+    /*
+     * Interop execution with AccordInteropExecution can throw a bunch of C* read not Accord errors
+     * that we want to preserve and make the top level exception here.
+     */
+    private static Throwable maybeWrappedInRequestFailureException(Timeout timeout)
+    {
+        Throwable toCheck = timeout;
+        do
+        {
+            if (toCheck instanceof ReadTimeoutException)
+            {
+                ReadTimeoutException rte = (ReadTimeoutException) toCheck;
+                return new ReadTimeoutException(rte.consistency, rte.received, rte.blockFor, rte.dataPresent, timeout);
+            }
+            else if (toCheck instanceof ReadFailureException)
+            {
+                ReadFailureException rfe = (ReadFailureException) toCheck;
+                return new ReadFailureException(rfe.getMessage(), rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent, rfe.failureReasonByEndpoint, timeout);
+            }
+        } while ((toCheck = toCheck.getCause()) != null);
+        return timeout;
+    }
+
     @Override
     public void accept(V success, Throwable fail)
     {
@@ -103,7 +129,17 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
 
                 if (coordinationFailed instanceof Timeout)
                 {
-                    report = bookkeeping.newTimeout(txnId, keysOrRanges);
+                    // Preserve the interop execution created exception if there is one
+                    Throwable maybeWrappedInRequestFailureException = maybeWrappedInRequestFailureException((Timeout)coordinationFailed);
+                    if (maybeWrappedInRequestFailureException instanceof RequestFailureException)
+                    {
+                        bookkeeping.newTimeout(txnId, keysOrRanges);
+                        report = (RequestFailureException)maybeWrappedInRequestFailureException;
+                    }
+                    else
+                    {
+                        report = bookkeeping.newTimeout(txnId, keysOrRanges);
+                    }
                 }
                 else if (coordinationFailed instanceof Preempted)
                 {

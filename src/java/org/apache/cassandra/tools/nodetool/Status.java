@@ -36,44 +36,39 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.LocalizeString;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static java.util.stream.Collectors.toMap;
 
-@SuppressWarnings("UseOfSystemOutOrSystemErr")
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")
-public class Status extends NodeToolCmd
+public class Status extends WithPortDisplayAbstractCommand
 {
-    @Arguments(usage = "[<keyspace>]", description = "The keyspace name")
+    @Parameters(description = "The keyspace name", arity = "0..1")
     private String keyspace = null;
 
-    @Option(title = "resolve_ip", name = { "-r", "--resolve-ip" }, description = "Show node domain names instead of IPs")
+    @Option(paramLabel = "resolve_ip", names = { "-r", "--resolve-ip" }, description = "Show node domain names instead of IPs")
     private boolean resolveIp = false;
 
-    @Option(title = "sort",
-    name = { "-s", "--sort" },
-    description = "Sort by one of 'ip', 'host', 'load', 'owns', 'id', 'rack', 'state' or 'token'. " +
-                  "Default ordering is ascending for 'ip', 'host', 'id', 'token', 'rack' and descending for 'load', 'owns', 'state'. " +
-                  "Sorting by token is possible only when cluster does not use vnodes. When using vnodes, default " +
-                  "sorting is by id otherwise by token.",
-    allowedValues = { "ip", "host", "load", "owns", "id", "rack", "state", "token" })
-    private String sortBy = null;
+    @Option(paramLabel = "sort",
+            names = { "-s", "--sort" },
+            description = "Sort by one of 'ip', 'host', 'load', 'owns', 'id', 'rack', 'state' or 'token'. " +
+                          "Default ordering is ascending for 'ip', 'host', 'id', 'token', 'rack' and descending for 'load', 'owns', 'state'. " +
+                          "Sorting by token is possible only when cluster does not use vnodes. When using vnodes, default " +
+                          "sorting is by id otherwise by token.")
+    private SortBy sortBy = null;
 
-    @Option(title = "sort_order",
-    name = { "-o", "--order" },
-    description = "Sorting order: 'asc' for ascending, 'desc' for descending.",
-    allowedValues = { "asc", "desc" })
-    private String sortOrder = null;
+    @Option(paramLabel = "sort_order",
+            names = { "-o", "--order" },
+            description = "Sorting order: 'asc' for ascending, 'desc' for descending.")
+    private SortOrder sortOrder = null;
 
     private boolean isTokenPerNode = true;
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
@@ -86,8 +81,8 @@ public class Status extends NodeToolCmd
         PrintStream out = probe.output().out;
         PrintStream errOut = probe.output().err;
 
-        SortBy sortBy = parseSortBy(this.sortBy, errOut);
-        SortOrder sortOrder = parseSortOrder(this.sortOrder, errOut);
+        SortBy sortBy = parseSortBy(this.sortBy == null ? null : this.sortBy.toString(), errOut);
+        SortOrder sortOrder = parseSortOrder(this.sortOrder == null ? null : this.sortOrder.toString(), errOut);
 
         joiningNodes = probe.getJoiningNodes(true);
         leavingNodes = probe.getLeavingNodes(true);
@@ -119,16 +114,16 @@ public class Status extends NodeToolCmd
             catch (Exception ex)
             {
                 errOut.printf("%nError: %s%n", ex.getMessage());
-                System.exit(1);
+                throw ex;
             }
         }
         catch (IllegalArgumentException ex)
         {
             errOut.printf("%nError: %s%n", ex.getMessage());
-            System.exit(1);
+            throw ex;
         }
 
-        SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
+        SortedMap<String, SetHostStatWithPort> dcs = CommandUtils.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
         int nodesOfTokens = tokensToEndpoints.values().size();
 
@@ -146,12 +141,12 @@ public class Status extends NodeToolCmd
         else if (!isTokenPerNode && sortBy == SortBy.token)
         {
             errOut.printf("%nError: Can not sort by token when there is not token per node.%n");
-            System.exit(1);
+            throw new IllegalArgumentException("Error: Can not sort by token when there is not token per node.");
         }
         else if (!resolveIp && sortBy == SortBy.host)
         {
             errOut.printf("%nError: Can not sort by host when there is not -r/--resolve-ip flag used.%n");
-            System.exit(1);
+            throw new IllegalArgumentException("Error: Can not sort by host when there is not -r/--resolve-ip flag used.");
         }
 
         // Datacenters
@@ -505,8 +500,7 @@ public class Status extends NodeToolCmd
                                          .collect(Collectors.joining(", "));
             out.printf("%nError: Illegal value for -s/--sort used: '"
                        + setSortBy + "'. Supported values are " + enabledValues + ".%n");
-            System.exit(1);
-            return null;
+            throw ex;
         }
     }
 
@@ -526,8 +520,7 @@ public class Status extends NodeToolCmd
                                          .collect(Collectors.joining(", "));
             out.printf("%nError: Illegal value for -o/--order used: '"
                        + setSortOrder + "'. Supported values are " + enabledValues + ".%n");
-            System.exit(1);
-            return null;
+            throw ex;
         }
     }
 }

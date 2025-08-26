@@ -34,6 +34,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.cluster.OnInstanceRepair.RepairType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -105,7 +106,7 @@ class OnClusterReplace extends OnClusterChangeTopology
             ).toArray();
 
             local.add(new OnClusterMarkDown(actions, leaving));
-            local.add(new OnClusterRepairRanges(actions, others, true, false, repairRanges));
+            local.add(new OnClusterRepairRanges(actions, others, RepairType.DATA_AND_PAXOS_FULL, repairRanges, true));
             local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.START_REPLACE));
             local.addAll(Quiesce.all(actions));
             return ActionList.of(local);

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -43,7 +44,10 @@ import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.messages.AbstractRequest;
+import net.openhft.chronicle.core.util.SerializablePredicate;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -73,6 +77,8 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageSink;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordCache;
 
@@ -82,6 +88,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.assertj.core.api.Assertions.fail;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
@@ -98,19 +105,61 @@ public class TestBaseImpl extends DistributedTestBase
     protected static class MessageCountingSink implements IMessageSink
     {
         private final Cluster cluster;
+        private final SerializablePredicate<Message<?>> filter;
+
+        // This isn't perfect at excluding messages so make sure it excludes the ones you care about in your test
+        public static final SerializablePredicate<Message<?>> EXCLUDE_SYNC_POINT_MESSAGES = message -> {
+            if (message.payload instanceof AbstractRequest)
+                return !((AbstractRequest<?>)message.payload).txnId.isSyncPoint();
+            return true;
+        };
 
         public MessageCountingSink(Cluster cluster)
         {
+            this(cluster, message -> true);
+        }
+
+        public MessageCountingSink(Cluster cluster, SerializablePredicate<Message<?>> filter)
+        {
             this.cluster = cluster;
+            this.filter = filter;
         }
 
         @Override
-        public void accept(InetSocketAddress to, IMessage message)
+        public void accept(InetSocketAddress to, IMessage iMessage)
         {
-            Verb verb = Verb.fromId(message.verb());
-            logger.debug("verb {} to {} message {}", verb, to, message);
-            messageCounts.computeIfAbsent(verb, ignored -> new AtomicLong()).incrementAndGet();
-            cluster.get(to).receiveMessage(message);
+            Verb verb = Verb.fromId(iMessage.verb());
+            logger.debug("verb {} to {}", verb, to);
+            SerializablePredicate<Message<?>> filter = this.filter;
+            // Do some gymnastics to evaluate the predicate because deserialization fails if done here
+            // This races with shutdown so when attempting to count/deliver to shut down nodes ignore the exception
+            // and count anyways since we can't do much better
+            boolean accepted;
+            try
+            {
+                accepted = cluster.get(to).unsafeCallOnThisThread(() -> {
+                    try (DataInputBuffer in = new DataInputBuffer(iMessage.bytes()))
+                    {
+                        Message<?> message =  Message.serializer.deserialize(in, toCassandraInetAddressAndPort(iMessage.from()), iMessage.version());
+                        return filter.test(message);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            catch (IllegalStateException e)
+            {
+                if (e.getMessage().startsWith("Can't use shutdown "))
+                    return;
+                throw e;
+            }
+            if (accepted)
+            {
+                messageCounts.computeIfAbsent(verb, ignored -> new AtomicLong()).incrementAndGet();
+                cluster.get(to).receiveMessage(iMessage);
+            }
         }
     }
 
@@ -359,5 +408,39 @@ public class TestBaseImpl extends DistributedTestBase
         }
         sb.append("COMMIT TRANSACTION");
         return sb.toString();
+    }
+
+    /**
+     * Runs the given function before and after a flush of sstables.  This is useful for checking that behavior is
+     * the same whether data is in memtables or sstables.
+     *
+     * @param cluster the tested cluster
+     * @param keyspace the keyspace to flush
+     * @param runnable the test to run
+     */
+    public static void beforeAndAfterFlush(Cluster cluster, String keyspace, CQLTester.CheckedFunction runnable) throws Throwable
+    {
+        try
+        {
+            runnable.apply();
+        }
+        catch (Throwable t)
+        {
+            throw new AssertionError("Test failed before flush:\n" + t, t);
+        }
+
+        for (int i = 1; i <= cluster.size(); i++)
+        {
+            cluster.get(i).flush(keyspace);
+
+            try
+            {
+                runnable.apply();
+            }
+            catch (Throwable t)
+            {
+                throw new AssertionError("Test failed after flushing node " + i + ":\n" + t, t);
+            }
+        }
     }
 }

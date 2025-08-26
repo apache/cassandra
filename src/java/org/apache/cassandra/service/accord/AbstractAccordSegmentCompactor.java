@@ -26,9 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-import accord.utils.btree.BTree;
-import accord.utils.btree.BulkIterator;
-import accord.utils.btree.UpdateFunction;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -50,10 +47,13 @@ import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import org.apache.cassandra.service.accord.serializers.Version;
+import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
  * Segment compactor: takes static segments and compacts them into a single SSTable.
@@ -84,7 +84,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         return false;
     }
 
-    abstract void initializeWriter();
+    abstract void initializeWriter(int estimatedKeyCount);
     abstract SSTableTxnWriter writer();
     abstract void finishAndAddWriter();
     abstract Throwable cleanupWriter(Throwable t);
@@ -96,12 +96,14 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
     {
-        Invariants.require(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
         logger.info("Compacting {} static segments: {}", segments.size(), segments);
 
+        // TODO (expected): this will be a large over-estimate. should make segments an sstable format and include cardinality estimation
+        int estimatedKeyCount = 0;
         PriorityQueue<KeyOrderReader<JournalKey>> readers = new PriorityQueue<>();
         for (StaticSegment<JournalKey, V> segment : segments)
         {
+            estimatedKeyCount += segment.entryCount();
             KeyOrderReader<JournalKey> reader = segment.keyOrderReader();
             if (reader.advance())
                 readers.add(reader);
@@ -114,7 +116,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         if (readers.isEmpty())
             return Collections.emptyList();
 
-        initializeWriter();
+        initializeWriter(estimatedKeyCount);
 
         JournalKey key = null;
         FlyweightImage builder = null;

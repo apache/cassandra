@@ -24,15 +24,17 @@ import java.util.Map;
 
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 
 class OnInstanceStartConsensusMigration extends ClusterAction
 {
-
     public OnInstanceStartConsensusMigration(KeyspaceActions actions, int on, Map.Entry<String, String> startMigrationRange)
     {
-        this(actions, on, RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS, startMigrationRange);
+        this(actions, on, NONE, NONE, startMigrationRange);
     }
 
     public OnInstanceStartConsensusMigration(KeyspaceActions actions, int on, Modifiers self, Modifiers transitive, Map.Entry<String, String> startMigrationRange)
@@ -47,6 +49,12 @@ class OnInstanceStartConsensusMigration extends ClusterAction
             keyspaces.add(keyspaceName);
             List<String> tables = new ArrayList<>();
             tables.add(cfName);
+            ClusterMetadata clusterMetadata = ClusterMetadata.current();
+            TransactionalMigrationFromMode migrationFrom = clusterMetadata.schema.getTableMetadata(keyspaceName, cfName).params.transactionalMigrationFrom;
+            // The alter enabling migration could be on another node, need to wait for it to be visible
+            // This assumes there are no other sources of epoch changes which won't work with topology changes
+            if (!migrationFrom.isMigrating())
+                ClusterMetadataService.instance().fetchLogFromCMS(clusterMetadata.epoch.nextEpoch());
             StorageService.instance.migrateConsensusProtocol(keyspaces, tables, range.getKey() + ":" + range.getValue());
         };
     }

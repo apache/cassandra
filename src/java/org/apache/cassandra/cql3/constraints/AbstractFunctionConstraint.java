@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.utils.LocalizeString;
 
 public abstract class AbstractFunctionConstraint<T> extends ColumnConstraint<T>
 {
@@ -51,17 +50,5 @@ public abstract class AbstractFunctionConstraint<T> extends ColumnConstraint<T>
     public void appendCqlTo(CqlBuilder builder)
     {
         builder.append(toString());
-    }
-
-    public static <T extends Enum<T>> T getEnum(Class<T> enumClass, String functionName)
-    {
-        try
-        {
-            return Enum.valueOf(enumClass, LocalizeString.toUpperCaseLocalized(functionName));
-        }
-        catch (IllegalArgumentException e)
-        {
-            throw new InvalidConstraintDefinitionException("Unrecognized constraint function: " + functionName);
-        }
     }
 }

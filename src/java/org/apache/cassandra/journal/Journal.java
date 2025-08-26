@@ -936,9 +936,9 @@ public class Journal<K, V> implements Shutdownable
     /**
      * Static segment iterator iterates all keys in _static_ segments in order.
      */
-    public StaticSegmentKeyIterator staticSegmentKeyIterator()
+    public StaticSegmentKeyIterator staticSegmentKeyIterator(K min, K max)
     {
-        return new StaticSegmentKeyIterator();
+        return new StaticSegmentKeyIterator(min, max);
     }
 
     /**
@@ -946,7 +946,7 @@ public class Journal<K, V> implements Shutdownable
      */
     public static class KeyRefs<K>
     {
-        long segments[];
+        long[] segments;
         K key;
         int size;
 
@@ -964,6 +964,11 @@ public class Journal<K, V> implements Shutdownable
         {
             for (int i = 0; i < size; i++)
                 consumer.accept(segments[i]);
+        }
+
+        public long[] copyOfSegments()
+        {
+            return segments == null ? new long[0] : Arrays.copyOf(segments, size);
         }
 
         public K key()
@@ -1006,17 +1011,25 @@ public class Journal<K, V> implements Shutdownable
         private final ReferencedSegments<K, V> segments;
         private final MergeIterator<Head, KeyRefs<K>> iterator;
 
-        public StaticSegmentKeyIterator()
+        public StaticSegmentKeyIterator(K min, K max)
         {
-            this.segments = selectAndReference(Segment::isStatic);
+            this.segments = selectAndReference(s -> s.isStatic()
+                                                    && s.asStatic().index().entryCount() > 0
+                                                    && (min == null || keySupport.compare(s.index().lastId(), min) >= 0)
+                                                    && (max == null || keySupport.compare(s.index().firstId(), max) <= 0));
             List<Iterator<Head>> iterators = new ArrayList<>(segments.count());
 
             for (Segment<K, V> segment : segments.allSorted(true))
             {
-                StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
+                final StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
+                final OnDiskIndex<K>.IndexReader iter = staticSegment.index().reader();
+                if (min != null) iter.seek(min);
+                if (max != null) iter.seekEnd(max);
+                if (!iter.hasNext())
+                    continue;
+
                 iterators.add(new AbstractIterator<>()
                 {
-                    final Iterator<K> iter = staticSegment.index().reader();
                     final Head head = new Head(staticSegment.descriptor.timestamp);
 
                     @Override

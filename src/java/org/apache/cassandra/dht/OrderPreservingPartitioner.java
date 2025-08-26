@@ -165,6 +165,11 @@ public class OrderPreservingPartitioner implements IPartitioner
             return new StringToken(ByteSourceInverse.getString(comparableBytes));
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipUnescapedBytes(comparableBytes);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             StringToken stringToken = (StringToken) token;

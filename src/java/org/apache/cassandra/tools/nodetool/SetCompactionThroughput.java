@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "setcompactionthroughput", description = "Set the MiB/s throughput cap for compaction in the system, or 0 to disable throttling")
-public class SetCompactionThroughput extends NodeToolCmd
+public class SetCompactionThroughput extends AbstractCommand
 {
-    @Arguments(title = "compaction_throughput", usage = "<value_in_mb>", description = "Value in MiB, 0 to disable throttling", required = true)
+    @Parameters(paramLabel = "compaction_throughput", description = "Value in MiB, 0 to disable throttling", arity = "1")
     private Integer compactionThroughput = null;
 
     @Override

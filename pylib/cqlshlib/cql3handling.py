@@ -759,6 +759,7 @@ syntax_rules += r'''
                           ( "PER" "PARTITION" "LIMIT" perPartitionLimit=<wholenumber> )?
                           ( "LIMIT" limit=<wholenumber> )?
                           ( "ALLOW" "FILTERING" )?
+                          ( "WITH" <options> )?
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
@@ -803,6 +804,14 @@ syntax_rules += r'''
 <groupByFunctionArgument> ::= [groupcol]=<cident>
                             | <term>
                             ;
+
+<identifiers> ::= "{" <identifier> ( "," <identifier> )* "}"
+                  ;
+<options> ::= <option> ( "AND" <option> )*
+                  ;
+<option> ::= "included_indexes" "=" <identifiers>
+           | "excluded_indexes" "=" <identifiers>
+           ;
 
 <aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
              | "AVG" "(" [colname]=<cident> ")"

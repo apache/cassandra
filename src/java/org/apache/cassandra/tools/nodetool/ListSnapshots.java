@@ -24,39 +24,38 @@ import java.util.Map;
 import java.util.Set;
 import javax.management.openmbean.TabularData;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "listsnapshots", description = "Lists all the snapshots along with the size on disk and true size. True size is the total size of all SSTables which are not backed up to disk. Size on disk is total size of the snapshot on disk. Total TrueDiskSpaceUsed does not make any SSTable deduplication.")
-public class ListSnapshots extends NodeToolCmd
+public class ListSnapshots extends AbstractCommand
 {
-    @Option(title = "no_ttl",
-    name = { "-nt", "--no-ttl" },
-    description = "Skip snapshots with TTL")
+    @Option(paramLabel = "no_ttl",
+            names = { "-nt", "--no-ttl" },
+            description = "Skip snapshots with TTL")
     private boolean noTTL = false;
 
-    @Option(title = "ephemeral",
-    name = { "-e", "--ephemeral" },
-    description = "Include ephememeral snapshots")
+    @Option(paramLabel = "ephemeral",
+            names = { "-e", "--ephemeral" },
+            description = "Include ephememeral snapshots")
     private boolean includeEphemeral = false;
 
-    @Option(title = "keyspace",
-    name = { "-k", "--keyspace" },
-    description = "Include snapshots of specified keyspace name")
+    @Option(paramLabel = "keyspace",
+            names = { "-k", "--keyspace" },
+            description = "Include snapshots of specified keyspace name")
     private String keyspace = null;
 
-    @Option(title = "table",
-    name = { "-t", "--table" },
-    description = "Include snapshots of specified table name")
+    @Option(paramLabel = "table",
+            names = { "-t", "--table" },
+            description = "Include snapshots of specified table name")
     private String table = null;
 
-    @Option(title = "snapshot",
-    name = { "-n", "--snapshot"},
-    description = "Include snapshots of specified name")
+    @Option(paramLabel = "snapshot",
+            names = { "-n", "--snapshot" },
+            description = "Include snapshots of specified name")
     private String snapshotName = null;
 
     @Override

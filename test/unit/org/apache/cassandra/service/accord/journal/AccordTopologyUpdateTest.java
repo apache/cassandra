@@ -127,7 +127,7 @@ public class AccordTopologyUpdateTest
 
             Node.Id self = rs.pick(topology.nodes());
 
-            return new Journal.TopologyUpdate(commandStores, topology.forNode(self), topology);
+            return new Journal.TopologyUpdate(commandStores, topology);
         };
     }
 

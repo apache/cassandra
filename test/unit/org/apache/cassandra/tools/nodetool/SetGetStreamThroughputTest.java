@@ -33,6 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests for {@code nodetool setstreamthroughput} and {@code nodetool getstreamthroughput}.
+ *
+ * @see GetStreamThroughput
+ * @see SetStreamThroughput
  */
 public class SetGetStreamThroughputTest extends CQLTester
 {
@@ -54,7 +57,7 @@ public class SetGetStreamThroughputTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidThroughput(null, "Required parameters are missing: stream_throughput");
+        assertSetInvalidThroughput(null, "Missing required parameter: 'stream_throughput'");
     }
 
     @Test
@@ -102,8 +105,8 @@ public class SetGetStreamThroughputTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidThroughput("1.2", "stream_throughput: can not convert \"1.2\" to a int");
-        assertSetInvalidThroughput("value", "stream_throughput: can not convert \"value\" to a int");
+        assertSetInvalidThroughput("1.2", "Invalid value for positional parameter at index 0 (stream_throughput): '1.2' is not an int");
+        assertSetInvalidThroughput("value", "Invalid value for positional parameter at index 0 (stream_throughput): 'value' is not an int");
         assertSetGetMoreFlagsIsInvalid();
         assertDFlagNeeded();
         assertSetGetMoreFlagsIsInvalid();
@@ -179,9 +182,9 @@ public class SetGetStreamThroughputTest extends CQLTester
 
     private static void assertSetGetMoreFlagsIsInvalid()
     {
-        ToolResult tool = invokeNodetool("setstreamthroughput", "-m", "5", "-e", "5");
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-m", "5", "-e", "6");
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).contains("You cannot use -e and -m at the same time");
+        assertThat(tool.getStdout()).contains("nodetool: Unmatched argument at index 8: '6'");
 
         tool = invokeNodetool("getstreamthroughput", "-m", "-e");
         assertThat(tool.getExitCode()).isEqualTo(1);

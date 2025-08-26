@@ -62,7 +62,7 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
     @Override
     public TxnDataValue without(Ranges ranges)
     {
-        return ranges.contains(new TokenKey(metadata().id, partitionKey().getToken())) ? this : null;
+        return ranges.contains(new TokenKey(metadata().id, partitionKey().getToken())) ? null : this;
     }
 
     @Override

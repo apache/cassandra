@@ -307,7 +307,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
         }
 
         sb.append("COMMIT TRANSACTION");
-        return new Query(sb.toString(), 0, ConsistencyLevel.ANY, ConsistencyLevel.ANY, binds.toArray(new Object[0]));
+        return new Query(sb.toString(), 0, ConsistencyLevel.QUORUM, ConsistencyLevel.QUORUM, binds.toArray(new Object[0]));
     }
 
     @Override

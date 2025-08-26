@@ -268,6 +268,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
+                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   //TODO (now, coverage): this is flakey and non-deterministic.  When this fails (gives bad response) rerunning the seed yields a passing test!
 //                                  .add(StatefulASTBase::fullTableScan)
                                   .add(SingleNodeTokenConflictTest::pkEq)
@@ -383,9 +384,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
 
 
             this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
-                                     .withoutTransaction()
-                                     .withoutTtl()
-                                     .withoutTimestamp()
+                                     .withTxnSafe()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                      .withIgnoreIssues(IGNORED_ISSUES)
                                      .build());

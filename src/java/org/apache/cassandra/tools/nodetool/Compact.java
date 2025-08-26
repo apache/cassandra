@@ -17,41 +17,46 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
+// TODO CASSANDRA-20793 Types of input aguments shouldn't be mixed in the same command. The keyspace, table and SSTable file arguments should have their own commands.
 @Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
-public class Compact extends NodeToolCmd
+public class Compact extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
+    @CassandraUsage(usage = "[<keyspace> <tables>...] or <SSTable file>...",
+                    description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
+    @Parameters(index = "0..*", description = "The keyspace followed by one or many tables or " +
+                                              "list of SSTable data files when using --user-defined")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "split_output", name = {"-s", "--split-output"}, description = "Use -s to not create a single big file")
+    @Option(paramLabel = "split_output", names = { "-s", "--split-output" }, description = "Use -s to not create a single big file")
     private boolean splitOutput = false;
 
-    @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
+    @Option(paramLabel = "user_defined", names = { "--user-defined" }, description = "Use --user-defined to submit listed files for user-defined compaction")
     private boolean userDefined = false;
 
-    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the compaction range starts (inclusive)")
+    @Option(paramLabel = "start_token", names = { "-st", "--start-token" }, description = "Use -st to specify a token at which the compaction range starts (inclusive)")
     private String startToken = EMPTY;
 
-    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which compaction range ends (inclusive)")
+    @Option(paramLabel = "end_token", names = { "-et", "--end-token" }, description = "Use -et to specify a token at which compaction range ends (inclusive)")
     private String endToken = EMPTY;
 
-    @Option(title = "partition_key", name = {"--partition"}, description = "String representation of the partition key")
+    @Option(paramLabel = "partition_key", names = { "--partition" }, description = "String representation of the partition key")
     private String partitionKey = EMPTY;
 
-    @Option(title = "jobs",
-            name = {"-j", "--jobs"},
+    @Option(paramLabel = "jobs",
+            names = {"-j", "--jobs"},
             description = "Use -j to specify the maximum number of threads to use for parallel compaction. " +
                           "If not set, up to half the compaction threads will be used. " +
                           "If set to 0, the major compaction will use all threads and will not permit other compactions to run until it completes (use with caution).")

@@ -21,8 +21,6 @@ package org.apache.cassandra.auth;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 
-import org.apache.cassandra.transport.Dispatcher;
-import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,12 +34,14 @@ import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
-
-import static org.junit.Assert.assertEquals;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
 import static org.apache.cassandra.db.ConsistencyLevel.NODE_LOCAL;
+import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
+import static org.junit.Assert.assertEquals;
 
 public class TxnAuthTest extends CQLTester
 {
@@ -164,7 +164,7 @@ public class TxnAuthTest extends CQLTester
     {
         TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
         TransactionStatement statement = (TransactionStatement) parsed.prepare(clientState);
-        QueryOptions options = QueryOptions.forInternalCalls(NODE_LOCAL, Collections.emptyList());
+        QueryOptions options = QueryOptions.forInternalCalls(QUORUM, Collections.emptyList());
         QueryState queryState = new QueryState(clientState);
         return QueryProcessor.instance.process(statement, queryState, options, Dispatcher.RequestTime.forImmediateExecution());
     }

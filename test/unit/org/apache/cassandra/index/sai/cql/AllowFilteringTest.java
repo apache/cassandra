@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.cql;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.sai.SAITester;
@@ -42,6 +43,7 @@ public class AllowFilteringTest extends SAITester
     public static void setup()
     {
         StorageService.instance.unsafeSetInitialized();
+        CQLTester.disableCoordinatorExecution();
     }
 
     @Test

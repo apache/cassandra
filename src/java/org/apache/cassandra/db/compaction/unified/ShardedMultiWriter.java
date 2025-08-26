@@ -31,7 +31,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.ShardTracker;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -64,7 +64,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     private final IntervalSet<CommitLogPosition> commitLogPositions;
     private final SerializationHeader header;
     private final Collection<Index.Group> indexGroups;
-    private final LifecycleNewTracker lifecycleNewTracker;
+    private final ILifecycleTransaction txn;
     private final ShardTracker boundaries;
     private final SSTableWriter[] writers;
     private int currentWriter;
@@ -78,7 +78,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                               IntervalSet<CommitLogPosition> commitLogPositions,
                               SerializationHeader header,
                               Collection<Index.Group> indexGroups,
-                              LifecycleNewTracker lifecycleNewTracker,
+                              ILifecycleTransaction txn,
                               ShardTracker boundaries)
     {
         this.cfs = cfs;
@@ -90,7 +90,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         this.commitLogPositions = commitLogPositions;
         this.header = header;
         this.indexGroups = indexGroups;
-        this.lifecycleNewTracker = lifecycleNewTracker;
+        this.txn = txn;
         this.boundaries = boundaries;
         this.writers = new SSTableWriter[this.boundaries.count()]; // at least one
 
@@ -118,7 +118,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                          .setSerializationHeader(header)
                          .addDefaultComponents(indexGroups)
                          .setSecondaryIndexGroups(indexGroups)
-                         .build(lifecycleNewTracker, cfs);
+                         .build(txn, cfs);
     }
 
     private long forSplittingKeysBy(long splits) {
@@ -227,7 +227,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         for (SSTableWriter writer : writers)
             if (writer != null)
             {
-                lifecycleNewTracker.untrackNew(writer);
+                txn.untrackNew(writer);
                 t = writer.abort(t);
             }
         return t;

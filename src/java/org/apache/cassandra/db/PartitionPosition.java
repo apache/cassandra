@@ -56,6 +56,8 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>, Byte
     public Kind kind();
     public boolean isMinimum();
 
+    public boolean isMaximum();
+
     /**
      * Produce a prefix-free byte-comparable representation of the key, i.e. such a sequence of bytes that any pair x, y
      * of valid positions (with the same key column types and partitioner),

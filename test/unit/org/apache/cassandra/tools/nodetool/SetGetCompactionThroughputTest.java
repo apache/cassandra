@@ -45,7 +45,7 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidThroughput(null, "Required parameters are missing: compaction_throughput");
+        assertSetInvalidThroughput(null, "Missing required parameter: 'compaction_throughput'");
     }
 
     @Test
@@ -75,8 +75,8 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidThroughput("1.2", "compaction_throughput: can not convert \"1.2\" to a Integer");
-        assertSetInvalidThroughput("value", "compaction_throughput: can not convert \"value\" to a Integer");
+        assertSetInvalidThroughput("1.2", "Invalid value for positional parameter at index 0 (compaction_throughput): '1.2' is not an int");
+        assertSetInvalidThroughput("value", "Invalid value for positional parameter at index 0 (compaction_throughput): 'value' is not an int");
         assertSetInvalidThroughput();
         assertPreciseMibFlagNeeded();
     }

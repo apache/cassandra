@@ -29,7 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.tries.InMemoryTrie;
@@ -63,29 +63,29 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
 
     public static StorageAttachedIndexWriter createFlushObserverWriter(IndexDescriptor indexDescriptor,
                                                                        Collection<StorageAttachedIndex> indexes,
-                                                                       LifecycleNewTracker lifecycleNewTracker) throws IOException
+                                                                       ILifecycleTransaction txn) throws IOException
     {
-        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, false);
+        return new StorageAttachedIndexWriter(indexDescriptor, indexes, txn, false);
 
     }
 
     public static StorageAttachedIndexWriter createBuilderWriter(IndexDescriptor indexDescriptor,
                                                                  Collection<StorageAttachedIndex> indexes,
-                                                                 LifecycleNewTracker lifecycleNewTracker,
+                                                                 ILifecycleTransaction txn,
                                                                  boolean perIndexComponentsOnly) throws IOException
     {
-        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, perIndexComponentsOnly);
+        return new StorageAttachedIndexWriter(indexDescriptor, indexes, txn, perIndexComponentsOnly);
     }
 
     private StorageAttachedIndexWriter(IndexDescriptor indexDescriptor,
                                        Collection<StorageAttachedIndex> indexes,
-                                       LifecycleNewTracker lifecycleNewTracker,
+                                       ILifecycleTransaction txn,
                                        boolean perIndexComponentsOnly) throws IOException
     {
         this.indexDescriptor = indexDescriptor;
-        this.rowMapping = RowMapping.create(lifecycleNewTracker.opType());
+        this.rowMapping = RowMapping.create(txn.opType());
         this.perIndexWriters = indexes.stream().map(index -> indexDescriptor.newPerColumnIndexWriter(index,
-                                                                                                     lifecycleNewTracker,
+                                                                                                     txn,
                                                                                                      rowMapping))
                                       .filter(Objects::nonNull) // a null here means the column had no data to flush
                                       .collect(Collectors.toList());

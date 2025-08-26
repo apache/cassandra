@@ -31,16 +31,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import javax.inject.Inject;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -69,6 +63,9 @@ import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Future;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 /**
  * Tool that allows fast route to loading data for arbitrary schemas to disk
@@ -76,16 +73,13 @@ import org.apache.cassandra.utils.concurrent.Future;
  */
 public abstract class CompactionStress implements Runnable
 {
-    @Inject
-    public HelpOption helpOption;
-
-    @Option(name = { "-p", "--profile" }, description = "Path to stress yaml file", required = true)
+    @Option(names = { "-p", "--profile" }, description = "Path to stress yaml file", required = true)
     String profile;
 
-    @Option(name = { "-d", "--datadir" }, description = "Data directory (can be used many times to specify multiple data dirs)", required = true)
+    @Option(names = { "-d", "--datadir" }, description = "Data directory (can be used many times to specify multiple data dirs)", required = true)
     List<String> dataDirs;
 
-    @Option(name = {"-v", "--vnodes"}, description = "number of local tokens to generate (default 256)")
+    @Option(names = { "-v", "--vnodes" }, description = "number of local tokens to generate (default 256)")
     Integer numTokens = 256;
 
     static
@@ -211,17 +205,14 @@ public abstract class CompactionStress implements Runnable
         }
     }
 
-    public abstract void run();
-
-
     @Command(name = "compact", description = "Compact data in directory")
     public static class Compaction extends CompactionStress
     {
 
-        @Option(name = {"-m", "--maximal"}, description = "Force maximal compaction (default true)")
+        @Option(names = { "-m", "--maximal" }, description = "Force maximal compaction (default true)")
         Boolean maximal = false;
 
-        @Option(name = {"-t", "--threads"}, description = "Number of compactor threads to use for bg compactions (default 4)")
+        @Option(names = { "-t", "--threads" }, description = "Number of compactor threads to use for bg compactions (default 4)")
         Integer threads = 4;
 
         public void run()
@@ -286,19 +277,19 @@ public abstract class CompactionStress implements Runnable
     {
         private static double BYTES_IN_GIB = 1024 * 1014 * 1024;
 
-        @Option(name = { "-g", "--gbsize"}, description = "Total GB size on disk you wish to write", required = true)
+        @Option(names = { "-g", "--gbsize" }, description = "Total GB size on disk you wish to write", required = true)
         Integer totalSizeGiB;
 
-        @Option(name = { "-t", "--threads" }, description = "Number of sstable writer threads (default 2)")
+        @Option(names = { "-t", "--threads" }, description = "Number of sstable writer threads (default 2)")
         Integer threads = 2;
 
-        @Option(name = { "-c", "--partition-count"}, description = "Number of partitions to loop over (default 1000000)")
+        @Option(names = { "-c", "--partition-count" }, description = "Number of partitions to loop over (default 1000000)")
         Integer partitions = 1000000;
 
-        @Option(name = { "-b", "--buffer-size-mb"}, description = "Buffer in MiB writes before writing new sstable (default 128)")
+        @Option(names = { "-b", "--buffer-size-mb" }, description = "Buffer in MiB writes before writing new sstable (default 128)")
         Integer bufferSize = 128;
 
-        @Option(name = { "-r", "--range-aware"}, description = "Splits the local ranges in number of data directories and makes sure we never write the same token in two different directories (default true)")
+        @Option(names = { "-r", "--range-aware" }, description = "Splits the local ranges in number of data directories and makes sure we never write the same token in two different directories (default true)")
         Boolean makeRangeAware = true;
 
         public void run()
@@ -358,26 +349,26 @@ public abstract class CompactionStress implements Runnable
         }
     }
 
+    @Command(name = "compaction-stress",
+             description = "benchmark for compaction",
+             subcommands = { CommandLine.HelpCommand.class, CompactionStress.Compaction.class, CompactionStress.DataWriter.class })
+    public static class CompactionStressCommand implements Runnable
+    {
+        @Override
+        public void run()
+        {
+            CommandLine.usage(this, System.out);
+        }
+    }
+
     public static void main(String[] args)
     {
-        Cli.CliBuilder<Runnable> builder = Cli.<Runnable>builder("compaction-stress")
-                                           .withDescription("benchmark for compaction")
-                                           .withDefaultCommand(Help.class)
-                                           .withCommands(Help.class, DataWriter.class, Compaction.class);
-
-        Cli<Runnable> stress = builder.build();
-
-        try
-        {
-            stress.parse(args).run();
-        }
-        catch (Throwable t)
-        {
-            t.printStackTrace();
-            System.exit(6);
-        }
-
-        System.exit(0);
+        CommandLine commandLine = new CommandLine(CompactionStressCommand.class);
+        commandLine.setExecutionExceptionHandler((ex, c, arg) -> {
+            ex.printStackTrace(System.out);
+            return 6;
+        });
+        System.exit(commandLine.execute(args));
     }
 }
 

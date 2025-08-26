@@ -1097,6 +1097,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return new SSTableSimpleScanner(this, getPositionsForBoundsIterator(boundsIterator));
     }
 
+    public ISSTableScanner getScanner(AbstractBounds<PartitionPosition> bounds)
+    {
+        PartitionPositionBounds positionBounds = getPositionsForBounds(bounds);
+        return new SSTableSimpleScanner(this, positionBounds == null ? Collections.emptyList() : Collections.singletonList(positionBounds));
+    }
+
 
     /**
      * Create a {@link FileDataInput} for the data file of the sstable represented by this reader. This method returns

@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import accord.local.Node;
 import accord.local.Node.Id;
 import accord.primitives.Ranges;
 import accord.topology.Shard;
@@ -307,7 +308,12 @@ public class AccordTopology
         }
 
         res.sort((a, b) -> a.range.compare(b.range));
-        return new Topology(epoch.getEpoch(), SortedArrayList.copyUnsorted(staleReplicas.ids(), Id[]::new), res.toArray(new Shard[0]));
+        List<Node.Id> removed = directory.removedNodes().stream()
+                                         .filter(n -> n.removedIn.equals(epoch))
+                                         .map(n -> tcmIdToAccord(n.id))
+                                         .collect(Collectors.toList());
+
+        return new Topology(epoch.getEpoch(), SortedArrayList.copySorted(removed, Id[]::new), SortedArrayList.copyUnsorted(staleReplicas.ids(), Id[]::new), res.toArray(new Shard[0]));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)

@@ -112,9 +112,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
-import static org.assertj.core.api.Fail.fail;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -249,7 +247,7 @@ public class AccordMigrationTest extends AccordTestBase
             if (routed)
                 return super.routeAndMaybeMigrate(cm, tmd, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
             routed = true;
-            return paxosV2;
+            return ConsensusRoutingDecision.PAXOSV2;
         }
     }
 
@@ -266,15 +264,6 @@ public class AccordMigrationTest extends AccordTestBase
         }
     }
 
-    public static class PaxosToAccordMigrationNotHappeningUpToAccept extends PaxosToAccordMigrationNotHappeningUpToBegin
-    {
-        @Override
-        public boolean isKeyInMigratingOrMigratedRangeDuringPaxosAccept(TableId tableId, DecoratedKey key)
-        {
-            return false;
-        }
-    }
-
     public static class RoutesToAccordOnce extends ConsensusRequestRouter
     {
         boolean routed;
@@ -285,7 +274,7 @@ public class AccordMigrationTest extends AccordTestBase
             if (routed)
                 return super.routeAndMaybeMigrate(cm, tmd, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
             routed = true;
-            return ConsensusRoutingDecision.accord;
+            return ConsensusRoutingDecision.ACCORD;
         }
     }
 
@@ -293,36 +282,32 @@ public class AccordMigrationTest extends AccordTestBase
      * Helper to invoke a query and assert that the right metrics change indicating the correct
      * paths were taken to execute the query during migration
      */
-    private static void assertTargetAccordWrite(Consumer<Integer> query, int coordinatorIndex, int key, List<Pair<ByteBuffer, UUID>> expectedKeyMigrations, int expectedAccordWriteCount, int expectedCasWriteCount, int expectedKeyMigrationCount, int expectedCasBeginRejects, int expectedCasAcceptRejects)
+    private static void assertTargetAccordWrite(Consumer<Integer> query, int coordinatorIndex, int key, List<Pair<ByteBuffer, UUID>> expectedKeyMigrations, int expectedAccordWriteCount, int expectedCasWriteCount, int expectedKeyMigrationCount, int expectedCasBeginRejects)
     {
         int startingWriteCount = getAccordWriteCount(coordinatorIndex);
         int startingCasWriteCount = getCasWriteCount(coordinatorIndex);
         int startingKeyMigrationCount = getKeyMigrationCount(coordinatorIndex);
         int startingCasWriteBeginRejects = getCasWriteBeginRejects(coordinatorIndex);
-        int startingCasWriteAcceptRejects = getCasWriteAcceptRejects(coordinatorIndex);
         query.accept(key);
         validateKeyMigrations(expectedKeyMigrations);
         assertEquals("Accord writes", expectedAccordWriteCount, getAccordWriteCount(coordinatorIndex) - startingWriteCount);
         assertEquals("CAS writes", expectedCasWriteCount, getCasWriteCount(coordinatorIndex) - startingCasWriteCount);
         assertEquals("Key Migrations", expectedKeyMigrationCount, getKeyMigrationCount(coordinatorIndex) - startingKeyMigrationCount);
         assertEquals("CAS Begin rejects", expectedCasBeginRejects, getCasWriteBeginRejects(coordinatorIndex) - startingCasWriteBeginRejects);
-        assertEquals("CAS Accept rejects", expectedCasAcceptRejects, getCasWriteAcceptRejects(coordinatorIndex) - startingCasWriteAcceptRejects);
     }
 
-    private static Object[][] assertTargetAccordRead(Function<Integer, Object[][]> query, int coordinatorIndex, int key, List<Pair<ByteBuffer, UUID>> expectedKeyMigrations, int expectedAccordReadCount, int expectedCasPrepareCount, int expectedKeyMigrationCount, int expectedCasReadBeginRejects, int expectedCasReadAcceptRejects)
+    private static Object[][] assertTargetAccordRead(Function<Integer, Object[][]> query, int coordinatorIndex, int key, List<Pair<ByteBuffer, UUID>> expectedKeyMigrations, int expectedAccordReadCount, int expectedCasPrepareCount, int expectedKeyMigrationCount, int expectedCasReadBeginRejects)
     {
         int startingReadCount = getAccordReadCount(coordinatorIndex);
         int startingCasPrepareCount = getCasPrepareCount(coordinatorIndex);
         int startingKeyMigrationCount = getKeyMigrationCount(coordinatorIndex);
         int startingCasReadBeginRejects = getCasReadBeginRejects(coordinatorIndex);
-        int startingCasReadAcceptRejects = getCasReadAcceptRejects(coordinatorIndex);
         Object[][] result = query.apply(key);
         validateKeyMigrations(expectedKeyMigrations);
         assertEquals("Accord reads", expectedAccordReadCount, getAccordReadCount(coordinatorIndex) - startingReadCount);
         assertEquals("CAS prepares", expectedCasPrepareCount, getCasPrepareCount(coordinatorIndex) - startingCasPrepareCount);
         assertEquals("Key Migrations", expectedKeyMigrationCount, getKeyMigrationCount(coordinatorIndex) - startingKeyMigrationCount);
         assertEquals("CAS Begin rejects", expectedCasReadBeginRejects, getCasReadBeginRejects(coordinatorIndex) - startingCasReadBeginRejects);
-        assertEquals("CAS Accept rejects", expectedCasReadAcceptRejects, getCasReadAcceptRejects(coordinatorIndex) - startingCasReadAcceptRejects);
         return result;
     }
 
@@ -419,7 +404,7 @@ public class AccordMigrationTest extends AccordTestBase
               NormalizedRanges<Token> migratingRanges = normalizedRanges(ImmutableList.of(migratingRange));
 
               // Not actually migrating yet so should do nothing special
-              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 0, 1, 0, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 0, 1, 0, 0);
 
               // Mark ranges migrating and check migration state is correct
               nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), KEYSPACE, tableName);
@@ -431,17 +416,17 @@ public class AccordMigrationTest extends AccordTestBase
               assertTargetPaxosWrite(runCasNoApply, 1, migratingKey, emptyList(), 0, 1, 0, 0, 0);
               nodetool(coordinator, "repair", "-st", upperMidToken.toString(), "-et", maxAlignedWithLocalRanges.toString(), "-skip-accord", "-skip-paxos");
               // With data repaired the write should now key migrated
-              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 1, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 1, 0);
 
               // Should not repeat key migration, and should still do a migration read in Accord
-              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 0, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 0, 0);
 
               // Should run on Paxos since it is not in the migrating range
-              assertTargetAccordWrite(runCasNoApply, 1, notMigratingKey, expectedKeyMigrations, 0, 1, 0, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, notMigratingKey, expectedKeyMigrations, 0, 1, 0, 0);
 
               // Check that the coordinator on the other node also has saved that the key migration was performed
               // and runs the query on Accord immediately without key migration
-              assertTargetAccordWrite(runCasOnSecondNode, 2, migratingKey, expectedKeyMigrations, 1, 0, 0, 0, 0);
+              assertTargetAccordWrite(runCasOnSecondNode, 2, migratingKey, expectedKeyMigrations, 1, 0, 0, 0);
 
               // Forced repair while a node is down shouldn't work, use repair instead of finish-migration because repair exposes --force
               // and regular Cassandra repairs are eligible to drive migration so it's important they check --force and down nodes
@@ -451,7 +436,7 @@ public class AccordMigrationTest extends AccordTestBase
                   EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(secondNodeBroadcastAddress);
                   Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(secondNodeBroadcastAddress, endpointState));
               });
-              nodetool(coordinator, "repair", "--force");
+              nodetool(coordinator, "repair", "-full", "--force");
               // Data repair was already done for one node's local range
               NormalizedRanges<Token> alreadyDataRepaired = normalizedRanges(ImmutableList.of(new Range<>(upperMidToken, maxAlignedWithLocalRanges)));
               NormalizedRanges<Token> remainingPendingDataRepair = migratingRanges.subtract(alreadyDataRepaired);
@@ -463,19 +448,19 @@ public class AccordMigrationTest extends AccordTestBase
               });
 
               // Full repair should complete the migration and update the metadata, adding --force when nodes are up should be fine
-              nodetool(coordinator, "repair", "--force" );
+              nodetool(coordinator, "repair", "-full", "--force" );
               // Some ranges will be migrated because they were already data repaired
               NormalizedRanges<Token> alreadyMigrated = alreadyDataRepaired;
               assertMigrationState(tableName, ConsensusMigrationTarget.accord, alreadyMigrated, emptyList(), migratingRanges.subtract(alreadyMigrated), 1);
               // Need to repair a second time to complete the migration to Accord because we are invoking repair directly, finish would do both for us normally
-              nodetool(coordinator, "repair", "--force");
+              nodetool(coordinator, "repair", "-full", "--force");
               assertMigrationState(tableName, ConsensusMigrationTarget.accord, migratingRanges, emptyList(), emptyList(), 0);
 
               // Should run on Accord, and not perform key migration nor should it need to perform a migration read in Accord now that it is repaired
-              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 0, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations, 1, 0, 0, 0);
 
               // Should run on Paxos, and not perform key migration
-              assertTargetAccordWrite(runCasNoApply, 1, notMigratingKey, expectedKeyMigrations, 0, 1, 0, 0, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, notMigratingKey, expectedKeyMigrations, 0, 1, 0, 0);
 
               // Pivot to testing repair with a subrange of the migrating range as well as key migration
               // Will use the unmigrated range between lowerMidToken and midToken
@@ -494,9 +479,9 @@ public class AccordMigrationTest extends AccordTestBase
               // Need to data repair for key migration to be possible since otherwise it will just run on Paxos
               nodetool(coordinator, "repair", "-st", lowerMidToken.toString(), "-et", "-3074457345618258603", "-skip-accord", "-skip-paxos");
               nodetool(cluster.coordinator(2), "repair", "-st", "-3074457345618258603", "-et", midToken.toString(), "-skip-accord", "-skip-paxos");
-              assertTargetAccordWrite(runCasApplies, 1, migratingKey, expectedKeyMigrations, 1, 0, 1, 0, 0);
+              assertTargetAccordWrite(runCasApplies, 1, migratingKey, expectedKeyMigrations, 1, 0, 1, 0);
 
-              // This will force the write to use the normal write patch
+              // This will force the write to use the normal write path
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               // Update inserted row so the condition can apply, if the condition check doesn't apply
               // then it won't get to propose/accept
@@ -516,25 +501,7 @@ public class AccordMigrationTest extends AccordTestBase
               // and the accept will be rejected at both nodes and we are certain we need to retry the transaction
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               addExpectedMigratedKey(expectedKeyMigrations, migratingKey, tableUUID);
-              assertTargetAccordWrite(runCasApplies, 1, migratingKey, expectedKeyMigrations, 1, 1, 1, 0, 1);
-
-              // One node will now accept the other will reject and we are uncertain if we should retry the transaction
-              // and should surface that as a timeout exception
-              migratingKey = testingKeys.next();
-              makeCASApply.accept(migratingKey);
-              cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToAccept()));
-              try
-              {
-                  cluster.filters().allVerbs().to(3).from(3).drop();
-                  runCasNoApply.accept(migratingKey);
-                  cluster.filters().reset();
-                  fail("Should have thrown timeout exception");
-              }
-              catch (Throwable t)
-              {
-                  if (!t.getClass().getName().equals("org.apache.cassandra.exceptions.CasWriteTimeoutException"))
-                      throw new RuntimeException(t);
-              }
+              assertTargetAccordWrite(runCasApplies, 1, migratingKey, expectedKeyMigrations, 1, 1, 1, 1);
 
               // Test that if we find out about a migration from the prepare phase Paxos.begin we
               // retry it on Accord
@@ -542,7 +509,7 @@ public class AccordMigrationTest extends AccordTestBase
               // Should exit Paxos from begin, key migration should occur because it's a new key, and Accord will need to do a migration read
               migratingKey = testingKeys.next();
               addExpectedMigratedKey(expectedKeyMigrations, migratingKey, tableUUID);
-              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations,  1, 1, 1, 1, 0);
+              assertTargetAccordWrite(runCasNoApply, 1, migratingKey, expectedKeyMigrations,  1, 1, 1, 1);
 
               // Now do two repairs to complete the migration repair, and we are done with black box integration testing
               // First repair is a range smack dab in the middle
@@ -579,7 +546,7 @@ public class AccordMigrationTest extends AccordTestBase
               List<Range<Token>> migratingRanges = ImmutableList.of(migratingRange);
               int key = 0;
 
-              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 0, 1, 0, 0, 0);
+              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 0, 1, 0, 0);
               // Mark wrap around range as migrating
               nodetool(coordinator, "consensus_admin", "begin-migration", "-st", String.valueOf(Long.MIN_VALUE + 1), "-et", String.valueOf(Long.MIN_VALUE), KEYSPACE, accordTableName);
               assertMigrationState(accordTableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, migratingRanges, 1);
@@ -588,14 +555,14 @@ public class AccordMigrationTest extends AccordTestBase
                   nodetool(cluster.coordinator(i), "repair", "-skip-paxos", "-skip-accord");
               // Should run directly on accord, migrate the key, and perform a quorum read fro Accord, Paxos repair will run prepare once
               addExpectedMigratedKey(expectedKeyMigrations, key, tableUUID);
-              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 1, 1, 0, 0);
+              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 1, 1, 0);
               key++;
 
               // Should run up to accept with both nodes refusing to accept
               savePromisedAndCommittedPaxosProposal(accordTableName, key);
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               addExpectedMigratedKey(expectedKeyMigrations, key, tableUUID);
-              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 2, 1, 0, 1);
+              assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 2, 1, 1);
               key++;
           });
     }
@@ -660,10 +627,10 @@ public class AccordMigrationTest extends AccordTestBase
                  cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new RoutesToAccordOnce()));
                  nextMigratingKey = paxosMigratingKeys.next();
                  addExpectedMigratedKey(expectedKeyMigrations, nextMigratingKey, tableUUID);
-                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 1, 1, 1, 1, 1);
+                 assertTargetPaxosWrite(runCasNoApply, 1, nextMigratingKey, expectedKeyMigrations, 1, 1, 1, 1, 0);
 
                  // Repair the currently migrating range from when targets were switched, but it's not an Accord repair, this is to make sure the wrong repair type doesn't trigger progress
-                 nodetool(coordinator, "repair", "-st", upperMidToken.toString(), "-et", maxAlignedWithLocalRanges.toString(), "--skip-accord");
+                 nodetool(coordinator, "repair", "-full", "-st", upperMidToken.toString(), "-et", maxAlignedWithLocalRanges.toString(), "--skip-accord");
                  assertMigrationState(tableName, ConsensusMigrationTarget.paxos, ImmutableList.of(new Range(minToken, midToken), new Range(maxToken, minToken)), emptyList(), ImmutableList.of(accordMigratingRange), 1);
 
                  // Paxos migrating keys should still need key migration after non-Accord repair
@@ -832,8 +799,7 @@ public class AccordMigrationTest extends AccordTestBase
                 assertEquals( PROMISE, state.promiseIfNewer(ballot, true).outcome());
                 PartitionUpdateBuilder updateBuilder = new PartitionUpdateBuilder(metadata, key);
                 updateBuilder.row(CLUSTERING_VALUE).add("v", 42);
-                // Set isForRepair to true to force accepting the proposal for testing purposes
-                assertEquals( null, state.acceptIfLatest(new Proposal(ballot, updateBuilder.build()), true).supersededBy);
+                assertEquals( null, state.acceptIfLatest(new Proposal(ballot, updateBuilder.build())).supersededBy);
             }
         });
     }

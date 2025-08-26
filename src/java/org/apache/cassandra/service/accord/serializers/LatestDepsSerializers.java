@@ -127,6 +127,7 @@ public class LatestDepsSerializers
         @Override
         public void serializeBody(GetLatestDeps msg, DataOutputPlus out, Version version) throws IOException
         {
+            CommandSerializers.ballot.serialize(msg.ballot, out);
             ExecuteAtSerializer.serialize(msg.executeAt, out);
         }
 
@@ -141,7 +142,8 @@ public class LatestDepsSerializers
         @Override
         public long serializedBodySize(GetLatestDeps msg, Version version)
         {
-            return ExecuteAtSerializer.serializedSize(msg.executeAt);
+            return CommandSerializers.ballot.serializedSize(msg.ballot)
+                   + ExecuteAtSerializer.serializedSize(msg.executeAt);
         }
     };
 

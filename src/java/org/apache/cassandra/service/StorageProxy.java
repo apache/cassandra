@@ -58,6 +58,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -148,9 +149,11 @@ import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.SplitReads;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -214,7 +217,6 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.splitReadsIntoAccordAndNormal;
@@ -241,6 +243,7 @@ public class StorageProxy implements StorageProxyMBean
     public static final String UNREACHABLE = "UNREACHABLE";
 
     private static final int FAILURE_LOGGING_INTERVAL_SECONDS = CassandraRelevantProperties.FAILURE_LOGGING_INTERVAL_SECONDS.getInt();
+    private static final String UNSAFE_MIXED_MUTATIONS_MSG = "Mutations look to have different time sources, some are using 'USING TIMESTAMP' and others are using the server timestamp; writes to the Accord table will not be linearizable while using transactions.  To allow this behavior set accord.mixed_time_source_handling=log or ignore";
 
     private static final WritePerformer standardWritePerformer;
     private static final WritePerformer counterWritePerformer;
@@ -372,13 +375,13 @@ public class StorageProxy implements StorageProxyMBean
                                                             key, keyspaceName, cfName));
         }
 
-        ConsensusAttemptResult lastAttemptResult;
+        ConsensusAttemptResult lastAttemptResult = null;
         do
         {
             ClusterMetadata cm = ClusterMetadata.current();
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
             ConsensusRoutingDecision decision = consensusRouting(cm, metadata, key, consistencyForPaxos, requestTime, true);
-            switch (decision)
+            switch (decision.target)
             {
                 case paxosV2:
                     lastAttemptResult = Paxos.cas(key,
@@ -386,7 +389,8 @@ public class StorageProxy implements StorageProxyMBean
                                                   consistencyForPaxos,
                                                   consistencyForCommit,
                                                   clientState,
-                                                  requestTime);
+                                                  requestTime,
+                                                  decision.minHLC);
                     break;
                 case paxosV1:
                     lastAttemptResult = legacyCas(metadata,
@@ -408,7 +412,8 @@ public class StorageProxy implements StorageProxyMBean
                     TxnResult txnResult = accordService.coordinate(metadata.epoch.getEpoch(),
                                                                    txn,
                                                                    consistencyForPaxos,
-                                                                   requestTime);
+                                                                   requestTime,
+                                                                   decision.minHLC);
                     lastAttemptResult = request.toCasResult(txnResult);
                     break;
                 default:
@@ -1213,7 +1218,8 @@ public class StorageProxy implements StorageProxyMBean
     public static void mutateWithTriggers(List<? extends IMutation> mutations,
                                           ConsistencyLevel consistencyLevel,
                                           boolean mutateAtomically,
-                                          Dispatcher.RequestTime requestTime)
+                                          Dispatcher.RequestTime requestTime,
+                                          PreserveTimestamp preserveTimestamps)
     throws WriteTimeoutException, WriteFailureException, UnavailableException, OverloadedException, InvalidRequestException
     {
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled())
@@ -1248,20 +1254,30 @@ public class StorageProxy implements StorageProxyMBean
         if (augmented != null || mutateAtomically || updatesView)
             mutateAtomically(augmented != null ? augmented : (List<Mutation>)mutations, consistencyLevel, updatesView, requestTime);
         else
-            dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, requestTime);
+            dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, requestTime, preserveTimestamps);
     }
 
-    public static void dispatchMutationsWithRetryOnDifferentSystem(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public static void dispatchMutationsWithRetryOnDifferentSystem(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)
     {
         while (true)
         {
             ClusterMetadata cm = ClusterMetadata.current();
             try
             {
-                SplitMutations splitMutations = splitMutationsIntoAccordAndNormal(cm, (List<IMutation>)mutations);
+                SplitMutations<?> splitMutations = splitMutationsIntoAccordAndNormal(cm, (List<IMutation>)mutations);
                 List<? extends IMutation> accordMutations = splitMutations.accordMutations();
-                IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
                 List<? extends IMutation> normalMutations = splitMutations.normalMutations();
+                // If there was ever any attempt to apply part of the mutation using the eventually consistent path
+                // then we need to continue to use the timestamp used by the eventually consistent path to not
+                // end up with multiple timestamps, but if it only ever used the transactional path then we can
+                // use the transactional timestamp to get linearizability
+                if (!preserveTimestamps.preserve && normalMutations != null)
+                    preserveTimestamps = PreserveTimestamp.yes;
+                // A BATCH statement has multiple mutations mixing server timestamps and `USING TIMESTAMP`,
+                // which is not linearizable for the writes to Accord tables.
+                if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
+                    checkMixedTimeSourceHandling();
+                IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
                 Tracing.trace("Split mutations into Accord {} and normal {}", accordMutations, normalMutations);
 
                 Throwable failure = null;
@@ -1325,6 +1341,26 @@ public class StorageProxy implements StorageProxyMBean
                 throw t;
             }
             break;
+        }
+    }
+
+    private static void checkMixedTimeSourceHandling()
+    {
+        AccordSpec.MixedTimeSourceHandling handling = DatabaseDescriptor.getAccord().mixedTimeSourceHandling;
+        switch (handling)
+        {
+            case log:
+            case reject:
+            {
+                ClientWarn.instance.warn(UNSAFE_MIXED_MUTATIONS_MSG);
+                logger.warn(UNSAFE_MIXED_MUTATIONS_MSG);
+                if (handling == AccordSpec.MixedTimeSourceHandling.reject)
+                    throw new InvalidRequestException(UNSAFE_MIXED_MUTATIONS_MSG);
+            }
+            break;
+            case ignore:
+                // ignore
+                break;
         }
     }
 
@@ -1465,7 +1501,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // Start Accord executing so it executes while the mutations are synchronously applied
-                IAccordResult<TxnResult> accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime) : null;
+                IAccordResult<TxnResult> accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, PreserveTimestamp.yes) : null;
 
                 Throwable failure = null;
                 try
@@ -2146,7 +2182,7 @@ public class StorageProxy implements StorageProxyMBean
     private static ConsensusRoutingDecision consensusRouting(ClusterMetadata cm, TableMetadata metadata, DecoratedKey partitionKey, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, boolean isForWrite)
     {
         if (metadata.keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            return ConsensusRoutingDecision.paxosV2;
+            return ConsensusRoutingDecision.PAXOSV2;
         return ConsensusRequestRouter.instance.routeAndMaybeMigrate(cm,
                                                                     partitionKey,
                                                                     metadata.id,
@@ -2165,10 +2201,10 @@ public class StorageProxy implements StorageProxyMBean
             ClusterMetadata cm = ClusterMetadata.current();
             SinglePartitionReadCommand command = group.queries.get(0);
             ConsensusRoutingDecision decision = consensusRouting(cm, group.metadata(), command.partitionKey(), consistencyLevel, requestTime, false);
-            switch (decision)
+            switch (decision.target)
             {
                 case paxosV2:
-                    lastResult = Paxos.read(group, consistencyLevel, requestTime);
+                    lastResult = Paxos.read(group, consistencyLevel, requestTime, decision.minHLC);
                     break;
                 case paxosV1:
                     lastResult = legacyReadWithPaxos(group, consistencyLevel, requestTime);
@@ -2208,7 +2244,7 @@ public class StorageProxy implements StorageProxyMBean
     public static IAccordResult<TxnResult> readWithAccord(ClusterMetadata cm, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> range, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         TableMetadata tableMetadata = getTableMetadata(cm, command.metadata().id);
         TableParams tableParams = tableMetadata.params;
@@ -2225,7 +2261,7 @@ public class StorageProxy implements StorageProxyMBean
     private static IAccordResult<TxnResult> readWithAccordAsync(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely

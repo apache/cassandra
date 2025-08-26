@@ -25,7 +25,7 @@ public class UTF8Serializer extends AbstractTextSerializer
 {
     public static final UTF8Serializer instance = new UTF8Serializer();
 
-    private UTF8Serializer()
+    protected UTF8Serializer()
     {
         super(StandardCharsets.UTF_8);
     }

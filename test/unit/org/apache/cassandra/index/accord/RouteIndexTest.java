@@ -29,19 +29,13 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
+import javax.annotation.Nullable;
 import accord.api.Journal;
 import accord.api.RoutingKey;
-import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.StoreParticipants;
@@ -54,16 +48,15 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
-import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.topology.Shard;
-import accord.topology.Topology;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property.Command;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.ObjectHashSet;
@@ -82,12 +75,10 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -102,12 +93,14 @@ import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 
 import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
@@ -121,7 +114,6 @@ public class RouteIndexTest extends CQLTester
     private static final Gen.IntGen NUM_STORES_GEN = Gens.ints().between(1, MAX_STORES);
     private static final Gen<Gen.IntGen> TOKEN_DISTRIBUTION = Gens.mixedDistribution(MIN_TOKEN, MAX_TOKEN + 1);
     private static final Gen<Gen.IntGen> RANGE_SIZE_DISTRIBUTION = Gens.mixedDistribution(10, (int) (TOKEN_RANGE_SIZE * .01));
-    private static final Gen<Gen<Domain>> DOMAIN_DISTRIBUTION = Gens.mixedDistribution(Domain.values());
 
     @BeforeClass
     public static void setUpClass()
@@ -187,7 +179,8 @@ public class RouteIndexTest extends CQLTester
         long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
         long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
         long token = 1 + rs.nextLong(start, end);
-        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)));
+        @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
+        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)), state.nextTxnRange(rs), decidedRX);
     }
 
     private static RangeSearch rangeSearchExisting(RandomSource rs, State state)
@@ -196,17 +189,20 @@ public class RouteIndexTest extends CQLTester
         var tables = state.storeToTableToRangesToTxns.get(storeId);
         TableId tableId = rs.pickUnorderedSet(tables.keySet());
         var ranges = tables.get(tableId);
-        return new RangeSearch(storeId, selectExistingRange(rs, ranges));
+        @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
+        return new RangeSearch(storeId, selectExistingRange(rs, ranges), state.nextTxnRange(rs), decidedRX);
     }
 
     private static Command<State, Sut, ?> rangeSearch(RandomSource rs, State state)
     {
-        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs));
+        @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
+        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs), state.nextTxnRange(rs), decidedRX);
     }
 
     private static Command<State, Sut, ?> keySearch(RandomSource rs, State state)
     {
-        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))));
+        @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
+        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))), state.nextTxnRange(rs), decidedRX);
     }
 
     @Test
@@ -273,11 +269,15 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenKey key;
+        private final TxnRange txnRange;
+        private final @Nullable DecidedRX decidedRX;
 
-        private KeySearch(int storeId, TokenKey key)
+        private KeySearch(int storeId, TokenKey key, TxnRange txnRange, @Nullable DecidedRX decidedRX)
         {
             this.storeId = storeId;
             this.key = key;
+            this.txnRange = txnRange;
+            this.decidedRX = decidedRX;
         }
 
         @Override
@@ -288,7 +288,13 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(key.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.searchToken(key, e -> matches.add(e.getValue()));
+            ranges.searchToken(key, e -> {
+                TxnId txnId = e.getValue();
+                if (decidedRX != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && decidedRX.excludeDecided(txnId))
+                    return;
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
+            });
             return matches;
         }
 
@@ -296,7 +302,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, key, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, key, txnRange.minTxnId, txnRange.maxTxnId, decidedRX).consume(result::add);
             return result;
         }
 
@@ -313,6 +319,7 @@ public class RouteIndexTest extends CQLTester
             return "KeySearch{" +
                    "storeId=" + storeId +
                    ", key=" + key +
+                   ", decidedRX=" + decidedRX +
                    '}';
         }
     }
@@ -321,11 +328,15 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenRange range;
+        private final TxnRange txnRange;
+        private final DecidedRX decidedRX;
 
-        private RangeSearch(int storeId, TokenRange range)
+        private RangeSearch(int storeId, TokenRange range, TxnRange txnRange, DecidedRX decidedRX)
         {
             this.storeId = storeId;
             this.range = range;
+            this.txnRange = txnRange;
+            this.decidedRX = decidedRX;
         }
 
         @Override
@@ -336,7 +347,12 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(range.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.search(range, e -> matches.add(e.getValue()));
+            ranges.search(range, e -> {
+                TxnId txnId = e.getValue();
+                if (decidedRX != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && decidedRX.excludeDecided(txnId)) return;
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
+            });
             return matches;
         }
 
@@ -344,7 +360,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, range, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, range, txnRange.minTxnId, txnRange.maxTxnId, decidedRX).consume(result::add);
             return result;
         }
 
@@ -361,6 +377,7 @@ public class RouteIndexTest extends CQLTester
             return "RangeSearch{" +
                    "storeId=" + storeId +
                    ", range=" + range +
+                   ", minDecidedId=" + decidedRX +
                    '}';
         }
     }
@@ -454,6 +471,8 @@ public class RouteIndexTest extends CQLTester
 
     private static class State implements AutoCloseable
     {
+        private static final int MIN_TIMESTAMP = 1000;
+
         private final Int2ObjectHashMap<Map<TableId, Long2ObjectHashMap<List<TxnId>>>> storeToTableToRoutingKeysToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<Map<TableId, RangeTree<TokenKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<RangesForEpoch> storeRangesForEpochs = new Int2ObjectHashMap<>();
@@ -465,8 +484,10 @@ public class RouteIndexTest extends CQLTester
         private final Gen<TokenRange> rangeGen;
         private final Gen<Domain> domainGen;
         private final ColumnFamilyStore journalTable;
+        private final float minDecidedIdNull;
+        private final long txnWriteFrequency;
         private AccordService accordService;
-        private int hlc = 1000;
+        private int hlc = MIN_TIMESTAMP;
 
         public State(RandomSource rs)
         {
@@ -475,37 +496,58 @@ public class RouteIndexTest extends CQLTester
             tables = Collections.singletonList(tableId);
             tokenGen = TOKEN_DISTRIBUTION.next(rs);
             rangeGen = rangeGen(rs, tables);
-            domainGen = DOMAIN_DISTRIBUTION.next(rs);
+            domainGen = ignore -> Domain.Range; // we shouldn't be saving/searching key transactions against ranges
             journalTable = Keyspace.open(ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
 
             for (int i = 0 ; i < numStores ; ++i)
                 storeRangesForEpochs.put(i, new RangesForEpoch(1, Ranges.of(TokenRange.fullRange(tableId, getPartitioner()))));
 
             accordService = startAccord();
-            accordService.configService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
             accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
+
+            minDecidedIdNull = rs.nextFloat();
+            txnWriteFrequency = rs.pickInt(1, // every txn is a Write
+                                           2, // every other txn is a Write
+                                           10, // Write txn every 10 txn
+                                           100 // Write txn every 100 txn; in most cases this disables write txn
+            );
         }
 
         AccordService startAccord()
         {
-            NodeId tcmNodeId = ClusterMetadata.current().myNodeId();
-            AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmNodeId));
-            Topology topology = new Topology(1, Shard.create(TokenRange.fullRange(tableId, getPartitioner()), ofSorted(new Node.Id(1)), ofSorted(new Node.Id(1))));
-            as.unsafeStartupWithOverrides(new Journal.TopologyUpdate(storeRangesForEpochs, topology, topology));
-            for (CommandStore commandStore : as.node().commandStores().all())
-                ((AccordCommandStore)commandStore).unsafeUpsertRedundantBefore(emptyRedundantBefore);
-            // the reason for the mocking is to speed up compaction.  Collecting the info from the stores has been slow and its always empty in this test... so stub it out to speed up the test
-            AccordService mock = Mockito.spy(as);
-            Mockito.doReturn(emptyCompactionInfo(tableId, emptyRedundantBefore, storeRangesForEpochs)).when(mock).getCompactionInfo();
-            AccordService.unsafeSetNewAccordService(mock);
-
-            AccordService.replayJournal(as);
-            return as;
+            ClusterMetadata metadata = ClusterMetadata.current();
+            AccordService.MetadataChangeListener.instance.resetForTesting(metadata);
+            NodeId tcmNodeId = metadata.myNodeId();
+            AccordService.unsafeSetNewAccordService(null);
+            return AccordService.startup(tcmNodeId);
         }
 
         TxnId nextTxnId(Domain domain)
         {
-            return new TxnId(1, hlc++, Txn.Kind.Write, domain, NODE);
+            return idFor(domain, hlc++);
+        }
+
+        TxnId idFor(Domain domain, long hlc)
+        {
+            Txn.Kind kind = hlc % txnWriteFrequency == 0 ? Txn.Kind.Write : Txn.Kind.ExclusiveSyncPoint;
+            return new TxnId(1, hlc, kind, domain, NODE);
+        }
+
+        TxnRange nextTxnRange(RandomSource rs)
+        {
+            long maxKnown = hlc;
+            long minKnown = MIN_TIMESTAMP;
+            return TxnRange.next(rs, minKnown, maxKnown, hlc -> idFor(Domain.Key, hlc));
+        }
+
+        private @Nullable DecidedRX nextDecidedRX(RandomSource rs)
+        {
+            if (rs.decide(minDecidedIdNull)) return null;
+            long maxKnown = hlc;
+            long minKnown = MIN_TIMESTAMP;
+            TxnId txnId = minKnown == maxKnown ? idFor(Domain.Range, maxKnown)
+                                               : idFor(Domain.Range, rs.nextLong(minKnown, maxKnown));
+            return new DecidedRX(txnId, txnId);
         }
 
         void insertTxn(int storeId, TxnId txnId, Route<?> route)
@@ -567,6 +609,7 @@ public class RouteIndexTest extends CQLTester
 
         private void restartAccord()
         {
+            accordService.journal().closeCurrentSegmentForTestingIfNonEmpty();
             accordService.shutdown();
             accordService = startAccord();
         }

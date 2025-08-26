@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -524,11 +525,12 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return Verb.RANGE_REQ;
     }
 
-    protected void appendCQLWhereClause(StringBuilder sb)
+    @Override
+    protected void appendCQLWhereClause(CqlBuilder builder)
     {
         String filterString = dataRange().toCQLString(metadata(), rowFilter());
         if (!filterString.isEmpty())
-            sb.append(" WHERE ").append(filterString);
+            builder.append(" WHERE ").append(filterString);
     }
 
     @Override

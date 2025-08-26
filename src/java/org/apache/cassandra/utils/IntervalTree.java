@@ -75,7 +75,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
     private final I[] intervalsByMaxOrder;
 
     @SuppressWarnings("unchecked")
-    protected IntervalTree(Collection<I> intervals)
+    public IntervalTree(Collection<I> intervals)
     {
         this.modCount = 0;
         if (intervals == null || intervals.isEmpty())

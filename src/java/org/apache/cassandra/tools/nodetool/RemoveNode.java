@@ -17,47 +17,59 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.List;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
-@Command(name = "removenode", description = "Show status of current node removal, abort removal or remove provided ID")
-public class RemoveNode extends NodeToolCmd
+import static com.google.common.base.Preconditions.checkArgument;
+
+@Command(name = "removenode",
+         description = "Show status of current node removal, abort removal or remove provided ID",
+         subcommands = { RemoveNode.Status.class })
+public class RemoveNode extends AbstractCommand
 {
-    @Arguments(title = "remove_operation", usage = "<status>|<ID>|<ID> --force", description = "Show status of current node removal, or remove provided ID", required = true)
-    private List<String> removeOperation = null;
+    @ParentCommand
+    public NodetoolCommand parent;
+
+    @Parameters(paramLabel = "nodeId", description = "The ID of the node to remove", arity = "0..1")
+    private String nodeId;
+
+    @Option(names = { "--force" }, description = "Force node removal")
+    private boolean force = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        switch (removeOperation.get(0))
-        {
-            case "status":
-                probe.output().out.println("RemovalStatus: " + probe.getRemovalStatus(printPort));
-                break;
-            case "force":
-                throw new IllegalArgumentException("Can't force a nodetool removenode. Instead abort the ongoing removenode and retry.");
-            default:
-                boolean force = removeOperation.size() > 1 && removeOperation.get(1).equals("--force");
-                probe.removeNode(removeOperation.get(0), force);
-                break;
-        }
+        // In order the picocli to parse the subcommand correctly, we need to check the nodeId here, or use @ArgGroup
+        checkArgument(nodeId != null, "nodeId is required");
+        probe.removeNode(nodeId, force);
     }
 
     @Command(name = "abortremovenode", description = "Abort a removenode command")
-    public static class Abort extends NodeToolCmd
+    public static class Abort extends AbstractCommand
     {
-        @Option(title = "node id", name="--node", description = "The node being removed", required = true)
+        @Option(paramLabel = "nodeId", names = { "--node" }, description = "The node being removed")
         private String nodeId;
 
         public void execute(NodeProbe probe)
         {
+            checkArgument(nodeId != null, "nodeId is required");
             probe.abortRemoveNode(nodeId);
+        }
+    }
+
+    @Command(name = "status", description = "Show status of the current node removal operation")
+    public static class Status extends AbstractCommand
+    {
+        @ParentCommand
+        private RemoveNode parent;
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.output().out.println("RemovalStatus: " + probe.getRemovalStatus(parent.parent.printPort));
         }
     }
 }

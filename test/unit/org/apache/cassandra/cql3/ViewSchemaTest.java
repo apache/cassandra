@@ -863,6 +863,6 @@ public class ViewSchemaTest extends ViewAbstractTest
                                                             view,
                                                             keyspace(),
                                                             base,
-                                                            mv.metadata().id)));
+                                                            mv.metadata().id.toLongString())));
     }
 }

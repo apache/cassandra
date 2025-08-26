@@ -73,6 +73,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
@@ -431,7 +432,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             if (accordMutations != null)
             {
                 accordTxnStart = accordTxnStart.withStartedAt(Clock.Global.nanoTime());
-                accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, null, accordTxnStart) : null;
+                accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, null, accordTxnStart, PreserveTimestamp.yes) : null;
             }
 
             if (normalMutations != null)

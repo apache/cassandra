@@ -21,12 +21,12 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.List;
-
 import javax.management.ListenerNotFoundException;
 import javax.management.remote.JMXConnector;
 
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -43,7 +43,7 @@ import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
 import static org.apache.cassandra.utils.progress.ProgressEventType.ERROR;
 import static org.apache.cassandra.utils.progress.ProgressEventType.PROGRESS;
 
-public class RepairRunner extends JMXNotificationProgressListener
+public class RepairRunner extends JMXNotificationProgressListener implements Closeable
 {
     public static abstract class RepairCmd
     {
@@ -53,8 +53,6 @@ public class RepairRunner extends JMXNotificationProgressListener
         {
             this.keyspace = keyspace;
         }
-
-
 
         public abstract Integer start();
     }
@@ -85,6 +83,7 @@ public class RepairRunner extends JMXNotificationProgressListener
         this.cmd = repairCmd.start();
     }
 
+    @Override
     public void close()
     {
         try
@@ -110,6 +109,11 @@ public class RepairRunner extends JMXNotificationProgressListener
 
     public void run() throws Exception
     {
+        run(false);
+    }
+
+    public void run(boolean block) throws Exception
+    {
         if (cmd == null)
             return;
 
@@ -121,10 +125,17 @@ public class RepairRunner extends JMXNotificationProgressListener
         }
         else
         {
-            while (!condition.await(JMX_NOTIFICATION_POLL_INTERVAL_SECONDS, SECONDS))
+            if (block)
             {
-                queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
-                                                      JMX_NOTIFICATION_POLL_INTERVAL_SECONDS));
+                condition.await();
+            }
+            else
+            {
+                while (!condition.await(JMX_NOTIFICATION_POLL_INTERVAL_SECONDS, SECONDS))
+                {
+                    queryForCompletedRepair(String.format("After waiting for poll interval of %s seconds",
+                                                          JMX_NOTIFICATION_POLL_INTERVAL_SECONDS));
+                }
             }
             Exception error = this.error;
             if (error == null)

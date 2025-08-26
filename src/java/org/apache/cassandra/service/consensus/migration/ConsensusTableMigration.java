@@ -121,8 +121,9 @@ public abstract class ConsensusTableMigration
             TableMetadata tm = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
             if (tm == null)
                 return;
+
             TableMigrationState tms = ClusterMetadata.current().consensusMigrationState.tableStates.get(tm.id);
-            if (tms == null || !Range.intersects(tms.migratingRanges, desc.ranges))
+            if (tms == null || tms.normalizedIntersectionWithMigratingAtEpoch(repairResult.consensusMigrationRepairResult.minEpoch, desc.ranges).isEmpty())
                 return;
 
             if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
@@ -134,18 +135,18 @@ public abstract class ConsensusTableMigration
                 // repaired in the migrated and Accord managed ranges
                 paxosRepairedRanges = normalizedRanges(desc.ranges);
 
-            NormalizedRanges<Token> accordBarrieredRanges = NormalizedRanges.empty();
+            NormalizedRanges<Token> accordRepairedRanges = NormalizedRanges.empty();
             if (repairType.migrationToPaxosEligible())
                 // Accord only barriers ranges it thinks it manages and repair collects which it barriered
                 // precisely which doesn't have to match what the entire repair covers
-                accordBarrieredRanges = normalizedRanges(migrationResult.barrieredRanges.stream()
+                accordRepairedRanges = normalizedRanges(migrationResult.accordRepairedRanges.stream()
                                                                        .map(range -> ((TokenRange)range).toKeyspaceRange())
                                                                        .collect(toImmutableList()));
-            accordBarrieredRanges = normalizedRanges(accordBarrieredRanges);
+            accordRepairedRanges = normalizedRanges(accordRepairedRanges);
 
             ClusterMetadataService.instance().commit(
                 new MaybeFinishConsensusMigrationForTableAndRange(
-                    desc.keyspace, desc.columnFamily, paxosRepairedRanges, accordBarrieredRanges,
+                    desc.keyspace, desc.columnFamily, paxosRepairedRanges, accordRepairedRanges,
                     migrationResult.minEpoch, repairType.repairedData, repairType.repairedPaxos, repairType.repairedAccord));
         }
 
@@ -370,8 +371,8 @@ public abstract class ConsensusTableMigration
     private static RepairOption getRepairOption(Collection<TableMigrationState> tables, List<Range<Token>> intersectingRanges, boolean repairData, boolean repairPaxos, boolean repairAccord)
     {
         boolean primaryRange = false;
-        // TODO (review): Should disabling incremental repair be exposed for the Paxos repair in case someone explicitly does not do incremental repair?
-        boolean incremental = repairData;
+        // No need for incremental if data isn't repaired, paxos requires non-incremental for the Paxos repair to propagate at all
+        boolean incremental = repairData && !repairPaxos;
         boolean trace = false;
         int numJobThreads = 1;
         boolean pullRepair = false;

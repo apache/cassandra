@@ -6,6 +6,7 @@ select_statement::= SELECT [ JSON | DISTINCT ] ( select_clause | '*' )
 	[ PER PARTITION LIMIT (`integer` | `bind_marker`) ]  
 	[ LIMIT (`integer` | `bind_marker`) ]  
 	[ ALLOW FILTERING ]
+	[ WITH `select_options` ]
 select_clause::= `selector` [ AS `identifier` ] ( ',' `selector` [ AS `identifier` ] ) 
 selector::== `column_name` 
 	| `term`  
@@ -17,5 +18,9 @@ relation::= column_name operator term
 	'(' column_name ( ',' column_name )* ')' operator tuple_literal 
 	TOKEN '(' column_name# ( ',' column_name )* ')' operator term 
 operator::= '=' | '<' | '>' | '<=' | '>=' | '!=' | IN | NOT IN | CONTAINS | NOT CONTAINS | CONTAINS KEY | NOT CONTAINS KEY
-group_by_clause::= column_name ( ',' column_name )* 
+group_by_clause::= column_name ( ',' column_name )*
 ordering_clause::= column_name [ ASC | DESC ] ( ',' column_name [ ASC | DESC ] )*
+select_options::= `select_option` ( AND `select_option` )*
+select_option::= included_indexes  '=' `index_names`
+	           | excluded_indexes  '=' `index_names`
+index_names::= '{' index_name ( ',' index_name )* '}'

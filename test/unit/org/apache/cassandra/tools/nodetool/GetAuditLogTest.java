@@ -33,6 +33,10 @@ import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for the {@code GetAuditLog} nodetool command.
+ * @see GetAuditLog
+ */
 public class GetAuditLogTest extends CQLTester
 {
     @BeforeClass

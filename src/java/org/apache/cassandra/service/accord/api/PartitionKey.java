@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import accord.api.Key;
+import accord.primitives.Range;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -33,6 +34,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -93,6 +95,12 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     public org.apache.cassandra.service.accord.api.TokenKey toUnseekable()
     {
         return new org.apache.cassandra.service.accord.api.TokenKey(table, token());
+    }
+
+    @Override
+    public Range asRange()
+    {
+        return TokenRange.create(TokenKey.before(table, key.getToken()), new TokenKey(table, key.getToken()));
     }
 
     @Override

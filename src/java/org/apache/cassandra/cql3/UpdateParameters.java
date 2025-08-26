@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -202,7 +203,22 @@ public class UpdateParameters
         newRow(row.clustering());
         addRowDeletion(row.deletion());
         addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
-        row.cells().forEach(builder::addCell);
+        row.iterator().forEachRemaining(cd -> {
+            if (cd instanceof Cell<?>)
+            {
+                builder.addCell((Cell<?>) cd);
+            }
+            else if (cd instanceof ComplexColumnData)
+            {
+                ComplexColumnData ccd = (ComplexColumnData) cd;
+                builder.addComplexDeletion(ccd.column(), ccd.complexDeletion());
+                ccd.iterator().forEachRemaining(builder::addCell);
+            }
+            else
+            {
+                throw new AssertionError("Unexpected type: " + cd.getClass() + "; " + cd);
+            }
+        });
     }
 
     private void validateColumnSize(ColumnMetadata column, ByteBuffer value)

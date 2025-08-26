@@ -25,6 +25,8 @@ import java.util.UUID;
 import java.util.function.LongUnaryOperator;
 
 import javax.annotation.Nullable;
+
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -36,6 +38,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -52,6 +55,10 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 public final class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
+    /**
+     * Represents a placeholder for cases where a table id is defined, but has no meaning.
+     */
+    public static final TableId UNDEFINED = TableId.fromRaw(Long.MIN_VALUE, Long.MIN_VALUE);
     public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
     private static final int MAGIC_BYTE = (int) ((flipSign(MAGIC) >>> 56) & 0xf0);
 
@@ -86,6 +93,8 @@ public final class TableId implements Comparable<TableId>
 
     public static TableId fromString(String idString)
     {
+        if (idString.startsWith("tid:"))
+            return new TableId(MAGIC, Hex.parseLong(idString, 4, idString.length()));
         return new TableId(UUID.fromString(idString));
     }
 
@@ -179,6 +188,13 @@ public final class TableId implements Comparable<TableId>
 
     @Override
     public String toString()
+    {
+        if (msb == MAGIC)
+            return "tid:" + Long.toHexString(lsb);
+        return asUUID().toString();
+    }
+
+    public String toLongString()
     {
         return asUUID().toString();
     }
@@ -399,6 +415,27 @@ public final class TableId implements Comparable<TableId>
         public long serializedSize(TableId t, int version)
         {
             return t.serializedSize();
+        }
+    };
+
+    public static final UnversionedSerializer<TableId> compactComparableSerializer = new UnversionedSerializer<TableId>()
+    {
+        @Override
+        public void serialize(TableId t, DataOutputPlus out) throws IOException
+        {
+            t.serializeCompactComparable(out);
+        }
+
+        @Override
+        public TableId deserialize(DataInputPlus in) throws IOException
+        {
+            return TableId.deserializeCompactComparable(in);
+        }
+
+        @Override
+        public long serializedSize(TableId t)
+        {
+            return t.serializedCompactComparableSize();
         }
     };
 

@@ -217,6 +217,9 @@ public abstract class TxnQuery implements Query
                 ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.mark();
             else
                 ClientRequestsMetricsHolder.accordReadMetrics.accordMigrationRejects.mark();
+            // Prevent writes from being applied
+            if (update != null)
+                ((TxnUpdate)update).failCondition();
             return RetryWithNewProtocolResult.instance;
         }
         return doCompute(txnId, executeAt, keys, data, read, update);

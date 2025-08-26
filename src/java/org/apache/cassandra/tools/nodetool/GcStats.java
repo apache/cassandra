@@ -17,24 +17,23 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "gcstats", description = "Print GC Statistics")
-public class GcStats extends NodeToolCmd
+public class GcStats extends AbstractCommand
 {
-    @Option(title = "format",
-    name = { "-F", "--format" },
-    description = "Output format (json, yaml, table)")
+    @Option(paramLabel = "format",
+            names = { "-F", "--format" },
+            description = "Output format (json, yaml, table)")
     private String outputFormat = "";
 
-    @Option(title = "human_readable",
-    name = { "-H", "--human-readable" },
-    description = "Display gcstats with human-readable units")
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
+            description = "Display gcstats with human-readable units")
     private boolean humanReadable = false;
 
     @Override

@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator.debug;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -35,6 +34,7 @@ import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.Simulation;
+import org.apache.cassandra.simulator.SimulationException;
 import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
@@ -45,6 +45,7 @@ import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.SyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.memory.HeapPool;
 
@@ -267,7 +268,8 @@ public class SelfReconcile
                 InterceptibleThread.setDebugInterceptor(reconciler);
                 reconciler.verifyUninterceptedRng = true;
 
-                Future<?> f1 = executor.submit(() -> {
+                SyncPromise<?> p1 = new SyncPromise<>();
+                executor.execute(() -> {
                     try (Simulation simulation = cluster1.simulation();
                          CloseableIterator<?> iter = simulation.iterator())
                     {
@@ -279,11 +281,20 @@ public class SelfReconcile
                     }
                     catch (Exception e)
                     {
-                        throw new RuntimeException(e);
+                        p1.setFailure(new RuntimeException(e));
                     }
-                    reconciler.verify("done");
+                    try
+                    {
+                        reconciler.verify("done");
+                        p1.setSuccess(null);
+                    }
+                    catch (Throwable t)
+                    {
+                        p1.setFailure(t);
+                    }
                 });
-                Future<?> f2 = executor.submit(() -> {
+                SyncPromise<?> p2 = new SyncPromise<>();
+                executor.execute(() -> {
                     try (Simulation simulation = cluster2.simulation();
                          CloseableIterator<?> iter = simulation.iterator())
                     {
@@ -295,12 +306,25 @@ public class SelfReconcile
                     }
                     catch (Exception e)
                     {
-                        throw new RuntimeException(e);
+                        p2.setFailure(new RuntimeException(e));
                     }
-                    reconciler.verify("done");
+                    try
+                    {
+                        reconciler.verify("done");
+                        p2.setSuccess(null);
+                    }
+                    catch (Throwable t)
+                    {
+                        p2.setFailure(t);
+                    }
                 });
-                f1.get();
-                f2.get();
+                p1.get();
+                p2.get();
+            }
+            catch (Throwable t)
+            {
+                logger.error("Failed on seed 0x{}", Long.toHexString(seed), t);
+                throw new SimulationException(seed, t);
             }
             finally
             {
@@ -309,8 +333,8 @@ public class SelfReconcile
         }
         catch (Throwable t)
         {
-            t.printStackTrace();
-            throw new RuntimeException("Failed on seed " + Long.toHexString(seed), t);
+            if (t instanceof SimulationException) throw (SimulationException)t;
+            throw new SimulationException(seed, "Failure creating the simulation", t);
         }
     }
 

@@ -24,38 +24,37 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.collect.Iterables.toArray;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table")
-public class Snapshot extends NodeToolCmd
+public class Snapshot extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspaces...>]", description = "List of keyspaces. By default, all keyspaces")
+    @Parameters(description = "List of keyspaces. By default, all keyspaces", arity = "0..*")
     private List<String> keyspaces = new ArrayList<>();
 
-    @Option(title = "table", name = {"-cf", "--column-family", "--table"}, description = "The table name (you must specify one and only one keyspace for using this option)")
+    @Option(paramLabel = "table", names = { "-cf", "--column-family", "--table" }, description = "The table name (you must specify one and only one keyspace for using this option)")
     private String table = null;
 
-    @Option(title = "tag", name = {"-t", "--tag"}, description = "The name of the snapshot")
+    @Option(paramLabel = "tag", names = { "-t", "--tag" }, description = "The name of the snapshot")
     private String snapshotName = Long.toString(currentTimeMillis());
 
-    @Option(title = "ktlist", name = { "-kt", "--kt-list", "-kc", "--kc.list" }, description = "The list of Keyspace.table to take snapshot.(you must not specify only keyspace)")
+    @Option(paramLabel = "ktlist", names = { "-kt", "--kt-list", "-kc", "--kc.list" }, description = "The list of Keyspace.table to take snapshot.(you must not specify only keyspace)")
     private String ktList = null;
 
-    @Option(title = "skip-flush", name = {"-sf", "--skip-flush"}, description = "Do not flush memtables before snapshotting (snapshot will not contain unflushed data)")
+    @Option(paramLabel = "skip-flush", names = { "-sf", "--skip-flush" }, description = "Do not flush memtables before snapshotting (snapshot will not contain unflushed data)")
     private boolean skipFlush = false;
 
-    @Option(title = "ttl", name = {"--ttl"}, description = "Specify a TTL of created snapshot")
+    @Option(paramLabel = "ttl", names = { "--ttl" }, description = "Specify a TTL of created snapshot")
     private String ttl = null;
 
     @Override

@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -49,6 +48,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Shared;
@@ -687,10 +688,21 @@ public class ClusterUtils
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
     }
 
-    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster)
+    {
+        IntArrayList up = new IntArrayList();
+        for (var inst : cluster)
+        {
+            if (inst.isShutdown()) continue;
+            up.add(inst.config().num());
+        }
+        return maxEpoch(cluster, up.toIntArray());
+    }
+
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int... nodes)
     {
         Epoch max = null;
-        for (int id : cmsNodes)
+        for (int id : nodes)
         {
             IInvokableInstance inst = cluster.get(id);
             if (inst.isShutdown()) continue;
@@ -699,7 +711,7 @@ public class ClusterUtils
                 max = version;
         }
         if (max == null)
-            throw new AssertionError("Unable to find max epoch from " + cmsNodes);
+            throw new AssertionError("Unable to find max epoch from " + Arrays.toString(nodes));
         return max;
     }
 
@@ -1676,7 +1688,7 @@ public class ClusterUtils
     public static TableId tableId(Cluster cluster, String ks, String table)
     {
         String str = cluster.getFirstRunningInstance().callOnInstance(() -> Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(table).getTableId().toString());
-        return TableId.fromUUID(UUID.fromString(str));
+        return TableId.fromString(str);
     }
 
     public static void awaitAccordEpochReady(Cluster cluster, long epoch)

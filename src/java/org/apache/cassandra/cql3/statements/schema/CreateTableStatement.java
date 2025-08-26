@@ -173,7 +173,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
         }
 
-        if (!table.params.compression.isEnabled())
+        if (!table.params.compression.isEnabled() && !SchemaConstants.isSystemKeyspace(table.keyspace))
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
         if (table.params.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))

@@ -27,7 +27,6 @@ import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -36,41 +35,31 @@ class AccordExecutorSimple extends AccordExecutor
 {
     final ExecutorPlus executor;
     final ReentrantLock lock;
+    private Task active;
 
     public AccordExecutorSimple(int executorId, String name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(executorId, name, metrics, Stage.READ.executor(), Stage.MUTATION.executor(), Stage.READ.executor(), agent);
+        this(new ReentrantLock(), executorId, name, metrics, agent);
     }
 
-    public AccordExecutorSimple(int executorId, String name, AccordCacheMetrics metrics, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, ExecutorPlus rangeLoadExecutor, Agent agent)
+    public AccordExecutorSimple(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(executorId, name, metrics, wrap(loadExecutor), wrap(saveExecutor), wrap(rangeLoadExecutor), agent);
+        this(new ReentrantLock(), executorId, mode, threads, name, metrics, agent);
     }
 
-    public AccordExecutorSimple(int executorId, String name, AccordCacheMetrics metrics, ExecutorFunction loadExecutor, ExecutorFunction saveExecutor, ExecutorFunction rangeLoadExecutor, Agent agent)
+    private AccordExecutorSimple(ReentrantLock lock, int executorId, String name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(new ReentrantLock(), executorId, name, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
-    }
-
-    private AccordExecutorSimple(ReentrantLock lock, int executorId, String name, AccordCacheMetrics metrics, ExecutorFunction loadExecutor, ExecutorFunction saveExecutor, ExecutorFunction rangeLoadExecutor, Agent agent)
-    {
-        super(lock, executorId, metrics, constantFactory(loadExecutor), constantFactory(saveExecutor), constantFactory(rangeLoadExecutor), agent);
+        super(lock, executorId, metrics, agent);
         this.lock = lock;
         this.executor = executorFactory().sequential(name);
     }
 
-    public AccordExecutorSimple(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    public AccordExecutorSimple(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(new ReentrantLock(), executorId, mode, threads, name, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
-    }
-
-    public AccordExecutorSimple(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
-    {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
         Invariants.requireArgument(threads == 1);
         this.lock = lock;
         this.executor = executorFactory().sequential(name.apply(0));
-
     }
 
     @Override
@@ -79,31 +68,42 @@ class AccordExecutorSimple extends AccordExecutor
         return tasks + executor.getActiveTaskCount() + executor.getPendingTaskCount() > 0;
     }
 
+    @Override
+    void beforeUnlock()
+    {
+        if (hasWaitingToRun())
+            executor.execute(this::run);
+    }
+
     protected void run()
     {
         lock.lock();
         try
         {
-            running = 1;
+            runningThreads = 1;
             while (true)
             {
                 Task task = pollWaitingToRunExclusive();
+                active = task;
                 if (task == null)
+                {
+                    runningThreads = 0;
+                    notifyQuiescentExclusive();
                     return;
+                }
 
-                --tasks;
-                try { task.preRunExclusive(null); task.run(); }
+                try { task.preRunExclusive(); task.runInternal(); }
                 catch (Throwable t) { task.fail(t); }
-                finally { task.cleanupExclusive(null); }
+                finally
+                {
+                    completeTaskExclusive(task);
+                    active = null;
+                }
             }
-        }
-        catch (Throwable t)
-        {
-            throw t;
         }
         finally
         {
-            running = 0;
+            runningThreads = 0;
             if (hasWaitingToRun())
                 executor.execute(this::run);
             lock.unlock();
@@ -111,7 +111,7 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         lock.lock();
         try

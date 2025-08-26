@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -33,10 +34,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -47,8 +50,17 @@ import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.cql3.ast.AssignmentOperator;
+import org.apache.cassandra.cql3.ast.Literal;
+import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Reference;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Statement;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -67,6 +79,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
@@ -81,6 +94,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -3220,5 +3234,182 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
+    }
+
+    @Test
+    public void setComplexWithReferenceOnAnotherColumn() throws Exception
+    {
+        // we add a row first
+        // then do a mutation that references the row
+        Symbol v0 = new Symbol("v0", SetType.getInstance(Int32Type.instance, true));
+        Symbol v1 = new Symbol("v1", Int32Type.instance);
+        Symbol row = Symbol.unknownType("row");
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int, c int, v0 set<int>, v1 int, primary key(k, c)) WITH transactional_mode='" + transactionalMode + "'",
+             cluster -> {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + qualifiedAccordTableName + "(k, c, v0, v1) VALUES (0, 0, {0}, 1)", QUORUM);
+
+                 Statement stmt = Txn.builder()
+                                     .addLet("row", Select.builder().table(KEYSPACE, accordTableName).value("k", 0).value("c", 0).build())
+                                     .addUpdate(Mutation.update(KEYSPACE, accordTableName)
+                                                        .set(v0, new Literal(Collections.singleton(1), v0.type()))
+                                                        .set(v1, new AssignmentOperator(AssignmentOperator.Kind.ADD, Reference.of(row, v1)))
+                                                        .value("k", 0)
+                                                        .value("c", 0)
+                                                        .build())
+                                     .build();
+                 coordinator.execute(stmt.toCQL(), QUORUM, stmt.bindsEncoded());
+
+                 // is the data correct?
+                 var result = coordinator.executeWithResult("SELECT * FROM " + qualifiedAccordTableName, QUORUM);
+                 QueryResultUtil.assertThat(result).isEqualTo(QueryResults.builder()
+                                 .row(0, 0, Collections.singleton(1), 2)
+                         .build());
+             });
+    }
+
+    @Test
+    public void updateMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                            "  UPDATE " + qualifiedAccordTableName + '\n' +
+                            "  SET v = 999\n" +
+                            "  WHERE pk = 1\n" +
+                            "        AND ck IN (10, 20);\n" +
+                            "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 10, 999),
+                   AssertUtils.row(1, 20, 999),
+                   AssertUtils.row(1, 30, 300));
+    }
+
+    @Test
+    public void deleteMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                     "  DELETE FROM " + qualifiedAccordTableName + '\n' +
+                     "  WHERE pk = 1\n" +
+                     "        AND ck IN (10, 20);\n" +
+                     "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        // Verify the deletes
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 30, 300));
+    }
+
+    @Test
+    public void usingTimestamp() throws Exception
+    {
+        // This test was discovered by org.apache.cassandra.distributed.test.cql3.MixedReadsAccordInteropMultiNodeTableWalkTest
+        // It could be simplified but was boiled down to the minimum steps to reproduce the timestamp issue: USING TIMESTAMP
+        // was not respected operations that happen post read
+        test("CREATE TABLE "+qualifiedAccordTableName+" (\n" +
+             "\t\t    pk0 float,\n" +
+             "\t\t    pk1 varint,\n" +
+             "\t\t    ck0 smallint,\n" +
+             "\t\t    ck1 tinyint,\n" +
+             "\t\t    v3 uuid,\n" +
+             "\t\t    v1 list<uuid>,\n" +
+             "\t\t    v4 map<vector<uuid, 1>, frozen<map<smallint, text>>>,\n" +
+             "\t\t    PRIMARY KEY ((pk0, pk1), ck0, ck1)\n" +
+             "\t\t) WITH CLUSTERING ORDER BY (ck0 DESC, ck1 ASC)\n" +
+             "\t\t    AND " + transactionalMode.asCqlParam(), cluster -> {
+            ICoordinator node = cluster.coordinator(2);
+            node.execute("UPDATE " + qualifiedAccordTableName + " USING TIMESTAMP 6 " +
+                          "SET " +
+                          "    v1=[00000000-0000-4e00-8c00-000000000000], " +
+                          "    v4={[00000000-0000-4800-b300-000000000000]: {-30955: 'ϵ', -10479: '虑퐕㐧', 7904: '䁋'}}, " +
+                          "    v3=00000000-0000-4600-b300-000000000000 " +
+                          "WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454 " +
+                          "       AND  ck0 IN (-26786, 10038, 4991) AND  ck1 IN (124 - 36, -100)", ConsistencyLevel.QUORUM);
+            AssertUtils.assertRows(node.executeWithResult("SELECT writetime(v1), writetime(v3), writetime(v4) FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM),
+                                   QueryResults.builder()
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .build());
+            node.execute("DELETE FROM " + qualifiedAccordTableName + " USING TIMESTAMP 8 WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM);
+            QueryResultUtil.assertThat(node.executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM))
+                           .isEmpty();
+        });
+    }
+
+    @Test
+    public void emptyModification() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, s int static, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String deleteStmt = "DELETE FROM " + qualifiedAccordTableName + " WHERE k=0 AND c < 0 AND c > 0";
+            String selectStmt = "SELECT * FROM " + qualifiedAccordTableName + " WHERE k=0";
+            ICoordinator node = cluster.coordinator(1);
+            node.execute("INSERT INTO " + qualifiedAccordTableName + " (k, s, c, v) VALUES (0, 0, 0, 0)", QUORUM);
+
+            // CAS rejects
+            Assertions.assertThatThrownBy(() -> node.execute(deleteStmt + " IF s=0", QUORUM))
+                      .is(AssertionUtils.isInstanceof(InvalidRequestException.class))
+                      .hasMessageContaining("DELETE statements must restrict all PRIMARY KEY columns with equality relations");
+
+            // BEGIN TRANSACTION does not!  This should no-op (user has no way to know it did)
+            node.execute(wrapInTxn(deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_NO_READS).getResult()).isNotEmpty();
+
+            // if there was a read, the txn was downgraded to a read txn
+            var results = node.execute(wrapInTxn(selectStmt, deleteStmt), QUORUM);
+            Assertions.assertThat(results).hasDimensions(1, 4);
+
+            // there are lets but no returning
+            node.execute(wrapInTxn("LET a = (" + selectStmt + " LIMIT 1" + ')', deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_IGNORED_READS).getResult()).isNotEmpty();
+        });
+    }
+
+    @Test
+    public void multiPartitionUpdate() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            var node = cluster.coordinator(1);
+            int numPartitions = 10;
+            for (int i = 0; i < numPartitions; i++)
+                node.execute("INSERT INTO " + qualifiedAccordTableName + "(k, v) VALUES (?, ?)", QUORUM, i, 0);
+
+            Object[] binds = IntStream.range(0, numPartitions).boxed().toArray();
+            String where = "WHERE k IN (" + IntStream.range(0, numPartitions).mapToObj(i -> "?").collect(Collectors.joining(", ")) + ')';
+            String updateCQL = "UPDATE " + qualifiedAccordTableName + " SET v=1 " + where;
+            String deleteCQL = "DELETE FROM " + qualifiedAccordTableName + ' ' + where;
+
+            // update multiple partitions at once
+            node.execute(wrapInTxn(updateCQL), QUORUM, binds);
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEqualTo(QueryResults.builder().row(1).build());
+            }
+
+            // now delete
+            node.execute(wrapInTxn(deleteCQL), QUORUM, binds);
+
+            for (int i = 0; i < numPartitions; i++)
+            {
+                var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
+                QueryResultUtil.assertThat(qr).isEmpty();
+            }
+        });
     }
 }

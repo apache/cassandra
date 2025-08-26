@@ -73,7 +73,34 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(ActionList.class);
 
-    public enum Mode { TIME_LIMITED, STREAM_LIMITED, TIME_AND_STREAM_LIMITED, FINITE, UNLIMITED }
+    public enum Mode
+    {
+        /**
+         * Definition: Runs the simulation for a specific duration (specified by {@link Work#runForNanos})
+         * Behavior: After the time limit is reached, cancels both daemon tasks and stream actions
+         */
+        TIME_LIMITED,
+        /**
+         * Definition: Runs until all finite streams are processed ({@link #activeFiniteStreamCount} reaches 0)
+         * Behavior: Once all finite streams complete, cancels daemon tasks
+         */
+        STREAM_LIMITED,
+        /**
+         * Definition: Combines both time and stream limitations
+         * Behavior: Cancels daemon tasks if either all finite streams complete OR the time limit is reached
+         */
+        TIME_AND_STREAM_LIMITED,
+        /**
+         * Definition: Processes a finite set of actions; does not allow stream actions
+         * Behavior: Processes a finite set of actions, if any action is added that has stream then the action will be rejected.
+         */
+        FINITE,
+        /**
+         * Definition: Processes a finite set of actions, but allow daemon actions (unlike FINITE).
+         * Behavior: Similar to FINITE, but will handle daemon tasks in "waves", so that the scheduler can know when the "real" work is actually completed.
+         */
+        UNLIMITED
+    }
 
     public static class Work
     {

@@ -221,7 +221,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(Kind.Read, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -270,13 +270,10 @@ public class AccordObjectSizes
             size += range(dependencies.rangeDeps.range(i));
         size += ObjectSizes.sizeOfReferenceArray(dependencies.rangeDeps.rangeCount());
 
-        for (int i = 0 ; i < dependencies.keyDeps.txnIdCount() ; ++i)
-            size += timestamp(dependencies.keyDeps.txnId(i));
-        for (int i = 0 ; i < dependencies.rangeDeps.txnIdCount() ; ++i)
-            size += timestamp(dependencies.rangeDeps.txnId(i));
-
-        size += KeyDeps.SerializerSupport.keysToTxnIdsCount(dependencies.keyDeps) * 4L;
-        size += RangeDeps.SerializerSupport.rangesToTxnIdsCount(dependencies.rangeDeps) * 4L;
+        size += dependencies.keyDeps.txnIdCount() * TIMESTAMP_SIZE;
+        size += dependencies.rangeDeps.txnIdCount() * TIMESTAMP_SIZE;
+        size += KeyDeps.SerializerSupport.keysToTxnIds(dependencies.keyDeps).length * 4L;
+        size += RangeDeps.SerializerSupport.rangesToTxnIds(dependencies.rangeDeps).length * 4L;
         return size;
     }
 
@@ -316,7 +313,7 @@ public class AccordObjectSizes
                 builder.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                builder.partialTxn(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
+                builder.partialTxn(new PartialTxn.InMemory(Kind.Read, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
 
             if (executes)
             {

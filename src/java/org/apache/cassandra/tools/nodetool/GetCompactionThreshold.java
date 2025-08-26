@@ -18,25 +18,34 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "getcompactionthreshold", description = "Print min and max compaction thresholds for a given table")
-public class GetCompactionThreshold extends NodeToolCmd
+public class GetCompactionThreshold extends AbstractCommand
 {
-    @Arguments(usage = "<keyspace> <table>", description = "The keyspace with a table")
+    @CassandraUsage(usage = "<keyspace> <table>", description = "The keyspace with a table")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", arity = "1", description = "The keyspace to get the compaction threshold for")
+    private String keyspace;
+
+    @Parameters(index = "1", arity = "1", description = "The table to get the compaction threshold for")
+    private String table;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, table);
+
         checkArgument(args.size() == 2, "getcompactionthreshold requires ks and cf args");
         String ks = args.get(0);
         String cf = args.get(1);

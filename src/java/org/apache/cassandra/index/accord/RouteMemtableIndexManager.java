@@ -19,14 +19,18 @@
 package org.apache.cassandra.index.accord;
 
 import java.nio.ByteBuffer;
-import java.util.NavigableSet;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import accord.local.MaxDecidedRX.DecidedRX;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
@@ -73,10 +77,10 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
+    public MemtableIndex getPendingMemtableIndex(ILifecycleTransaction txn)
     {
         return liveMemtableIndexMap.keySet().stream()
-                                   .filter(m -> tracker.equals(m.getFlushTransaction()))
+                                   .filter(m -> txn.equals(m.getFlushTransaction()))
                                    .findFirst()
                                    .map(liveMemtableIndexMap::get)
                                    .orElse(null);
@@ -102,18 +106,23 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public void search(int storeId, TableId tableId, byte[] start, byte[] end,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
+                       Consumer<ByteBuffer> onMatch)
     {
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
-        liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, start, startInclusive, end, endInclusive)));
-        return matches;
+        liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId,
+                                                            start, end,
+                                                            minTxnId, maxTxnId, decidedRX,
+                                                            onMatch));
     }
 
     @Override
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public void search(int storeId, TableId tableId, byte[] key,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
+                       Consumer<ByteBuffer> onMatch)
     {
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
-        liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, key)));
-        return matches;
+        liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId, key,
+                                                            minTxnId, maxTxnId, decidedRX,
+                                                            onMatch));
     }
 }

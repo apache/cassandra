@@ -20,8 +20,10 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState.Action;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.Pair;
@@ -198,6 +201,54 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
             failed = true;
         }
         Assert.assertTrue(failed);
+    }
+
+    @Test
+    public void testTransferAbort()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> readers = readers(0, 4, cfs);
+        LifecycleTransaction sharedTxn = LifecycleTransaction.offline(OperationType.UNKNOWN);
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UNKNOWN);
+        readers.forEach(txn::trackNew);
+        txn.prepareToCommit();
+        sharedTxn.takeOwnership(txn);
+        txn.commit();
+        sharedTxn.abort();
+        assertFilesGone(readers);
+    }
+
+    private void assertFilesGone(List<SSTableReader> readers)
+    {
+        readers.forEach(s -> {
+            int i = 0;
+            while (s.descriptor.fileFor(SSTableFormat.Components.DATA).exists() && i++ < 20)
+            {
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+                LifecycleTransaction.waitForDeletions();
+            }
+            Assert.assertFalse(s.descriptor.fileFor(SSTableFormat.Components.DATA).exists());
+        });
+    }
+
+    @Test
+    public void testTransferAbortEarly()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> readers = readers(0, 4, cfs);
+        LifecycleTransaction sharedTxn = LifecycleTransaction.offline(OperationType.UNKNOWN);
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UNKNOWN);
+        readers.forEach(txn::trackNew);
+        txn.prepareToCommit();
+        txn.abort();
+        try
+        {
+            sharedTxn.takeOwnership(txn);
+            Assert.fail("child txn is aborted, we should not take ownership");
+        }
+        catch (Exception ignored) {}
+
+        assertFilesGone(readers);
     }
 
     private static void testBadUpdate(LifecycleTransaction txn, SSTableReader update, boolean original)

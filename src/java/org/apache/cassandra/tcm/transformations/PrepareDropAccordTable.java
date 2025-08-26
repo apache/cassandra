@@ -58,7 +58,7 @@ public class PrepareDropAccordTable implements Transformation
         TableMetadata metadata = prev.schema.getKeyspaces().getTableOrViewNullable(tableRef.id);
         if (metadata == null)
             return new Rejected(ExceptionCode.INVALID, "Table " + tableRef + " is not known");
-        if (!metadata.isAccordEnabled())
+        if (!metadata.requiresAccordSupport())
             return new Rejected(ExceptionCode.INVALID, "Table " + metadata + " is not an Accord table and should be dropped normally");
         if (metadata.params.pendingDrop)
             return new Rejected(ExceptionCode.INVALID, "Table " + metadata + " is in the process of being dropped");

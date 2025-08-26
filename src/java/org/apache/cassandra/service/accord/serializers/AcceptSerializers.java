@@ -54,7 +54,7 @@ public class AcceptSerializers
             out.writeByte((accept.kind.ordinal() << 1) | (accept.isPartialAccept ? IS_PARTIAL : 0));
             CommandSerializers.ballot.serialize(accept.ballot, out);
             ExecuteAtSerializer.serialize(accept.txnId, accept.executeAt, out);
-            DepsSerializers.partialDeps.serialize(accept.partialDeps, out);
+            DepsSerializers.partialDeps.serialize(accept.partialDeps(), out);
         }
 
         @Override
@@ -76,7 +76,7 @@ public class AcceptSerializers
             return 1
                    + CommandSerializers.ballot.serializedSize(accept.ballot)
                    + ExecuteAtSerializer.serializedSize(accept.txnId, accept.executeAt)
-                   + DepsSerializers.partialDeps.serializedSize(accept.partialDeps);
+                   + DepsSerializers.partialDeps.serializedSize(accept.partialDeps());
         }
     }
 

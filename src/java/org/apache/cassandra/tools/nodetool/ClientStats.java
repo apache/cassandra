@@ -26,30 +26,30 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.transport.ConnectedClient;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "clientstats", description = "Print information about connected clients")
-public class ClientStats extends NodeToolCmd
+public class ClientStats extends AbstractCommand
 {
-    @Option(title = "list_connections", name = "--all", description = "Lists all connections")
+    @Option(paramLabel = "list_connections", names = "--all", description = "Lists all connections")
     private boolean listConnections = false;
 
-    @Option(title = "by_protocol", name = "--by-protocol", description = "Lists most recent client connections by protocol version")
+    @Option(paramLabel = "by_protocol", names = "--by-protocol", description = "Lists most recent client connections by protocol version")
     private boolean connectionsByProtocolVersion = false;
 
-    @Option(title = "clear_history", name = "--clear-history", description = "Clear the history of connected clients")
+    @Option(paramLabel = "clear_history", names = "--clear-history", description = "Clear the history of connected clients")
     private boolean clearConnectionHistory = false;
 
-    @Option(title = "list_connections_with_client_options", name = "--client-options", description = "Lists all connections and the client options")
+    @Option(paramLabel = "list_connections_with_client_options", names = "--client-options", description = "Lists all connections and the client options")
     private boolean clientOptions = false;
 
-    @Option(title = "verbose", name = "--verbose", description = "Lists all connections with additional details (client options, authenticator-specific metadata and more)")
+    @Option(paramLabel = "verbose", names = "--verbose", description = "Lists all connections with additional details (client options, authenticator-specific metadata and more)")
     private boolean verbose = false;
 
     @Override

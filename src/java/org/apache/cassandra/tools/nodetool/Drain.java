@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "drain", description = "Drain the node (stop accepting writes and flush all tables)")
-public class Drain extends NodeToolCmd
+public class Drain extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

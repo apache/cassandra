@@ -56,7 +56,7 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
  * Layout of Memory for index summaries:
  *
  * There are two sections:
- *  1. A "header" containing the offset into `bytes` of entries in the summary summary data, consisting of
+ *  1. A "header" containing the offset into `bytes` of entries in the summary data, consisting of
  *     one four byte position for each entry in the summary.  This allows us do simple math in getIndex()
  *     to find the position in the Memory to start reading the actual index summary entry.
  *     (This is necessary because keys can have different lengths.)

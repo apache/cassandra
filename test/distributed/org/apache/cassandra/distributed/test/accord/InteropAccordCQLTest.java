@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import org.junit.Ignore;
-import org.junit.Test;
-
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class InteropAccordCQLTest extends AccordCQLTestBase
@@ -28,13 +25,5 @@ public class InteropAccordCQLTest extends AccordCQLTestBase
     public InteropAccordCQLTest()
     {
         super(TransactionalMode.test_interop_read);
-    }
-
-    @Ignore
-    @Override
-    @Test
-    public void testCASSimulatorLite() throws Exception
-    {
-        super.testCASSimulatorLite();
     }
 }

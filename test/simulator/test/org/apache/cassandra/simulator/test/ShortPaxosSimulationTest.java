@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.simulator.test;
 
-import java.io.IOException;
-
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -72,7 +70,6 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
           -XX:Tier4CompileThreshold=1000
           -XX:ReservedCodeCacheSize=256M
           -Xmx16G
-          -Xmx4G
           --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
           --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
           --add-exports java.base/sun.nio.ch=ALL-UNNAMED
@@ -96,30 +93,28 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 public class ShortPaxosSimulationTest
 {
     @Test
-    public void simulationTest() throws IOException
+    public void simulationTest()
     {
-        PaxosSimulationRunner.main(new String[] { "run", "--variant", "v2", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
-    }
-
-    @Test
-    public void casOnAccordSimulationTest() throws IOException
-    {
-        PaxosSimulationRunner.main(new String[] { "run",
-                                                  "--transactional-mode", "full",
-                                                  "-n", "3...6",
-                                                  "-t", "1000",
-                                                  "--cluster-action-limit", "0",
-                                                  "--consensus-action-limit", "0",
-                                                  "--consensus-actions", "ACCORD_MIGRATE",
-                                                  "-c", "10",
-                                                  "-s", "30"});
+        PaxosSimulationRunner.executeWithExceptionThrowing(new String[] { "run",
+                                                                          "--variant", "v2",
+                                                                          "-n", "3..6",
+                                                                          "-t", "1000",
+                                                                          "-c", "2",
+                                                                          "--cluster-action-limit", "2",
+                                                                          "-s", "30" });
     }
 
     @Test
     @Ignore("fails due to OOM DirectMemory - unclear why")
-    public void selfReconcileTest() throws IOException
+    public void selfReconcileTest()
     {
-        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
+        PaxosSimulationRunner.executeWithExceptionThrowing(new String[] { "reconcile",
+                                                                          "-n", "3..6",
+                                                                          "-t", "1000",
+                                                                          "-c", "2",
+                                                                          "--cluster-action-limit", "2",
+                                                                          "-s", "30",
+                                                                          "--with-self" });
     }
 }
 

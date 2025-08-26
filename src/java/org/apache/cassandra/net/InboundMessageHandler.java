@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,7 +168,14 @@ public class InboundMessageHandler extends AbstractMessageHandler
         {
             Message<?> m = serializer.deserialize(in, header, version);
             if (in.available() > 0) // bytes remaining after deser: deserializer is busted
-                throw new InvalidSerializedSizeException(header.verb, size, size - in.available());
+            {
+                Throwable t = new InvalidSerializedSizeException(header.verb, size, size - in.available());
+                ByteBuffer clone = bytes.get();
+                clone.limit(clone.position() + size); // cap to expected message size
+                logger.error("Could not deserialize the message: {}", ByteBufferUtil.bytesToHex(clone), t);
+                throw t;
+
+            }
             message = m;
         }
         catch (IncompatibleSchemaException e)

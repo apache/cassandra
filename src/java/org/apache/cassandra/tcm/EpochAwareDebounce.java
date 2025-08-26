@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -43,6 +44,7 @@ public class EpochAwareDebounce implements Closeable
 
     private final AtomicReference<EpochAwareFuture> currentFuture = new AtomicReference<>();
     private final Cache<Epoch, Future<ClusterMetadata>> inflight = Caffeine.newBuilder()
+                                                                           .executor(ScheduledExecutors.scheduledFastTasks)
                                                                            .maximumSize(getEpochAwareDebounceInFlightTrackerMaxSize())
                                                                            .expireAfterWrite(getCmsAwaitTimeout().to(MILLISECONDS),
                                                                                              MILLISECONDS)

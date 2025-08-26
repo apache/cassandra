@@ -18,9 +18,18 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
@@ -34,11 +43,8 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-import org.junit.Assert;
-import org.junit.Test;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class JournalGCTest extends FuzzTestBase
@@ -49,10 +55,13 @@ public class JournalGCTest extends FuzzTestBase
     public void journalGCTest() throws Throwable
     {
         try (Cluster cluster = init(builder().withNodes(1)
-                                            .withConfig(cfg -> cfg.set("accord.gc_delay", "1s")
-                                                    .set("accord.shard_durability_target_splits", "1")
-                                                    .set("accord.shard_durability_cycle", "1s")
-                                                    .set("accord.global_durability_cycle", "1s"))
+                                            .withConfig(cfg -> cfg.set("write_request_timeout", "2s")
+                                                                  .set("accord.expire_syncpoint", "1s*attempts<=300s")
+                                                                  .set("accord.retry_syncpoint", "1s*attempts")
+                                                                  .set("accord.shard_durability_target_splits", "5")
+                                                                  .set("accord.shard_durability_max_splits", "10")
+                                                                  .set("accord.shard_durability_cycle", "1s")
+                                                                  .set("accord.global_durability_cycle", "1s"))
                                             .start()))
         {
             withRandom(rng -> {
@@ -74,9 +83,23 @@ public class JournalGCTest extends FuzzTestBase
                                                                              .pageSizeSelector(p -> InJvmDTestVisitExecutor.PageSizeSelector.NO_PAGING)
                                                                              .build(schema, hb, cluster));
 
-                for (int pk = 0; pk < 500; pk++) {
-                    for (int i = 0; i < 500; i++)
+                for (int pk = 0; pk <= 500; pk++) {
+                    for (int i = 0; i < 100; i++)
                         history.insert(pk);
+
+                    if (pk > 0 && pk % 100 == 0)
+                    {
+                        cluster.get(1).runOnInstance(() -> {
+                            ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
+                            ((AccordService) AccordService.instance()).journal().compactor().run();
+                        });
+                    }
+
+                    if (pk > 0 && pk % 200 == 0)
+                    {
+                        ClusterUtils.stopUnchecked(cluster.get(1));
+                        cluster.get(1).startup();
+                    }
                 }
 
                 cluster.get(1).runOnInstance(() -> {
@@ -84,34 +107,41 @@ public class JournalGCTest extends FuzzTestBase
                     ((AccordService) AccordService.instance()).journal().compactor().run();
                 });
 
-                int before = cluster.get(1).callOnInstance(() -> {
-                    AtomicInteger a = new AtomicInteger();
+                String maximumId = cluster.get(1).callOnInstance(() -> {
+                    AtomicReference<TxnId> a = new AtomicReference<>();
                     ((AccordService) AccordService.instance()).journal().forEach((v) -> {
-                        if (v.type == JournalKey.Type.COMMAND_DIFF)
+                        if (v.type == JournalKey.Type.COMMAND_DIFF && (a.get() == null || v.id.compareTo(a.get()) > 0))
+                            a.set(v.id);
+                    });
+                    return a.get() == null ? "" : a.get().toString();
+                });
+
+                Callable<Integer> countDiffs = () -> cluster.get(1).applyOnInstance(maxIdStr -> {
+                    AtomicInteger a = new AtomicInteger();
+                    TxnId maxId = TxnId.parse(maxIdStr);
+                    ((AccordService) AccordService.instance()).journal().forEach((v) -> {
+                        if (v.type == JournalKey.Type.COMMAND_DIFF && v.id.compareTo(maxId) <= 0)
                             a.incrementAndGet();
                     });
                     return a.get();
-                });
+                }, maximumId);
 
-                Thread.sleep(10_000);
-                cluster.get(1).runOnInstance(() -> {
-                    Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).forceMajorCompaction();
-                });
-
-                cluster.get(1).forceCompact("system_accord", "journal");
-
-                int after = cluster.get(1).callOnInstance(() -> {
-                    AtomicInteger a = new AtomicInteger();
-                    ((AccordService) AccordService.instance()).journal().forEach((v) -> {
-                        if (v.type == JournalKey.Type.COMMAND_DIFF)
-                            a.incrementAndGet();
-                    });
-                    return a.get();
-                });
-                Assert.assertTrue(String.format("%s should have been strictly smaller than %s", after, before), before > after);
-                Assert.assertEquals(0, after);
+                int after =-1;
+                int maxCycles = 10;
+                for (int i = 0; i < maxCycles; i++)
+                {
+                    cluster.get(1).acceptOnInstance((ks, tbl) -> {
+                        Keyspace.open(ks).getColumnFamilyStore(tbl).forceBlockingFlush(UNIT_TESTS);
+                        Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.COMMANDS_FOR_KEY).forceBlockingFlush(UNIT_TESTS);
+                        Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).forceMajorCompaction();
+                    }, schema.keyspace, schema.table);
+                    after = countDiffs.call();
+                    if (after == 0)
+                        return;
+                    Thread.sleep(10000);
+                }
+                Assert.fail("Should have GC'd all in (way under) " + maxCycles + " cycles. Remaining: " + after);
             });
         }
     }
 }
-

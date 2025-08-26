@@ -90,6 +90,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -116,7 +118,6 @@ import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.StorageProxy;
@@ -124,6 +125,7 @@ import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordOperationsMBean;
+import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -131,7 +133,6 @@ import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
@@ -144,7 +145,7 @@ public class NodeProbe implements AutoCloseable
 {
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
-    private static final int defaultPort = 7199;
+    public static final int defaultPort = 7199;
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
 
@@ -182,8 +183,8 @@ public class NodeProbe implements AutoCloseable
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
-    protected Output output;
-    private boolean failed;
+    protected GuardrailsMBean grProxy;
+    protected volatile Output output;
 
     protected CIDRFilteringMetricsTableMBean cfmProxy;
 
@@ -329,6 +330,9 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(AutoRepairService.MBEAN_NAME);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
+
+            name = new ObjectName(Guardrails.MBEAN_NAME);
+            grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -463,9 +467,8 @@ public class NodeProbe implements AutoCloseable
                            jobName, ks);
                 break;
             case 2:
-                failed = true;
-                out.printf("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n",
-                           ks);
+                out.printf("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n", ks);
+                throw new RuntimeException(String.format("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n", ks));
         }
     }
 
@@ -473,8 +476,8 @@ public class NodeProbe implements AutoCloseable
     {
         if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
         {
-            failed = true;
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+            throw new RuntimeException("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
         }
     }
 
@@ -1813,16 +1816,6 @@ public class NodeProbe implements AutoCloseable
         ssProxy.reloadLocalSchema();
     }
 
-    public boolean isFailed()
-    {
-        return failed;
-    }
-
-    public void failed()
-    {
-        this.failed = true;
-    }
-
     public long getReadRepairAttempted()
     {
         return spProxy.getReadRepairAttempted();
@@ -2540,21 +2533,6 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getDefaultKeyspaceReplicationFactor();
     }
 
-    public void printSet(PrintStream out, String colName, Set<String> values)
-    {
-        if (values == null || values.isEmpty())
-            return;
-
-        TableBuilder table = new TableBuilder();
-
-        table.add(colName + ": ");
-
-        for (String value : values)
-            table.add(value);
-
-        table.printTo(out);
-    }
-
     public void abortBootstrap(String nodeId, String endpoint)
     {
         ssProxy.abortBootstrap(nodeId, endpoint);
@@ -2698,6 +2676,11 @@ public class NodeProbe implements AutoCloseable
     public void setMixedMajorVersionRepairEnabled(boolean enabled)
     {
         autoRepairProxy.setMixedMajorVersionRepairEnabled(enabled);
+
+    }
+    public GuardrailsMBean getGuardrailsMBean()
+    {
+        return grProxy;
     }
 }
 

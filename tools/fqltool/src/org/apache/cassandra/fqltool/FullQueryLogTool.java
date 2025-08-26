@@ -18,70 +18,48 @@
 
 package org.apache.cassandra.fqltool;
 
-import java.util.List;
-
 import com.google.common.base.Throwables;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Help;
-import io.airlift.airline.ParseArgumentsMissingException;
-import io.airlift.airline.ParseArgumentsUnexpectedException;
-import io.airlift.airline.ParseCommandMissingException;
-import io.airlift.airline.ParseCommandUnrecognizedException;
-import io.airlift.airline.ParseOptionConversionException;
-import io.airlift.airline.ParseOptionMissingException;
-import io.airlift.airline.ParseOptionMissingValueException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.fqltool.commands.Dump;
 import org.apache.cassandra.fqltool.commands.Replay;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
-import static com.google.common.collect.Lists.newArrayList;
 
-public class FullQueryLogTool
+@Command(name = "fqltool",
+         description = "Manipulate the contents of full query log files",
+         subcommands = { CommandLine.HelpCommand.class, Dump.class, Replay.class, Compare.class })
+public class FullQueryLogTool implements Runnable
 {
     public static void main(String... args)
     {
         DatabaseDescriptor.clientInitialization();
-        List<Class<? extends Runnable>> commands = newArrayList(
-                Help.class,
-                Dump.class,
-                Replay.class,
-                Compare.class
-        );
+        CommandLine commandLine = new CommandLine(FullQueryLogTool.class);
+        commandLine.setExecutionExceptionHandler((ex, c, arg) -> {
+                       // Used for backward compatibility, some commands are validated when a command is run.
+                       if (ex instanceof IllegalArgumentException | ex instanceof IllegalStateException)
+                       {
+                           badUse(ex);
+                           return 1;
+                       }
+                       err(Throwables.getRootCause(ex));
+                       return 2;
+                   })
+                   .setParameterExceptionHandler((ex, arg) -> {
+                       badUse(ex);
+                       return 1;
+                   });
 
-        Cli.CliBuilder<Runnable> builder = Cli.builder("fqltool");
+        System.exit(commandLine.execute(args));
+    }
 
-        builder.withDescription("Manipulate the contents of full query log files")
-                 .withDefaultCommand(Help.class)
-                 .withCommands(commands);
-
-        Cli<Runnable> parser = builder.build();
-
-        int status = 0;
-        try
-        {
-            parser.parse(args).run();
-        } catch (IllegalArgumentException |
-                IllegalStateException |
-                ParseArgumentsMissingException |
-                ParseArgumentsUnexpectedException |
-                ParseOptionConversionException |
-                ParseOptionMissingException |
-                ParseOptionMissingValueException |
-                ParseCommandMissingException |
-                ParseCommandUnrecognizedException e)
-        {
-            badUse(e);
-            status = 1;
-        } catch (Throwable throwable)
-        {
-            err(Throwables.getRootCause(throwable));
-            status = 2;
-        }
-
-        System.exit(status);
+    @Override
+    public void run()
+    {
+        CommandLine.usage(this, System.out);
     }
 
     private static void badUse(Exception e)

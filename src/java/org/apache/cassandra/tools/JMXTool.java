@@ -40,7 +40,6 @@ import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
@@ -62,14 +61,7 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
 import org.apache.cassandra.config.YamlConfigurationLoader;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.DumperOptions;
@@ -80,8 +72,14 @@ import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Representer;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
-public class JMXTool
+@Command(name = "jmxtool", description = "JMX tool for Apache Cassandra",
+         mixinStandardHelpOptions = true,
+         subcommands = { CommandLine.HelpCommand.class, JMXTool.Dump.class, JMXTool.Diff.class })
+public class JMXTool implements Callable<Void>
 {
     private static final List<String> METRIC_PACKAGES = Arrays.asList("org.apache.cassandra.metrics",
                                                                       "org.apache.cassandra.db",
@@ -109,16 +107,20 @@ public class JMXTool
         return rc;
     };
 
-    @Command(name = "dump", description = "Dump the Apache Cassandra JMX objects and metadata.")
+    @Override
+    public Void call() throws Exception
+    {
+        CommandLine.usage(this, System.out);
+        return null;
+    }
+
+    @Command(name = "dump", description = "Dump the Apache Cassandra JMX objects and metadata.", mixinStandardHelpOptions = true)
     public static final class Dump implements Callable<Void>
     {
-        @Inject
-        private HelpOption helpOption;
-
-        @Option(title = "url", name = { "-u", "--url" }, description = "JMX url to target")
+        @Option(paramLabel = "url", names = { "-u", "--url" }, description = "JMX url to target")
         private String targetUrl = "service:jmx:rmi:///jndi/rmi://localhost:7199/jmxrmi";
 
-        @Option(title = "format", name = { "-f", "--format" }, description = "What format to dump content as; supported values are console (default), json, and yaml")
+        @Option(paramLabel = "format", names = { "-f", "--format" }, description = "What format to dump content as; supported values are console (default), json, and yaml")
         private Format format = Format.console;
 
         public Void call() throws Exception
@@ -188,41 +190,32 @@ public class JMXTool
         }
     }
 
-    @Command(name = "diff", description = "Diff two jmx dump files and report their differences")
+    @Command(name = "diff", description = "Diff two jmx dump files and report their differences", mixinStandardHelpOptions = true)
     public static final class Diff implements Callable<Void>
     {
-        @Inject
-        private HelpOption helpOption;
+        @CommandLine.Parameters(description = "Files to diff")
+        private List<String> files;
 
-        @Arguments(title = "files", usage = "<left> <right>", description = "Files to diff")
-        private List<File> files;
-
-        @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in; only support json and yaml as format")
+        @Option(paramLabel = "format", names = { "-f", "--format" }, description = "What format the files are in; only support json and yaml as format")
         private Format format = Format.yaml;
 
-        @Option(title = "ignore left", name = { "--ignore-missing-on-left" }, description = "Ignore results missing on the left")
+        @Option(paramLabel = "ignore_left", names = { "--ignore-missing-on-left" }, description = "Ignore results missing on the left")
         private boolean ignoreMissingLeft;
 
-        @Option(title = "ignore right", name = { "--ignore-missing-on-right" }, description = "Ignore results missing on the right")
+        @Option(paramLabel = "ignore_right", names = { "--ignore-missing-on-right" }, description = "Ignore results missing on the right")
         private boolean ignoreMissingRight;
 
-        @Option(title = "exclude objects", name = "--exclude-object", description
-                                                                      = "Ignores processing specific objects. " +
-                                                                        "Each usage should take a single object, " +
-                                                                        "but can use this flag multiple times.")
-        private List<CliPattern> excludeObjects = new ArrayList<>();
+        @Option(paramLabel = "exclude_objects", names = "--exclude-object", converter = PatternConverter.class,
+                description = "Ignores processing specific objects. Each usage should take a single object, but can use this flag multiple times.")
+        private List<Pattern> excludeObjects = new ArrayList<>();
 
-        @Option(title = "exclude attributes", name = "--exclude-attribute", description
-                                                                            = "Ignores processing specific attributes. " +
-                                                                              "Each usage should take a single attribute, " +
-                                                                              "but can use this flag multiple times.")
-        private List<CliPattern> excludeAttributes = new ArrayList<>();
+        @Option(paramLabel = "exclude_attributes", names = "--exclude-attribute", converter = PatternConverter.class,
+                description = "Ignores processing specific attributes. Each usage should take a single attribute, but can use this flag multiple times.")
+        private List<Pattern> excludeAttributes = new ArrayList<>();
 
-        @Option(title = "exclude operations", name = "--exclude-operation", description
-                                                                            = "Ignores processing specific operations. " +
-                                                                              "Each usage should take a single operation, " +
-                                                                              "but can use this flag multiple times.")
-        private List<CliPattern> excludeOperations = new ArrayList<>();
+        @Option(paramLabel = "exclud_operations", names = "--exclude-operation", converter = PatternConverter.class,
+                description = "Ignores processing specific operations. Each usage should take a single operation, but can use this flag multiple times.")
+        private List<Pattern> excludeOperations = new ArrayList<>();
 
         public Void call() throws Exception
         {
@@ -243,9 +236,9 @@ public class JMXTool
         private void diff(Map<String, Info> left, Map<String, Info> right)
         {
             DiffResult<String> objectNames = diff(left.keySet(), right.keySet(), name -> {
-                for (CliPattern p : excludeObjects)
+                for (Pattern p : excludeObjects)
                 {
-                    if (p.pattern.matcher(name).matches())
+                    if (p.matcher(name).matches())
                         return false;
                 }
                 return true;
@@ -280,9 +273,9 @@ public class JMXTool
                 Info leftInfo = left.get(key);
                 Info rightInfo = right.get(key);
                 DiffResult<Attribute> attributes = diff(leftInfo.attributeSet(), rightInfo.attributeSet(), attribute -> {
-                    for (CliPattern p : excludeAttributes)
+                    for (Pattern p : excludeAttributes)
                     {
-                        if (p.pattern.matcher(attribute.name).matches())
+                        if (p.matcher(attribute.name).matches())
                             return false;
                     }
                     return true;
@@ -301,10 +294,10 @@ public class JMXTool
                 }
 
                 DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet(), operation -> {
-                    for (CliPattern p : excludeOperations)
+                    for (Pattern p : excludeOperations)
                     {
-                        if (p.pattern.matcher(operation.name).matches() ||
-                            p.pattern.matcher(operation.toString().replaceAll(" +", "")).matches())
+                        if (p.matcher(operation.name).matches() ||
+                            p.matcher(operation.toString().replaceAll(" +", "")).matches())
                             return false;
                     }
                     return true;
@@ -844,24 +837,18 @@ public class JMXTool
         }
     }
 
-    public static final class CliPattern
+    public static class PatternConverter implements CommandLine.ITypeConverter<Pattern>
     {
-        private final Pattern pattern;
-
-        public CliPattern(String pattern)
+        @Override
+        public Pattern convert(String pattern) throws Exception
         {
-            this.pattern = Pattern.compile(pattern);
+            return Pattern.compile(pattern);
         }
     }
 
     public static void main(String[] args) throws Exception
     {
-        Cli.CliBuilder<Callable<Void>> builder = Cli.builder("jmxtool");
-        builder.withDefaultCommand(Help.class);
-        builder.withCommands(Help.class, Dump.class, Diff.class);
-
-        Cli<Callable<Void>> parser = builder.build();
-        Callable<Void> command = parser.parse(args);
-        command.call();
+        CommandLine commandLine = new CommandLine(JMXTool.class);
+        commandLine.execute(args);
     }
 }

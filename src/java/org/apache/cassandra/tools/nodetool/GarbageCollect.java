@@ -17,30 +17,40 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
-public class GarbageCollect extends NodeToolCmd
+public class GarbageCollect extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "granularity",
-        name = {"-g", "--granularity"},
-        allowedValues = {"ROW", "CELL"},
-        description = "Granularity of garbage removal. ROW (default) removes deleted partitions and rows, CELL also removes overwritten or deleted cells.")
-    private String tombstoneOption = "ROW";
+    @Parameters(index = "0", description = "The keyspace followed by one or many tables to garbage collect", arity = "0..1")
+    private String keyspace;
 
-    @Option(title = "jobs",
-            name = {"-j", "--jobs"},
+    @Parameters(index = "1..*", description = "The tables to garbage collect", arity = "0..*")
+    private String[] tables;
+
+    @Option(paramLabel = "granularity",
+            names = { "-g", "--granularity" },
+            description = "Granularity of garbage removal. ROW (default) removes deleted partitions and rows, CELL also removes overwritten or deleted cells.")
+    private CompactionParams.TombstoneOption tombstoneOption = CompactionParams.TombstoneOption.ROW;
+
+    @Option(paramLabel = "jobs",
+            names = { "-j", "--jobs" },
             description = "Number of sstables to cleanup simultanously, set to 0 to use all available compaction " +
                           "threads. Defaults to 1 so that collections of newer tables can see the data is deleted " +
                           "and also remove tombstones.")
@@ -49,6 +59,8 @@ public class GarbageCollect extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, tables);
+
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
@@ -56,7 +68,7 @@ public class GarbageCollect extends NodeToolCmd
         {
             try
             {
-                probe.garbageCollect(probe.output().out, tombstoneOption, jobs, keyspace, tableNames);
+                probe.garbageCollect(probe.output().out, tombstoneOption.toString(), jobs, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during garbage collection", e);

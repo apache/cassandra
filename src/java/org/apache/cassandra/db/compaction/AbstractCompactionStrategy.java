@@ -36,7 +36,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -562,7 +562,7 @@ public abstract class AbstractCompactionStrategy
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         return SimpleSSTableMultiWriter.create(descriptor,
                                                keyCount,
@@ -574,7 +574,7 @@ public abstract class AbstractCompactionStrategy
                                                sstableLevel,
                                                header,
                                                indexGroups,
-                                               lifecycleNewTracker, cfs);
+                                               txn, cfs);
     }
 
     public boolean supportsEarlyOpen()

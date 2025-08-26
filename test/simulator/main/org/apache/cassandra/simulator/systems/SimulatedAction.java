@@ -42,6 +42,7 @@ import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.FutureActionScheduler.Deliver;
+import org.apache.cassandra.simulator.FutureActionScheduler.DeliverResult;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedRunnableExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
@@ -61,6 +62,7 @@ import static org.apache.cassandra.simulator.Action.Modifiers.START_THREAD;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_TIMEOUT_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.WAKE_UP_THREAD;
 import static org.apache.cassandra.simulator.Debug.Info.LOG;
+import static org.apache.cassandra.simulator.FutureActionScheduler.DELIVER_UNPROTECTED_RESULT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER_AND_TIMEOUT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.FAILURE;
@@ -343,7 +345,11 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
         boolean isReliable = is(Modifier.RELIABLE) || self.is(Modifier.RELIABLE);
 
         FutureActionScheduler childScheduler = simulated.perVerbFutureSchedulers.getOrDefault(Verb.fromId(message.verb()), simulated.futureScheduler);
-        Deliver deliver = isReliable ? DELIVER : childScheduler.shouldDeliver(fromNum, toNum);
+
+        DeliverResult deliverResult = isReliable ? DELIVER_UNPROTECTED_RESULT : childScheduler.shouldDeliver(fromNum, toNum, from, message);
+        Deliver deliver = deliverResult.deliver;
+        // A message that should get a better than normal treatment in terms of unreliability
+        boolean protectedMessage = deliverResult.protectedMessage;
 
         List<Action> actions = new ArrayList<>(deliver == DELIVER_AND_TIMEOUT ? 2 : 1);
         switch (deliver)
@@ -358,7 +364,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                 Object description = lazy(() -> String.format("%s(%d) from %s to %s", verb, message.id(), message.from(), to.broadcastAddress()));
                 OrderOn orderOn = task.executor.orderAppliesAfterScheduling();
                 Action action = applyTo(description, MESSAGE, orderOn, self, verb, task);
-                long deadlineNanos = childScheduler.messageDeadlineNanos(fromNum, toNum);
+                long deadlineNanos = childScheduler.messageDeadlineNanos(fromNum, toNum, protectedMessage);
                 if (deliver == DELIVER && deadlineNanos >= expiresAtNanos)
                 {
                     if (isReliable) deadlineNanos = verb.isResponse() ? expiresAtNanos : expiresAtNanos / 2;
@@ -412,7 +418,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                 {
                     default: throw new AssertionError();
                     case FAILURE:
-                        long deadlineNanos = childScheduler.messageFailureNanos(toNum, fromNum);
+                        long deadlineNanos = childScheduler.messageFailureNanos(toNum, fromNum, protectedMessage);
                         if (deadlineNanos < expiresAtNanos)
                         {
                             action.setDeadline(simulated.time, deadlineNanos);
@@ -421,7 +427,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                     case DELIVER_AND_TIMEOUT:
                     case TIMEOUT:
                         long expirationIntervalNanos = from.unsafeCallOnThisThread(RequestCallbacks::defaultExpirationInterval);
-                        action.setDeadline(simulated.time, childScheduler.messageTimeoutNanos(expiresAtNanos, expirationIntervalNanos));
+                        action.setDeadline(simulated.time, childScheduler.messageTimeoutNanos(expiresAtNanos, expirationIntervalNanos, protectedMessage));
                         break;
                 }
                 actions.add(action);

@@ -121,7 +121,7 @@ The `nodetool disableauditlog` command disables AuditLog.
 
 [source,none]
 ----
-nodetool disableuditlog
+nodetool disableauditlog
 ----
 
 === NodeTool command to reload AuditLog filters

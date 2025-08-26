@@ -52,7 +52,7 @@ import accord.utils.IntrusiveLinkedList;
 import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.TriFunction;
-import accord.utils.async.Cancellable;
+import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -60,6 +60,7 @@ import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.CacheAccessMetrics;
+import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -72,6 +73,8 @@ import static accord.utils.Invariants.require;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.MODIFIED;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.SAVING;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.WAITING_TO_SAVE;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -100,6 +103,7 @@ public class AccordCache implements CacheSize
     {
         @Nullable V load(AccordCommandStore commandStore, K key);
         @Nullable Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk);
+        default boolean canSave(@Nullable V value, @Nullable Object shrunk) { return true; }
         // a result of null means we can immediately evict, without saving
         @Nullable V quickShrink(V value);
         // a result of null means we cannot shrink, and should save/evict as appropriate
@@ -138,9 +142,7 @@ public class AccordCache implements CacheSize
     }
 
     private final List<Type<?, ?, ?>> types = new CopyOnWriteArrayList<>();
-    private final Function<Runnable, Cancellable> saveExecutor;
-    private final AccordCacheEntry.OnSaved onSaved;
-    // TODO (required): monitor this queue and periodically clean up entries, or implement an eviction deadline system
+    final AccordCacheEntry.SaveExecutor saveExecutor;
     private final IntrusiveLinkedList<AccordCacheEntry<?,?>> evictQueue = new IntrusiveLinkedList<>();
     private final IntrusiveLinkedList<AccordCacheEntry<?,?>> noEvictQueue = new IntrusiveLinkedList<>();
 
@@ -155,10 +157,9 @@ public class AccordCache implements CacheSize
     final AccordCacheMetrics metrics;
     final Stats stats = new Stats();
 
-    public AccordCache(Function<Runnable, Cancellable> saveExecutor, AccordCacheEntry.OnSaved onSaved, long maxSizeInBytes, AccordCacheMetrics metrics)
+    public AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes, AccordCacheMetrics metrics)
     {
         this.saveExecutor = saveExecutor;
-        this.onSaved = onSaved;
         this.maxSizeInBytes = maxSizeInBytes;
         this.metrics = metrics;
     }
@@ -255,7 +256,7 @@ public class AccordCache implements CacheSize
         Status status = node.status();
         switch (status)
         {
-            default: throw new IllegalStateException("Unhandled status " + status);
+            default: throw new UnhandledEnum(status);
             case LOADING:
                 node.loading().loading.cancel();
             case WAITING_TO_LOAD:
@@ -265,12 +266,21 @@ public class AccordCache implements CacheSize
                 evict(node, true);
                 break;
             case MODIFIED:
-                Type<K, V, ?> parent = node.owner.parent();
-                node.save(saveExecutor, parent.adapter, onSaved);
+                node.save();
+            case SAVING: // we can be in evict queue and already be saving if save was requested for durability rather than eviction
                 boolean evict = node.status() == LOADED;
                 node.unlink();
                 if (evict) evict(node, true);
+                break;
         }
+    }
+
+    public void saveWhenReadyExclusive(AccordCacheEntry<?, ?> entry, Runnable onSuccess)
+    {
+        if (!entry.isSavingOrWaiting() && !entry.saveWhenReady())
+            onSuccess.run();
+        else
+            entry.savingOrWaitingToSave().identity.onSuccess(onSuccess);
     }
 
     private void evict(AccordCacheEntry<?, ?> node, boolean updateUnreferenced)
@@ -302,10 +312,10 @@ public class AccordCache implements CacheSize
         node.evicted();
     }
 
-    <P, K, V> Collection<AccordTask<?>> load(BiFunction<P, Runnable, Cancellable> loadExecutor, P param, AccordCacheEntry<K, V> node, AccordCacheEntry.OnLoaded onLoaded)
+    <P1, P2, K, V> Collection<AccordTask<?>> load(LoadExecutor<P1, P2> loadExecutor, P1 p1, P2 p2, AccordCacheEntry<K, V> node)
     {
         Type<K, V, ?> parent = node.owner.parent();
-        return node.load(loadExecutor, param, parent.adapter, onLoaded).waiters();
+        return node.load(loadExecutor, p1, p2).waiters();
     }
 
     <K, V> void loaded(AccordCacheEntry<K, V> node, V value)
@@ -329,7 +339,7 @@ public class AccordCache implements CacheSize
 
     <K, V> void saved(AccordCacheEntry<K, V> node, Object identity, Throwable fail)
     {
-        if (node.saved(identity, fail) && node.references() == 0)
+        if (node.saved(identity, fail) && node.references() == 0 && node.isUnqueued())
             evictQueue.addFirst(node); // add to front since we have just saved, so we were eligible for eviction
     }
 
@@ -539,6 +549,7 @@ public class AccordCache implements CacheSize
                     switch (status)
                     {
                         default: throw new IllegalStateException("Unhandled status " + status);
+                        case WAITING_TO_SAVE:
                         case WAITING_TO_LOAD:
                         case LOADING:
                         case LOADED:
@@ -560,7 +571,7 @@ public class AccordCache implements CacheSize
                 return cache.values().stream();
             }
 
-            Type<K, V, S> parent()
+            final Type<K, V, S> parent()
             {
                 return Type.this;
             }
@@ -568,7 +579,7 @@ public class AccordCache implements CacheSize
             @Override
             public Iterator<AccordCacheEntry<K, V>> iterator()
             {
-                return stream().iterator();
+                return cache.values().iterator();
             }
 
             void validateLoadEvicted(AccordCacheEntry<?, ?> node)
@@ -672,7 +683,6 @@ public class AccordCache implements CacheSize
                     listeners = null;
                 return true;
             }
-
         }
 
         private final Class<K> keyClass;
@@ -733,7 +743,7 @@ public class AccordCache implements CacheSize
             AccordCache.this.stats.misses++;
         }
 
-        AccordCache parent()
+        final AccordCache parent()
         {
             return AccordCache.this;
         }
@@ -768,7 +778,7 @@ public class AccordCache implements CacheSize
             return ((SettableWrapper<K, V, S>)adapter).load;
         }
 
-        Adapter<K, V, S> adapter()
+        final Adapter<K, V, S> adapter()
         {
             return adapter;
         }
@@ -1118,6 +1128,12 @@ public class AccordCache implements CacheSize
         public Runnable save(AccordCommandStore commandStore, RoutingKey key, @Nullable CommandsForKey value, @Nullable Object serialized)
         {
             return commandStore.saveCommandsForKey(key, value, serialized);
+        }
+
+        @Override
+        public boolean canSave(@Nullable CommandsForKey value, @Nullable Object serialized)
+        {
+            return value == null || !value.isLoadingPruned();
         }
 
         @Override

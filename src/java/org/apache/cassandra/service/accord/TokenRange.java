@@ -41,7 +41,7 @@ public class TokenRange extends Range.EndInclusive
     public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(TokenKey.min(TableId.fromLong(0), Murmur3Partitioner.instance), TokenKey.max(TableId.fromLong(0), Murmur3Partitioner.instance)));
 
     // Don't make this public use create or createUnsafe
-    private TokenRange(TokenKey start, TokenKey end)
+    protected TokenRange(TokenKey start, TokenKey end)
     {
         super(start, end);
     }
@@ -59,19 +59,19 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange(start, end);
     }
 
-    public TableId table()
+    public final TableId table()
     {
         return start().table();
     }
 
     @Override
-    public TokenKey start()
+    public final TokenKey start()
     {
         return (TokenKey) super.start();
     }
 
     @Override
-    public TokenKey end()
+    public final TokenKey end()
     {
         return  (TokenKey) super.end();
     }
@@ -87,7 +87,7 @@ public class TokenRange extends Range.EndInclusive
     }
 
     @VisibleForTesting
-    public Range withTable(TableId table)
+    public TokenRange withTable(TableId table)
     {
         return new TokenRange(start().withTable(table), end().withTable(table));
     }
@@ -147,6 +147,30 @@ public class TokenRange extends Range.EndInclusive
         {
             return TokenKey.serializer.serializedSize(range.start())
                    + TokenKey.serializer.serializedSize(range.end());
+        }
+    }
+
+    public static final UnversionedSerializer<TokenRange> noTableSerializer = new UnversionedSerializer<TokenRange>()
+    {
+        @Override
+        public void serialize(TokenRange t, DataOutputPlus out) throws IOException
+        {
+            TokenKey.noTableSerializer.serialize(t.start(), out);
+            TokenKey.noTableSerializer.serialize(t.end(), out);
+        }
+
+        @Override
+        public TokenRange deserialize(DataInputPlus in) throws IOException
+        {
+            return TokenRange.create(TokenKey.noTableSerializer.deserialize(TableId.UNDEFINED, in),
+                                     TokenKey.noTableSerializer.deserialize(TableId.UNDEFINED, in));
+        }
+
+        @Override
+        public long serializedSize(TokenRange t)
+        {
+            return TokenKey.noTableSerializer.serializedSize(t.start())
+                   + TokenKey.noTableSerializer.serializedSize(t.end());
         }
     };
 }

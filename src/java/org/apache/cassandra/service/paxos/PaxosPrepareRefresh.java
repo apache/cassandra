@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -37,8 +38,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Committed;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REFRESH_REQ;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.PaxosRequestCallback.shouldExecuteOnSelf;
@@ -109,6 +113,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     @Override
     public void onResponse(Message<Response> message)
     {
+        ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
         onResponse(message.payload, message.from());
     }
 
@@ -120,6 +125,11 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
             response = RequestHandler.execute(send.payload, getBroadcastAddressAndPort());
             if (response == null)
                 return;
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            onFailure(getBroadcastAddressAndPort(), RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+            return;
         }
         catch (Exception ex)
         {
@@ -164,11 +174,19 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         @Override
         public void doVerb(Message<Request> message)
         {
-            Response response = execute(message.payload, message.from());
-            if (response == null)
-                MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
-            else
-                MessagingService.instance().respond(response, message);
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+            try
+            {
+                Response response = execute(message.payload, message.from());
+                if (response == null)
+                    MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
+                else
+                    MessagingService.instance().respond(response, message);
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
 
         public static Response execute(Request request, InetAddressAndPort from)

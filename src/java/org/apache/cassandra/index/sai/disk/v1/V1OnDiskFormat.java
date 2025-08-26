@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -151,11 +151,11 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public PerColumnIndexWriter newPerColumnIndexWriter(StorageAttachedIndex index,
                                                         IndexDescriptor indexDescriptor,
-                                                        LifecycleNewTracker tracker,
+                                                        ILifecycleTransaction txn,
                                                         RowMapping rowMapping)
     {
         // If we're not flushing, or we haven't yet started the initialization build, flush from SSTable contents.
-        if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
+        if (txn.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
             logger.info(index.identifier().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
@@ -164,7 +164,7 @@ public class V1OnDiskFormat implements OnDiskFormat
             return new SSTableIndexWriter(indexDescriptor, index, limiter, index.isIndexValid());
         }
 
-        return new MemtableIndexWriter(index.memtableIndexManager().getPendingMemtableIndex(tracker),
+        return new MemtableIndexWriter(index.memtableIndexManager().getPendingMemtableIndex(txn),
                                        indexDescriptor,
                                        index.termType(),
                                        index.identifier(),

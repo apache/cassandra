@@ -51,7 +51,6 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker;
@@ -74,7 +73,6 @@ import static org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
 import static org.apache.cassandra.service.paxos.Commit.Proposal;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
-import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult.RETRY_NEW_PROTOCOL;
 import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult.SUCCESS;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PERMIT_READ;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
@@ -644,7 +642,7 @@ public class PaxosState implements PaxosOperationLock
     /**
      * Record an acceptance of the proposal if there is no newer promise; otherwise inform the caller of the newer ballot
      */
-    public AcceptResult acceptIfLatest(Proposal proposal, boolean isForRecovery)
+    public AcceptResult acceptIfLatest(Proposal proposal)
     {
         if (paxosStatePurging() == legacy && !(proposal instanceof AcceptedWithTTL))
             proposal = AcceptedWithTTL.withDefaultTTL(proposal);
@@ -652,27 +650,17 @@ public class PaxosState implements PaxosOperationLock
         // state.promised can be null, because it is invalidated by committed;
         // we may also have accepted a newer proposal than we promised, so we confirm that we are the absolute newest
         // (or that we have the exact same ballot as our promise, which is the typical case)
-        boolean shouldRejectDueToConsensusMigration;
         Snapshot before, after;
         while (true)
         {
             Snapshot realBefore = current;
             before = realBefore.removeExpired((int)proposal.ballot.unix(SECONDS));
             Ballot latest = before.latestWitnessedOrLowBound();
-            if (isForRecovery)
-                shouldRejectDueToConsensusMigration = false;
-            else
-                shouldRejectDueToConsensusMigration = ConsensusRequestRouter.instance
-                                                          .isKeyInMigratingOrMigratedRangeDuringPaxosAccept(proposal.update.metadata().id,
-                                                                                                            proposal.update.partitionKey());
             if (!proposal.isSameOrAfter(latest))
             {
                 Tracing.trace("Rejecting proposal {}; latest is now {}", proposal.ballot, latest);
-                return new AcceptResult(latest, shouldRejectDueToConsensusMigration);
+                return new AcceptResult(latest);
             }
-
-            if (shouldRejectDueToConsensusMigration)
-                return RETRY_NEW_PROTOCOL;
 
             // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
             if (proposal.hasSameBallot(before.committed))
@@ -693,7 +681,6 @@ public class PaxosState implements PaxosOperationLock
         // though this
         Tracing.trace("Accepting proposal {}", proposal);
         SystemKeyspace.savePaxosProposal(proposal);
-        checkState(!shouldRejectDueToConsensusMigration);
         return SUCCESS;
     }
 
@@ -863,28 +850,22 @@ public class PaxosState implements PaxosOperationLock
      */
     public static class AcceptResult
     {
-        static final AcceptResult SUCCESS = new AcceptResult(false);
-
-        static final AcceptResult RETRY_NEW_PROTOCOL = new AcceptResult(true);
+        static final AcceptResult SUCCESS = new AcceptResult();
 
         @Nullable
         public final Ballot supersededBy;
 
-        public final boolean rejectedDueToConsensusMigration;
-
-        public AcceptResult(@Nullable  Ballot supersededBy, boolean rejectedDueToConsensusMigration)
+        public AcceptResult(@Nullable  Ballot supersededBy)
         {
             this.supersededBy = supersededBy;
-            this.rejectedDueToConsensusMigration = rejectedDueToConsensusMigration;
         }
 
         // Success result
-        private AcceptResult(boolean rejectedDueToConsensusMigration)
+        private AcceptResult()
         {
             supersededBy = null;
-            this.rejectedDueToConsensusMigration = rejectedDueToConsensusMigration;
         }
 
-        public String toString() { return supersededBy == null && !rejectedDueToConsensusMigration ? "Accept" : "RejectProposal(supersededBy=" + supersededBy + ", rejectedDueToConsensusMigration=" + rejectedDueToConsensusMigration + ')'; }
+        public String toString() { return supersededBy == null ? "Accept" : "RejectProposal(supersededBy=" + supersededBy + ')'; }
     }
 }

@@ -147,7 +147,7 @@ public class QueryController
     @Nullable
     public StorageAttachedIndex indexFor(RowFilter.Expression expression)
     {
-        return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class).orElse(null);
+        return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class, indexFilter.indexHints).orElse(null);
     }
 
     public boolean hasAnalyzer(RowFilter.Expression expression)

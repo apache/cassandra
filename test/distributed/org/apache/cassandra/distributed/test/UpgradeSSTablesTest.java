@@ -48,6 +48,9 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.UpgradeSSTable
+ */
 public class UpgradeSSTablesTest extends TestBaseImpl
 {
 

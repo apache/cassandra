@@ -212,7 +212,7 @@ public class StubIndex implements Index
         return new Searcher(command);
     }
 
-    protected class Searcher implements Index.Searcher
+    public class Searcher implements Index.Searcher
     {
         private final ReadCommand command;
 

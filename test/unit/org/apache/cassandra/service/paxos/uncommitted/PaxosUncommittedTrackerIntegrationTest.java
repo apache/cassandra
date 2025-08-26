@@ -100,7 +100,7 @@ public class PaxosUncommittedTrackerIntegrationTest
 
         try (PaxosState state = PaxosState.get(key, cfm))
         {
-            state.acceptIfLatest(proposal, false);
+            state.acceptIfLatest(proposal);
         }
 
         try (CloseableIterator<UncommittedPaxosKey> iterator = tracker.uncommittedKeyIterator(cfm.id, ALL_RANGES))
@@ -127,7 +127,7 @@ public class PaxosUncommittedTrackerIntegrationTest
         try (PaxosState state = PaxosState.get(key, cfm))
         {
             state.promiseIfNewer(proposal.ballot, true);
-            state.acceptIfLatest(proposal, false);
+            state.acceptIfLatest(proposal);
         }
         try (CloseableIterator<UncommittedPaxosKey> iterator = tracker.uncommittedKeyIterator(cfm.id, ALL_RANGES))
         {

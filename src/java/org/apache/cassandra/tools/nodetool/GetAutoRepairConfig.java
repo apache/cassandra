@@ -21,15 +21,14 @@ import java.io.PrintStream;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 /**
  * Prints all the configurations for AutoRepair through nodetool.
  */
 @Command(name = "getautorepairconfig", description = "Print autorepair configurations")
-public class GetAutoRepairConfig extends NodeToolCmd
+public class GetAutoRepairConfig extends AbstractCommand
 {
     @VisibleForTesting
     protected static PrintStream out = System.out;

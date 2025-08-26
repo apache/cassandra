@@ -134,6 +134,11 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
         return (Keys)deserializeSubsetInternal(this.keys, in);
     }
 
+    public void skipKeys(DataInputPlus in) throws IOException
+    {
+        skipSubsetInternal(this.keys.size(), in);
+    }
+
     public void serializeSeekable(Seekable seekable, DataOutputPlus out) throws IOException
     {
         int index = keys.indexOf(seekable);
@@ -160,6 +165,12 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
         if (offset > 0) key = (Seekable) keys.get(offset - 1);
         else key = KeySerializers.seekable.deserialize(in);
         return key;
+    }
+
+    public void skipSeekable(DataInputPlus in) throws IOException
+    {
+        int offset = in.readUnsignedVInt32();
+        if (offset <= 0) KeySerializers.seekable.skip(in);
     }
 
     public PartitionKey deserializeKey(DataInputPlus in) throws IOException

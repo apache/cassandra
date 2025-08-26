@@ -530,9 +530,9 @@ public class ActiveRepairServiceTest
         }
     }
 
-    public void testVerifyDiskHeadroomThresholdFullRepair()
+    public void testVerifyDefaultDiskHeadroomThreshold()
     {
-        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, false));
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
     }
 
     @Test
@@ -540,9 +540,9 @@ public class ActiveRepairServiceTest
     {
         DiskUsageMonitor.instance = diskUsageMonitor;
         when(diskUsageMonitor.getDiskUsage()).thenReturn(1.0);
-        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(1.0);
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(1.0);
 
-        Assert.assertFalse(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+        Assert.assertFalse(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
     }
 
     @Test
@@ -550,9 +550,9 @@ public class ActiveRepairServiceTest
     {
         DiskUsageMonitor.instance = diskUsageMonitor;
         when(diskUsageMonitor.getDiskUsage()).thenReturn(0.0);
-        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(0.0);
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(0.0);
 
-        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
     }
 
     @Test(expected = RuntimeException.class)

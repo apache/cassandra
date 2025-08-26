@@ -108,6 +108,12 @@ public class LengthPartitioner extends AccordSplitter implements IPartitioner
             return fromByteArray(IntegerType.instance.fromComparableBytes(comparableBytes, version));
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            // read and ignore the result
+            IntegerType.instance.fromComparableBytes(comparableBytes, version);
+        }
+
         public String toString(Token token)
         {
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;

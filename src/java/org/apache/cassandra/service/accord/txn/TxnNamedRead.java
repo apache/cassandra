@@ -59,10 +59,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -73,6 +73,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.io.util.DataOutputBuffer.scratchBuffer;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.skipWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
 public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadCommand, TableMetadatas>
@@ -230,7 +231,7 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
     {
         ReadCommand command = deserialize(tables);
         if (command == null)
-            return AsyncResults.success(TxnData.NOOP_DATA);
+            return AsyncResults.success(new TxnData());
 
         // It's fine for our nowInSeconds to lag slightly our insertion timestamp, as to the user
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
@@ -429,6 +430,14 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
             if (version != Version.LATEST)
                 bytes = serializeUnchecked(deserializeUnchecked(tablesAndKeys, bytes, version), tablesAndKeys, Version.LATEST);
             return new TxnNamedRead(name, key, bytes);
+        }
+
+        @Override
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            in.readInt();
+            tablesAndKeys.skipSeekable(in);
+            if (in.readByte() != 1) skipWithVIntLength(in);
         }
 
         @Override

@@ -17,32 +17,32 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "gettimeout", description = "Print the timeout of the given type in ms")
-public class GetTimeout extends NodeToolCmd
+public class GetTimeout extends AbstractCommand
 {
     public static final String TIMEOUT_TYPES = "read, range, write, counterwrite, cascontention, truncate, internodeconnect, internodeuser, internodestreaminguser, misc (general rpc_timeout_in_ms)";
 
-    @Arguments(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
+    @CassandraUsage(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
     private List<String> args = new ArrayList<>();
+
+    @Parameters (index = "0", description = "The timeout type, one of (" + TIMEOUT_TYPES + ')', arity = "1")
+    private String timeout_type;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 1, "gettimeout requires a timeout type, one of (" + TIMEOUT_TYPES + ")");
         try
         {
-            probe.output().out.println("Current timeout for type " + args.get(0) + ": " + probe.getTimeout(args.get(0)) + " ms");
+            probe.output().out.println("Current timeout for type " + timeout_type + ": " + probe.getTimeout(timeout_type) + " ms");
         } catch (Exception e)
         {
             throw new IllegalArgumentException(e.getMessage());

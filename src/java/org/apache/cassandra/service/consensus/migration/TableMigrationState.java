@@ -119,6 +119,7 @@ public class TableMigrationState
      */
     @Nonnull
     public final NormalizedRanges<Token> repairPendingRanges;
+    public final NormalizedRanges<Token> repairedRanges;
 
     /**
      * Ranges that are migrating could be in either phase when migrating to Accord. Paxos only has one phase.
@@ -154,6 +155,7 @@ public class TableMigrationState
                               .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey(), normalizedRanges(entry.getValue())))
                               .collect(Collectors.toList()));
         this.migratingRanges = normalizedRanges(migratingRangesByEpoch.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
+        this.repairedRanges = migratingRanges.subtract(this.repairPendingRanges);
         this.migratingAndMigratedRanges = normalizedRanges(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build());
         this.accordSafeToReadRanges = !repairPendingRanges.isEmpty() ? migratingAndMigratedRanges.subtract(this.repairPendingRanges) : migratingAndMigratedRanges;
     }
@@ -245,6 +247,17 @@ public class TableMigrationState
             return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, repairPendingRanges, newMigratingRangesByEpoch);
         else
             return this;
+    }
+
+    public NormalizedRanges<Token> normalizedIntersectionWithMigratingAtEpoch(Epoch epoch, Collection<Range<Token>> ranges)
+    {
+        // This should be inclusive because the epoch we store in the map is the epoch in which the range has been marked migrating
+        // in startMigrationToConsensusProtocol
+        NormalizedRanges<Token> normalizedRepairedRanges = normalizedRanges(ranges);
+        NavigableMap<Epoch, NormalizedRanges<Token>> coveredEpochs = migratingRangesByEpoch.headMap(epoch, true);
+        NormalizedRanges<Token> normalizedMigratingRanges = normalizedRanges(coveredEpochs.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
+        // These are the ranges that are impacted by this repair based on the epoch filtering needed to make sure this repair applies to this migration
+        return normalizedRepairedRanges.intersection(normalizedMigratingRanges);
     }
 
     public TableMigrationState withRangesRepairedAtEpoch(@Nonnull Collection<Range<Token>> ranges,
@@ -429,6 +442,11 @@ public class TableMigrationState
     public Iterable<Range<PartitionPosition>> migratedRangesAsPartitionPosition()
     {
         return Iterables.transform(migratedRanges, range -> new Range<>(range.left.maxKeyBound(), range.right.maxKeyBound()));
+    }
+
+    public Iterable<Range<PartitionPosition>> migratingAndMigratedRangesAsPartitionPosition()
+    {
+        return Iterables.transform(migratingAndMigratedRanges, range -> new Range<>(range.left.maxKeyBound(), range.right.maxKeyBound()));
     }
 
     @Override

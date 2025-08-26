@@ -22,17 +22,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import accord.local.durability.DurabilityService;
-import accord.local.Node;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
@@ -45,6 +43,7 @@ import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyReq
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -69,21 +68,19 @@ public class AccordRepair
 
     private final Ranges ranges;
 
-    private final boolean requireAllEndpoints;
-    private final List<InetAddressAndPort> endpoints;
+    private final SyncRemote syncRemote;
 
     private final Epoch minEpoch = ClusterMetadata.current().epoch;
 
     private volatile Throwable shouldAbort = null;
     private volatile Thread waiting;
 
-    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints, List<InetAddressAndPort> endpoints)
+    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints)
     {
         this.ctx = ctx;
         this.cfs = cfs;
         this.repairId = repairId;
-        this.requireAllEndpoints = requireAllEndpoints;
-        this.endpoints = endpoints;
+        this.syncRemote = requireAllEndpoints ? All : Quorum;
         this.ranges = AccordTopology.toAccordRanges(keyspace, ranges);
     }
 
@@ -92,17 +89,34 @@ public class AccordRepair
         return minEpoch;
     }
 
-    public Ranges repair() throws Throwable
+    public static class AccordRepairResult
     {
-        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
-        for (accord.primitives.Range range : ranges)
-            repairedRanges.addAll(repairRange((TokenRange)range));
-        return Ranges.of(repairedRanges.toArray(new accord.primitives.Range[0]));
+        public final Ranges repairedRanges;
+        public final long maxHlc;
+
+        public AccordRepairResult(Ranges ranges, long maxHlc)
+        {
+            this.repairedRanges = ranges;
+            this.maxHlc = maxHlc;
+        }
     }
 
-    public Future<Ranges> repair(Executor executor)
+    public AccordRepairResult repair() throws Throwable
     {
-        AsyncPromise<Ranges> future = new AsyncPromise<>();
+        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
+        long maxHLC = Long.MIN_VALUE;
+        for (accord.primitives.Range range : ranges)
+        {
+            Pair<List<accord.primitives.Range>, Long> rangesAndMaxHLC = repairRange((TokenRange) range);
+            repairedRanges.addAll(rangesAndMaxHLC.left);
+            maxHLC = Math.max(maxHLC, rangesAndMaxHLC.right);
+        }
+        return new AccordRepairResult(Ranges.of(repairedRanges.toArray(new accord.primitives.Range[0])), maxHLC);
+    }
+
+    public Future<AccordRepairResult> repair(Executor executor)
+    {
+        AsyncPromise<AccordRepairResult> future = new AsyncPromise<>();
         executor.execute(() -> {
             try
             {
@@ -124,12 +138,9 @@ public class AccordRepair
             thread.interrupt();
     }
 
-    private List<accord.primitives.Range> repairRange(TokenRange range) throws Throwable
+    private Pair<List<accord.primitives.Range>, Long> repairRange(TokenRange range) throws Throwable
     {
         List<accord.primitives.Range> repairedRanges = new ArrayList<>();
-        List<Node.Id> ids = endpoints == null ? null : endpoints.stream().map(AccordService.instance().configService()::mappedId).collect(Collectors.toList());
-        DurabilityService.SyncRemote syncRemote = requireAllEndpoints ? All : Quorum;
-
         if (shouldAbort != null)
             throw shouldAbort;
 
@@ -151,9 +162,9 @@ public class AccordRepair
             waiting = Thread.currentThread();
             RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(latency);
             long timeoutNanos = getAccordRepairTimeoutNanos();
-            AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
-                conflict = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflict, Ranges.of(range), ids, NoLocal, syncRemote, timeoutNanos, NANOSECONDS);
+            long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
+                Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), null, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc());
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 
@@ -162,6 +173,8 @@ public class AccordRepair
 
             for (accord.primitives.Range r : ranges)
                 repairedRanges.add(r);
+
+            return Pair.create(repairedRanges, maxHlc);
         }
         catch (Throwable t)
         {
@@ -178,7 +191,5 @@ public class AccordRepair
             long end = ctx.clock().nanoTime();
             cfs.metric.accordRepair.addNano(end - start);
         }
-
-        return repairedRanges;
     }
 }

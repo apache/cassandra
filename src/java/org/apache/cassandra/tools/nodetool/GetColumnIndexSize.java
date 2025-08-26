@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "getcolumnindexsize", description = "Print the granularity of the collation index of rows within a partition in KiB")
-public class GetColumnIndexSize extends NodeToolCmd
+public class GetColumnIndexSize extends AbstractCommand
 {
     @Override
     protected void execute(NodeProbe probe)

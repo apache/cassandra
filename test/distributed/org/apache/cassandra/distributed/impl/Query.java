@@ -43,14 +43,21 @@ public class Query implements IIsolatedExecutor.SerializableCallable<SimpleQuery
 
     public final String query;
     final long timestamp;
+    final boolean deserializeResult;
     final org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin;
     final org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin;
     public final Object[] boundValues;
 
     public Query(String query, long timestamp, org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin, org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin, Object[] boundValues)
     {
+        this(query, timestamp, true, commitConsistencyOrigin, serialConsistencyOrigin, boundValues);
+    }
+
+    public Query(String query, long timestamp, boolean deserializeResult, org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin, org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin, Object[] boundValues)
+    {
         this.query = query;
         this.timestamp = timestamp;
+        this.deserializeResult = deserializeResult;
         this.commitConsistencyOrigin = commitConsistencyOrigin;
         this.serialConsistencyOrigin = serialConsistencyOrigin;
         this.boundValues = boundValues;
@@ -90,7 +97,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<SimpleQuery
         if (res != null)
             res.setWarnings(ClientWarn.instance.getWarnings());
 
-        return RowUtil.toQueryResult(res);
+        return RowUtil.toQueryResult(res, deserializeResult);
     }
 
     public String toString()

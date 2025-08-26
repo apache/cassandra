@@ -459,6 +459,11 @@ public class Murmur3Partitioner implements IPartitioner
             return new LongToken(tokenData);
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipBytes(comparableBytes, Long.BYTES);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             LongToken longToken = (LongToken) token;

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.api.Result;
 import accord.local.Command;
+import accord.local.PreLoadContext;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ballot;
@@ -61,14 +62,15 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
-import static accord.primitives.Status.Durability.Majority;
+import static accord.primitives.Status.Durability.AllQuorums;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
@@ -133,12 +135,14 @@ public class AccordCommandStoreTest
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         Pair<Writes, Result> result = AsyncChains.getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
 
-        Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, Majority, StoreParticipants.all(route),
+        Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,
                                                      waitingOn, result.left, ResultSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(expected);
-
+        // In practice we should never need to save it with the condition boolean set
+        // Not sure why this test does that
+        ((TxnUpdate)txn.update()).unsafeResetCondition();
         AccordTestUtils.appendCommandsBlocking(commandStore, null, expected);
 
         logger.info("E: {}", expected);
@@ -165,8 +169,8 @@ public class AccordCommandStoreTest
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();
 
-        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command1).cfk());
-        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command2).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command1).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command2).cfk());
 
         CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);

@@ -20,13 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.PrintStream;
 import java.util.List;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "reloadseeds", description = "Reload the seed node list from the seed node provider")
-public class ReloadSeeds extends NodeToolCmd
+public class ReloadSeeds extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

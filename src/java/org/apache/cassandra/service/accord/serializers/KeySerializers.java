@@ -73,16 +73,17 @@ public class KeySerializers
     public static final AccordSearchableKeySerializer<RoutingKey> routingKey;
 
     public static final UnversionedSerializer<RoutingKey> nullableRoutingKey;
-    public static final AbstractSearchableRoutingKeysSerializer<RoutingKeys> routingKeys;
+    public static final AbstractKeyRoutablesSerializer<RoutingKeys> routingKeys;
     public static final UnversionedSerializer<Keys> keys;
 
-    public static final AbstractSearchableRoutingKeysSerializer<PartialKeyRoute> partialKeyRoute;
-    public static final AbstractSearchableRoutingKeysSerializer<FullKeyRoute> fullKeyRoute;
+    public static final AbstractKeyRoutablesSerializer<PartialKeyRoute> partialKeyRoute;
+    public static final AbstractKeyRoutablesSerializer<FullKeyRoute> fullKeyRoute;
 
     public static final UnversionedSerializer<Range> range;
-    public static final AbstractRangesSerializer<Ranges> ranges;
-    public static final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute;
-    public static final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute;
+    public static final AbstractRangesSerializer<Range[]> rangeArray;
+    public static final AbstractRangeRoutablesSerializer<Ranges> ranges;
+    public static final AbstractRangeRoutablesSerializer<PartialRangeRoute> partialRangeRoute;
+    public static final AbstractRangeRoutablesSerializer<FullRangeRoute> fullRangeRoute;
 
     public static final AbstractRoutablesSerializer<Route<?>> route;
     public static final UnversionedSerializer<Route<?>> nullableRoute;
@@ -109,6 +110,7 @@ public class KeySerializers
         fullKeyRoute = impl.fullKeyRoute;
 
         range = impl.range;
+        rangeArray = impl.rangeArray;
         ranges = impl.ranges;
         partialRangeRoute = impl.partialRangeRoute;
         fullRangeRoute = impl.fullRangeRoute;
@@ -131,16 +133,17 @@ public class KeySerializers
         final AccordSearchableKeySerializer<RoutingKey> routingKey;
 
         final UnversionedSerializer<RoutingKey> nullableRoutingKey;
-        final AbstractSearchableRoutingKeysSerializer<RoutingKeys> routingKeys;
+        final AbstractKeyRoutablesSerializer<RoutingKeys> routingKeys;
         final UnversionedSerializer<Keys> keys;
 
-        final AbstractSearchableRoutingKeysSerializer<PartialKeyRoute> partialKeyRoute;
-        final AbstractSearchableRoutingKeysSerializer<FullKeyRoute> fullKeyRoute;
+        final AbstractKeyRoutablesSerializer<PartialKeyRoute> partialKeyRoute;
+        final AbstractKeyRoutablesSerializer<FullKeyRoute> fullKeyRoute;
 
         final UnversionedSerializer<Range> range;
-        final AbstractRangesSerializer<Ranges> ranges;
-        final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute;
-        final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute;
+        final AbstractRangesSerializer<Range[]> rangeArray;
+        final AbstractRangeRoutablesSerializer<Ranges> ranges;
+        final AbstractRangeRoutablesSerializer<PartialRangeRoute> partialRangeRoute;
+        final AbstractRangeRoutablesSerializer<FullRangeRoute> fullRangeRoute;
 
         final AbstractRoutablesSerializer<Route<?>> route;
         final UnversionedSerializer<Route<?>> nullableRoute;
@@ -169,7 +172,7 @@ public class KeySerializers
             this.range = range;
 
             this.nullableRoutingKey = NullableSerializer.wrap(routingKey);
-            this.routingKeys = new AbstractSearchableRoutingKeysSerializer<>(routingKey)
+            this.routingKeys = new AbstractKeyRoutablesSerializer<>()
             {
                 @Override RoutingKeys deserialize(DataInputPlus in, RoutingKey[] keys)
                 {
@@ -185,7 +188,7 @@ public class KeySerializers
                 }
             };
 
-            this.partialKeyRoute = new AbstractKeyRouteSerializer<>(routingKey)
+            this.partialKeyRoute = new AbstractKeyRouteSerializer<>()
             {
                 @Override
                 PartialKeyRoute construct(RoutingKey homeKey, RoutingKey[] keys)
@@ -194,7 +197,7 @@ public class KeySerializers
                 }
             };
 
-            this.fullKeyRoute = new AbstractKeyRouteSerializer<>(routingKey)
+            this.fullKeyRoute = new AbstractKeyRouteSerializer<>()
             {
                 @Override
                 FullKeyRoute construct(RoutingKey homeKey, RoutingKey[] keys)
@@ -203,13 +206,19 @@ public class KeySerializers
                 }
             };
 
-            this.ranges = new AbstractRangesSerializer<>()
+            this.ranges = new AbstractRangeRoutablesSerializer<>()
             {
                 @Override
                 public Ranges deserialize(DataInputPlus in, Range[] ranges)
                 {
                     return Ranges.ofSortedAndDeoverlapped(ranges);
                 }
+            };
+
+            this.rangeArray = new AbstractRangesSerializer<>()
+            {
+                @Override Range[] getArray(Range[] ranges) { return ranges; }
+                @Override public Range[] deserialize(DataInputPlus in, Range[] ranges) { return ranges; }
             };
 
             this.partialRangeRoute = new AbstractRangeRouteSerializer<>()
@@ -250,20 +259,20 @@ public class KeySerializers
     public static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements UnversionedSerializer<RS>
     {
         final TinyEnumSet<UnseekablesKind> permitted;
-        final AbstractSearchableRoutingKeysSerializer<RoutingKeys> routingKeys;
-        final AbstractSearchableRoutingKeysSerializer<PartialKeyRoute> partialKeyRoute;
-        final AbstractSearchableRoutingKeysSerializer<FullKeyRoute> fullKeyRoute;
-        final AbstractRangesSerializer<Ranges> ranges;
-        final AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute;
-        final AbstractRangesSerializer<FullRangeRoute> fullRangeRoute;
+        final AbstractKeyRoutablesSerializer<RoutingKeys> routingKeys;
+        final AbstractKeyRoutablesSerializer<PartialKeyRoute> partialKeyRoute;
+        final AbstractKeyRoutablesSerializer<FullKeyRoute> fullKeyRoute;
+        final AbstractRangeRoutablesSerializer<Ranges> ranges;
+        final AbstractRangeRoutablesSerializer<PartialRangeRoute> partialRangeRoute;
+        final AbstractRangeRoutablesSerializer<FullRangeRoute> fullRangeRoute;
 
         protected AbstractRoutablesSerializer(TinyEnumSet<UnseekablesKind> permitted,
-                                              AbstractSearchableRoutingKeysSerializer<RoutingKeys> routingKeys,
-                                              AbstractSearchableRoutingKeysSerializer<PartialKeyRoute> partialKeyRoute,
-                                              AbstractSearchableRoutingKeysSerializer<FullKeyRoute> fullKeyRoute,
-                                              AbstractRangesSerializer<Ranges> ranges,
-                                              AbstractRangesSerializer<PartialRangeRoute> partialRangeRoute,
-                                              AbstractRangesSerializer<FullRangeRoute> fullRangeRoute)
+                                              AbstractKeyRoutablesSerializer<RoutingKeys> routingKeys,
+                                              AbstractKeyRoutablesSerializer<PartialKeyRoute> partialKeyRoute,
+                                              AbstractKeyRoutablesSerializer<FullKeyRoute> fullKeyRoute,
+                                              AbstractRangeRoutablesSerializer<Ranges> ranges,
+                                              AbstractRangeRoutablesSerializer<PartialRangeRoute> partialRangeRoute,
+                                              AbstractRangeRoutablesSerializer<FullRangeRoute> fullRangeRoute)
         {
             this.permitted = permitted;
             this.routingKeys = routingKeys;
@@ -528,6 +537,18 @@ public class KeySerializers
         }
 
         @Override
+        public void skip(DataInputPlus in) throws IOException
+        {
+            byte b = in.readByte();
+            switch (b)
+            {
+                default: throw new IOException("Corrupted input: expected byte 1 or 2, received " + b);
+                case 0: PartitionKey.serializer.skip(in); break;
+                case 1: TokenRange.serializer.skip(in); break;
+            }
+        }
+
+        @Override
         public long serializedSize(Seekable seekable)
         {
             switch (seekable.domain())
@@ -544,9 +565,9 @@ public class KeySerializers
     public static class AbstractSeekablesSerializer implements UnversionedSerializer<Seekables<?, ?>>
     {
         final UnversionedSerializer<Keys> keys;
-        final AbstractRangesSerializer<Ranges> ranges;
+        final AbstractRangeRoutablesSerializer<Ranges> ranges;
 
-        public AbstractSeekablesSerializer(UnversionedSerializer<Keys> keys, AbstractRangesSerializer<Ranges> ranges)
+        public AbstractSeekablesSerializer(UnversionedSerializer<Keys> keys, AbstractRangeRoutablesSerializer<Ranges> ranges)
         {
             this.keys = keys;
             this.ranges = ranges;
@@ -646,7 +667,7 @@ public class KeySerializers
 
     // this serializer is designed to permits using the collection in its serialized form with minimal in-memory state.
     // it also saves some memory by avoiding duplicating prefixes (which happens to also assist faster lookups)
-    public abstract static class AbstractSearchableSerializer<K extends RoutableKey, R extends Routable, RS extends Routables<R>> extends IVersionedWithKeysSerializer.AbstractWithKeysSerializer implements UnversionedSerializer<RS>
+    public abstract static class AbstractSearchableSerializer<R extends Routable, RS> extends IVersionedWithKeysSerializer.AbstractWithKeysSerializer implements UnversionedSerializer<RS>
     {
         final IntFunction<R[]> allocate;
 
@@ -675,29 +696,35 @@ public class KeySerializers
         abstract int fixedKeyLengthForPrefix(Object prefix);
         abstract int serializedSizeWithoutPrefix(R routable);
         abstract void serializeWithoutPrefixOrLength(R routable, DataOutputPlus out) throws IOException;
-        abstract void serializeOffsets(RS unseekables, int start, int end, DataOutputPlus out) throws IOException;
+        abstract void serializeOffsets(R[] keys, int start, int end, DataOutputPlus out) throws IOException;
 
         abstract R deserializeWithPrefix(Object prefix, int length, DataInputPlus in) throws IOException;
         abstract R deserializeWithPrefix(Object prefix, int lengthIndex, int[] lengths, DataInputPlus in) throws IOException;
 
+        abstract R[] getArray(RS routables);
         abstract RS deserialize(DataInputPlus in, R[] keys) throws IOException;
 
         @Override
         public long serializedSize(RS routables)
         {
-            int count = routables.size();
+            return serializedArraySize(getArray(routables));
+        }
+
+        protected long serializedArraySize(R[] rs)
+        {
+            int count = rs.length;
             long size = TypeSizes.sizeofUnsignedVInt(count);
             if (count == 0)
                 return size;
 
-            Object prefix = routables.get(0).prefix();
+            Object prefix = rs[0].prefix();
             int prefixStart = 0;
             for (int i = 1 ; i <= count ; ++i)
             {
                 Object nextPrefix = null;
                 if (i < count)
                 {
-                    nextPrefix = routables.get(i).prefix();
+                    nextPrefix = rs[i].prefix();
                     if (Objects.equals(prefix, nextPrefix))
                         continue;
                 }
@@ -708,7 +735,7 @@ public class KeySerializers
                 if (fixedLength < 0)
                 {
                     size += 4L * recordCountToLengthCount(i - prefixStart);
-                    size += serializedSizeOfKeysWithoutPrefix(routables, prefixStart, i);
+                    size += serializedSizeOfKeysWithoutPrefix(rs, prefixStart, i);
                 }
                 else
                 {
@@ -721,27 +748,27 @@ public class KeySerializers
             return size;
         }
 
-        public long serializedSubsetSize(RS keys, Routables<?> superset)
-        {
-            return serializedSubsetSizeInternal(keys, superset);
-        }
-
         @Override
         public void serialize(RS keys, DataOutputPlus out) throws IOException
         {
-            int size = keys.size();
+            serializeArray(getArray(keys), out);
+        }
+
+        public void serializeArray(R[] rs, DataOutputPlus out) throws IOException
+        {
+            int size = rs.length;
             out.writeUnsignedVInt32(size);
             if (size == 0)
                 return;
 
-            Object prefix = keys.get(0).prefix();
+            Object prefix = rs[0].prefix();
             int prefixStart = 0;
             for (int i = 1 ; i <= size ; ++i)
             {
                 Object nextPrefix = null;
                 if (i < size)
                 {
-                    nextPrefix = keys.get(i).prefix();
+                    nextPrefix = rs[i].prefix();
                     if (Objects.equals(prefix, nextPrefix))
                         continue;
                 }
@@ -750,30 +777,25 @@ public class KeySerializers
                 serializePrefix(prefix, out);
                 int fixedLength = fixedKeyLengthForPrefix(prefix);
                 if (fixedLength < 0)
-                    serializeOffsets(keys, prefixStart, i, out);
-                serializeKeysWithoutPrefix(keys, prefixStart, i, out);
+                    serializeOffsets(rs, prefixStart, i, out);
+                serializeKeysWithoutPrefix(rs, prefixStart, i, out);
                 prefixStart = i;
                 prefix = nextPrefix;
             }
         }
 
-        private long serializedSizeOfKeysWithoutPrefix(RS keys, int start, int end)
+        private long serializedSizeOfKeysWithoutPrefix(R[] keys, int start, int end)
         {
             long size = 0;
             for (int i = start; i < end; ++i)
-                size += serializedSizeWithoutPrefix(keys.get(i));
+                size += serializedSizeWithoutPrefix(keys[i]);
             return size;
         }
 
-        private void serializeKeysWithoutPrefix(RS keys, int start, int end, DataOutputPlus out) throws IOException
+        private void serializeKeysWithoutPrefix(R[] rs, int start, int end, DataOutputPlus out) throws IOException
         {
             for (int i = start; i < end; ++i)
-                serializeWithoutPrefixOrLength(keys.get(i), out);
-        }
-
-        public void serializeSubset(RS keys, Routables<?> superset, DataOutputPlus out) throws IOException
-        {
-            serializeSubsetInternal(keys, superset, out);
+                serializeWithoutPrefixOrLength(rs[i], out);
         }
 
         public void skip(DataInputPlus in) throws IOException
@@ -863,11 +885,17 @@ public class KeySerializers
 
     // this serializer is designed to permits using the collection in its serialized form with minimal in-memory state.
     // it also saves some memory by avoiding duplicating prefixes (which happens to also assist faster lookups)
-    public abstract static class AbstractSearchableRoutingKeysSerializer<KS extends AbstractUnseekableKeys> extends AbstractSearchableSerializer<RoutingKey, RoutingKey, KS> implements UnversionedSerializer<KS>
+    public abstract static class AbstractKeyRoutablesSerializer<KS extends AbstractUnseekableKeys> extends AbstractSearchableSerializer<RoutingKey, KS> implements UnversionedSerializer<KS>
     {
-        public AbstractSearchableRoutingKeysSerializer(AccordSearchableKeySerializer<RoutingKey> serializer)
+        public AbstractKeyRoutablesSerializer()
         {
             super(RoutingKey[]::new);
+        }
+
+        @Override
+        RoutingKey[] getArray(KS keys)
+        {
+            return keys.unsafeKeys();
         }
 
         @Override
@@ -895,12 +923,12 @@ public class KeySerializers
         }
 
         @Override
-        final void serializeOffsets(KS keys, int startIndex, int endIndex, DataOutputPlus out) throws IOException
+        final void serializeOffsets(RoutingKey[] keys, int startIndex, int endIndex, DataOutputPlus out) throws IOException
         {
             int endOffset = 0;
             for (int i = startIndex; i < endIndex; ++i)
             {
-                endOffset += serializedSizeWithoutPrefix(keys.get(i));
+                endOffset += serializedSizeWithoutPrefix(keys[i]);
                 out.writeInt(endOffset);
             }
         }
@@ -922,13 +950,23 @@ public class KeySerializers
             RoutingKey[] keys = deserializeSubset(superset, in, (ks, s) -> ks == null ? s.unsafeKeys() : ks, RoutingKey[]::new);
             return deserialize(in, keys);
         }
+
+        public long serializedSubsetSize(KS keys, Routables<?> superset)
+        {
+            return serializedSubsetSizeInternal(keys, superset);
+        }
+
+        public void serializeSubset(KS keys, Routables<?> superset, DataOutputPlus out) throws IOException
+        {
+            serializeSubsetInternal(keys, superset, out);
+        }
     }
 
-    public abstract static class AbstractKeyRouteSerializer<KS extends KeyRoute> extends AbstractSearchableRoutingKeysSerializer<KS>
+    public abstract static class AbstractKeyRouteSerializer<KS extends KeyRoute> extends AbstractKeyRoutablesSerializer<KS>
     {
-        public AbstractKeyRouteSerializer(AccordSearchableKeySerializer<RoutingKey> serializer)
+        public AbstractKeyRouteSerializer()
         {
-            super(serializer);
+            super();
         }
 
         abstract KS construct(RoutingKey homeKey, RoutingKey[] keys);
@@ -1006,7 +1044,7 @@ public class KeySerializers
         }
     }
 
-    public abstract static class AbstractRangesSerializer<RS extends AbstractRanges> extends AbstractSearchableSerializer<RoutingKey, Range, RS> implements UnversionedSerializer<RS>
+    public abstract static class AbstractRangesSerializer<RS> extends AbstractSearchableSerializer<Range, RS> implements UnversionedSerializer<RS>
     {
         public AbstractRangesSerializer()
         {
@@ -1040,12 +1078,12 @@ public class KeySerializers
         }
 
         @Override
-        final void serializeOffsets(RS ranges, int startIndex, int endIndex, DataOutputPlus out) throws IOException
+        final void serializeOffsets(Range[] ranges, int startIndex, int endIndex, DataOutputPlus out) throws IOException
         {
             int endOffset = 0;
             for (int i = startIndex; i < endIndex; ++i)
             {
-                Range r = ranges.get(i);
+                Range r = ranges[i];
                 endOffset += routingKey.serializedSizeWithoutPrefix(r.start());
                 out.writeInt(endOffset);
                 endOffset += routingKey.serializedSizeWithoutPrefix(r.end());
@@ -1068,6 +1106,25 @@ public class KeySerializers
             RoutingKey end = routingKey.deserializeWithPrefix(prefix, lengths[lengthIndex * 2 + 1], in);
             return start.rangeFactory().newRange(start, end);
         }
+    }
+
+    public abstract static class AbstractRangeRoutablesSerializer<RS extends AbstractRanges> extends AbstractRangesSerializer<RS> implements UnversionedSerializer<RS>
+    {
+        @Override
+        Range[] getArray(RS ranges)
+        {
+            return ranges.unsafeRanges();
+        }
+
+        public long serializedSubsetSize(RS ranges, Routables<?> superset)
+        {
+            return serializedSubsetSizeInternal(ranges, superset);
+        }
+
+        public void serializeSubset(RS ranges, Routables<?> superset, DataOutputPlus out) throws IOException
+        {
+            serializeSubsetInternal(ranges, superset, out);
+        }
 
         public RS deserializeSubset(AbstractRanges superset, DataInputPlus in) throws IOException
         {
@@ -1076,7 +1133,7 @@ public class KeySerializers
         }
     }
 
-    public abstract static class AbstractRangeRouteSerializer<RS extends RangeRoute> extends AbstractRangesSerializer<RS>
+    public abstract static class AbstractRangeRouteSerializer<RS extends RangeRoute> extends AbstractRangeRoutablesSerializer<RS>
     {
         public AbstractRangeRouteSerializer()
         {

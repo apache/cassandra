@@ -65,7 +65,7 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
                                                    .collect(Collectors.joining(",")));
 
             List<TableMetadata> accordTables = keyspace.tables.stream()
-                                               .filter(TableMetadata::isAccordEnabled)
+                                               .filter(TableMetadata::requiresAccordSupport)
                                                .collect(Collectors.toList());
             if (!accordTables.isEmpty())
                 throw ire("Cannot drop keyspace '%s' as it contains accord tables. (%s)",

@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link org.apache.cassandra.tools.nodetool.SSTableRepairedSetTest}
+ * Unit tests for {@link org.apache.cassandra.tools.nodetool.SSTableRepairedSet}
  */
 public class SSTableRepairedSetTest
 {

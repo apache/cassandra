@@ -205,12 +205,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public LogTransaction log()
-    {
-        return log;
-    }
-
-    @Override //LifecycleNewTracker
+    @Override
     public OperationType opType()
     {
         return log.type();
@@ -320,6 +315,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         logged.clear();
         staged.clear();
         return accumulate;
+    }
+
+    void takeOwnership(ILifecycleTransaction txn)
+    {
+        LifecycleTransaction ltn = (LifecycleTransaction)txn;
+        if (!ltn.obsoletions.isEmpty() || !ltn.originals.isEmpty() || !ltn.logged.isEmpty())
+            throw new IllegalStateException("takeOwnership is only supported in add-only transactions (streams)");
+        log.takeOwnership(ltn.log);
     }
 
     private Throwable runOnCommitHooks(Throwable accumulate)
@@ -646,8 +649,6 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return getFirst(originals, null);
     }
 
-    // LifecycleNewTracker
-
     @Override
     public void trackNew(SSTable table)
     {
@@ -659,7 +660,6 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         log.untrackNew(table);
     }
-
     public static boolean removeUnfinishedLeftovers(ColumnFamilyStore cfs)
     {
         return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());

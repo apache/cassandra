@@ -32,8 +32,12 @@ public interface IMessage extends Serializable
 
     byte[] bytes();
 
-    // TODO: need to make this a long
     int id();
+
+    default long idAsLong()
+    {
+        return id();
+    }
 
     int version();
 

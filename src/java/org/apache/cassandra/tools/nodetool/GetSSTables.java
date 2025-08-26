@@ -17,36 +17,48 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "getsstables", description = "Print the sstable filenames that own the key")
-public class GetSSTables extends NodeToolCmd
+public class GetSSTables extends AbstractCommand
 {
-    @Option(title = "hex_format",
-           name = {"-hf", "--hex-format"},
-           description = "Specify the key in hexadecimal string format")
+    @Option(paramLabel = "hex_format",
+            names = { "-hf", "--hex-format" },
+            description = "Specify the key in hexadecimal string format")
     private boolean hexFormat = false;
 
-    @Option(name={"-l", "--show-levels"}, description="If the table is using leveled compaction the level of each sstable will be included in the output (Default: false)")
+    @Option(names = { "-l", "--show-levels" }, description = "If the table is using leveled compaction the level of each sstable will be included in the output (Default: false)")
     private boolean showLevels = false;
 
-    @Arguments(usage = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the key")
+    @CassandraUsage(usage = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the key")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(paramLabel = "keyspace", index = "0", arity = "0..1", description = "The keyspace")
+    private String keyspace;
+
+    @Parameters(paramLabel = "cfname", index = "1", arity = "0..1", description = "The column family")
+    private String cfname;
+
+    @Parameters(paramLabel = "key", index = "2", arity = "0..1", description = "The key")
+    private String key;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, cfname, key);
+
         checkArgument(args.size() == 3, "getsstables requires ks, cf and key args");
         String ks = args.get(0);
         String cf = args.get(1);

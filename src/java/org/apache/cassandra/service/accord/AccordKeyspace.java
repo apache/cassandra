@@ -64,9 +64,6 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -91,6 +88,7 @@ import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -129,8 +127,6 @@ public class AccordKeyspace
 
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, JOURNAL);
 
-    public static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
-
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexNamesFilter(BTreeSet.of(new ClusteringComparator(), Clustering.EMPTY), false);
 
     public static TableMetadata journalMetadata(String tableName, boolean index)
@@ -144,8 +140,8 @@ public class AccordKeyspace
                                                      + "user_version int,"
                                                      + "record blob,"
                                                      + "PRIMARY KEY((key), descriptor, offset)"
-                                                     + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC)" +
-                                                     " WITH compression = {'class':'NoopCompressor'};")
+                                                     + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC);")
+                                               .compression(CompressionParams.NOOP)
                                                .compaction(CompactionParams.lcs(emptyMap()))
                                                .bloomFilterFpChance(0.01)
                                                .partitioner(new LocalPartitioner(BytesType.instance));
@@ -306,7 +302,8 @@ public class AccordKeyspace
             if (current == null)
                 return null;
 
-            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore());
+            // TODO (desired): consider whether better to not compact any validation failures, since we expect is already overwritten
+            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore(), false);
             if (current == updated)
                 return row;
 
@@ -336,7 +333,7 @@ public class AccordKeyspace
         {
             ByteBuffer bytes;
             if (serialized instanceof ByteBuffer) bytes = (ByteBuffer) serialized;
-            else bytes = Serialize.toBytesWithoutKey(commandsForKey);
+            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maximalPrune()); // TODO (expected): we only need to strip pruned, not prune additional txns
             return makeUpdate(storeId, key, timestampMicros, bytes);
         }
 
@@ -490,8 +487,6 @@ public class AccordKeyspace
         }
     }
 
-    public static final CommandsForKeyAccessor CommandsForKeysAccessor = new CommandsForKeyAccessor(CommandsForKeys);
-
     private static TableMetadata.Builder parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), ACCORD_KEYSPACE_NAME)
@@ -516,7 +511,7 @@ public class AccordKeyspace
         return TABLES;
     }
 
-    public static void truncateAllCaches()
+    public static void truncateCommandsForKey()
     {
         Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
         for (String table : new String[]{ CommandsForKeys.name })
@@ -566,7 +561,11 @@ public class AccordKeyspace
 
         public static JournalKey getJournalKey(DecoratedKey key)
         {
-            ByteBuffer bb = key.getKey();
+            return getJournalKey(key.getKey());
+        }
+
+        public static JournalKey getJournalKey(ByteBuffer bb)
+        {
             int storeId = ByteBufferAccessor.instance.getUnsignedVInt32(bb, 0);
             int offset = VIntCoding.readLengthOfVInt(bb, 0);
             JournalKey.Type type = JournalKey.Type.fromId(bb.get(offset));

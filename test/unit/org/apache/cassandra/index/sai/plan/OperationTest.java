@@ -111,13 +111,13 @@ public class OperationTest
     public void beforeTest()
     {
         ReadCommand command = PartitionRangeReadCommand.allDataRead(BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controller = new QueryController(BACKEND, command, null, contextWithUnrepairedMatches(command));
+        controller = new QueryController(BACKEND, command, RowFilter.none(), contextWithUnrepairedMatches(command));
 
         command = PartitionRangeReadCommand.allDataRead(CLUSTERING_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerClustering = new QueryController(CLUSTERING_BACKEND, command, null, contextWithUnrepairedMatches(command));
+        controllerClustering = new QueryController(CLUSTERING_BACKEND, command, RowFilter.none(), contextWithUnrepairedMatches(command));
 
         command = PartitionRangeReadCommand.allDataRead(STATIC_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerStatic = new QueryController(STATIC_BACKEND, command, null, contextWithUnrepairedMatches(command));
+        controllerStatic = new QueryController(STATIC_BACKEND, command, RowFilter.none(), contextWithUnrepairedMatches(command));
     }
 
     private static QueryContext contextWithUnrepairedMatches(ReadCommand command)

@@ -34,9 +34,14 @@ public class LengthConstraint extends ConstraintFunction
     private static final String NAME = "LENGTH";
     private static final List<AbstractType<?>> SUPPORTED_TYPES = List.of(BytesType.instance, UTF8Type.instance, AsciiType.instance);
 
+    public LengthConstraint(String name, List<String> args)
+    {
+        super(name, args);
+    }
+
     public LengthConstraint(List<String> args)
     {
-        super(NAME, args);
+        this(NAME, args);
     }
 
     @Override

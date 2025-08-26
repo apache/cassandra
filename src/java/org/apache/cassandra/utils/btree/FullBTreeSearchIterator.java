@@ -109,7 +109,8 @@ public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTre
         if ((state & ON_ITEM) == 1)
         {
             state &= ~ON_ITEM;
-            index = moveOne(forwards);
+            if (compareToLast(index = moveOne(forwards)) >= 0)
+                state = LAST;
         }
         return (V) currentValue();
     }

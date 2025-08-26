@@ -54,6 +54,12 @@ public interface AsymmetricVersionedSerializer<In, Out, Version>
         }
     }
     Out deserialize(DataInputPlus in, Version version) throws IOException;
+
+    default void skip(DataInputPlus in, Version version) throws IOException
+    {
+        deserialize(in, version);
+    }
+
     default Out deserialize(ByteBuffer buffer, Version version) throws IOException
     {
         try (DataInputBuffer in = new DataInputBuffer(buffer, true))

@@ -23,20 +23,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.BeforeClass;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
+@Command(name = "accord",
+         description = "Run an Accord simulation",
+         subcommands = { CommandLine.HelpCommand.class,
+                         AccordSimulationRunner.Run.class,
+                         AccordSimulationRunner.Record.class,
+                         AccordSimulationRunner.Reconcile.class})
 public class AccordSimulationRunner extends SimulationRunner
 {
-    private static Logger logger = LoggerFactory.getLogger(AccordSimulationRunner.class);
+    static
+    {
+        CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.setString(StorageCompatibilityMode.NONE.toString());
+    }
 
     @BeforeClass
     public static void beforeAll()
@@ -84,28 +90,25 @@ public class AccordSimulationRunner extends SimulationRunner
         }
     }
 
-    public static class Help extends HelpCommand<AccordClusterSimulation.Builder> {}
-
     // for simple unit tests so we can simply invoke main()
     private static final AtomicInteger uniqueNum = new AtomicInteger();
+
+    private static CommandLine.IFactory simulationFactory()
+    {
+        return new PaxosSimulationRunner.InjectPaxosClusterSimulationFactory(new AccordClusterSimulation.Builder()
+                                                                             .unique(uniqueNum.getAndIncrement()));
+    }
+
+    public static void executeWithExceptionThrowing(String[] args)
+    {
+        SimulatorUtils.executeWithExceptionThrowing(AccordSimulationRunner.class, simulationFactory(), args);
+    }
 
     /**
      * See {@link org.apache.cassandra.simulator} package info for execution tips
      */
     public static void main(String[] args) throws IOException
     {
-        SimulatorUtils.verifyAndlogSimulatorArgs(logger, args);
-        AccordClusterSimulation.Builder builder = new AccordClusterSimulation.Builder();
-        builder.unique(uniqueNum.getAndIncrement());
-
-        Cli.<ICommand<AccordClusterSimulation.Builder>>builder("accord")
-           .withCommand(Run.class)
-           .withCommand(Reconcile.class)
-           .withCommand(Record.class)
-           .withCommand(Help.class)
-           .withDefaultCommand(Help.class)
-           .build()
-           .parse(args)
-           .run(builder);
+        System.exit(SimulatorUtils.prepareRunner(AccordSimulationRunner.class, simulationFactory(), null).execute(args));
     }
 }

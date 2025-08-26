@@ -23,13 +23,18 @@ import java.util.Set;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
-public interface ILifecycleTransaction extends Transactional, LifecycleNewTracker
+public interface ILifecycleTransaction extends Transactional
 {
+    void trackNew(SSTable sstable);
+    void untrackNew(SSTable sstable);
+    OperationType opType();
     void checkpoint();
     void update(SSTableReader reader, boolean original);
     void update(Collection<SSTableReader> readers, boolean original);

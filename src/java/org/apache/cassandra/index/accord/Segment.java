@@ -22,13 +22,15 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
+import accord.primitives.TxnId;
+
 public class Segment
 {
     public static final Segment EMPTY = new Segment(Collections.emptyMap());
 
-    public final Map<Group, Metadata> groups;
+    public final Map<Key, Metadata> groups;
 
-    public Segment(Map<Group, Metadata> groups)
+    public Segment(Map<Key, Metadata> groups)
     {
         this.groups = groups;
     }
@@ -48,12 +50,20 @@ public class Segment
     {
         public final EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas;
         public final byte[] minTerm, maxTerm;
+        public final TxnId minTxnId;
+        public final TxnId maxTxnId;
+        public final TxnId maxRxId;
 
-        public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas, byte[] minTerm, byte[] maxTerm)
+        public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas,
+                        byte[] minTerm, byte[] maxTerm,
+                        TxnId minTxnId, TxnId maxTxnId, TxnId maxRxId)
         {
             this.metas = metas;
             this.minTerm = minTerm;
             this.maxTerm = maxTerm;
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
+            this.maxRxId = maxRxId;
         }
     }
 }

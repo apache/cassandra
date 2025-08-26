@@ -44,6 +44,15 @@ public class RequestFailureException extends RequestExecutionException
         this.failureReasonByEndpoint = failureReasonByEndpoint;
     }
 
+    public RequestFailureException(ExceptionCode code, String msg, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint, Throwable cause)
+    {
+        super(code, buildErrorMessage(msg, failureReasonByEndpoint), cause);
+        this.consistency = consistency;
+        this.received = received;
+        this.blockFor = blockFor;
+        this.failureReasonByEndpoint = failureReasonByEndpoint;
+    }
+
     private static String buildErrorMessage(int received, Map<InetAddressAndPort, RequestFailureReason> failures)
     {
         return String.format("received %d responses and %d failures", received, failures.size());

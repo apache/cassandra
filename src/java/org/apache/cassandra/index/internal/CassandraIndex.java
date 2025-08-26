@@ -260,13 +260,7 @@ public abstract class CassandraIndex implements Index
 
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
-        return indexedColumn.name.equals(column.name)
-               && supportsOperator(indexedColumn, operator);
-    }
-
-    private boolean supportsExpression(RowFilter.Expression expression)
-    {
-        return supportsExpression(expression.column(), expression.operator());
+        return indexedColumn.name.equals(column.name) && supportsOperator(indexedColumn, operator);
     }
 
     public AbstractType<?> customExpressionValueType()

@@ -18,16 +18,14 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "setcolumnindexsize", description = "Set the granularity of the collation index of rows within a partition in KiB")
-public class SetColumnIndexSize extends NodeToolCmd
+public class SetColumnIndexSize extends AbstractCommand
 {
-    @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "column_index_size", usage = "<value_in_kib>", description = "Value in KiB", required = true)
+    @Parameters(paramLabel = "column_index_size", description = "Value in KiB", arity = "1")
     private int columnIndexSizeInKiB;
 
     @Override

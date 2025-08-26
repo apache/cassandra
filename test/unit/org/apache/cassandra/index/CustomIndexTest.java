@@ -22,6 +22,7 @@ package org.apache.cassandra.index;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +44,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.junit.Assume;
 import org.junit.BeforeClass;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
@@ -56,7 +59,6 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -68,6 +70,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -682,6 +685,64 @@ public class CustomIndexTest extends CQLTester
         assertEquals(0, deletedClustering.intValue());
     }
 
+
+    // two stub indexes just to track number of row deletions
+    // when we have fully-expired tables and indexes on different columns
+    public static class StubIndex1 extends StubIndex
+    {
+        public StubIndex1(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+    }
+
+    public static class StubIndex2 extends StubIndex
+    {
+
+        public StubIndex2(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+    }
+
+    @Test
+    public void notifyIndexesOfFullyExpiredSSTablesDuringCompaction()
+    {
+        createTable("CREATE TABLE %s (id int primary key, col1 int, col2 int) " +
+                    "WITH compaction = {'class': 'TimeWindowCompactionStrategy', " +
+                    "                   'compaction_window_size': 1," +
+                    "                   'compaction_window_unit': 'MINUTES'," +
+                    "                   'expired_sstable_check_frequency_seconds': 10} " +
+                    "AND gc_grace_seconds = 0");
+
+        createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index_1 ON %%s(col1) USING '%s'", StubIndex1.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index_2 ON %%s(col2) USING '%s'", StubIndex2.class.getName()));
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StubIndex index1  = (StubIndex1)cfs.indexManager.getIndexByName("row_ttl_test_index_1");
+        StubIndex index2  = (StubIndex2)cfs.indexManager.getIndexByName("row_ttl_test_index_2");
+
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 0, 0);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 1, 1);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 2, 2);
+
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 0, 0);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 1, 1);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 2, 2);
+
+        flush();
+
+        Uninterruptibles.sleepUninterruptibly(60, TimeUnit.SECONDS);
+
+        compact();
+
+        Assert.assertFalse(index1.rowsDeleted.isEmpty());
+        Assert.assertEquals(3, index1.rowsDeleted.size());
+
+        Assert.assertFalse(index2.rowsDeleted.isEmpty());
+        Assert.assertEquals(3, index2.rowsDeleted.size());
+    }
+
     @Test
     public void validateOptions()
     {
@@ -1287,7 +1348,7 @@ public class CustomIndexTest extends CQLTester
         }
 
         @Override
-        public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
+        public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn)
         {
             return new SSTableFlushObserver() {
 
@@ -1506,7 +1567,7 @@ public class CustomIndexTest extends CQLTester
      * {@link StubIndex} implementation that uses the same {@link Index.Group} for all its instances.
      * That group keeps count of the calls and passes them to its members.
      */
-    public static final class IndexWithSharedGroup extends StubIndex
+    public static class IndexWithSharedGroup extends StubIndex
     {
         public IndexWithSharedGroup(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
@@ -1666,17 +1727,26 @@ public class CustomIndexTest extends CQLTester
             }
 
             @Override
-            public QueryPlan queryPlanFor(RowFilter rowFilter)
+            public IndexWithSharedGroupQueryPlan queryPlanFor(RowFilter rowFilter)
             {
-                throw new UnsupportedOperationException();
+                for (RowFilter.Expression e : rowFilter.getExpressions())
+                {
+                    for (Index index : indexes.values())
+                    {
+                        if (index.supportsExpression(e))
+                            return new IndexWithSharedGroupQueryPlan(index, index.getPostIndexQueryFilter(rowFilter), indexes.values());
+                    }
+                }
+
+                return null;
             }
 
             @Override
-            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
+            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn, TableMetadata tableMetadata)
             {
                 Set<SSTableFlushObserver> observers = indexes.values()
                                                              .stream()
-                                                             .map(i -> i.getFlushObserver(descriptor, tracker))
+                                                             .map(i -> i.getFlushObserver(descriptor, txn))
                                                              .filter(Objects::nonNull)
                                                              .collect(Collectors.toSet());
 
@@ -1724,6 +1794,23 @@ public class CustomIndexTest extends CQLTester
             {
                 return Collections.emptySet();
             }
+        }
+    }
+
+    private static class IndexWithSharedGroupQueryPlan extends SingletonIndexQueryPlan
+    {
+        private final Set<Index> indexes;
+
+        public <T extends Index> IndexWithSharedGroupQueryPlan(Index index, RowFilter postIndexFilter, Collection<T> indexes)
+        {
+            super(index, postIndexFilter);
+            this.indexes = ImmutableSet.copyOf(indexes);
+        }
+
+        @Override
+        public Set<Index> getIndexes()
+        {
+            return indexes;
         }
     }
 }

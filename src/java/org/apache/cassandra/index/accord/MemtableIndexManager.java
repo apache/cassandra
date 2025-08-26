@@ -19,10 +19,15 @@
 package org.apache.cassandra.index.accord;
 
 import java.nio.ByteBuffer;
-import java.util.NavigableSet;
+import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import accord.local.MaxDecidedRX.DecidedRX;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
@@ -31,12 +36,17 @@ public interface MemtableIndexManager
 {
     long index(DecoratedKey key, Row row, Memtable mt);
 
-    MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker);
+    MemtableIndex getPendingMemtableIndex(ILifecycleTransaction txn);
 
     void discardMemtable(Memtable memtable);
 
     void renewMemtable(Memtable renewed);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive);
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key);
+    void search(int storeId, TableId tableId, byte[] start, byte[] end,
+                TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
+                Consumer<ByteBuffer> onMatch);
+
+    void search(int storeId, TableId tableId, byte[] key,
+                TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
+                Consumer<ByteBuffer> onMatch);
 }

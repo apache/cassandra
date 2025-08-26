@@ -80,7 +80,7 @@ public class UTF8Type extends StringType
     {
         // Anything that is ascii is also utf8, and they both use bytes
         // comparison
-        return this == previous || previous == AsciiType.instance;
+        return this == previous || previous == AsciiType.instance || previous instanceof PseudoUtf8Type;
     }
 
     @Override

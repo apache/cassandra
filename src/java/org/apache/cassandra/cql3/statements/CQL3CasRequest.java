@@ -41,6 +41,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
@@ -61,6 +62,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -248,12 +250,13 @@ public class CQL3CasRequest implements CASRequest
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
             return SinglePartitionReadCommand.create(metadata,
-                                                   nowInSec,
-                                                   columnFilter,
-                                                   RowFilter.none(),
-                                                   DataLimits.cqlLimits(1),
-                                                   key,
-                                                   new ClusteringIndexSliceFilter(Slices.ALL, false));
+                                                     nowInSec,
+                                                     columnFilter,
+                                                     RowFilter.none(),
+                                                     DataLimits.cqlLimits(1),
+                                                     key,
+                                                     new ClusteringIndexSliceFilter(Slices.ALL, false),
+                                                     PotentialTxnConflicts.ALLOW);
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, columnFilter, filter);
@@ -526,7 +529,7 @@ public class CQL3CasRequest implements CASRequest
         TableParams tableParams = tableMetadata.params;
         commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, tableMetadata.id, key.getToken());
         // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
-        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
+        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, PreserveTimestamp.no);
     }
 
     private TxnCondition createCondition()
@@ -555,15 +558,13 @@ public class CQL3CasRequest implements CASRequest
             // see CASSANDRA-18337
             ModificationStatement modification = update.stmt.forTxn();
             QueryOptions options = update.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
-            fragments.add(fragment);
+            fragments.addAll(modification.getTxnWriteFragment(idx++, state, options, partitionKey));
         }
         for (RangeDeletion rangeDeletion : rangeDeletions)
         {
             ModificationStatement modification = rangeDeletion.stmt;
             QueryOptions options = rangeDeletion.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
-            fragments.add(fragment);
+            fragments.addAll(modification.getTxnWriteFragment(idx++, state, options, partitionKey));
         }
         return fragments;
     }

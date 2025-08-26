@@ -44,6 +44,8 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.statements.SelectOptions;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -71,6 +73,7 @@ import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
@@ -329,6 +332,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      *
      * @return index query plan chosen for this query
      */
+    @Override
     @Nullable
     public Index.QueryPlan indexQueryPlan()
     {
@@ -471,12 +475,14 @@ public abstract class ReadCommand extends AbstractReadQuery
      * violates the implementation specific validation rules.
      */
     @Override
-    public void maybeValidateIndex()
+    public void maybeValidateIndex(SelectOptions selectOptions)
     {
         if (null != indexQueryPlan)
         {
             indexQueryPlan.validate(this);
         }
+
+        selectOptions.validate(metadata(), IndexRegistry.obtain(metadata()), indexQueryPlan());
     }
 
     /**
@@ -489,6 +495,12 @@ public abstract class ReadCommand extends AbstractReadQuery
                                   // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
+        return executeLocally(executionController, null);
+    }
+
+    // ClusterMetadata is null on startup when there are local reads from system tables before it's initialized
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, @Nullable ClusterMetadata cm)
+    {
         long startTimeNanos = nanoTime();
 
         COMMAND.set(this);
@@ -496,7 +508,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
             if (!potentialTxnConflicts.allowed)
-                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this);
+                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this, cm);
             Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;
@@ -931,8 +943,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public abstract Verb verb();
 
-    protected abstract void appendCQLWhereClause(StringBuilder sb);
-
+    protected abstract void appendCQLWhereClause(CqlBuilder builder);
     // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
     // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).

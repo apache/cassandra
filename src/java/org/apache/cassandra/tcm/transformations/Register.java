@@ -46,6 +46,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+import static org.apache.cassandra.service.StorageService.isReplacingSameAddress;
 
 public class Register implements Transformation
 {
@@ -86,6 +87,14 @@ public class Register implements Transformation
 
     public static NodeId maybeRegister()
     {
+        if (isReplacingSameAddress())
+        {
+            NodeId self = ClusterMetadata.current().myNodeId();
+            if (self == null)
+                throw new IllegalStateException("Tried to replace same address, but node does not seem to be registered");
+
+            return self;
+        }
         return register(false);
     }
 

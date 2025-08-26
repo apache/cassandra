@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import picocli.CommandLine.Command;
 
 @Command(name = "getfullquerylog", description = "Print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml")
-public class GetFullQueryLog extends NodeToolCmd
+public class GetFullQueryLog extends AbstractCommand
 {
     protected void execute(NodeProbe probe)
     {

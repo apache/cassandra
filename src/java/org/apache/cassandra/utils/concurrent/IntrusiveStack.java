@@ -25,6 +25,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import accord.utils.TriFunction;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.utils.LongAccumulator;
 
@@ -163,12 +164,19 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
         return size;
     }
 
+    protected static boolean isSize(int size, IntrusiveStack<?> list)
+    {
+        while (list != null && --size >= 0)
+            list = list.next;
+        return list == null && size == 0;
+    }
+
     protected static <T extends IntrusiveStack<T>> long accumulate(T list, LongAccumulator<T> accumulator, long initialValue)
     {
         long value = initialValue;
         while (list != null)
         {
-            value = accumulator.apply(list, initialValue);
+            value = accumulator.apply(list, value);
             list = list.next;
         }
         return value;
@@ -199,6 +207,17 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     public void forEach(Consumer<? super T> forEach)
     {
         forEach((T)this, forEach);
+    }
+
+    public <P, V> V foldl(TriFunction<? super T, P, ? super V, ? extends V> foldl, P param, V accumulator)
+    {
+        T list = (T) this;
+        while (list != null)
+        {
+            accumulator = foldl.apply(list, param, accumulator);
+            list = list.next;
+        }
+        return accumulator;
     }
 
     protected static <T extends IntrusiveStack<T>> void forEach(T list, Consumer<? super T> forEach)

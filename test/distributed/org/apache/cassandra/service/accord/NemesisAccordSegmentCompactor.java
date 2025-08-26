@@ -63,7 +63,7 @@ public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompa
     }
 
     @Override
-    void initializeWriter()
+    void initializeWriter(int estimatedKeyCount)
     {
         for (int i = 0; i < writers.length; i++)
         {

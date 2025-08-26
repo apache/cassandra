@@ -93,6 +93,14 @@ public final class SchemaConstants
     }
 
     /**
+     * @return whether the table is an Accord Journal tabe
+     */
+    public static boolean isAccordJournal(String keyspaceName, String tableName)
+    {
+        return keyspaceName.equals(SchemaConstants.ACCORD_KEYSPACE_NAME) && tableName.equals(AccordKeyspace.JOURNAL);
+    }
+
+    /**
      * @return whether or not the keyspace is a really system one (w/ LocalStrategy, unmodifiable, hardcoded)
      */
     public static boolean isLocalSystemKeyspace(String keyspaceName)

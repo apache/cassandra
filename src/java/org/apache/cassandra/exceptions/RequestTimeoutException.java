@@ -40,4 +40,13 @@ public class RequestTimeoutException extends RequestExecutionException
         this.received = received;
         this.blockFor = blockFor;
     }
+
+    // TODO (review): Was there an intentional choice here that RequestTimeoutException doesn't wrap its causes for brevity?
+    protected RequestTimeoutException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, Throwable cause)
+    {
+        super(code, String.format("Operation timed out - received only %d responses.", received), cause);
+        this.consistency = consistency;
+        this.received = received;
+        this.blockFor = blockFor;
+    }
 }

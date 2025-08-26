@@ -33,13 +33,13 @@ import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_L
 
 abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 {
-    final ConcurrentLinkedStack<Object> submitted = new ConcurrentLinkedStack<>();
+    final ConcurrentLinkedStack<Submittable> submitted = new ConcurrentLinkedStack<>();
     boolean isHeldByExecutor;
     boolean shutdown;
 
-    AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
     }
 
     abstract void notifyWork();
@@ -47,17 +47,17 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     abstract void awaitExclusive() throws InterruptedException;
     abstract AccordExecutorLoops loops();
     abstract boolean isInLoop();
-    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
-        if (isInLoop()) submitted.push(async.apply(p1a, p2, p3, p4));
+        if (isInLoop() || isOwningThread()) submitted.push(async.apply(p1a, p2, p3, p4));
         else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         try
         {
@@ -81,18 +81,25 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
     public boolean hasTasks()
     {
-        if (tasks > 0 || !submitted.isEmpty() || running > 0)
+        if (tasks > 0 || !submitted.isEmpty() || runningThreads > 0)
             return true;
 
         lock.lock();
         try
         {
-            return tasks > 0 || !submitted.isEmpty() || running > 0;
+            return tasks > 0 || !submitted.isEmpty() || runningThreads > 0;
         }
         finally
         {
             lock.unlock();
         }
+    }
+
+    @Override
+    void beforeUnlock()
+    {
+        if (!isInLoop())
+            notifyIfMoreWorkExclusive();
     }
 
     void updateWaitingToRunExclusive()
@@ -125,13 +132,14 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     private void pauseExclusive()
     {
         isHeldByExecutor = false;
-        --running;
+        if (--runningThreads == 0 && tasks == 0)
+            notifyQuiescentExclusive();
     }
 
     private void resumeExclusive()
     {
         isHeldByExecutor = true;
-        ++running;
+        ++runningThreads;
     }
 
     LoopTask task(String name, Mode mode)
@@ -160,11 +168,11 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
                             if (task != null)
                             {
-                                --tasks;
+                                setRunning(task);
                                 try
                                 {
-                                    task.preRunExclusive(this);
-                                    task.run();
+                                    task.preRunExclusive();
+                                    task.runInternal();
                                 }
                                 catch (Throwable t)
                                 {
@@ -172,7 +180,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 }
                                 finally
                                 {
-                                    task.cleanupExclusive(this);
+                                    completeTaskExclusive(task);
+                                    clearRunning();
                                 }
                             }
                             else
@@ -221,7 +230,13 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     lock.lock();
                     try
                     {
-                        if (task != null) task.cleanupExclusive(this);
+                        if (task != null)
+                        {
+                            Task tmp = task;
+                            task = null;
+                            completeTaskExclusive(tmp);
+                            clearRunning();
+                        }
                         else resumeExclusive();
                         enterLockExclusive();
 
@@ -230,9 +245,13 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                             task = pollWaitingToRunExclusive();
                             if (task != null)
                             {
+                                setRunning(task);
+                                task.preRunExclusive();
                                 exitLockExclusive();
                                 break;
                             }
+
+                            pauseExclusive();
 
                             if (shutdown)
                             {
@@ -241,12 +260,9 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 return;
                             }
 
-                            pauseExclusive();
                             awaitExclusive();
                             resumeExclusive();
                         }
-                        --tasks;
-                        task.preRunExclusive(this);
                     }
                     catch (Throwable t)
                     {
@@ -254,11 +270,16 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                         {
                             try { task.fail(t); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { task.cleanupExclusive(this); }
+                            try { completeTaskExclusive(task); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
                             try { agent.onUncaughtException(t); }
                             catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
                             task = null;
+                        }
+                        else
+                        {
+                            try { agent.onUncaughtException(t); }
+                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
                         }
                         if (isHeldByExecutor)
                             pauseExclusive();
@@ -272,7 +293,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
                     try
                     {
-                        task.run();
+                        task.runInternal();
                     }
                     catch (Throwable t)
                     {

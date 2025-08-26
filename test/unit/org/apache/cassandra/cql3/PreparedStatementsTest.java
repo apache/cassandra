@@ -816,15 +816,18 @@ public class PreparedStatementsTest extends CQLTester
         PreparedStatement writeOnly = session.prepare(txn(
         "INSERT INTO " + currentTable() + " (pk, v1, v2) VALUES (?, ?, ?)"
         ));
+        writeOnly.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
         PreparedStatement returnSelect = session.prepare(txn(
         "SELECT * FROM " + currentTable() + " WHERE pk=?",
         "UPDATE " + currentTable() + " SET v1 += 1, v2 += 2 WHERE pk = ?"
         ));
+        returnSelect.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
         PreparedStatement returnRef = session.prepare(txn(
         "LET a = (SELECT * FROM " + currentTable() + " WHERE pk=?)",
         "SELECT a.pk, a.v1, a.v2",
         "UPDATE " + currentTable() + " SET v1 += 1, v2 += 2 WHERE pk = ?"
         ));
+        returnRef.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
         // populate every row
         int numPartitions = 5;
         int[][] model = new int[numPartitions][];

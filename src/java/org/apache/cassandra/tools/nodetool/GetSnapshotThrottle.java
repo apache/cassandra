@@ -17,20 +17,19 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "getsnapshotthrottle", description = "Print the snapshot_links_per_second throttle for snapshot/clearsnapshot")
-public class GetSnapshotThrottle extends NodeToolCmd
+public class GetSnapshotThrottle extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)
     {
         long throttle = probe.getSnapshotLinksPerSecond();
         if (throttle > 0)
-            System.out.println("Current snapshot throttle: " + throttle + " links/s");
+            output.printInfo("Current snapshot throttle: %s links/s", throttle);
         else
-            System.out.println("Snapshot throttle is disabled");
+            output.printInfo("Snapshot throttle is disabled");
     }
 }

@@ -53,7 +53,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
@@ -76,7 +75,6 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchem
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
-import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
  /**
@@ -423,9 +421,6 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         metadata = ClusterMetadata.current();
 
         NodeState startingstate = metadata.directory.peerState(self);
-        if (startingstate != REGISTERED && startingstate != LEFT)
-            AccordService.startup(self);
-
         switch (startingstate)
         {
             case REGISTERED:
@@ -437,7 +432,6 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 // When Accord starts up it needs to check for any historic epochs that it needs to know about (in order
                 // to handle pending transactions), in order to know what nodes to check with it needs to know what the
                 // settled placement is (so it knows what peers to reach out to).
-                AccordService.startup(self);
                 InProgressSequences.finishInProgressSequences(self, true); // potentially finish the MSO committed above
                 metadata = ClusterMetadata.current();
 

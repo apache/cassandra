@@ -67,6 +67,11 @@ public abstract class AccordUpdate implements Update
         return ((AccordUpdate)update).kind();
     }
 
+    public void failCondition()
+    {
+
+    }
+
     public boolean checkCondition(Data data)
     {
         throw new UnsupportedOperationException();
@@ -114,6 +119,13 @@ public abstract class AccordUpdate implements Update
         {
             Kind kind = Kind.valueOf(in.readByte());
             return (AccordUpdate) serializerFor(kind).deserialize(tablesAndKeys, in, version);
+        }
+
+        @Override
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            Kind kind = Kind.valueOf(in.readByte());
+            serializerFor(kind).skip(tablesAndKeys, in, version);
         }
 
         @Override

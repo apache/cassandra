@@ -38,6 +38,7 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -221,6 +222,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @param limits the limits to use for the query.
      * @param partitionKey the partition key for the partition to query.
      * @param clusteringIndexFilter the clustering index filter to use for the query.
+     * @param potentialTxnConflicts Whether to generate an error if this read could potentially conflict with a txn
      *
      * @return a newly created read command.
      */
@@ -1257,16 +1259,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    protected void appendCQLWhereClause(StringBuilder sb)
+    protected void appendCQLWhereClause(CqlBuilder builder)
     {
-        sb.append(" WHERE ").append(partitionKey().toCQLString(metadata()));
+        builder.append(" WHERE ").append(partitionKey().toCQLString(metadata()));
 
         String filterString = clusteringIndexFilter().toCQLString(metadata(), rowFilter());
         if (!filterString.isEmpty())
         {
             if (!clusteringIndexFilter().selectsAllPartition() || !rowFilter().isEmpty())
-                sb.append(" AND ");
-            sb.append(filterString);
+                builder.append(" AND ");
+            builder.append(filterString);
         }
     }
 

@@ -34,48 +34,58 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
-import accord.impl.AbstractLoader;
+import accord.impl.AbstractReplayer;
 import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.Commands;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
-import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
-import accord.primitives.Status;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResults.CountingResult;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.Clock;
 
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
-import static accord.api.Journal.Load.MINIMAL;
-import static accord.api.Journal.Loader;
 import static accord.utils.Invariants.require;
+import static org.apache.cassandra.journal.Params.ReplayMode.ONLY_NON_DURABLE;
 
 public class AccordCommandStore extends CommandStore
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
+
     // TODO (required): track this via a PhantomReference, so that if we remove a CommandStore without clearing the caches we can be sure to release them
     public static class Caches
     {
@@ -116,7 +126,6 @@ public class AccordCommandStore extends CommandStore
             this.lock = lock;
         }
 
-
         @Override
         public AccordSafeCommand acquireIfLoaded(TxnId txnId)
         {
@@ -141,7 +150,7 @@ public class AccordCommandStore extends CommandStore
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
     public final String loggingId;
-    private final Journal journal;
+    public final Journal journal;
     private final RangeSearcher rangeSearcher;
     private final AccordExecutor sharedExecutor;
     final AccordExecutor.SequentialExecutor exclusiveExecutor;
@@ -149,11 +158,10 @@ public class AccordCommandStore extends CommandStore
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRanges.Manager commandsForRanges;
     private final TableId tableId;
+    private TableMetadataRef metadata;
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
-
-    private final CommandStoreLoader loader;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
@@ -170,6 +178,8 @@ public class AccordCommandStore extends CommandStore
         this.journal = journal;
         this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.sharedExecutor = sharedExecutor;
+        if (this.progressLog instanceof DefaultProgressLog)
+            ((DefaultProgressLog)this.progressLog).unsafeSetConfig(DatabaseDescriptor.getAccordProgressLogConfig());
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
@@ -182,7 +192,6 @@ public class AccordCommandStore extends CommandStore
 
         this.exclusiveExecutor = sharedExecutor.executor();
         this.commandsForRanges = new CommandsForRanges.Manager(this);
-        this.loader = new CommandStoreLoader(this);
 
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
@@ -212,16 +221,6 @@ public class AccordCommandStore extends CommandStore
     public CommandsForRanges.Manager commandsForRanges()
     {
         return commandsForRanges;
-    }
-
-    @Override
-    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
-    {
-        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
-            dataStore.snapshot(ranges, globalSyncId);
-        super.markShardDurable(safeStore, globalSyncId, ranges, durability);
-        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
-            commandsForRanges.gcBefore(globalSyncId, ranges);
     }
 
     @Override
@@ -308,7 +307,13 @@ public class AccordCommandStore extends CommandStore
 
     CommandsForKey loadCommandsForKey(RoutableKey key)
     {
-        return CommandsForKeyAccessor.load(id, (TokenKey) key);
+        CommandsForKey cfk = CommandsForKeyAccessor.load(id, (TokenKey) key);
+        if (cfk == null)
+            return null;
+        RedundantBefore.QuickBounds bounds = unsafeGetRedundantBefore().get(key);
+        if (bounds == null)
+            return cfk; // TODO (required): I don't think this should be possible? but we hit it on some test
+        return cfk.withRedundantBeforeAtLeast(bounds.gcBefore, false);
     }
 
     boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
@@ -390,43 +395,6 @@ public class AccordCommandStore extends CommandStore
     {
     }
 
-    public void registerTransitive(SafeCommandStore safeStore, RangeDeps rangeDeps)
-    {
-        if (rangeDeps.isEmpty())
-            return;
-
-        RedundantBefore redundantBefore = unsafeGetRedundantBefore();
-        CommandStores.RangesForEpoch ranges = safeStore.ranges();
-        // used in places such as accord.local.CommandStore.fetchMajorityDeps
-        // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = safeStore.ranges().all();
-        Ranges coordinateRanges = Ranges.EMPTY;
-        long coordinateEpoch = -1;
-        try (ExclusiveCaches caches = lockCaches())
-        {
-            for (int i = 0; i < rangeDeps.txnIdCount(); i++)
-            {
-                TxnId txnId = rangeDeps.txnId(i);
-                AccordCacheEntry<TxnId, Command> state = caches.commands().getUnsafe(txnId);
-                if (state != null && state.isLoaded() && state.getExclusive() != null && state.getExclusive().known().isDefinitionKnown())
-                    continue;
-
-                Ranges addRanges = rangeDeps.ranges(i).slice(allRanges);
-                if (addRanges.isEmpty()) continue;
-
-                if (coordinateEpoch != txnId.epoch())
-                {
-                    coordinateEpoch = txnId.epoch();
-                    coordinateRanges = ranges.allAt(txnId.epoch());
-                }
-                if (addRanges.intersects(coordinateRanges)) continue;
-                addRanges = redundantBefore.removeGcBefore(txnId, txnId, addRanges);
-                if (addRanges.isEmpty()) continue;
-                commandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
-            }
-        }
-    }
-
     public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
     {
         for (int i = 0; i < diffs.size(); i++)
@@ -466,7 +434,12 @@ public class AccordCommandStore extends CommandStore
 
     public Command.Minimal loadMinimal(TxnId txnId)
     {
-        return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
+        return journal.loadMinimal(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public Command.MinimalWithDeps loadMinimalWithDeps(TxnId txnId)
+    {
+        return journal.loadMinimalWithDeps(id, txnId, unsafeGetRedundantBefore(), durableBefore());
     }
 
     public AccordCompactionInfo getCompactionInfo()
@@ -485,9 +458,64 @@ public class AccordCommandStore extends CommandStore
         return rangeSearcher;
     }
 
-    public Loader loader()
+    public AccordCommandStoreReplayer replayer()
     {
-        return loader;
+        boolean replayOnlyDurable = true;
+        if (journal instanceof AccordJournal)
+            replayOnlyDurable = ((AccordJournal)journal).configuration().replayMode() == ONLY_NON_DURABLE;
+        return new AccordCommandStoreReplayer(this, replayOnlyDurable);
+    }
+
+    static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
+    @Override
+    protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
+    {
+        if (!CommandsForKey.reportLinearizabilityViolations())
+            return;
+
+        long reportId = nextDurabilityLoggingId.incrementAndGet();
+        logger.debug("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
+        executor().afterSubmittedAndConsequences(() -> {
+            logger.debug("{}: saving intersecting keys ({})", this, reportId);
+            class Ready extends CountingResult implements Runnable
+            {
+                public Ready() { super(1); }
+                @Override public void run() { decrement(); }
+            }
+
+            Ready ready = new Ready();
+            try (ExclusiveCaches caches = lockCaches())
+            {
+                for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                {
+                    if (ranges.contains(e.key()) && e.isModified())
+                    {
+                        ready.increment();
+                        caches.global().saveWhenReadyExclusive(e, ready);
+                    }
+                }
+            }
+
+            ready.begin((success, fail) -> {
+                if (fail != null)
+                {
+                    logger.error("{}: failed to ensure durability of {} ({})", this, ranges, reportId, fail);
+                }
+                else
+                {
+                    logger.debug("{}: waiting for CommandsForKey to flush ({})", this, reportId);
+                    ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.commandsForKey;
+
+                    AccordDurableOnFlush onFlush = null;
+                    while (onFlush == null)
+                        onFlush = cfs.getCurrentMemtable().ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+
+                    if (!onFlush.add(id, onCommandStoreDurable))
+                        AccordDurableOnFlush.notify(cfs.metadata(), this, onCommandStoreDurable);
+                }
+            });
+            ready.decrement();
+        });
     }
 
     @VisibleForTesting
@@ -496,23 +524,30 @@ public class AccordCommandStore extends CommandStore
         super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
-    private static class CommandStoreLoader extends AbstractLoader
+    public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
         private final AccordCommandStore store;
+        private final boolean onlyNonDurable;
 
-        private CommandStoreLoader(AccordCommandStore store)
+        private AccordCommandStoreReplayer(AccordCommandStore store, boolean onlyNonDurable)
         {
+            super(store.unsafeGetRedundantBefore());
             this.store = store;
+            this.onlyNonDurable = onlyNonDurable;
         }
 
         @Override
-        public AsyncChain<Command> load(TxnId txnId)
+        public AsyncChain<Route> replay(TxnId txnId)
         {
-            return store.submit(txnId, safeStore -> {
-                maybeApplyWrites(txnId, safeStore, (safeCommand, cmd) -> {
-                    Commands.applyWrites(safeStore, txnId, cmd).begin(store.agent);
-                });
-                return safeStore.unsafeGet(txnId).current();
+            if (onlyNonDurable && !maybeShouldReplay(txnId))
+                return AsyncChains.success(null);
+
+            return store.submit(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
+                if (onlyNonDurable && !shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
+                    return null;
+
+                initialiseState(safeStore, txnId);
+                return safeStore.unsafeGet(txnId).current().route();
             });
         }
     }
@@ -549,6 +584,13 @@ public class AccordCommandStore extends CommandStore
             loadRangesForEpoch(rangesForEpoch);
     }
 
+    @Override
+    public void updateRangesForEpoch(SafeCommandStore safeStore)
+    {
+        super.updateRangesForEpoch(safeStore);
+        updateMinHlc(PaxosState.ballotTracker().getLowBound().unixMicros() + 1);
+    }
+
     // TODO (expected): handle journal failures, and consider how we handle partial failures.
     //  Very likely we will not be able to safely or cleanly handle partial failures of this logic, but decide and document.
     // TODO (desired): consider merging with PersistentField? This version is cheaper to manage which may be preferable at the CommandStore level.
@@ -567,5 +609,30 @@ public class AccordCommandStore extends CommandStore
         {
             return a.ticket >= b.ticket ? a : b;
         }
+    }
+
+    private @Nullable TableMetadata tableMetadata()
+    {
+        TableMetadataRef metadataRef = this.metadata;
+        if (metadataRef != null)
+            return metadataRef.get();
+
+        TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+        if (metadata == null)
+            return null;
+        this.metadata = metadata.ref;
+        return metadata;
+    }
+
+    @Override
+    public String toString()
+    {
+        TableMetadata metadata = tableMetadata();
+        StringBuilder sb = new StringBuilder("[");
+        if (metadata != null)
+            sb.append(metadata).append('|');
+        sb.append(tableId);
+        sb.append('|').append(id).append(',').append(node.id().id).append(']');
+        return sb.toString();
     }
 }

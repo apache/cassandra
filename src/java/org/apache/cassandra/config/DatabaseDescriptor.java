@@ -67,6 +67,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.progresslog.DefaultProgressLog;
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
@@ -189,6 +190,7 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static Config conf;
+    private static DefaultProgressLog.Config accordProgressLogConfig;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -474,6 +476,11 @@ public class DatabaseDescriptor
         return conf;
     }
 
+    public static boolean hasLoggedConfig()
+    {
+        return hasLoggedConfig;
+    }
+
     @VisibleForTesting
     public static Config loadConfig() throws ConfigurationException
     {
@@ -557,7 +564,11 @@ public class DatabaseDescriptor
 
         applySslContext();
 
+        createAllDirectories();
+
         applyGuardrails();
+
+        applyAccordProgressLog();
 
         applyStartupChecks();
     }
@@ -1292,6 +1303,20 @@ public class DatabaseDescriptor
         catch (IllegalArgumentException e)
         {
             throw new ConfigurationException("Invalid guardrails configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static void applyAccordProgressLog()
+    {
+        try
+        {
+            accordProgressLogConfig = new DefaultProgressLog.Config();
+            accordProgressLogConfig.concurrency = conf.accord.progress_log_concurrency.or(32);
+            accordProgressLogConfig.maxActiveRunTime = conf.accord.progress_log_query_fallback_timeout.toDuration();
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
         }
     }
 
@@ -2234,7 +2259,7 @@ public class DatabaseDescriptor
         }
         catch (FSWriteError e)
         {
-            throw new IllegalStateException(e.getCause().getMessage() + "; unable to start server");
+            throw new IllegalStateException(e.getCause().getMessage() + "; unable to start server", e);
         }
     }
 
@@ -5372,7 +5397,6 @@ public class DatabaseDescriptor
             case THREAD_PER_SHARD_SYNC_QUEUE:
                 return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
             case THREAD_POOL_PER_SHARD:
-            case THREAD_POOL_PER_SHARD_EXCLUDES_IO:
                 int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
                 return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
         }
@@ -5391,6 +5415,11 @@ public class DatabaseDescriptor
     public static int getAccordMaxQueuedRangeLoadCount()
     {
         return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
+    }
+
+    public static DefaultProgressLog.Config getAccordProgressLogConfig()
+    {
+        return accordProgressLogConfig;
     }
 
     public static boolean getAccordCacheShrinkingOn()
@@ -5426,14 +5455,14 @@ public class DatabaseDescriptor
         return bound == null ? -1 : bound.to(TimeUnit.MILLISECONDS);
     }
 
-    public static long getAccordGCDelay(TimeUnit unit)
-    {
-        return conf.accord.gc_delay.to(unit);
-    }
-
     public static int getAccordShardDurabilityTargetSplits()
     {
         return conf.accord.shard_durability_target_splits;
+    }
+
+    public static int getAccordShardDurabilityMaxSplits()
+    {
+        return conf.accord.shard_durability_max_splits;
     }
 
     public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)
@@ -5926,18 +5955,18 @@ public class DatabaseDescriptor
         return conf.auto_repair;
     }
 
-    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    public static double getRepairDiskHeadroomRejectRatio()
     {
-        return conf.incremental_repair_disk_headroom_reject_ratio;
+        return conf.repair_disk_headroom_reject_ratio;
     }
 
-    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    public static void setRepairDiskHeadroomRejectRatio(double value)
     {
         if (value < 0.0 || value > 1.0)
         {
-            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for incremental_repair_disk_headroom_reject_ratio");
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for repair_disk_headroom_reject_ratio");
         }
-        conf.incremental_repair_disk_headroom_reject_ratio = value;
+        conf.repair_disk_headroom_reject_ratio = value;
     }
 
     @VisibleForTesting

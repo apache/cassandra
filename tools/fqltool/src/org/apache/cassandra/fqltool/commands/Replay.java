@@ -29,9 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
@@ -40,6 +37,9 @@ import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.MergeIterator;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 /**
  * replay the contents of a list of paths containing full query logs
@@ -49,22 +49,22 @@ public class Replay implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(Replay.class);
 
-    @Arguments(usage = "<path1> [<path2>...<pathN>]", description = "Paths containing the full query logs to replay.", required = true)
+    @Parameters(paramLabel = "path", description = "Paths containing the full query logs to replay.", arity = "1..*")
     private List<String> arguments = new ArrayList<>();
 
-    @Option(title = "target", name = {"--target"}, description = "Hosts to replay the logs to, can be repeated to replay to more hosts.", required = true)
+    @Option(paramLabel = "target", names = { "--target" }, description = "Hosts to replay the logs to, can be repeated to replay to more hosts.", required = true)
     private List<String> targetHosts;
 
-    @Option(title = "results", name = { "--results"}, description = "Where to store the results of the queries, this should be a directory. Leave this option out to avoid storing results.")
+    @Option(paramLabel = "results", names = { "--results" }, description = "Where to store the results of the queries, this should be a directory. Leave this option out to avoid storing results.")
     private String resultPath;
 
-    @Option(title = "keyspace", name = { "--keyspace"}, description = "Only replay queries against this keyspace and queries without keyspace set.")
+    @Option(paramLabel = "keyspace", names = { "--keyspace" }, description = "Only replay queries against this keyspace and queries without keyspace set.")
     private String keyspace;
 
-    @Option(title = "store_queries", name = {"--store-queries"}, description = "Path to store the queries executed. Stores queries in the same order as the result sets are in the result files. Requires --results")
+    @Option(paramLabel = "store_queries", names = { "--store-queries" }, description = "Path to store the queries executed. Stores queries in the same order as the result sets are in the result files. Requires --results")
     private String queryStorePath;
 
-    @Option(title = "replay_ddl_statements", name = { "--replay-ddl-statements" }, description = "If specified, replays DDL statements as well, they are excluded from replaying by default.")
+    @Option(paramLabel = "replay_ddl_statements", names = { "--replay-ddl-statements" }, description = "If specified, replays DDL statements as well, they are excluded from replaying by default.")
     private boolean replayDDLStatements;
 
     @Override
@@ -79,15 +79,14 @@ public class Replay implements Runnable
                 if (!basePath.exists() || !basePath.isDirectory())
                 {
                     System.err.println("The results path (" + basePath + ") should be an existing directory");
-                    System.exit(1);
+                    throw new IllegalArgumentException("The results path (" + basePath + ") should be an existing directory");
                 }
                 resultPaths = targetHosts.stream().map(target -> new File(basePath, target)).collect(Collectors.toList());
                 resultPaths.forEach(File::mkdir);
             }
             if (targetHosts.size() < 1)
             {
-                System.err.println("You need to state at least one --target host to replay the query against");
-                System.exit(1);
+                throw new IllegalArgumentException("You need to state at least one --target host to replay the query against");
             }
             replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements);
         }

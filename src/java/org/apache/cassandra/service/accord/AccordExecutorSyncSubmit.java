@@ -26,7 +26,6 @@ import java.util.function.IntFunction;
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
-import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
@@ -35,24 +34,19 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     private final ReentrantLock lock;
     private final Condition hasWork;
 
-    public AccordExecutorSyncSubmit(int executorId, Mode mode, String name, AccordCacheMetrics metrics, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, ExecutorPlus rangeLoadExecutor, Agent agent)
+    public AccordExecutorSyncSubmit(int executorId, Mode mode, String name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(executorId, mode, 1, constant(name), metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        this(executorId, mode, 1, constant(name), metrics, agent);
     }
 
-    public AccordExecutorSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, ExecutorPlus rangeLoadExecutor, Agent agent)
+    public AccordExecutorSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(executorId, mode, threads, name, metrics, constantFactory(loadExecutor), constantFactory(saveExecutor), constantFactory(rangeLoadExecutor), agent);
+        this(new ReentrantLock(), executorId, mode, threads, name, metrics, agent);
     }
 
-    public AccordExecutorSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    private AccordExecutorSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(new ReentrantLock(), executorId, mode, threads, name, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
-    }
-
-    private AccordExecutorSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
-    {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
         this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
@@ -102,7 +96,7 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         hasWork.signal();
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         lock.lock();
         try

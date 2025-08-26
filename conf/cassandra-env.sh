@@ -291,8 +291,8 @@ configure_jmx()
 # We will be expecting the settings in jmx_server_options and jmx_encryption_options respectively instead.
 # The argument specifies the default port over which Cassandra will be available for JMX connections.
 #
-# If you comment out configure_jmx method call, then JMX_PORT variable will not be set, which means
-# nodetool which sources this file will not see it either and port from cassandra.yaml will be parsed instead,
+# If you comment out configure_jmx method call, then the port argument of configure_jmx function will not be used
+# when nodetool parses this file and port from cassandra.yaml will be parsed instead,
 # if not found there either, it defaults to 7199.
 #
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.

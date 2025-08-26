@@ -111,6 +111,11 @@ public class ReversedLongLocalPartitioner implements IPartitioner
             return new ReversedLongLocalToken(tokenData);
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipBytes(comparableBytes, Long.BYTES);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             ReversedLongLocalToken longToken = (ReversedLongLocalToken) token;

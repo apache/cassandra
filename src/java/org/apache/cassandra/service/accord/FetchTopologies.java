@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +91,20 @@ public class FetchTopologies
         this.maxEpoch = maxEpoch;
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        FetchTopologies that = (FetchTopologies) o;
+        return minEpoch == that.minEpoch && maxEpoch == that.maxEpoch;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(minEpoch, maxEpoch);
+    }
+
     public static final UnversionedSerializer<TopologyRange> responseSerializer = new UnversionedSerializer<>()
     {
             @Override
@@ -101,7 +116,7 @@ public class FetchTopologies
                 out.writeUnsignedVInt32(t.topologies.size());
 
                 for (Topology topology : t.topologies)
-                    TopologySerializers.topology.serialize(topology, out);
+                    TopologySerializers.compactTopology.serialize(topology, out);
             }
 
             @Override
@@ -113,7 +128,7 @@ public class FetchTopologies
                 int count = in.readUnsignedVInt32();
                 List<Topology> topologies = new ArrayList<>(count);
                 for (int i = 0; i < count; ++i)
-                    topologies.add(TopologySerializers.topology.deserialize(in));
+                    topologies.add(TopologySerializers.compactTopology.deserialize(in));
                 return new TopologyRange(min, current, firstNonEmpty, topologies);
             }
 
@@ -125,7 +140,7 @@ public class FetchTopologies
                 size += TypeSizes.sizeofUnsignedVInt(t.firstNonEmpty);
                 size += TypeSizes.sizeofUnsignedVInt(t.topologies.size());
                 for (Topology topology : t.topologies)
-                    size += TopologySerializers.topology.serializedSize(topology);
+                    size += TopologySerializers.compactTopology.serializedSize(topology);
                 return size;
             }
         };

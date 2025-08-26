@@ -49,7 +49,7 @@ import static org.apache.cassandra.simulator.RandomSource.Choices.uniform;
 // TODO (cleanup): when we encounter an exception and unwind the simulation, we should restore normal time to go with normal waits etc.
 public class SimulatedTime
 {
-    private static final Pattern PERMITTED_TIME_THREADS = Pattern.compile("(logback|SimulationLiveness|Reconcile)[-:][0-9]+");
+    private static final Pattern PERMITTED_TIME_THREADS = Pattern.compile("(logback|SimulationLiveness|Reconcile)[-:][0-9]+|RMI Scheduler\\(\\d+\\)");
 
     @Shared(scope = Shared.Scope.SIMULATION)
     public interface Listener
@@ -274,7 +274,7 @@ public class SimulatedTime
                 nextDrift = nanosDriftSupplier.get(random);
                 from = global;
                 to = global + Math.max(baseDrift, nextDrift);
-                diffPerGlobal = (nextDrift - baseDrift) / (double)(to - from);
+                diffPerGlobal = to == from ? 1 : (nextDrift - baseDrift) / (double)(to - from);
                 listener.accept("SetNextDrift", nextDrift);
             }
 

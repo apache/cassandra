@@ -32,6 +32,8 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.utils.AssertionUtils;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -108,8 +110,8 @@ public class AccordInteroperabilityTest extends AccordTestBase
                      }
                      catch (Throwable t)
                      {
-                         assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
-                         assertEquals(cl + " is not supported by Accord", t.getMessage());
+                         Assertions.assertThat(t).is(AssertionUtils.isInstanceof(InvalidRequestException.class));
+                         assertEquals("ConsistencyLevel " + cl + " is unsupported with Accord for read, supported are [ONE, QUORUM, ALL, SERIAL]", t.getMessage());
                      }
                  }
              });
@@ -130,11 +132,11 @@ public class AccordInteroperabilityTest extends AccordTestBase
                      }
                      catch (Throwable t)
                      {
-                         assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                         Assertions.assertThat(t).is(AssertionUtils.isInstanceof(InvalidRequestException.class));
                          if (cl == ConsistencyLevel.SERIAL || cl == ConsistencyLevel.LOCAL_SERIAL)
                              assertEquals("You must use conditional updates for serializable writes", t.getMessage());
                          else
-                            assertEquals(cl + " is not supported by Accord", t.getMessage());
+                             assertEquals("ConsistencyLevel " + cl + " is unsupported with Accord for write/commit, supported are [ANY, ONE, QUORUM, ALL, SERIAL]", t.getMessage());
                      }
                  }
              });

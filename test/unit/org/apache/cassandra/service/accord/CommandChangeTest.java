@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.util.EnumSet;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -76,6 +75,7 @@ public class CommandChangeTest
         missing.remove(Field.PROMISED);
         missing.remove(Field.ACCEPTED);
         missing.remove(Field.DURABILITY);
+        missing.remove(Field.EXECUTE_AT);
         assertMissing(flags, missing);
     }
 
@@ -84,8 +84,9 @@ public class CommandChangeTest
     {
         int flags = getFlags(null, Command.NotDefined.uninitialised(TxnId.NONE));
         EnumSet<Field> has = EnumSet.of(Field.SAVE_STATUS, Field.PARTICIPANTS, Field.DURABILITY, Field.PROMISED,
-                                        Field.ACCEPTED /* this is Zero... which kinda means null... */);
-        Set<Field> missing = Sets.difference(ALL, has);
+                                        Field.ACCEPTED, Field.EXECUTE_AT /* this is Zero... which kinda means null... */);
+        EnumSet<Field> missing = EnumSet.complementOf(has);
+        has.remove(Field.EXECUTE_AT); // we serialize executeAt whenever we change SaveStatus, so we expect it to be non-null
         assertHas(flags, has);
         assertMissing(flags, missing);
     }

@@ -26,8 +26,10 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ObjectArrays;
+import org.apache.cassandra.cql3.CQLTester;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -177,6 +179,14 @@ public class NodeStartupTest extends SAITester
         {
             Stream.of(injections).forEach(Injection::enable);
         }
+    }
+
+    // TODO: Disable the coordinator execution used by SAITester until we have a way to simulate node restarts combined
+    // with CQLTester#requireNetwork and CQLTester#requireNetworkWithoutDriver.
+    @BeforeClass
+    public static void disableCoordinatorExecution()
+    {
+        CQLTester.disableCoordinatorExecution();
     }
 
     @Before

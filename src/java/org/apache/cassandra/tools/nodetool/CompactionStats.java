@@ -24,29 +24,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static java.lang.String.format;
 
 @Command(name = "compactionstats", description = "Print statistics on compactions")
-public class CompactionStats extends NodeToolCmd
+public class CompactionStats extends AbstractCommand
 {
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
-    @Option(title = "vtable_output",
-            name = {"-V", "--vtable"},
+    @Option(paramLabel = "vtable_output",
+            names = { "-V", "--vtable" },
             description = "Display fields matching vtable output")
     private boolean vtableOutput = false;
 
