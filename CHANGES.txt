@@ -1,3 +1,7 @@
+4.1.11
+ * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
+
+
 4.1.10
  * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
  * Do not crash on first boot with data_disk_usage_max_disk_size set when data directory is not created yet (CASSANDRA-20787)

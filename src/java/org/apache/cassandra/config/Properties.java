@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -191,6 +192,26 @@ public final class Properties
                     e.addSuppressed(new RuntimeException("Error calling get() on " + this));
                 throw e;
             }
+        }
+
+        /**
+         * If there is a hierarchy of settings, like
+         * </p>
+         * {@code a.b.c.{d,e,f,g,h}}
+         * </p>
+         * and we put e.g. {@link Redacted} on {@code c},
+         * then all {@code d,e,f,g,h} will be redacted as well automatically.
+         * This is handy for cases when we want to redact whole family of properties by one shot.
+         *
+         * @param aClass annotation to get
+         * @return found annotation of given type on root or on leaf, null when not present.
+         * @param <A> type of annotation
+         */
+        @Override
+        public <A extends Annotation> A getAnnotation(Class<A> aClass)
+        {
+            A annotation = root.getAnnotation(aClass);
+            return annotation != null ? annotation : leaf.getAnnotation(aClass);
         }
     }
 }
