@@ -219,7 +219,7 @@ in nodetool repair. General advice is to keep this true.
 | repair_retry_backoff | 30s | Backoff time before retrying a repair session.
 | repair_task_min_duration | 5s | Minimum duration for the execution of a single repair task. This prevents the
 scheduler from overwhelming the node by scheduling too many repair tasks in a short period of time.
-| mixed_major_version_repair_enabled | false | Enable/Disable running repairs on the cluster when there are mixed.
+| mixed_major_version_repair_enabled | false | Enable/Disable running repairs on the cluster when there are mixed
 major versions detected, which usually occurs when the cluster is being upgraded. Repair is not supported in this scenario
 as data might be streamed from a node with a different version of Cassandra leading to compatibility issues. Once major
 versions are compatible for streaming data, this setting can be turned to true.
