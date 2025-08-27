@@ -43,6 +43,10 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.core.OutputStreamAppender;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -271,15 +275,25 @@ public class ToolRunner
 
     public static ToolResult invokeClass(String klass,  String... args)
     {
-        return invokeClass(klass, null, args);
+        return invokeClass(klass, null, false, args);
     }
 
     public static ToolResult invokeClass(Class<?> klass,  String... args)
     {
-        return invokeClass(klass.getName(), null, args);
+        return invokeClass(klass.getName(), null, false, args);
+    }
+
+    public static ToolResult invokeClass(Class<?> klass, boolean captureLogging, String... args)
+    {
+        return invokeClass(klass.getName(), null, captureLogging, args);
     }
 
     public static ToolResult invokeClass(String klass, InputStream stdin, String... args)
+    {
+        return invokeClass(klass, stdin, false, args);
+    }
+
+    public static ToolResult invokeClass(String klass, InputStream stdin, boolean captureLogging, String... args)
     {
         List<String> allArgs = new ArrayList<>();
         allArgs.add(klass);
@@ -294,13 +308,12 @@ public class ToolRunner
             }
         };
 
-        Pair<Integer, ToolResult> res = invokeSupplier(runMe, stdin);
+        Pair<Integer, ToolResult> res = invokeSupplier(runMe, stdin, captureLogging);
         return new ToolResult(allArgs,
                               res.right.getExitCode() == -1 ? -1 : res.left,
                               res.right.getStdout(),
                               res.right.getStderr(),
                               res.right.getException());
-
     }
 
     public static ToolResult invokeNodetoolJvmDtestIsolated(IInstance node, String... args)
@@ -400,6 +413,11 @@ public class ToolRunner
 
     public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe, InputStream stdin)
     {
+        return invokeSupplier(runMe, stdin, false);
+    }
+
+    public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe, InputStream stdin, boolean captureLogging)
+    {
         PrintStream originalSysOut = System.out;
         PrintStream originalSysErr = System.err;
         InputStream originalSysIn = System.in;
@@ -409,6 +427,10 @@ public class ToolRunner
         ByteArrayOutputStream err = new ByteArrayOutputStream();
 
         System.setIn(stdin == null ? originalSysIn : stdin);
+
+        Runnable loggerCleanup = null;
+        if (captureLogging)
+            loggerCleanup = registerLoggerAppender(out);
 
         T res = null;
         try(PrintStream newOut = new PrintStream(out); PrintStream newErr = new PrintStream(err))
@@ -434,7 +456,35 @@ public class ToolRunner
             System.setOut(originalSysOut);
             System.setErr(originalSysErr);
             System.setIn(originalSysIn);
+
+            if (captureLogging)
+                loggerCleanup.run();
         }
+    }
+
+    private static Runnable registerLoggerAppender(ByteArrayOutputStream out)
+    {
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        ch.qos.logback.classic.Logger rootLogger = context.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+
+        OutputStreamAppender<ILoggingEvent> logAppender = new OutputStreamAppender<>();
+        logAppender.setContext(context);
+        logAppender.setName("ToolRunnerCapture");
+
+        PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+        encoder.setContext(context);
+        encoder.setPattern("%msg%n");
+        encoder.start();
+
+        logAppender.setEncoder(encoder);
+        logAppender.setOutputStream(out);
+        logAppender.start();
+
+        rootLogger.addAppender(logAppender);
+        return () -> {
+            rootLogger.detachAppender(logAppender);
+            logAppender.stop();
+        };
     }
 
     public static Builder builder(List<String> args)

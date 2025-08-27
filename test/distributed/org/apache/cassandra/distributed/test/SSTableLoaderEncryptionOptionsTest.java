@@ -109,7 +109,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
     public void bulkLoaderSuccessfullyStreamsOverSslWithDeprecatedSslStoragePort() throws Throwable
     {
         File sstables_to_upload = prepareSstablesForUpload();
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class, true,
                                                             "--nodes", NODES,
                                                             "--port", Integer.toString(NATIVE_PORT),
                                                             "--storage-port", Integer.toString(STORAGE_PORT),
