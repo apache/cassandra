@@ -204,7 +204,7 @@ case ${test_target/-repeat/} in
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     *)
-    error 1 "unrecognized test type \"${target}\""
+        error 1 "unrecognized test type \"${target}\""
     ;;
 esac
 
@@ -305,8 +305,8 @@ docker exec --user cassandra ${container_name} bash -c "${docker_command}" | tee
 status=$?
 set +o pipefail
 
-if [ "$status" -ne 0 ] ; then
-    echo "${docker_id} failed (${status}), debug…"
+if [ "$status" -ne 0 ] && [ -z $SKIP_DOCKER_DEBUG_ON_FAIL ] ; then
+    echo "${docker_id} failed (${status}), debug… (set SKIP_DOCKER_DEBUG_ON_FAIL to quiet)"
     docker inspect ${docker_id}
     echo "–––"
     docker logs ${docker_id}

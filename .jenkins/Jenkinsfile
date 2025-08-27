@@ -34,7 +34,8 @@
 //  - cassandra-small        : 1 cpu, 1GB ram (alias for above but for any arch)
 //  - cassandra-amd64-medium : 3 cpu, 5GB ram
 //  - cassandra-medium       : 3 cpu, 5GB ram (alias for above but for any arch)
-//  - cassandra-amd64-large  : 7 cpu, 14GB ram
+//  - cassandra-amd64-large  : 7 cpu, 16GB ram
+//  - cassandra-large  : 7 cpu, 16GB ram
 //
 // When running builds parameterised to other architectures the corresponding labels are expected.
 //  For example 'arm64' requires the labels: cassandra-arm64-small, cassandra-arm64-medium, cassandra-arm64-large.

@@ -1,0 +1,9 @@
+bs4
+dotenv
+kubernetes
+python-jenkins
+requests
+
+# optional for different clouds
+boto3
+google-cloud-compute

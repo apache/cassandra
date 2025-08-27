@@ -1,6 +1,7 @@
 .gitignore
 
 # C*
+.build/.run-ci.env
 build
 build/
 src/gen-java/

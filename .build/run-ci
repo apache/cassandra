@@ -1,0 +1,837 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+CI Pipeline Script
+
+This script can initialize a Jenkins operator in a Kubernetes cluster,
+start ci job builds, and retrieve results in the project standard format.
+Python dependencies are found in .build/run-ci.d/requirements.txt
+Custom environment variables can be set in .build/.run-ci.env
+
+lint with:
+ `pylint --disable=C0301,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0911 run-ci`
+
+test with:
+ `python .build/run-ci.d/run-ci-test.py`
+"""
+
+import argparse
+import fcntl
+import getpass
+import gzip
+import itertools
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import threading
+import time
+from contextlib import contextmanager
+from enum import Enum
+from pathlib import Path
+from urllib.request import urlretrieve
+from typing import Optional, Tuple
+
+# External Libraries (`pip install -r .build/run-ci.d/requirements.txt`)
+from bs4 import BeautifulSoup
+from kubernetes import client, config, stream
+import requests
+
+try:
+    import jenkins
+except OSError as import_jenkins_error:
+    if 'lookup3.so' in str(import_jenkins_error):
+        print("Error: The required shared library 'lookup3.so' is missing.")
+        print("Please ensure it is installed and accessible in your environment.")
+        sys.exit(1)
+    else:
+        raise
+
+def determine_job_name(cassandra_dir: Path) -> str:
+    """
+    Determines the default Jenkins job name based on the Cassandra version.
+    Separate jobs are required because Jenkinsfiles are baked into the job configuration.
+    ref: .jenkins/k8s/jenkins-deployment.yaml JCasC.configScripts.test-job
+    TODO: add new version each release branching
+    """
+    with open(cassandra_dir / "build.xml", "r", encoding="utf-8") as build_file:
+        for line in build_file:
+            if 'property' in line and 'name="base.version"' in line:
+                version = line.split('value="')[1].split('"')[0]
+                if version.startswith("5.0."):
+                    return "cassandra-5.0"
+    return "trunk"
+
+def get_current_branch() -> str:
+    """Returns the current branch."""
+    return subprocess.run(["git", "-C", str(CASSANDRA_DIR), "branch", "--show-current"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+def get_tracking_remote_url() -> str:
+    """
+    Returns the tracking remote URL of the current branch, falling back to the 'origin' remote URL.
+    """
+    try:
+        # Get the tracking remote URL of the current branch
+        remote_name = subprocess.run(
+            ["git", "-C", str(CASSANDRA_DIR), "config", "--get", f"branch.{DEFAULT_REPO_BRANCH}.remote"],
+            capture_output=True, text=True, check=True).stdout.strip()
+
+    except subprocess.CalledProcessError:
+        # Fallback to the 'origin' remote URL
+        remote_name = "origin"
+
+    repo_url = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "remote", "get-url", remote_name],
+                               capture_output=True, text=True, check=True).stdout.strip()
+    if repo_url.startswith("git@github.com:"):
+        repo_url = repo_url.replace("git@github.com:", "https://github.com/")
+    return repo_url
+
+# Constants
+DEFAULT_KUBE_NS = "default"
+CASSANDRA_DIR = Path(__file__).resolve().parent.parent
+DEPLOY_YAML = str(CASSANDRA_DIR / ".jenkins/k8s/jenkins-deployment.yaml")
+DEFAULT_REPO_BRANCH = get_current_branch()
+DEFAULT_REPO_URL = get_tracking_remote_url()
+DEFAULT_DTEST_REPO_URL = "https://github.com/apache/cassandra-dtest.git"
+DEFAULT_DTEST_REPO_BRANCH = "trunk"
+DEFAULT_PROFILE = "skinny"
+DEFAULT_JOB_NAME = determine_job_name(CASSANDRA_DIR)
+DEFAULT_POD_NAME = "cassius-jenkins-0"
+DEFAULT_CONTAINER_NAME = "jenkins"
+LOCAL_RESULTS_BASEDIR = CASSANDRA_DIR / "build/ci/"
+# AWS/GCloud specifics for node_cleaner function, needed for node_cleaner
+AWS_REGION = os.environ.get("AWS_REGION")
+GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+GCP_ZONE = os.environ.get("GCP_ZONE")
+
+IS_RUNNING = True
+
+
+def debug(message: str):
+    """Helper function to print debug messages."""
+    if os.environ.get("DEBUG"):
+        print(message)
+
+
+def load_environment_file():
+    """ Load environment variables from a .build/.run-ci.env file. """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=CASSANDRA_DIR / ".build" / ".run-ci.env")
+    except:
+        print("Warning: .build/run-ci.env file not found, or dotenv module not installed.")
+
+def setup_environment(kubeconfig, kubecontext) -> client.CoreV1Api:
+    """Ensures necessary tools are installed and sets up Kubernetes configuration."""
+    # Check Python version
+    required_version = (3, 7)
+    if sys.version_info < required_version:
+        raise EnvironmentError(f"Python {required_version[0]}.{required_version[1]} or higher is required. "
+                               f"Current version is {sys.version_info.major}.{sys.version_info.minor}.")
+    # check command line dependencies
+    dependencies = ["helm", "kubectl"]
+    for cmd in dependencies:
+        if not shutil.which(cmd):
+            raise EnvironmentError(f"{cmd} must be installed and available in the PATH.")
+
+    # Initialize Kubernetes client and API instance
+    config.load_kube_config(config_file=kubeconfig if kubeconfig else None, context=kubecontext or None)
+    return client.CoreV1Api()
+
+def argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run CI pipeline for Cassandra on K8s using Jenkins.")
+    parser.add_argument("-c", "--kubeconfig", help="Path to a different kubeconfig.")
+    parser.add_argument("-x", "--kubecontext", help="Use a different Kubernetes context.")
+    parser.add_argument("-i", "--url", help="Jenkins url. Suitable when kubectl access in not available. Can also be specified via the JENKINS_URL environment variable (and in .build/.run-ci.env)")
+    parser.add_argument("-u", "--user", help="Jenkins user. Can also be specified via the JENKINS_USER environment variable (and in .build/.run-ci.env)")
+    parser.add_argument("-r", "--repository", default=DEFAULT_REPO_URL, help="Repository URL. Defaults to current tracking remote.")
+    parser.add_argument("-b", "--branch", default=DEFAULT_REPO_BRANCH, help="Repository branch. Defaults to current branch.")
+    parser.add_argument("-p", "--profile", choices=['packaging','skinny','pre-commit','pre-commit w/ upgrades','post-commit','custom'], default=DEFAULT_PROFILE, help="CI pipeline profile. Defaults to skinny.")
+    parser.add_argument("-e", "--profile-custom-regexp", help="Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: 'stress.*|jvm-dtest.'")
+    parser.add_argument("-j", "--jdk", help="Specify JDK version. Defaults to all JDKs the current branch supports.")
+    parser.add_argument("-d", "--dtest-repository", default=DEFAULT_DTEST_REPO_URL, help="DTest repository URL.")
+    parser.add_argument("-k", "--dtest-branch", default=DEFAULT_DTEST_REPO_BRANCH, help="DTest repository branch.")
+    parser.add_argument("-s", "--setup", action="store_true", help="Set up Jenkins before the build.")
+    parser.add_argument("--only-setup", action="store_true", help="Only install Jenkins into the k8s cluster.")
+    parser.add_argument("--tear-down", action="store_true", help="Tear down Jenkins after the build.")
+    parser.add_argument("--only-tear-down", action="store_true", help="Only tear down Jenkins.")
+    parser.add_argument("--only-node-cleaner", action="store_true", help="Only run the node cleaner. The node cleaner scans the k8s nodes, eagerly terminating those unused.")
+    parser.add_argument("-o", "--download-results", help="Just download the results for the specificed build number. Naming of local artefacts assumes current tracking remote and branch, use -r and -b otherwise.")
+    return parser
+
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parses command-line arguments and sets environment variables based on inputs.
+    If you update this please also update `.build/run-ci.d/README.md`
+    """
+    args = argument_parser().parse_args()
+
+    assert args.repository.startswith("https://github.com/") and args.repository.endswith("cassandra.git"),\
+        f"Only github apache/cassandra (forked) repository supported, got: {args.repository}"
+    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.endswith("cassandra-dtest.git"),\
+        f"Only github apache/cassandra (forked) repository supported, got: {args.dtest_repository}"
+    assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
+    assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
+    assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
+
+    if not args.url and os.environ.get("JENKINS_URL"):
+        args.url = os.environ.get("JENKINS_URL")
+    if not args.user and os.environ.get("JENKINS_USER"):
+        args.user = os.environ.get("JENKINS_USER")
+
+    assert not (args.url and (args.kubeconfig or args.kubecontext or args.setup or args.only_setup or args.tear_down or args.only_tear_down or args.only_node_cleaner)),\
+        "Cannot specify both --url and any of --kubeconfig/--kubecontext/--setup/--only-setup/--tear-down/--only-tear-down/--only-node-cleaner. Setting the jenkins url implies no kubectl actions."
+    assert not (args.url and not args.user), "When specifying --url, --user is required."
+
+    return args
+
+
+def init_k8s_namespace(k8s_client, namespace: str):
+    """Ensures the specified namespace exists in the Kubernetes cluster."""
+    try:
+        k8s_client.read_namespace(namespace)
+        debug(f"Namespace '{namespace}' already exists.")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            debug(f"Creating namespace '{namespace}'...")
+            ns = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
+            k8s_client.create_namespace(ns)
+            print(f"Namespace '{namespace}' created.")
+        else:
+            raise
+
+def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list) -> str:
+    """
+    Runs a kubectl command with the specified kubeconfig and context.
+    Used when functionality is not available in k8s_client.
+    """
+    cmd = ["kubectl"]
+    if kubeconfig:
+        cmd += ["--kubeconfig", kubeconfig]
+    if kubecontext:
+        cmd += ["--context", kubecontext]
+    cmd += ["--namespace", kube_ns]
+    cmd += command
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+
+def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str):
+    """Installs Jenkins Operator using Helm in the specified K8s namespace."""
+    print("Adding Helm repository for Jenkins Operator...")
+    subprocess.run(["helm", "repo", "add", "jenkins", "https://charts.jenkins.io"], check=True)
+    subprocess.run(["helm", "repo", "update"], check=True)
+
+    cmd = ["helm"]
+    if kubeconfig:
+        cmd += ["--kubeconfig", kubeconfig]
+    if kubecontext:
+        cmd += ["--kube-context", kubecontext]
+    cmd += ["--namespace", kube_ns, "upgrade", "--install", "-f", DEPLOY_YAML, "cassius", "jenkins/jenkins", "--wait"]
+    result = subprocess.run(cmd, capture_output=True, check=True)
+
+    run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                        ["exec", DEFAULT_POD_NAME, "--",
+                        "curl", "-sS", "https://svn.apache.org/repos/asf/comdev/project-logos/originals/cassandra-6.svg",
+                        "-o", "/var/jenkins_cache/war/images/svgs/logo.svg"])
+
+    if result.returncode != 0:
+        print("Failed to install Jenkins Operator using Helm. Check the configuration and/or `kubectl logs cassius-jenkins-0`.")
+        sys.exit(1)
+
+
+def get_jenkins(k8s_client: client.CoreV1Api, args, kube_ns: str) -> Tuple[str, jenkins.Jenkins]:
+    """Authenticates to Jenkins and returns the Jenkins ip and server objects."""
+
+    def get_jenkins_ip(k8s_client, kube_ns: str) -> str:
+        svc = k8s_client.read_namespaced_service("cassius-jenkins", kube_ns)
+        if svc.status.load_balancer.ingress:
+            # the best we can do is the public IP or hostname of the controller, which may not be the common public url
+            ingress = svc.status.load_balancer.ingress[0]
+            ip = ingress.ip if ingress.ip else ingress.hostname
+            if svc.spec.ports[0].port != 80:
+                ip += ":" + str(svc.spec.ports[0].port)
+            print(f"Jenkins: {ip}\n---")
+            return ip
+        raise ValueError("Unable to retrieve Jenkins IP address")
+
+    def prompt_for_password():
+        return getpass.getpass("Enter Jenkins password: ")
+
+    kubeconfig = args.kubeconfig
+    kubecontext = args.kubecontext
+    user = args.user if args.user else "admin"
+    ip = args.url if args.url else get_jenkins_ip(k8s_client, kube_ns)
+
+    password = prompt_for_password() if args.user \
+        else run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["exec", DEFAULT_POD_NAME, "--", "cat", "/run/secrets/additional/chart-admin-password"])
+    # Initialize Jenkins API clien
+    server = jenkins.Jenkins(f"http://{ip}", username=user, password=password)
+    return ip, server
+
+
+def trigger_jenkins_build(server: jenkins.Jenkins, job_name: str, **build_params) -> dict:
+    """Triggers a Jenkins build with specified parameters and returns the queue item."""
+
+    def check_for_parameter_build(server: jenkins.Jenkins, job_name: str):
+        """
+        If necessary, triggers a non-parameter build (which makes the parameterised build visible).
+        """
+        job_info = server.get_job_info(job_name)
+        if not any(param.get("parameterDefinitions") for param in job_info.get("property", [])):
+            print("Parameters are not visible; initiating non-parameter build.")
+            queue_item = server.build_job(job_name)
+            build_number = wait_for_build_number(server, queue_item)
+            time.sleep(6)
+            try:
+                server.stop_build(job_name, build_number)
+            except client.exceptions.ApiException as e:
+                print(f"Failed to stop non-parameter build {job_name} {build_number} for job : {e}")
+            print("Parameters should now be available.")
+
+    # Check and trigger non-parameter build if parameters are not visible
+    check_for_parameter_build(server, DEFAULT_JOB_NAME)
+    print("Triggering Jenkins build… ")
+    return server.build_job(job_name, parameters=build_params)
+
+
+def wait_for_build_number(server: jenkins.Jenkins, queue_item: int) -> int:
+    spin_while("Waiting for job build number… ", lambda: ('executable' in server.get_queue_item(queue_item)))
+    build_number = server.get_queue_item(queue_item)['executable']['number']
+    sys.stdout.write("\033[F\033[K")  # Move cursor up one line and clear i
+    print(f"\rBuild number: {build_number}\n")
+    return build_number
+
+
+def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number: int):
+    """Waits for Jenkins build completion by monitoring the build status."""
+
+    def get_build_info(server: jenkins.Jenkins, job_name: str, build_number: int) -> dict:
+        try:
+            return server.get_build_info(job_name, build_number)
+        except (jenkins.NotFoundException, jenkins.JenkinsException, requests.exceptions.ConnectionError) as e:
+            debug(f"Failed get_build_info: {e}")
+            return {}
+
+    elapsed_time = spin_while("Waiting for build to complete… ",
+                              lambda: get_build_info(server, job_name, build_number).get('result'))
+
+    minutes, seconds = divmod(elapsed_time, 60)
+    result = get_build_info(server, job_name, build_number)['result']
+    print(f"\r---\nBuild completed after {minutes:02}:{seconds:02} with status: {result}")
+
+
+def spin_while(message="", is_complete=lambda: False) -> int:
+    spinner = itertools.cycle(['|', '/', '-', '\\'])
+    start_time = time.time()
+    elapsed_time = 0
+    while not is_complete():
+        elapsed_time = int(time.time() - start_time)
+        minutes, seconds = divmod(elapsed_time, 60)
+        for _ in range(10):
+            sys.stdout.write(f"\r{message} {minutes:02}:{seconds:02}   {next(spinner)}\033[?25l")
+            sys.stdout.flush()
+            time.sleep(0.3)
+    sys.stdout.write("\r" + " " * len(message + "          \033[?25h"))
+    sys.stdout.flush()
+    return elapsed_time
+
+def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str):
+    """
+    Periodically checks for dangling nodes and deletes them (and the underlying cloud instances)
+    for either GKE (GCP) or EKS (AWS). Cloud is auto-detected via node.spec.providerID.
+
+    Env variables (per cloud provider): AWS_REGION, GCP_PROJECT_ID, GCP_ZONE
+    """
+    def keep_running() -> bool:
+        return bool(globals().get("IS_RUNNING", True))
+
+    def node_cleaner_debug(msg: str):
+        if os.environ.get("NODE_CLEANER_DEBUG"):
+            print(msg)
+
+    class CloudProvider(Enum):
+        AWS = "aws"
+        GCP = "gcp"
+        UNKNOWN = None
+
+    # Patterns that indicate the node is actively in use by a jenkins pod
+    ACTIVE_POD_NAMES = ["agent-dind", "cassius"]
+
+    def is_node_in_use(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, node_name: str) -> bool:
+        desc = run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["describe", "node", node_name])
+        return any(p in desc for p in ACTIVE_POD_NAMES)
+
+    def cordon_node(node_name: str):
+        try:
+            k8s_client.patch_node(name=node_name, body={"spec": {"unschedulable": True}})
+            node_cleaner_debug(f"Node {node_name} cordoned.")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to cordon node {node_name}: {e}")
+
+    def drain_node(node_name: str):
+        try:
+            pods = k8s_client.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
+            for pod in pods.items:
+                owner_refs = pod.metadata.owner_references or []
+                # Delete only non-DaemonSet pods
+                if not any(ref.kind == "DaemonSet" for ref in owner_refs):
+                    try:
+                        k8s_client.delete_namespaced_pod(name=pod.metadata.name, namespace=pod.metadata.namespace)
+                    except client.exceptions.ApiException as e:
+                        node_cleaner_debug(f"Failed to delete pod {pod.metadata.name} on {node_name}: {e}")
+            node_cleaner_debug(f"Node {node_name} drained (and all non-DaemonSet pods deleted).")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to drain node {node_name}: {e}")
+
+    def delete_k8s_node(node_name: str):
+        try:
+            k8s_client.delete_node(node_name)
+            node_cleaner_debug(f"Node {node_name} deleted from Kubernetes API.")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to delete node {node_name} from K8s API: {e}")
+
+    def get_first_node_provider_id() -> Optional[str]:
+        try:
+            items = k8s_client.list_node().items
+            if not items:
+                return None
+            for n in items:
+                if n.spec and n.spec.provider_id:
+                    return n.spec.provider_id
+            return None
+        except client.exceptions.ApiException:
+            return None
+
+    def detect_cloud_provider(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, node_name: str) -> Tuple[CloudProvider, str]:
+        """ Returns CloudProvider.AWS, CloudProvider.GCP, or CloudProvider.UNKNOWN. """
+        try:
+            node_obj = k8s_client.read_node(node_name)
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to read node {node_name}: {e}")
+            return CloudProvider.UNKNOWN, None
+
+        provider_id = getattr(node_obj.spec, "provider_id", None).lower()
+
+        if not provider_id:
+            provider_id = get_first_node_provider_id().lower()
+
+        if provider_id:
+            if provider_id.startswith("aws:"):
+                return CloudProvider.AWS, provider_id
+            if provider_id.startswith("gce:"):
+                return CloudProvider.GCP, provider_id
+            return CloudProvider.UNKNOWN, provider_id
+
+        # Fallback via current-context name
+        provider_id = ""
+        try:
+            ctx = run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["config", "current-context"]).lower()
+            if "arn:aws:eks" in ctx or "eks" in ctx:
+                return CloudProvider.AWS, provider_id
+            if "gke_" in ctx or "gke" in ctx:
+                return CloudProvider.GCP, provider_id
+        except subprocess.CalledProcessError:
+            debug(f"failed to determine provider_id: {e}")
+        return CloudProvider.UNKNOWN, None
+
+    def parse_aws_provider_id(provider_id: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Returns (instance_id, region) derived from providerID.
+        Example providerID: "aws:///us-west-2a/i-0123456789abcdef0"
+        region = "us-west-2" (derived from AZ)
+        """
+        assert provider_id
+        parts = provider_id.split("/")
+        instance_id = parts[-1] if parts else None
+        az = parts[-2] if len(parts) >= 2 else None  # e.g., "us-west-2a"
+        region = None
+        if az and len(az) >= 2:
+            region = az[:-1]  # drop 'a' -> "us-west-2"
+        # Prefer explicit env if set
+        if AWS_REGION:
+            region = AWS_REGION
+        return (instance_id, region)
+
+    def parse_gce_provider_id(provider_id: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Returns (project_id, zone, instance_name) from providerID.
+        Example: "gce://my-project/us-central1-b/gke-...-node-..."
+        """
+        assert provider_id
+        pid = provider_id.split("://", 1)[-1]
+        project, zone, instance = pid.split("/", 2)
+        # Prefer explicit env if set
+        project = GCP_PROJECT_ID or project
+        zone = GCP_ZONE or zone
+        return (project, zone, instance)
+
+    def terminate_instance_gcp(project_id: str, zone: str, instance_name: str):
+        assert project_id and zone and instance_name
+        try:
+            from google.cloud import compute_v1
+            from google.api_core.exceptions import GoogleAPICallError
+        except ImportError as e:
+            node_cleaner_debug(f"GCP client not available: {e}")
+            raise
+        try:
+            gcloud_compute_client = compute_v1.InstancesClient()
+            op = gcloud_compute_client.delete(project=project_id, zone=zone, instance=instance_name)
+            try:
+                op.result()
+            except GoogleAPICallError as e:
+                node_cleaner_debug(f"Failed to wait for GCE instance deletion operation: {e}")
+                return
+            node_cleaner_debug(f"GCE instance {instance_name} deleted (project={project_id}, zone={zone}).")
+        except GoogleAPICallError as e:
+            node_cleaner_debug(f"Failed to delete GCE instance {instance_name}: {e}")
+
+    def terminate_instance_aws(instance_id: str, region: Optional[str]):
+        assert instance_id
+        try:
+            import boto3
+        except ImportError as e:
+            node_cleaner_debug(f"AWS boto3 not available: {e}")
+            return
+
+        session = boto3.session.Session(region_name=region or AWS_REGION)
+        autoscaling = session.client("autoscaling")
+        ec2 = session.client("ec2")
+
+        # Prefer ASG termination (decrement desired capacity), fallback to EC2 terminate
+        try:
+            autoscaling.terminate_instance_in_auto_scaling_group(
+                InstanceId=instance_id,
+                ShouldDecrementDesiredCapacity=True
+            )
+            node_cleaner_debug(f"EC2 instance {instance_id} terminated via Auto Scaling (decremented desired capacity).")
+            return
+        except autoscaling.exceptions.ClientError as e:
+            node_cleaner_debug(f"ASG termination failed for {instance_id}: {e}. Falling back to EC2 terminate.")
+        try:
+            ec2.terminate_instances(InstanceIds=[instance_id])
+            node_cleaner_debug(f"EC2 instance {instance_id} terminated via EC2 API.")
+        except ec2.exceptions.ClientError as e:
+            node_cleaner_debug(f"Failed to terminate EC2 instance {instance_id}: {e}")
+
+    def check_and_cleanup_node(node_name: str):
+        """ Check if node is dangling; if so, drain, delete from K8s, and remove the cloud instance. """
+        # 1) If used by known patterns, skip (check for 1 minute)
+        for attempt in range(6):
+            if not keep_running():
+                return
+            try:
+                if is_node_in_use(kubeconfig, kubecontext, kube_ns, node_name):
+                    node_cleaner_debug(f"Node {node_name} in use [check {attempt}].")
+                    return
+            except (subprocess.CalledProcessError, client.exceptions.ApiException) as e:
+                node_cleaner_debug(f"Failed to inspect node {node_name} [check {attempt}]: {e}")
+                return  # Don't delete nodes we can't inspect safely
+            time.sleep(10)
+
+        # 2) Determine provider + IDs from providerID of this node
+        cloud, provider_id = detect_cloud_provider(kubeconfig, kubecontext, kube_ns, node_name)
+
+        # 3) Cordon & drain & delete K8s node (shared)
+        node_cleaner_debug(f"Deleting dangling node {node_name}…")
+        cordon_node(node_name)
+        drain_node(node_name)
+        delete_k8s_node(node_name)
+
+        # 4) Cloud-specific instance delete/terminate
+        if CloudProvider.AWS == cloud:
+            instance_id, region = parse_aws_provider_id(provider_id)
+            if not instance_id and node_name.startswith("ip-") and "." in node_name:
+                # Can't derive instance-id from hostname; skip cloud deletion
+                node_cleaner_debug(f"No providerID for {node_name}; cannot derive EC2 instance-id from hostname.")
+            terminate_instance_aws(instance_id, region)
+        elif CloudProvider.GCP == cloud:
+            project_id, zone, instance_name = parse_gce_provider_id(provider_id)
+            terminate_instance_gcp(project_id, zone, instance_name if instance_name else node_name)
+        else:
+            node_cleaner_debug(f"Unknown cloud for node {node_name}; cloud instance not deleted.")
+
+    # Main node_cleaner loop
+    while keep_running():
+        try:
+            nodes = k8s_client.list_node().items
+            node_cleaner_debug(f"  {len(nodes)} nodes")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to list nodes: {e}")
+            time.sleep(10)
+            continue
+        active_threads = {t.name for t in threading.enumerate()}
+        for n in nodes:
+            node_name = n.metadata.name
+            # only act on nodes with "agent" in the name
+            node_cleaner_debug(f"Checking node {node_name}…")
+            if node_name not in active_threads:
+                t = threading.Thread(target=check_and_cleanup_node, args=(node_name,), name=node_name, daemon=True)
+                t.start()
+        time.sleep(10)
+
+
+def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, build_number: int):
+    debug("Cleaning remote individual JUnit XML files...")
+    exec_command = ['rm', '-rf', f'/var/jenkins_home/jobs/{DEFAULT_JOB_NAME}/builds/{build_number}/archive/test/output']
+    stream.stream(k8s_client.connect_get_namespaced_pod_exec,
+        pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME, command=exec_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+    debug("Remote JUnit XML files cleaned.")
+
+
+def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, build_number: int, ip: str, args):
+
+    def download_console_log(pod_name: str, container_name: str,  kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, console_log_path: str, local_console_log: Path):
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{console_log_path}", str(local_console_log)])
+
+                print(f"Console log saved to {local_console_log}.gz\n")
+                break
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {pod_name}:{console_log_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    def download_archive_tarball(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, pod_name: str, container_name: str, remote_path: str, local_path, max_retries=5):
+        for attempt in range(max_retries):
+            try:
+                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{remote_path}", str(local_path)])
+
+                debug(f"Build Artifacts saved in {local_path}")
+                break
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {pod_name}:{remote_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    def extract_and_rename(archive_path: str, local_results_dir: str, ci_summary_file: str, ci_details_file: str):
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(path=local_results_dir)
+            if (local_results_dir / "archive/ci_summary.html").exists():
+                (local_results_dir / "archive/ci_summary.html").rename(ci_summary_file)
+                print(f"CI summary saved as {ci_summary_file}")
+            if (local_results_dir / "archive/results_details.tar.xz").exists():
+                (local_results_dir / "archive/results_details.tar.xz").rename(ci_details_file)
+                print(f"Details file saved as {ci_details_file}")
+            print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+        os.remove(archive_path)
+        print("---")
+        print(f"Logs in {local_results_dir / 'archive/stage-logs/'} and {local_results_dir / 'archive/test/logs/'}")
+
+    def print_results_summary_console(local_console_log):
+        if local_console_log.exists():
+            with open(local_console_log, 'r', encoding="utf-8") as log_file:
+                log_content = log_file.read()
+                if "BUILD FAILED" in log_content:
+                    print("---")
+                    failed_index = log_content.index("BUILD FAILED")
+                    # Print the 200 characters after "BUILD FAILED"
+                    print(log_content[failed_index:failed_index + 200])
+            with open(local_console_log, 'r', encoding="utf-8") as log_file:
+                for line in log_file:
+                    if "Finished: " in line:
+                        print(line.strip())
+                        break
+        else:
+            print("Missing console log.")
+
+    def print_results_summary_ci_summary(ci_summary_file):
+        if ci_summary_file.exists():
+            with open(ci_summary_file, 'r', encoding="utf-8") as log_file:
+                summary_parts = []
+                for line in log_file:
+                    if any(l in line for l in [">Passed<", ">Failed<", ">Skipped<", ">Total<"]):
+                        summary_parts.append(BeautifulSoup(line, 'html.parser').get_text().strip())
+                    if ">Total<" in line:
+                        break
+                if summary_parts:
+                    print(" – ".join(summary_parts))
+        else:
+            print("No tests were run (or missing summary file).")
+
+    def print_results_summary(local_console_log, ci_summary_file):
+        print("--- Build Summary ---")
+        print_results_summary_console(local_console_log)
+        print_results_summary_ci_summary(ci_summary_file)
+        # leave console_log.txt gzipped
+        if local_console_log.exists():
+            with open(local_console_log, 'rb') as f_in, gzip.open(f"{local_console_log}.gz", 'wb') as f_out:
+                f_out.writelines(f_in)
+            os.remove(local_console_log)
+
+    def download_url(url, dest, max_retries=5):
+        for attempt in range(max_retries):
+            try:
+                urlretrieve(url, dest)
+                debug(f" saved {dest}")
+                break
+            except (requests.exceptions.RequestException, IOError) as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {url}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    local_results_dir = LOCAL_RESULTS_BASEDIR / ip.replace(".", "-") / str(build_number)
+    local_results_dir.mkdir(parents=True, exist_ok=True)
+    repo_owner = args.repository.split('/')[3] if 'https' in args.repository else args.repository.split(':')[1].split('/')[0]
+    ci_summary_file = local_results_dir / f"ci_summary_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.html"
+    ci_details_file = local_results_dir / f"results_details_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.tar.xz"
+    if args.url:
+        download_url(f"http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/artifact/ci_summary.html", ci_summary_file)
+        download_url(f"http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/artifact/results_details.tar.xz", ci_details_file)
+        if (ci_summary_file).exists():
+            print(f"CI summary saved as {ci_summary_file}")
+        if (ci_details_file).exists():
+            print(f"Details file saved as {ci_details_file}")
+        print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+        print("--- Build Summary ---")
+        print_results_summary_ci_summary(ci_summary_file)
+    else:
+        kubeconfig = args.kubeconfig
+        kubecontext = args.kubecontext
+        local_console_log = local_results_dir / "console_log.txt"
+        local_archive_tar = local_results_dir / "archive.tar.gz"
+        remote_build_dir = f"/var/jenkins_home/jobs/{DEFAULT_JOB_NAME}/builds/{build_number}"
+        remote_console_log_path = f"{remote_build_dir}/log"
+        remote_archive_dir = f"{remote_build_dir}/archive"
+
+        print("Downloading build results and logs...")
+        console_log_thread = threading.Thread(target=download_console_log,
+                                              args=(pod_name, DEFAULT_CONTAINER_NAME, kubeconfig, kubecontext, kube_ns, remote_console_log_path, local_console_log))
+        console_log_thread.start()
+
+        # Compress and download the archive directory if it exists
+        archive_path_in_pod = f"{remote_archive_dir}.tar.gz"
+        try:
+            # compress
+            compress_command = ["tar", "czf", f"{archive_path_in_pod}", "-C", remote_build_dir, "archive"]
+            stream.stream(k8s_client.connect_get_namespaced_pod_exec, pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME,
+                        command=compress_command, stderr=True, stdin=False, stdout=True, tty=False)
+
+            local_archive_tar = local_results_dir / "archive.tar.gz"
+            download_archive_tarball(kubeconfig, kubecontext, kube_ns, pod_name, DEFAULT_CONTAINER_NAME, archive_path_in_pod, local_archive_tar)
+            # delete
+            stream.stream(k8s_client.connect_get_namespaced_pod_exec, pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME,
+                        command=['rm', archive_path_in_pod], stderr=True, stdin=False, stdout=True, tty=False)
+
+            extract_and_rename(local_archive_tar, local_results_dir, ci_summary_file, ci_details_file)
+
+            console_log_thread.join()
+            print_results_summary(local_console_log, ci_summary_file)
+        except client.exceptions.ApiException as e:
+            print(f"Failed to tarball artifacts at {archive_path_in_pod} in {pod_name}: {e}")
+
+
+def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, tear_down: bool):
+    global IS_RUNNING
+    IS_RUNNING = False
+    if tear_down:
+        print("Cleaning up Jenkins and all resources.")
+        cmd = ["helm"]
+        if kubeconfig:
+            cmd += ["--kubeconfig", kubeconfig]
+        if kubecontext:
+            cmd += ["--kube-context", kubecontext]
+        cmd += ["--namespace", kube_ns, "uninstall", "cassius"]
+        subprocess.run(cmd, check=True)
+
+
+@contextmanager
+def helm_installation_lock(lock_file: Path, timeout: int = 120):
+    with open(lock_file, "w", encoding="utf-8") as lock:
+        start = time.time()
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                yield
+                break
+            except BlockingIOError as exc:
+                if (time.time() - start) > timeout:
+                    raise TimeoutError("Timeout waiting for file lock.") from exc
+                time.sleep(1)
+
+
+def main_download_results(k8s_client, ip, args):
+    build_number = int(args.download_results)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+
+
+def main():
+    load_environment_file()
+    args = parse_arguments()
+    k8s_client = None if args.url else setup_environment(args.kubeconfig, args.kubecontext)
+
+    if args.only_tear_down:
+        cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, True)
+        return
+    if args.only_node_cleaner:
+        os.environ["NODE_CLEANER_DEBUG"] = "true"
+        node_cleaner(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS)
+        return
+    if args.setup or args.only_setup:
+        init_k8s_namespace(k8s_client, DEFAULT_KUBE_NS)
+        with helm_installation_lock(Path("/tmp/.cassandra-run-ci.lock")):
+            install_jenkins(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS)
+
+    (ip, server) = get_jenkins(k8s_client, args, DEFAULT_KUBE_NS)
+    if args.only_setup:
+        return
+    if args.download_results:
+        main_download_results(k8s_client, ip, args)
+        return
+
+    # Background node cleaner: checks for dangling nodes and deletes them, can dramatically reduce k8s costs
+    # set env var NODE_CLEANER_DISABLE to disable
+    if not os.environ.get("NODE_CLEANER_DISABLE") and not args.url:
+        threading.Thread(target=node_cleaner,
+                         args=(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS), daemon=True).start()
+
+    # Trigger Jenkins build with parameters
+    build_params = {
+        "repository": args.repository,
+        "branch": args.branch,
+        "profile": args.profile,
+        "profile_custom_regexp": args.profile_custom_regexp or "",
+        "jdk": args.jdk or "",
+        "dtest_repository": args.dtest_repository or "",
+        "dtest_branch": args.dtest_branch or ""
+    }
+
+    queue_item = trigger_jenkins_build(server, DEFAULT_JOB_NAME, **build_params)
+    build_number = wait_for_build_number(server, queue_item)
+    print(f"Jenkins UI at http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/pipeline-overview/")
+    wait_for_build_complete(server, DEFAULT_JOB_NAME, build_number)
+
+    # Post-build processing and cleanup
+    if not args.url:
+        delete_remote_junit_files(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+    cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.tear_down)
+
+if __name__ == "__main__":
+    main()
