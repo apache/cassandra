@@ -120,7 +120,9 @@ public class CQLMetricsTest
     public void testPreparedStatementsCountWithoutUse()
     {
         int n = QueryProcessor.metrics.preparedStatementsCount.getValue();
+        long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
         session.prepare("SELECT * FROM junit.metricstest WHERE id = 101");
+        Assert.assertEquals(useCountBefore, QueryProcessor.metrics.useStatementsExecuted.getCount());
         assertEquals(n+1, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
     }
 
