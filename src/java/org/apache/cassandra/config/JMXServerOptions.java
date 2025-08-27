@@ -59,6 +59,7 @@ public class JMXServerOptions
     public final String login_config_file;
 
     // location for credentials file if using JVM's file-based authentication
+    @Redacted
     public final String password_file;
     // location of standard access file, if using JVM's file-based access control
     public final String access_file;
@@ -132,7 +133,7 @@ public class JMXServerOptions
                ", jmx_port=" + jmx_port +
                ", rmi_port=" + rmi_port +
                ", authenticate=" + authenticate +
-               ", jmx_encryption_options=" + jmx_encryption_options +
+               ", jmx_encryption_options=" + jmxOptionsString +
                ", login_config_name='" + login_config_name + '\'' +
                ", login_config_file='" + login_config_file + '\'' +
                ", password_file='" + password_file + '\'' +

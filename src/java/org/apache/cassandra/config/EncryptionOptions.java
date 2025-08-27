@@ -119,15 +119,21 @@ public abstract class EncryptionOptions<T extends EncryptionOptions<T>>
      * truststore_passwords configurations as they are in plaintext format.
      */
     public final ParameterizedClass ssl_context_factory;
+    @Redacted
     public final String keystore;
     @Nullable
+    @Redacted
     public final String keystore_password;
     @Nullable
+    @Redacted
     public final String keystore_password_file;
+    @Redacted
     public final String truststore;
     @Nullable
+    @Redacted
     public final String truststore_password;
     @Nullable
+    @Redacted
     public final String truststore_password_file;
     public final List<String> cipher_suites;
     protected String protocol;

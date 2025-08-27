@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Loader;
 import org.apache.cassandra.config.Properties;
@@ -89,12 +90,33 @@ final class SettingsTable extends AbstractVirtualTable
     @VisibleForTesting
     String getValue(Property prop)
     {
+        Redacted maybeCredential = prop.getAnnotation(Redacted.class);
+        if (maybeCredential != null)
+            return maybeCredential.redactedValue();
+
         Object value = prop.get(config);
         if (value == null)
             return null;
 
         if (value.getClass().isArray())
             return Arrays.asList((Object[]) value).toString();
+
+        if (value instanceof Map)
+        {
+            Map<String, Object> map = new HashMap<>();
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet())
+            {
+                // this is done on best-effort basis as we do not have names in parameters
+                // inherently under control as this is what a user is responsible for
+                // when dealing with custom implementations
+                if (entry.getKey().endsWith("_password") || entry.getKey().equals("password"))
+                    map.put(entry.getKey(), Redacted.REDACTED_STRING);
+                else
+                    map.put(entry.getKey(), entry.getValue());
+            }
+
+            return map.toString();
+        }
 
         return value.toString();
     }
