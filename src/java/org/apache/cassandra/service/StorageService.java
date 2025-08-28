@@ -4242,6 +4242,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return statements;
     }
 
+    @Override
     public void dropPreparedStatements(boolean memoryOnly)
     {
         QueryProcessor.instance.clearPreparedStatements(memoryOnly);

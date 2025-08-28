@@ -1326,4 +1326,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
     boolean getPaxosRepairRaceWait();
+
+    public void dropPreparedStatements(boolean memoryOnly);
 }
