@@ -589,9 +589,7 @@
           <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.2.fat.shaded">
               <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
-          <dependency groupId="org.apache.kafka" artifactId="kafka-clients" version="2.9.52-2.12-uber"/>
-          <dependency groupId="com.uber" artifactId="java-kafka-rest-client" version="1.1.1-1635-dc6a4899a581-java-monorepo"/>
-          <dependency groupId="com.uber" artifactId="heatpipe4j" version="5.03.1-1636-242b65067fd6-java-monorepo"/>
+          <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.12"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6"/>
@@ -820,9 +818,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
-        <dependency groupId="org.apache.kafka" artifactId="kafka-clients"/>
-        <dependency groupId="com.uber" artifactId="java-kafka-rest-client" />
-        <dependency groupId="com.uber" artifactId="heatpipe4j"/>
         <dependency groupId="junit" artifactId="junit" scope="test"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
@@ -939,9 +934,6 @@
         <dependency groupId="javax.inject" artifactId="javax.inject"/>
         <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
-        <dependency groupId="org.apache.kafka" artifactId="kafka-clients"/>
-        <dependency groupId="com.uber" artifactId="java-kafka-rest-client" />
-        <dependency groupId="com.uber" artifactId="heatpipe4j"/>
 
         <!-- sasi deps -->
         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />

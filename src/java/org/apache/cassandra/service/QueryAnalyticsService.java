@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import com.uber.stream.java.kafka.rest.client.KafkaRestClientException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.utils.FBUtilities;
@@ -39,11 +38,22 @@ public class QueryAnalyticsService
     private String hostName;
     private String DC;
     private static final Logger logger = LoggerFactory.getLogger(QueryAnalyticsService.class);
+    @VisibleForTesting
+    protected  QueryAnalyticsDataProducer dataProducer;
 
-    public static void setup() throws IOException, KafkaRestClientException
+    public static void setup() throws IOException
     {
         instance.config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        KafkaHandler.setup();
+        try {
+            if (instance.config.getProducer() != null && instance.config.getProducer().class_name != null) {
+                instance.dataProducer = createDataProducer(instance.config.getProducer().class_name);
+            } else {
+                instance.dataProducer = null;
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to setup QueryAnalyticsDataProducer: {}", e.getMessage());
+            instance.dataProducer = null;
+        }
         instance.hostName = FBUtilities.getLocalAddressAndPort().getHostName().split("\\.")[0];
 
         if (instance.hostName != null)
@@ -64,18 +74,34 @@ public class QueryAnalyticsService
             return;
         }
 
-        processLatencyMetric(metricName, latency, String.valueOf(command.partitionKey()), command.metadata().keyspace, command.metadata().name);
+        if (command == null || command.metadata() == null || command.partitionKey() == null)
+        {
+            return;
+        }
+
+        //For backwards compatibility, add the metric name as a property. This will be removed when we switch to v2 schema.
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("metric_name", metricName);
+
+        processLatencyMetric(latency, String.valueOf(command.partitionKey()), command.metadata().keyspace, command.metadata().name, properties);
     }
 
-    private void processLatencyMetric(String metricName, String latency, String partitionKey, String keyspace, String tableName)
+    private void processLatencyMetric(String latency, String partitionKey, String keyspace, String tableName)
+    {
+        processLatencyMetric(latency, partitionKey, keyspace, tableName, null);
+    }
+
+    private void processLatencyMetric(String latency, String partitionKey, String keyspace, String tableName, Map<String, Object> properties)
     {
         try
         {
             Long nanoTimeMetric = FBUtilities.timestampMicros();
-            Map<String, Object> dataMap = createDataMap(
-            tableName, nanoTimeMetric, keyspace, metricName, partitionKey, latency, DC, hostName, DatabaseDescriptor.getClusterName());
+            QueryAnalyticsDatapoint datapoint = createDatapoint(
+            tableName, nanoTimeMetric, keyspace, partitionKey, latency, DC, hostName, DatabaseDescriptor.getClusterName(), properties);
 
-            KafkaHandler.instance.sendToKafka(dataMap);
+            if (dataProducer != null) {
+                dataProducer.produceDatapoint(datapoint);
+            }
         }
         catch (Exception e)
         {
@@ -84,19 +110,82 @@ public class QueryAnalyticsService
     }
 
     @VisibleForTesting
-    protected static Map<String, Object> createDataMap(String tableName, Long nanoTimeMetric, String keyspace, String metricName, String token, String value, String DC, String hostName, String clusterName)
+    protected static QueryAnalyticsDataProducer createDataProducer(String clazz) {
+        if (clazz == null || clazz.trim().isEmpty()) {
+            logger.warn("No producer class specified - query analytics disabled");
+            return null;
+        }
+
+        try {
+            Class<?> clazzObj = Class.forName(clazz);
+            if (!QueryAnalyticsDataProducer.class.isAssignableFrom(clazzObj)) {
+                logger.error("{} does not implement QueryAnalyticsDataProducer", clazz);
+                return null;
+            }
+
+            Map<String, String> options = new HashMap<>();
+
+            if (instance.config.getProducer() != null) {
+                options.putAll(instance.config.getProducer().parameters);
+            }
+
+            if (!options.containsKey("enabled")) {
+                options.put("enabled", instance.config.isQueryAnalyticsEnabled().toString());
+            }
+            if (!options.containsKey("logs_enabled")) {
+                options.put("logs_enabled", instance.config.getLogsEnabled().toString());
+            }
+
+            logger.info("Initializing QueryAnalyticsDataProducer {} with options: {}", clazz, options);
+
+            java.lang.reflect.Constructor<?> constructor = clazzObj.getConstructor(Map.class);
+            QueryAnalyticsDataProducer producer = (QueryAnalyticsDataProducer) constructor.newInstance(options);
+
+            return producer;
+        } catch (ClassNotFoundException e) {
+            logger.info("{} not available - query analytics disabled", clazz);
+            return null;
+        } catch (Exception e) {
+            logger.error("Failed to create {}: {}", clazz, e.getMessage());
+            return null;
+        }
+    }
+
+    @VisibleForTesting
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, String latency, String DC, String hostName, String clusterName)
     {
-        Map<String, Object> dataMap = new HashMap<>();
-        dataMap.put("table", tableName);
-        dataMap.put("nano_time", nanoTimeMetric);
-        dataMap.put("keyspace", keyspace);
-        dataMap.put("name", metricName);
-        dataMap.put("value", value);
-        dataMap.put("token", token);
-        dataMap.put("dc", DC);
-        dataMap.put("host", hostName);
-        dataMap.put("cluster", clusterName); // TODO: change field to instance
-        return dataMap;
+        return createDatapoint(tableName, timestamp, keyspace, partition, latency, DC, hostName, clusterName, null);
+    }
+
+    @VisibleForTesting
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, String latency, String DC, String hostName, String clusterName, Map<String, Object> properties)
+    {
+        // Convert the latency string to Long
+        Long latencyValue = null;
+        try {
+            latencyValue = Long.valueOf(latency);
+        } catch (NumberFormatException e) {
+            latencyValue = 0L;
+        }
+
+        QueryAnalyticsDatapoint.Builder builder = QueryAnalyticsDatapoint.builder()
+            .instance(clusterName)  // instance = cluster for now
+            .cluster("TODO")        // cluster - not currently ingested
+            .host(hostName)
+            .keyspace(keyspace)
+            .table(tableName)
+            .partition(partition)
+            .timestamp(timestamp)
+            .latency(latencyValue);
+
+        if (DC != null) {
+            builder.DC(DC);
+        }
+
+        if (properties != null) {
+            builder.properties(properties);
+        }
+
+        return builder.build();
     }
 }
-

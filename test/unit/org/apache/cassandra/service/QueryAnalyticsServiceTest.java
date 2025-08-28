@@ -18,24 +18,27 @@
 
 package org.apache.cassandra.service;
 
-import com.uber.data.heatpipe.HeatpipeEncoder;
-import com.uber.data.heatpipe.HeatpipeFactory;
-import com.uber.stream.java.kafka.rest.client.KafkaMessage;
-import com.uber.stream.java.kafka.rest.client.KafkaMessageProducer;
-import com.uber.stream.java.kafka.rest.client.KafkaRestClientException;
 import junit.framework.TestCase;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.ParameterizedClass;
+
 import static org.mockito.Mockito.*;
+import org.apache.cassandra.service.QueryAnalyticsDatapoint;
+import java.lang.reflect.Method;
 
 public class QueryAnalyticsServiceTest extends TestCase
 {
@@ -51,17 +54,16 @@ public class QueryAnalyticsServiceTest extends TestCase
     @Mock
     private SinglePartitionReadCommand mockSinglePartitionReadCommand;
 
-    @Mock
-    private TableMetadata mockTableMetadata;
+    private TableMetadata tableMetadata;
 
     @Mock
-    private HeatpipeFactory mockHeatpipeFactory;
+    private QueryAnalyticsDataProducer mockDataProducer;
 
     @Mock
-    private HeatpipeEncoder mockHeatpipeEncoder;
+    private DecoratedKey mockDecoratedKey;
 
     @Mock
-    private KafkaMessageProducer mockProducer;
+    private Token mockToken;
 
     @Override
     protected void setUp() throws Exception
@@ -69,37 +71,138 @@ public class QueryAnalyticsServiceTest extends TestCase
         super.setUp();
         MockitoAnnotations.initMocks(this);
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
-        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(true);
-        when(mockConfig.getKafkaTopic()).thenReturn("hp-cstar-qan");
-        when(mockConfig.getLogsEnabled()).thenReturn(true);
-        QueryAnalyticsService.setup();
 
+        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(true);
+        when(mockConfig.getLogsEnabled()).thenReturn(true);
+
+        // Mock the new producer configuration structure
+        ParameterizedClass mockProducerConfig = new ParameterizedClass();
+        mockProducerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
+        mockProducerConfig.parameters = new HashMap<>();
+        mockProducerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
+        when(mockConfig.getProducer()).thenReturn(mockProducerConfig);
+
+        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
+
+        QueryAnalyticsService.setup();
         queryAnalyticsService = QueryAnalyticsService.instance;
-        KafkaHandler.instance.heatpipeFactory = mockHeatpipeFactory;
-        KafkaHandler.instance.producer = mockProducer;
-        KafkaHandler.instance.encoder = mockHeatpipeEncoder;
+
+        queryAnalyticsService.dataProducer = mockDataProducer;
+
+        when(mockDecoratedKey.toString()).thenReturn("DecoratedKey(-123456789, test-partition)");
+        when(mockSinglePartitionReadCommand.partitionKey()).thenReturn(mockDecoratedKey);
+
+        tableMetadata = TableMetadata.builder("test_keyspace", "test_table")
+            .addPartitionKeyColumn("id", Int32Type.instance)
+            .build();
+
+        assertNotNull("Config should not be null after setup", queryAnalyticsService.config);
     }
 
-    public void testProcessLatencyMetricWithSinglePartitionReadCommand() throws IOException, KafkaRestClientException
+    public void testProcessLatencyMetricWithSinglePartitionReadCommand() throws IOException
     {
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(mockTableMetadata);
-
-        byte[] encodedMessage = new byte[]{ 1, 2, 3, 4 };
-        when(mockHeatpipeEncoder.encode(anyMap())).thenReturn(encodedMessage);
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
         queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
 
-        assertNotNull(queryAnalyticsService.config);
-        verify(mockHeatpipeEncoder, times(1)).encode(anyMap());
+        // Verify that the data producer was called with the correct datapoint
+        ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer, times(1)).produceDatapoint(datapointCaptor.capture());
 
-        ArgumentCaptor<KafkaMessage> kafkaMessageCaptor = ArgumentCaptor.forClass(KafkaMessage.class);
-        verify(mockProducer).produce(eq("hp-cstar-qan"), kafkaMessageCaptor.capture());
-        Object kafkaMessage = kafkaMessageCaptor.getValue().getValue();
-        assertEquals(encodedMessage, kafkaMessage);
+        QueryAnalyticsDatapoint capturedDatapoint = datapointCaptor.getValue();
+        assertNotNull(capturedDatapoint);
+        assertEquals("metric1", capturedDatapoint.getProperty("metric_name")); // Metric name stored as property
+        assertEquals(Long.valueOf(100L), capturedDatapoint.getLatency()); // New field
+        assertEquals("DecoratedKey(-123456789, test-partition)", capturedDatapoint.getPartition()); // Partition key
+        assertNotNull(capturedDatapoint.getTable());
+        assertNotNull(capturedDatapoint.getKeyspace());
+        assertNotNull(capturedDatapoint.getTimestamp());
     }
 
-    public void testCreateDataMap()
+    public void testProcessLatencyMetricWithVariousInputs() throws IOException
+    {
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+
+        String[] latencies = {"100", "0", "-100", "9223372036854775807", "-9223372036854775808"};
+        for (String latency : latencies) {
+            queryAnalyticsService.processLatencyMetric("metric1", latency, mockSinglePartitionReadCommand);
+        }
+
+        verify(mockDataProducer, times(latencies.length)).produceDatapoint(any());
+    }
+
+    public void testProcessLatencyMetricWithEdgeCases() throws IOException
+    {
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+
+        queryAnalyticsService.processLatencyMetric("metric1", null, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric("metric1", "", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric("metric1", "invalid", mockSinglePartitionReadCommand);
+
+        verify(mockDataProducer, times(3)).produceDatapoint(any());
+    }
+
+    public void testProcessLatencyMetricWithVariousMetricNames() throws IOException
+    {
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+
+        String[] metricNames = {null, "", "normal", "metric-with-special-chars!@#$%^&*()",
+                               "a".repeat(1000), "metric-测试"};
+
+        for (String metricName : metricNames) {
+            queryAnalyticsService.processLatencyMetric(metricName, "100", mockSinglePartitionReadCommand);
+        }
+
+        verify(mockDataProducer, times(metricNames.length)).produceDatapoint(any());
+    }
+
+    public void testProcessLatencyMetricWithErrorConditions() throws IOException
+    {
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+
+        queryAnalyticsService.dataProducer = null;
+
+        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+
+        queryAnalyticsService.dataProducer = mockDataProducer;
+        doThrow(new RuntimeException("Test exception")).when(mockDataProducer).produceDatapoint(any());
+
+        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+    }
+
+    public void testProcessLatencyMetricWithNullConfig() throws IOException
+    {
+
+        queryAnalyticsService.config = null;
+
+        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+
+
+        verify(mockDataProducer, times(0)).produceDatapoint(any());
+    }
+
+    public void testDisabledConfigs() throws IOException
+    {
+        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
+        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(false);
+        when(mockConfig.getLogsEnabled()).thenReturn(false);
+
+        // Update producer config for disabled test
+        ParameterizedClass mockProducerConfig = new ParameterizedClass();
+        mockProducerConfig.parameters = new HashMap<>();
+        mockProducerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
+        when(mockConfig.getProducer()).thenReturn(mockProducerConfig);
+
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        when(mockReadCommand.metadata()).thenReturn(tableMetadata);
+
+        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+
+        verify(mockConfig, times(2)).isQueryAnalyticsEnabled();
+        verify(mockDataProducer, times(0)).produceDatapoint(any());
+    }
+
+    public void testCreateDatapoint() throws IOException
     {
         String tableName = "test";
         Long nanoTimeMetric = 567890987L;
@@ -108,49 +211,199 @@ public class QueryAnalyticsServiceTest extends TestCase
         String token = "token";
         String value = "0";
         String hostName = "host-123";
-        String cName = "clusterName";
+        String cName = "TODO";
         String DC = "test";
 
-        Map<String, Object> dataMap = QueryAnalyticsService.createDataMap(
-        tableName, nanoTimeMetric, keyspace, metricName, token, value, DC, hostName, cName);
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("metric_name", metricName);
 
-        assertNotNull(dataMap);
-        assertEquals(tableName, dataMap.get("table"));
-        assertEquals(nanoTimeMetric, dataMap.get("nano_time"));
-        assertEquals(keyspace, dataMap.get("keyspace"));
-        assertNull(dataMap.get("node"));
-        assertEquals(metricName, dataMap.get("name"));
-        assertEquals(value, dataMap.get("value"));
-        assertEquals(token, dataMap.get("token"));
-        assertEquals(hostName, dataMap.get("host"));
-        assertEquals(DC, dataMap.get("dc"));
-        assertEquals(cName, dataMap.get("cluster"));
+        QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
+        tableName, nanoTimeMetric, keyspace, token, value, DC, hostName, cName, properties);
+
+        assertNotNull(datapoint);
+        assertEquals(tableName, datapoint.getTable());
+        assertEquals(nanoTimeMetric, datapoint.getTimestamp());
+        assertEquals(keyspace, datapoint.getKeyspace());
+        assertEquals(Long.valueOf(0L), datapoint.getLatency());
+        assertEquals(token, datapoint.getPartition());
+        assertEquals(hostName, datapoint.getHost());
+        assertEquals(DC, datapoint.getDC());
+        assertEquals(cName, datapoint.getCluster());
+        assertEquals(cName, datapoint.getInstance());
     }
 
-    public void testDisabledConfigs() throws IOException, KafkaRestClientException
+    public void testCreateDatapointWithVariousInputs() throws IOException
     {
-        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
-        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(false);
-        when(mockConfig.getKafkaTopic()).thenReturn("hp-cstar-qan");
-        when(mockConfig.getLogsEnabled()).thenReturn(false);
+        Object[][] testCases = {
+            {null, null, null, null, "100", null, null, null, null},
+            {"", 0L, "", "", "100", "", "", "", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", "0", "test", "host-123", "TODO", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", "-100", "test", "host-123", "TODO", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", "9223372036854775807", "test", "host-123", "TODO", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", "-9223372036854775808", "test", "host-123", "TODO", new HashMap<>()}
+        };
 
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(mockTableMetadata);
+        for (Object[] testCase : testCases) {
+            QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
+                (String) testCase[0], (Long) testCase[1], (String) testCase[2],
+                (String) testCase[3], (String) testCase[4], (String) testCase[5],
+                (String) testCase[6], (String) testCase[7], (Map<String, Object>) testCase[8]);
 
-        when(mockReadCommand.metadata()).thenReturn(mockTableMetadata);
+            assertNotNull(datapoint);
+            assertNotNull(datapoint.getProperties());
+        }
+    }
 
-        byte[] encodedMessage = new byte[]{ 1, 2, 3, 4 };
-        when(mockHeatpipeEncoder.encode(anyMap())).thenReturn(encodedMessage);
+    public void testCreateDatapointWithInvalidLatency() throws IOException
+    {
+        String[] invalidLatencies = {null, "", "invalid", "100.5", "  100  ", "9223372036854775808"};
+
+        for (String invalidLatency : invalidLatencies) {
+            QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
+                "test", 567890987L, "testspace", "token", invalidLatency, "test", "host-123", "TODO", new HashMap<>());
+
+            assertNotNull(datapoint);
+            if (invalidLatency == null || invalidLatency.isEmpty() || invalidLatency.equals("invalid") ||
+                invalidLatency.equals("100.5") || invalidLatency.equals("  100  ") || invalidLatency.equals("9223372036854775808")) {
+                assertEquals(Long.valueOf(0L), datapoint.getLatency());
+            }
+        }
+    }
+
+    public void testServiceInitialization() throws IOException
+    {
+        assertNotNull(QueryAnalyticsService.instance);
+        assertNotNull(queryAnalyticsService);
+
+        assertNotNull(queryAnalyticsService.config);
+
+        if (queryAnalyticsService.config.getProducer() != null && queryAnalyticsService.config.getProducer().class_name != null) {
+            assertNotNull("dataProducer should be created when producer config is provided", queryAnalyticsService.dataProducer);
+        } else {
+            assertNull("dataProducer should be null when no producer config is provided", queryAnalyticsService.dataProducer);
+        }
+    }
+
+    public void testServiceInitializationWithoutProducerConfig() throws IOException
+    {
+        QueryAnalyticsConfig mockConfigNoProducer = mock(QueryAnalyticsConfig.class);
+        when(mockConfigNoProducer.isQueryAnalyticsEnabled()).thenReturn(true);
+        when(mockConfigNoProducer.getLogsEnabled()).thenReturn(true);
+        when(mockConfigNoProducer.getProducer()).thenReturn(null);
+
+        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfigNoProducer);
+
+        QueryAnalyticsService newService = new QueryAnalyticsService();
+        newService.config = mockConfigNoProducer;
+
+        assertNull("dataProducer should be null when no producer configuration is provided", newService.dataProducer);
+    }
+
+    public void testProcessLatencyMetricWithNoProducer() throws IOException
+    {
+        // Test that the service gracefully handles requests when no producer is configured
+        QueryAnalyticsConfig mockConfigNoProducer = mock(QueryAnalyticsConfig.class);
+        when(mockConfigNoProducer.isQueryAnalyticsEnabled()).thenReturn(true);
+        when(mockConfigNoProducer.getLogsEnabled()).thenReturn(true);
+        when(mockConfigNoProducer.getProducer()).thenReturn(null);
+
+        // Set the config for this test
+        queryAnalyticsService.config = mockConfigNoProducer;
+        queryAnalyticsService.dataProducer = null; // Simulate no producer
+
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+
+        // This should not throw an exception even with no producer
+        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+
+        // Verify that no datapoint was produced (since there's no producer)
+        verify(mockDataProducer, never()).produceDatapoint(any());
+    }
+
+    public void testProcessLatencyMetricWithValidCommand() throws IOException
+    {
+
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
         queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
 
-        verify(mockConfig, times(1)).isQueryAnalyticsEnabled();
-        verify(mockHeatpipeEncoder, times(0)).encode(anyMap());
+        ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer, times(1)).produceDatapoint(datapointCaptor.capture());
+
+        QueryAnalyticsDatapoint capturedDatapoint = datapointCaptor.getValue();
+        assertNotNull(capturedDatapoint);
+    }
+
+
+    public void testCreateDataProducerWithInvalidClass() throws Exception
+    {
+        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("com.nonexistent.Class");
+        assertNull("Producer should be null when class doesn't exist", producer);
+    }
+
+    public void testCreateDataProducerWithIncompatibleClass() throws Exception
+    {
+
+        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("java.lang.String");
+        assertNull("Producer should be null when class doesn't implement interface", producer);
+    }
+
+    public void testCreateDataProducerWithValidClass() throws Exception
+    {
+
+        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer");
+        assertNotNull("Producer should be created for valid class", producer);
+        assertTrue("Producer should be instance of TestDataProducer", producer instanceof TestDataProducer);
+    }
+
+    public void testCreateDatapointWithAllNullInputs() throws IOException
+    {
+        QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
+            null, null, null, null, null, null, null, null, null);
+
+        assertNotNull(datapoint);
+
+        assertNull(datapoint.getTable());
+        assertNull(datapoint.getTimestamp());
+        assertNull(datapoint.getKeyspace());
+        assertNull(datapoint.getPartition());
+        assertNull(datapoint.getHost());
+        assertNull(datapoint.getDC());
+        assertEquals("TODO", datapoint.getCluster());
+        assertNull(datapoint.getInstance());
+        assertEquals(Long.valueOf(0L), datapoint.getLatency()); // Should default to 0L
+        assertNotNull(datapoint.getProperties()); // Should create empty map
     }
 
     @Override
     protected void tearDown() throws Exception
     {
         super.tearDown();
-        reset(mockReadCommand, mockSinglePartitionReadCommand);
+        reset(mockReadCommand, mockSinglePartitionReadCommand, mockDataProducer);
+    }
+
+    // Test implementation of QueryAnalyticsDataProducer for testing
+    public static class TestDataProducer implements QueryAnalyticsDataProducer
+    {
+        private final Map<String, String> options;
+
+        public TestDataProducer(Map<String, String> options)
+        {
+            this.options = options;
+        }
+
+        @Override
+        public void produceDatapoint(QueryAnalyticsDatapoint datapoint)
+        {
+            assertNotNull("Options should not be null", options);
+            assertEquals("cassandra-query-analytics", options.get("kafka_topic"));
+            assertEquals("true", options.get("enabled"));
+            assertEquals("true", options.get("logs_enabled"));
+        }
+
+        public Map<String, String> getOptions()
+        {
+            return options;
+        }
     }
 }

@@ -18,27 +18,33 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.cassandra.config.ParameterizedClass;
+
 public class QueryAnalyticsConfig
 {
     // enable/disable Query Analytics globally, overrides all other settings
     public final Boolean enabled;
 
-    // name of Kafka Topic where data will be sent
-    public final String kafka_topic;
+    // enable/disable query analytic data from appearing in logs
+    public Boolean logs_enabled;
 
-    // enable/disable query anaylytic data from appearing in logs
-    public final Boolean logs_enabled;
+    // producer configuration  
+    public ParameterizedClass producer;
 
     public QueryAnalyticsConfig()
     {
-        this(false, "hp-cstar-qan", false);
+        this(false, false, new ParameterizedClass("", Collections.emptyMap()));
     }
 
-    public QueryAnalyticsConfig(Boolean enabled, String kafkaTopic, Boolean logsEnabled)
+    public QueryAnalyticsConfig(Boolean enabled, Boolean logsEnabled, ParameterizedClass producer)
     {
         this.enabled = enabled;
-        this.kafka_topic = kafkaTopic;
         this.logs_enabled = logsEnabled;
+        this.producer = producer;
     }
 
     public Boolean isQueryAnalyticsEnabled()
@@ -46,13 +52,13 @@ public class QueryAnalyticsConfig
         return enabled;
     }
 
-    public String getKafkaTopic()
-    {
-        return kafka_topic;
-    }
-
     public Boolean getLogsEnabled()
     {
         return logs_enabled;
+    }
+
+    public ParameterizedClass getProducer()
+    {
+        return producer;
     }
 }
