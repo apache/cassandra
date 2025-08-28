@@ -235,7 +235,8 @@ public abstract class CassandraIndex implements Index
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              tm.name,
                                                              tm,
-                                                             baseCfs.getTracker().loadsstables);
+                                                             baseCfs.getTracker().loadsstables,
+                                                             true);
         indexedColumn = target.left;
     }
 

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.UserFunction;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UserType;
@@ -226,7 +227,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         schemaChangeNotifier.notifyPreChanges(new SchemaTransformation.SchemaTransformationResult(prev, this, ksDiff));
 
         ksDiff.dropped.forEach(metadata -> dropKeyspace(metadata, true));
-        ksDiff.created.forEach(metadata -> keyspaceInstances.put(metadata.name, new Keyspace(Schema.instance, metadata, loadSSTables)));
+        ksDiff.created.forEach(metadata -> keyspaceInstances.put(metadata.name, new Keyspace(Schema.instance, metadata, loadSSTables, DatabaseDescriptor.isClientOrToolInitialized())));
         ksDiff.altered.forEach(delta -> {
             boolean initialized = Keyspace.isInitialized();
 
@@ -281,6 +282,22 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             }
         });
         ksDiff.created.forEach(schemaChangeNotifier::notifyKeyspaceCreated);
+
+        ksDiff.created.forEach(ks -> {
+            if (ks.tables.size() == 0)
+                return;
+
+            boolean initialized = Keyspace.isInitialized();
+            Keyspace keyspace = initialized ? keyspaceInstances.get(ks.name) : null;
+
+            if (keyspace != null)
+            {
+                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                    for (IndexMetadata info : cfs.metadata().indexes)
+                        cfs.indexManager.addIndex(info, true);
+            }
+        });
+
         ksDiff.altered.forEach(delta -> {
             boolean initialized = Keyspace.isInitialized();
             Keyspace keyspace = initialized ? keyspaceInstances.get(delta.before.name) : null;
@@ -296,6 +313,13 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
                 // add tables and views
                 delta.tables.created.forEach(t -> SchemaDiagnostics.tableCreated(Schema.instance, t));
+
+                delta.tables.created.forEach(t -> {
+                    ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(t.name);
+                    for (IndexMetadata info : cfs.metadata().indexes)
+                        cfs.indexManager.addIndex(info, true);
+                });
+
                 delta.views.created.forEach(v -> SchemaDiagnostics.tableCreated(Schema.instance, v.metadata));
 
                 // update tables and views
@@ -369,13 +393,13 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
     private void createTable(Keyspace keyspace, TableMetadata table, boolean loadSSTables)
     {
         SchemaDiagnostics.tableCreating(Schema.instance, table);
-        keyspace.initCf(table, loadSSTables);
+        keyspace.initCf(table, loadSSTables, DatabaseDescriptor.isClientOrToolInitialized());
     }
 
     private void createView(Keyspace keyspace, ViewMetadata view)
     {
         SchemaDiagnostics.tableCreating(Schema.instance, view.metadata);
-        keyspace.initCf(view.metadata, true);
+        keyspace.initCf(view.metadata, true, DatabaseDescriptor.isClientOrToolInitialized());
     }
 
     private void alterTable(Keyspace keyspace, TableMetadata updated)

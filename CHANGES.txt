@@ -1,4 +1,5 @@
 5.1
+ * Make legacy index rebuilds safe on Gossip -> TCM upgrades (CASSANDRA-20887)
  * Implement nodetool history (CASSANDRA-20851)
  * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Expose Metric for Prepared Statement Cache Size (in bytes) (CASSANDRA-20864)
