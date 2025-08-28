@@ -255,10 +255,10 @@ public class Keyspace
 
     private Keyspace(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
-        this(schema,  schema.getKeyspaceMetadata(keyspaceName), loadSSTables);
+        this(schema,  schema.getKeyspaceMetadata(keyspaceName), loadSSTables, true);
     }
 
-    public Keyspace(SchemaProvider schema, KeyspaceMetadata metadata, boolean loadSSTables)
+    public Keyspace(SchemaProvider schema, KeyspaceMetadata metadata, boolean loadSSTables, boolean addIndexes)
     {
         this.schema = schema;
         this.name = metadata.name;
@@ -275,7 +275,7 @@ public class Keyspace
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            initCf(cfm, loadSSTables);
+            initCf(cfm, loadSSTables, addIndexes);
         }
 
         this.viewManager.reload(metadata);
@@ -367,7 +367,7 @@ public class Keyspace
     /**
      * adds a cf to internal structures, ends up creating disk files).
      */
-    public void initCf(TableMetadata metadata, boolean loadSSTables)
+    public void initCf(TableMetadata metadata, boolean loadSSTables, boolean addIndexes)
     {
         ColumnFamilyStore cfs = columnFamilyStores.get(metadata.id);
 
@@ -377,7 +377,7 @@ public class Keyspace
             // We don't worry about races here; startup is safe, and adding multiple idential CFs
             // simultaneously is a "don't do that" scenario.
             ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(metadata.id,
-                                                                      ColumnFamilyStore.createColumnFamilyStore(this, metadata, loadSSTables));
+                                                                      ColumnFamilyStore.createColumnFamilyStore(this, metadata, loadSSTables, addIndexes));
             // CFS mbean instantiation will error out before we hit this, but in case that changes...
             if (oldCfs != null)
                 throw new IllegalStateException("added multiple mappings for cf id " + metadata.id);
