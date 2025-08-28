@@ -1,4 +1,5 @@
 5.0.6
+ * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Sort SSTable TOC entries for determinism (CASSANDRA-20494)
 Merged from 4.0:
  * Update Jackson to 2.19.2 (CASSANDRA-20848)
