@@ -1375,6 +1375,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
     boolean getPaxosRepairRaceWait();
+
+    public void dropPreparedStatements(boolean memoryOnly);
+
     // Comma delimited list of "nodeId=dc:rack" or "endpoint=dc:rack"
     void alterTopology(String updates);
     /** Gets the names of all tables for the given keyspace */
