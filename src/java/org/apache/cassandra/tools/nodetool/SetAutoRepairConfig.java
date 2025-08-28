@@ -97,6 +97,9 @@ public class SetAutoRepairConfig extends AbstractCommand
             case "min_repair_task_duration":
                 probe.setAutoRepairMinRepairTaskDuration(paramVal);
                 return;
+            case "mixed_major_version_repair_enabled":
+                probe.setMixedMajorVersionRepairEnabled(Boolean.parseBoolean(paramVal));
+                return;
             default:
                 // proceed to options that require --repair-type option
                 break;
@@ -175,9 +178,6 @@ public class SetAutoRepairConfig extends AbstractCommand
                 break;
             case "repair_retry_backoff":
                 probe.setAutoRepairRetryBackoff(repairTypeStr, paramVal);
-                break;
-            case "mixed_major_version_repair_enabled":
-                probe.setMixedMajorVersionRepairEnabled(Boolean.parseBoolean(paramVal));
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);
