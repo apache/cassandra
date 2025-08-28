@@ -183,7 +183,8 @@ public class CustomCassandraIndex implements Index
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              cfm.name,
                                                              cfm.ref.get(),
-                                                             baseCfs.getTracker().loadsstables);
+                                                             baseCfs.getTracker().loadsstables,
+                                                             false);
         indexedColumn = target.left;
     }
 

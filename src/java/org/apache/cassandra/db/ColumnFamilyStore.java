@@ -478,6 +478,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                              boolean loadSSTables,
                              boolean registerBookeeping)
     {
+        this(keyspace, columnFamilyName, sstableIdGenerator, initMetadata, directories, loadSSTables, registerBookeeping, true);
+    }
+
+    @VisibleForTesting
+    public ColumnFamilyStore(Keyspace keyspace,
+                             String columnFamilyName,
+                             Supplier<? extends SSTableId> sstableIdGenerator,
+                             TableMetadata initMetadata,
+                             Directories directories,
+                             boolean loadSSTables,
+                             boolean registerBookeeping,
+                             boolean addIndexes)
+    {
         assert directories != null;
         assert initMetadata != null : "null metadata for " + keyspace + ':' + columnFamilyName;
 
@@ -528,9 +541,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         // create the private ColumnFamilyStores for the secondary column indexes
         indexManager = new SecondaryIndexManager(this);
-        for (IndexMetadata info : initMetadata.indexes)
+
+        if (addIndexes)
         {
-            indexManager.addIndex(info, true);
+            for (IndexMetadata info : initMetadata.indexes)
+                indexManager.addIndex(info, true);
         }
 
         // See CASSANDRA-16228. We need to ensure that metrics are exposed after the CFS is initialized,
@@ -744,18 +759,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
 
-    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, TableMetadata metadata, boolean loadSSTables)
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, TableMetadata metadata, boolean loadSSTables, boolean addIndexes)
     {
-        return createColumnFamilyStore(keyspace, metadata.name, metadata, loadSSTables);
+        return createColumnFamilyStore(keyspace, metadata.name, metadata, loadSSTables, addIndexes);
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
                                                             String columnFamily,
                                                             TableMetadata metadata,
-                                                            boolean loadSSTables)
+                                                            boolean loadSSTables,
+                                                            boolean addIndexes)
     {
         Directories directories = new Directories(metadata);
-        return createColumnFamilyStore(keyspace, columnFamily, metadata, directories, loadSSTables, true);
+        return createColumnFamilyStore(keyspace, columnFamily, metadata, directories, loadSSTables, true, addIndexes);
+    }
+
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
+                                                            String columnFamily,
+                                                            TableMetadata metadata,
+                                                            Directories directories,
+                                                            boolean loadSSTables,
+                                                            boolean registerBookkeeping)
+    {
+        return createColumnFamilyStore(keyspace, columnFamily, metadata, directories, loadSSTables, registerBookkeeping, true);
     }
 
     /** This is only directly used by offline tools */
@@ -764,11 +790,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                          TableMetadata metadata,
                                                                          Directories directories,
                                                                          boolean loadSSTables,
-                                                                         boolean registerBookkeeping)
+                                                                         boolean registerBookkeeping,
+                                                                         boolean addIndexes)
     {
         return new ColumnFamilyStore(keyspace, columnFamily,
                                      directories.getUIDGenerator(SSTableIdFactory.instance.defaultBuilder()),
-                                     metadata, directories, loadSSTables, registerBookkeeping);
+                                     metadata, directories, loadSSTables, registerBookkeeping, addIndexes);
     }
 
     /**
