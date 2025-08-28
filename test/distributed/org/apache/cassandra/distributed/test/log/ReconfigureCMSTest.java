@@ -308,6 +308,19 @@ public class ReconfigureCMSTest extends FuzzTestBase
         }
     }
 
+    @Test
+    public void testReconfigurePaxosRepairDisabled() throws IOException
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(c -> c.with(Feature.NETWORK)
+                                                          .set("paxos_repair_enabled", "false"))
+                                        .withoutVNodes()
+                                        .start())
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
+        }
+    }
+
     private PaxosRepairHistory paxosRepairHistory(IInvokableInstance instance)
     {
         Object[][] rows = instance.executeInternal("select points from system.paxos_repair_history " +
