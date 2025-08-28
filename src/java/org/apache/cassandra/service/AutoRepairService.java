@@ -102,7 +102,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
         appendConfig(sb, "repair_check_interval", config.getRepairCheckInterval());
         appendConfig(sb, "repair_task_min_duration", config.getRepairTaskMinDuration());
         appendConfig(sb, "history_clear_delete_hosts_buffer_interval", config.getAutoRepairHistoryClearDeleteHostsBufferInterval());
-        appendConfig(sb, "mixed", config.getMixedMajorVersionRepairEnabled());
+        appendConfig(sb, "mixed_major_version_repair_enabled", config.getMixedMajorVersionRepairEnabled());
         for (RepairType repairType : RepairType.values())
         {
             sb.append(formatRepairTypeConfig(repairType, config));
