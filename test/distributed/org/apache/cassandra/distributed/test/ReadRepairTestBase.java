@@ -126,6 +126,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
     @Test
     public void testBlockingReadRepairAccord() throws Throwable
     {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType(), "Accord not supported");
         testReadRepair(ReadRepairStrategy.BLOCKING, true);
     }
 

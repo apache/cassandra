@@ -141,8 +141,8 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
                 new Coordinator(readId, promise, command.columnFilter(), read, replicaPlan.consistencyLevel(), requestTime);
         coordinators.put(readId, coordinator);
 
+        // TODO (expected): reconsider the approach to tracked mutation metrics
         ReadRepairMetrics.trackedReconcile.mark();
-        ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
 
         // TODO (consider): is it possible to exit right here if this is the last missing summary, and we can tell that
         //                  no node needs anything from anyone?
