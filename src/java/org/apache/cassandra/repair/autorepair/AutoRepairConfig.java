@@ -373,6 +373,11 @@ public class AutoRepairConfig implements Serializable
         getOptions(repairType).repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
     }
 
+    public boolean getMixedMajorVersionRepairEnabled()
+    {
+        return this.mixed_major_version_repair_enabled;
+    }
+
     public void setMixedMajorVersionRepairEnabled(boolean enabled)
     {
         this.mixed_major_version_repair_enabled = enabled;
