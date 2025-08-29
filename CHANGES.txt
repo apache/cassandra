@@ -174,12 +174,11 @@ Merged from 3.0:
  * Fix Requires for Java for RPM package (CASSANDRA-18751)
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
-Unreleased
-4.1.3.32
+
+Uber specific changes:
+<begin>
  * Automated Repair Inside Cassandra [CEP-37] (CASSANDRA-19918)
-4.1.3.31
- * [SO-50809] Add dummy auto_repair column to table and views in system_schema 
-4.1.3.30
+ * [SO-50809] Add dummy auto_repair column to table and views in system_schema
  * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * [SO-50586] SystemPeersSyncValidator check for active endpoints in gossiper in system peers v2 table only
  * [SO-50486] Add initialized timestamp to the storage service mbean
@@ -188,7 +187,6 @@ Unreleased
  * [SO-50234] Removes all References of `audit_user_cache_enabled` from C* Code
  * [SO-50280] Flaky StreamingVirtualTableTest: ensure deterministic ordering when reading peers set
  * [SO-50025] Force shutdown should not shutdown any node that is not part of the ring
-4.1.3.29
  * [SO-49902] Skip paxos cleanup when possible in auto-repair scheduling
  * [SO-47869] GCInspector should log messages based on pause time only
  * [SO-49805] Add strict MV enforced flag so new MV can only be created with table with strict MV consistency enabled
@@ -199,7 +197,6 @@ Unreleased
  * [SO-48145] Make keysapce related metrics ops with async registration
  * [SO-47878] Make client related metrics registration async
  * [SO-47877] Introduce AbstractMetricManager to standardize metric managers behavior & fix AuthMetricsManager
-4.1.3.28
  * [SO-44851] [Part 5] Add the Ability to Start and Stop the Audit Users Cache via EnableAuditLog
  * [SO-46655] Alter table for strict_mv_consistency should invalidate parepared statements
  * [SO-44851] [Part 4] Respect audit_logging_options.role_filtering in AuditLogManager
@@ -216,7 +213,6 @@ Unreleased
  * [SO-44851] [Part 3] Wire AuditUsersCacheService into StorageService and expose JMX/CLI toggles
  * [SO-44851] [Part 2] Refactors the AuditUserCacheService to Improve Thread Safety and Backwards Compatibility
  * [SO-44851] [Part 1] Adds a New Audit Logging Config Option, role_filtering
-4.1.3.26
  * [SO-43081] Include StorageProxyMetrics in Paxos v2 path
  * [SO-44931] Paxos repair for Paxos V2 should be able to handle strict MV consistnecy use cases
  * [SO-44937] Transport queue timeout is not applied to Paxos v2 LWT (CASSANDRA-20691)
@@ -231,7 +227,6 @@ Unreleased
  * [SO-43685] Add a new bootstrap repair wrapper that manages the e2e flow
  * [SO-44025] Extend AuditLogger options to accept logger parameters
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
-4.1.3.25
  * [SO-44320] Monitor if PaxosPurger is able to read PaxosRepairHistory and purge Paxos records
  * [SO-43685] Skip advertising self inside RepairJob/RepairSession in case of bootstrap repair & Calculate the keyspace local ranges
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
@@ -248,7 +243,6 @@ Unreleased
  * [SO-44028] Add guardrail to disallow COUNTER types
  * Add guardrail to allow disabling of SimpleStrategy (CASSANDRA-17647)
  * [SO-41037] Add guardrail to disallow DROP KEYSPACE commands (CASSANDRA-17767)
-4.1.3.24
  * [SO-43685] A config to run repair for someone's token range
  * [SO-43611] Add table option for strict_mv_consistency to indicate if a base table of MV should use strict MV consistency
  * [SO-43724] Context propagation log use service name + tenancy as key for no spam logger to reduce log volume
@@ -257,19 +251,16 @@ Unreleased
  * [SO-41448] Metric to monitor slow memtable flushing
  * [SO-43523] Add metrics for base table mutations to check if a MV base table is qualified to migrate to LWT backed MV
  * [SO-43558] Add metric to measure new columns with counter type
-4.1.3.23
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
  * Use OpOrder in repairIterator to ensure we don't lose memtables mid-paxos repair (Cassandra-19668)
  * Refresh stale paxos commit (CASSANDRA-19617)
  * Fix Paxos repair interrupts running transactions (CASSANDRA-20469)
-4.1.3.22
  * Tighten up permissions on system keyspaces (CASSANDRA-20090)
  * Update RMI object marshalling restrictions (CASSANDRA-20076)
  * Tighten up permissions in dc authorizers (CASSANDRA-20225)
  * Update zstd-jni to 1.5.7-2 (CASSANDRA-20453)
  * [SO-40022] Metrics for shadowed rows scanned per read query
  * [SO-42307] Fix NPE in AutoRepairUtilsV2.myTurnToRunRepair when all nodes have start time > finish time
-4.1.3.21
  * [SO-41656] Extend the SampledQueryEventLogger to capture Auth Events
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
  * [SO-40995] Add metric to capture events when the Index Summary is not fully sampled
@@ -278,14 +269,12 @@ Unreleased
  * Reduce info logging from automatic paxos repair (CASSANDRA-19445)
  * [SO-40416] Guardrail: maximum_replication_factor
  * [SO-41542] Add metrics to DROP and TRUNCATE queries to monitor their usage
-4.1.3.20
  * [SO-40691] Implement additional metrics on repair failures
  * [SO-40802] Fix on BadQueriesInTable reporting on large partition
  * [SO-41010] Do not convert read/write failure exceptions to overloaded exceptions for resource rate limiter
  * [SO-40958] Reset bootstrap progress should only do truncation if there are live SSTables
  * [SO-40802] Fix LargePartition bad query type to get cfs by table metadata id
  * [SO-40690] Use LWTs for all auto_repair_history_v2 mutations
-4.1.3.19
  * [SO-40653] Support Dynamic Port Allocation for in-jvm dtest framework (CASSANDRA-18722) + Uber change to all JVM dtests by default enable dynamic port allocation
  * [SO-39688] Remove incorrect compaction strategy policy from bad query monitoring
  * [SO-40703] Add new JMX attribute in storaageservice mbean for unreachabletokenowners
@@ -293,14 +282,12 @@ Unreleased
  * [SO-34092] Convert system_distributed.parent_repair_history/repair_history to LCS
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)
-4.1.3.18
  * [SO-40218] Fix NPE when getautorepairconfig
  * [SO-40026] Enable the SampledQueryEventLogger on instance startup
  * [SO-40018] Refactor setvalueforconfig nodetool command to support more types with proper check
  * Fix "open RT bound as its last item" exception (CASSANDRA-17810)
  * [SO-39948] Shutdown message verb handler should ignore ealier generation messages
  * [SO-39024] Query Event Logger can be Enabled/Disabled via Nodetool Commands
-4.1.3.17
  * [SO-38465] Adds SampledQueryEventLogger to assist in debugging cassandra instances
  * [SO-39602] Auto repair subranges count should be relate to the number of tokens
  * [SO-39173] Fix race condition in AutoRepairState
@@ -311,12 +298,10 @@ Unreleased
  * [SO-38674] Fix BTree.FastBuilder.reset() and test (CASSANDRA-19785)
  * [SO-38164] Enforce minimum duration for repair jobs
  * [SO-36705] Configurable sstable size for LCS enforced tables
-4.1.3.16
  * [SO-37864] Add batch acquire permits for inbound stream support
  * [SO-36506] Implement preview repaired auto-repair type
  * [SO-36560] Fix secondary index build causing deadlock on memtable flush (CASSANDRA-19564)
  * [SO-36843] Modify BadQuery class to report Tier Mismatch
-4.1.3.15
  * [SO-37329] Truncate all data if reset bootstrap progress is set to true
  * Disable resumable bootstrap by default (CASSANDRA-17679)
  * [SO-36731] add a nodetool command to get natural endpoints for all token ranges
@@ -330,14 +315,12 @@ Unreleased
  * [SO-36627] Gossip settled without reaching minimum node count should wait longer time before throw exception
  * [SO-36319] Implement compaction_ignore_disk_check flag
  * [SO-31659] Upgrade the JFX-debug-thin to support ARM
-4.1.3.14
  * [SO-35591] Change the context propagation log to NoSpamLogger and change log level to debug for closing client connection timeout
  * [SO-35591] Add client side session metric
  * [SO-35831] Fixing gossip too busy on new node causing partial gossip data on existing node
  * [SO-35112] Reduce log noise coming from repair
  * [SO-29062] Deprecate v1 auto-repair framework
  * [SO-35644] Make sstablepartitions scan to ignore system keyspace folders
-4.1.3.13
  * [SO-34666] Add error handlings to sstablepartitions to avoid crashes due to SSTable deletion
  * [SO-33153] Supply the expiry time for BATCH and COUNTER verbs
  * [SO-28713] Add observability for available disk check
@@ -353,7 +336,6 @@ Unreleased
  * [SO-34935] Add nodetool command to force bump up gossip generation
  * [SO-34890] Add the DurationSpec type support in the setvalueforconfig nodetool
  * [SO-34888] Include jvm dtests in sonarqube code coverage
-4.1.3.12
  * [SO-34668] Register applySchemaChangesForCompactionParams as a nodetool
  * [SO-34068] Assign a separate queue for Hints which is different from Mutation queue
  * [SO-34354] InJvm dtest to verify AutoRepair scheduler basic functionality
@@ -363,7 +345,6 @@ Unreleased
  * [SO-34146] nodetool rebuild should have option to truncate range table
  * [SO-31012] Allow IR to run with MVs and CDC if write path replay is disabled
  * [SO-33960] Inject artificial latency in the read path for testing purposes
-4.1.3.11
  * [SO-33748] Add kill switch, metrics and fix bounded queue leftovers
  * [SO-33559] Extend nodetool sstablerepairedset to affect all keyspaces when no keyspace is provided in args
  * [SO-33260] Implement repair retries for auto-repair scheduler
@@ -389,7 +370,6 @@ Unreleased
  * [SO-32855] Update SLI for early termination of requests at the transport layer
  * [SO-32855] Generalize the internal queue cleanup tooling to handle various internal queues
  * [SO-33082] Remove coded exceptions out of OtherExceptions
-4.1.3.10
  * [SO-32855] Semi-automate transport queue cleanup operation
  * UnsupportedOperationException when reducing scope for LCS compactions (CASSANDRA-19704)
  * [SO-32775] Nodetool to switch local compaction strategy for compaction strategy migration
@@ -404,15 +384,12 @@ Unreleased
  * Streaming exception race creates corrupt transaction log files that prevent restart (CASSANDRA-18736)
  * [SO-31592] fix a NPE in InternodeOutboundMetrics
  * [SO-31135] Fix NPE in RepairRunnable.fail
-4.1.3.9
  * [SO-31238] Feature to switch cache type for prepared statements on the fly
  * [SO-31175] Feature to use cache with limited number of entries for prepared statements
  * [SO-26591] Create a new anti-pattern query PREPARED_CACHE_OVERFLOW
  * [SO-31073] Feature to disable persisting prepared statements into table
  * [SO-30490] Disable mutation replay during repair for MV base tables and introduce requires_cdc_replay JVM option
-4.1.3.8
  * [SO-31011] Register sstablerepairedset nodetool command
-4.1.3.7
  * [SO-30918] Upgrade caffeine to 3.1.8
  * [SO-30900] Implement disk headroom safeguard for incremental repair
  * [SO-30882] Add the logging for the client context data in Cassandra server
@@ -421,12 +398,9 @@ Unreleased
  * Add nodetool forcecompact to remove tombstoned or ttl'd data ignoring GC grace for given table and partition keys (CASSANDRA-17711)
  * [SO-30252] Override local compaction strategy at startup when needed
  * [SO-30220] Config for local compaction strategy override
-4.1.3.6
  * [SO-30249] Fix NPEs in AutoRepairConfig setters
  * [SO-30227] Make v2 auto-repair scheduler wait for repair session to finish before scheuduling new repair
-4.1.3.5
  * [SO-29936] Enable MV repair by default for v2 auto-repair framework
-4.1.3.4
  * Concurrent equivalent schema updates lead to unresolved disagreement (CASSANDRA-19578)
  * [SO-29725] Fix a bug in nodetool setauthenforcementflag
  * [SO-29900] GOSSIP_SHUTDOWN message fix for simulator dtest
@@ -434,12 +408,10 @@ Unreleased
  * [SO-29738] Make enabled and repair_check_interval_in_sec fields in AutoRepairConfig immutable
  * [SO-29733] Fix a flaky unit test for RateLimiter in 4.1 (2nd attempt)
  * [SO-25730] Make the outbound streaming scheduling fairness Semaphore configurable
-4.1.3.3
  * [SO-29770] Merge v2 auto-repair into 4.1
  * [SO-29733] Fix a flaky unit test for RateLimiter in 4.1
  * [SO-29703] Fix SimulatedSnitch to re-enable simulator dtest
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
-4.1.3.2
  * [SO-29555] Fix "Fix schema mismatch issue in migration" ported from 3.0
  * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Remove completed coordinator sessions (CASSANDRA-18903)
@@ -451,7 +423,6 @@ Unreleased
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * [SO-28906] ignore out of range numbers returned by CPU collection calls
  * [SO-28512] Default enable full repair for MVs
-4.1.3.1
  * [SO-28871] Update default rate limiter config
  * [SO-27705] Fix flakkiness of an existing test caused by rate limiter changes
  * [SO-28084] Log availableProcessors every 10 minutes
@@ -501,16 +472,12 @@ Unreleased
  * [SO-28187] Add ability to force shutdown a node from a remote node
  * [SO-27906] Add compression chunk size info in sstablemetadata tool
  * [SO-27418] coordinatorReadRowCount as hitogram table metric to replace resultSetSize
-4.1.3.0
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Fix closing iterator in SecondaryIndexBuilder (CASSANDRA-18361)
  * Skip version check if an endpoint is dead state in Gossiper#upgradeFromVersionSupplier (CASSANDRA-19187)
  * Add MaxSSTableSize and MaxSSTableDuration metrics and propagate them together with local read/write ratio to tablestats (CASSANDRA-18283)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
  * CEP-10: Simulator Java11 Support (CASSANDRA-17178)
-
-Uber specific changes:
-<begin>
  * [SO-27073] Audit logging should honor percentage for failure and other actions as well
  * [SO-27071] Log all exceptions with no spam logger
  * [SO-27046] No need to evict the statements as it creates race condition between multiple threads
@@ -547,9 +514,6 @@ Uber specific changes:
  * [SO-20918] Add coordinator metrics and consistency level metrics with keyspace
  * [SO-20813] Set cassandra-driver-core as not optional since cassandra-stress need it
  * [SO-20343] audit_users table should be created by default
-
-Uber specific changes:
-<begin>
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * [SO-19793] Correct the invalid usernames for m3 metrics
  * [SO-19594] Add Cassandra version validate before building
