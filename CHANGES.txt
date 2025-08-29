@@ -1,4 +1,5 @@
 5.1
+ * Support ZSTD dictionary compression (CASSANDRA-17021)
  * Fix ExceptionsTable when stacktrace has zero elements (CASSANDRA-20992)
  * Replace blocking wait with non-blocking delay in paxos repair (CASSANDRA-20983)
  * Implementation of CEP-55 - Generation of role names (CASSANDRA-20897)

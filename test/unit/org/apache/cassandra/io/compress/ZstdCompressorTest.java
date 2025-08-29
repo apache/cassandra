@@ -36,7 +36,7 @@ public class ZstdCompressorTest
     public void emptyConfigurationUsesDefaultCompressionLevel()
     {
         ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
-        assertEquals(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL, compressor.getCompressionLevel());
+        assertEquals(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL, compressor.compressionLevel());
     }
 
     @Test(expected = IllegalArgumentException.class)
