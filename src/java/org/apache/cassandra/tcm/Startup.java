@@ -18,8 +18,10 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.BootStrapper;
@@ -49,8 +52,11 @@ import org.apache.cassandra.gms.NewGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -69,6 +75,7 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
@@ -254,12 +261,26 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         Election.instance.migrated();
     }
 
+    private static void updateSystemSchemaTables(Set<String> knownDatacenters)
+    {
+        List<Pair<KeyspaceMetadata, Long>> kss = DistributedSchema.distributedKeyspacesWithGeneration(knownDatacenters);
+        List<Mutation> mutations = new ArrayList<>();
+        for (Pair<KeyspaceMetadata, Long> ksm : kss)
+        {
+            Keyspaces.KeyspacesDiff ksDiff = Keyspaces.diff(Keyspaces.none(), Keyspaces.of(ksm.left));
+            mutations.addAll(SchemaKeyspace.convertSchemaDiffToMutations(ksDiff, ksm.right));
+        }
+        SchemaKeyspace.applyChanges(mutations);
+    }
+
     /**
      * This should only be called during startup.
      */
     public static void initializeFromGossip(Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws StartupException
     {
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(SystemKeyspace.allKnownDatacenters());
+        Set<String> knownDcs = SystemKeyspace.allKnownDatacenters();
+        updateSystemSchemaTables(knownDcs);
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(knownDcs);
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
                                            .afterReplay(Startup::scrubDataDirectories,
