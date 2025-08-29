@@ -322,7 +322,7 @@ public class SSTableMetadataViewer
         CompactionMetadata compaction = statsComponent.compactionMetadata();
         SerializationHeader.Component header = statsComponent.serializationHeader();
         Class<? extends ICompressor> compressorClass = null;
-        try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
+        try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor, null))
         {
             compressorClass = compression != null ? compression.compressor().getClass() : null;
         }

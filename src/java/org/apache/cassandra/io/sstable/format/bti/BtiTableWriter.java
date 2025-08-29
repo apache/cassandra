@@ -334,7 +334,8 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
                                              getIOOptions().writerOptions,
                                              getMetadataCollector(),
                                              ensuringInBuildInternalContext(operationType),
-                                             getIOOptions().flushCompression);
+                                             getIOOptions().flushCompression,
+                                             getCompressionDictionaryManager());
         }
 
         @Override

@@ -23,7 +23,9 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -38,6 +40,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Throwables;
@@ -68,8 +71,15 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
     {
         checkNotNull(statsMetadata);
 
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableMetadataRef.id);
+        CompressionDictionaryManager compressionDictionaryManager = null;
+        if (cfs != null)
+        {
+            compressionDictionaryManager = cfs.compressionDictionaryManager();
+        }
+
         try (PartitionIndex index = PartitionIndex.load(partitionIndexFileBuilder(), tableMetadataRef.getLocal().partitioner, false);
-             CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components);
+             CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, compressionDictionaryManager);
              FileHandle dFile = dataFileBuilder(statsMetadata).withCompressionMetadata(compressionMetadata)
                                                               .withCrcCheckChance(() -> tableMetadataRef.getLocal().params.crcCheckChance)
                                                               .complete();
@@ -131,7 +141,7 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
                 }
             }
 
-            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components))
+            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, owner == null ? null : owner.compressionDictionaryManager()))
             {
                 builder.setDataFile(dataFileBuilder(builder.getStatsMetadata())
                                     .withCompressionMetadata(compressionMetadata)

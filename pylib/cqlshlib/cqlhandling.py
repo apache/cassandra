@@ -44,6 +44,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         'SnappyCompressor',
         'LZ4Compressor',
         'ZstdCompressor',
+        'ZstdDictionaryCompressor'
     )
 
     available_compaction_classes = (

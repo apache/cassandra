@@ -49,6 +49,8 @@ these areas (A is relatively good, F is relatively bad):
 
 |https://facebook.github.io/zstd/[Zstd] |`ZstdCompressor` | A- | A- | A+ | `>= 4.0`
 
+|https://facebook.github.io/zstd/[Zstd with Dictionary] |`ZstdDictionaryCompressor` | A- | A- | A++ | `>= 6.0`
+
 |http://google.github.io/snappy/[Snappy] |`SnappyCompressor` | A- | A | C | `>= 1.0`
 
 |https://zlib.net[Deflate (zlib)] |`DeflateCompressor` | C | C | A | `>= 1.0`
@@ -60,12 +62,111 @@ cycle spent. This is why it is the default choice in Cassandra.
 
 For storage critical applications (disk footprint), however, `Zstd` may
 be a better choice as it can get significant additional ratio to `LZ4`.
+For workloads with highly repetitive or similar data patterns,
+`ZstdDictionaryCompressor` can achieve even better compression ratios by
+training a compression dictionary on representative data samples.
 
 `Snappy` is kept for backwards compatibility and `LZ4` will typically be
 preferable.
 
 `Deflate` is kept for backwards compatibility and `Zstd` will typically
 be preferable.
+
+== ZSTD Dictionary Compression
+
+The `ZstdDictionaryCompressor` extends standard ZSTD compression by using
+trained compression dictionaries to achieve superior compression ratios,
+particularly for workloads with repetitive or similar data patterns.
+
+=== How Dictionary Compression Works
+
+Dictionary compression improves upon standard compression by training a
+compression dictionary on representative samples of your data. This
+dictionary captures common patterns, repeated strings, and data structures,
+allowing the compressor to reference these patterns more efficiently than
+discovering them independently in each compression chunk.
+
+=== When to Use Dictionary Compression
+
+Dictionary compression is most effective for:
+
+* *Tables with similar row structures*: JSON documents, XML data, or
+repeated data schemas benefit significantly from dictionary compression.
+* *Storage-critical workloads*: When disk space savings justify the
+additional operational overhead of dictionary training and management.
+* *Large datasets with repetitive patterns*: The more similar your data,
+the better the compression ratio improvement.
+
+Dictionary compression may not be ideal for:
+
+* *Highly random or unique data*: Already-compressed data or cryptographic
+data will see minimal benefit.
+* *Small tables*: The overhead of dictionary management may outweigh the
+storage savings.
+* *Frequently changing schemas*: Schema changes may require retraining
+dictionaries to maintain optimal compression ratios.
+
+=== Dictionary Training
+
+Before dictionary compression can provide optimal results, a compression
+dictionary must be trained on representative data samples. Cassandra
+supports both manual and automatic training approaches.
+
+==== Manual Dictionary Training
+
+Use the `nodetool compressiondictionary train` command to manually train
+a compression dictionary:
+
+[source,bash]
+----
+nodetool compressiondictionary train <keyspace> <table>
+----
+
+The command trains a dictionary by sampling from existing SSTables. If no
+SSTables are available on disk (e.g., all data is in memtables), the command
+will automatically flush the memtable before sampling.
+
+The training process completes synchronously and displays progress information
+including sample count, sample size, and elapsed time. Training typically
+completes within minutes for most workloads.
+
+By default, training will only proceed if enough samples have been collected.
+To force training even with insufficient samples, use the `--force` or `-f` option:
+
+[source,bash]
+----
+nodetool compressiondictionary train --force <keyspace> <table>
+----
+
+This can be useful for testing or when you want to train a dictionary from
+limited data during initial setup.
+
+==== Automatic Dictionary Training
+
+Enable automatic training in `cassandra.yaml`:
+
+[source,yaml]
+----
+compression_dictionary_training_auto_train_enabled: true
+compression_dictionary_training_sampling_rate: 100  # 1% of writes
+----
+
+When enabled, Cassandra automatically samples write operations and
+trains dictionaries in the background based on the configured sampling
+rate (range: 1-10000, where 100 = 1% of writes).
+
+=== Dictionary Storage and Distribution
+
+Compression dictionaries are stored cluster-wide in the
+`system_distributed.compression_dictionaries` table. Each table can
+maintain multiple dictionary versions: the current dictionary for
+compressing new SSTables, plus historical dictionaries needed for
+reading older SSTables.
+
+Dictionaries are identified by `dict_id`, with higher IDs representing
+newer dictionaries. Cassandra automatically refreshes dictionaries
+across the cluster based on configured intervals, and caches them
+locally to minimize lookup overhead.
 
 == Configuring Compression
 
@@ -105,6 +206,17 @@ should be used with caution, as they require more memory. The default of
 `3` is a good choice for competing with `Deflate` ratios and `1` is a
 good choice for competing with `LZ4`.
 
+The `ZstdDictionaryCompressor` supports the same options as
+`ZstdCompressor`:
+
+* `compression_level` (default `3`): Same range and behavior as
+`ZstdCompressor`. Dictionary compression provides improved ratios at
+any compression level compared to standard ZSTD.
+
+NOTE: `ZstdDictionaryCompressor` requires a trained compression
+dictionary to achieve optimal results. See the ZSTD Dictionary
+Compression section above for training instructions.
+
 Users can set compression using the following syntax:
 
 [source,cql]
@@ -119,6 +231,25 @@ Or
 ----
 ALTER TABLE keyspace.table
    WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 64};
+----
+
+For dictionary compression:
+
+[source,cql]
+----
+CREATE TABLE keyspace.table (id int PRIMARY KEY)
+   WITH compression = {'class': 'ZstdDictionaryCompressor'};
+----
+
+Or with a specific compression level:
+
+[source,cql]
+----
+ALTER TABLE keyspace.table
+   WITH compression = {
+       'class': 'ZstdDictionaryCompressor',
+       'compression_level': '3'
+   };
 ----
 
 Once enabled, compression can be disabled with `ALTER TABLE` setting
@@ -139,6 +270,63 @@ compacted - if an operator needs compression changes to take effect
 immediately, the operator can trigger an SSTable rewrite using
 `nodetool scrub` or `nodetool upgradesstables -a`, both of which will
 rebuild the SSTables on disk, re-compressing the data in the process.
+
+== Dictionary Compression Configuration
+
+When using `ZstdDictionaryCompressor`, several additional configuration
+options are available in `cassandra.yaml` to control dictionary
+management, caching, and training behavior.
+
+=== Dictionary Refresh Settings
+
+* `compression_dictionary_refresh_interval` (default: `3600`): How often
+(in seconds) to check for and refresh compression dictionaries
+cluster-wide. Newly trained dictionaries will be picked up by all nodes
+within this interval.
+* `compression_dictionary_refresh_initial_delay` (default: `10`): Initial
+delay (in seconds) before the first dictionary refresh check after node
+startup.
+
+=== Dictionary Caching
+
+* `compression_dictionary_cache_size` (default: `10`): Maximum number of
+compression dictionaries to cache per table. Higher values reduce lookup
+overhead but increase memory usage.
+* `compression_dictionary_cache_expire` (default: `3600`): Dictionary
+cache entry TTL in seconds. Expired entries are evicted and reloaded on
+next access.
+
+=== Training Configuration
+
+* `compression_dictionary_training_max_dictionary_size` (default: `65536`):
+Maximum size of trained dictionaries in bytes. Larger dictionaries can
+capture more patterns but increase memory overhead.
+* `compression_dictionary_training_max_total_sample_size` (default:
+`10485760`): Maximum total size of sample data to collect for training,
+approximately 10MB.
+* `compression_dictionary_training_auto_train_enabled` (default: `false`):
+Enable automatic background dictionary training. When enabled, Cassandra
+samples writes and trains dictionaries automatically.
+* `compression_dictionary_training_sampling_rate` (default: `100`):
+Sampling rate for automatic training, range 1-10000 where 100 = 1% of
+writes. Lower values reduce training overhead but may miss data patterns.
+
+Example configuration:
+
+[source,yaml]
+----
+# Dictionary refresh and caching
+compression_dictionary_refresh_interval: 3600
+compression_dictionary_refresh_initial_delay: 10
+compression_dictionary_cache_size: 10
+compression_dictionary_cache_expire: 3600
+
+# Automatic training
+compression_dictionary_training_auto_train_enabled: false
+compression_dictionary_training_sampling_rate: 100
+compression_dictionary_training_max_dictionary_size: 65536
+compression_dictionary_training_max_total_sample_size: 10485760
+----
 
 == Other options
 
@@ -185,6 +373,39 @@ correctness of data on disk, compressed tables allow the user to set
 `crc_check_chance` (a float from 0.0 to 1.0) to allow Cassandra to
 probabilistically validate chunks on read to verify bits on disk are not
 corrupt.
+
+=== Dictionary Compression Operational Considerations
+
+When using `ZstdDictionaryCompressor`, additional operational factors
+apply:
+
+* *Dictionary Storage*: Compression dictionaries are stored in the
+`system_distributed.compression_dictionaries` table and replicated
+cluster-wide. Each table maintains current and historical dictionary
+versions.
+* *Dictionary Cache Memory*: Dictionaries are cached locally on each node
+according to `compression_dictionary_cache_size`. Memory overhead is
+typically minimal (default 64KB per dictionary × cache size).
+* *Dictionary Training Overhead*: Manual training via
+`nodetool compressiondictionary train` samples SSTable chunk data and
+performs CPU-intensive dictionary training. Consider running training
+during off-peak hours.
+* *Automatic Training Impact*: When
+`compression_dictionary_training_auto_train_enabled` is true, write
+operations are sampled based on `compression_dictionary_training_sampling_rate`.
+This adds minimal overhead but should be monitored in write-intensive
+workloads.
+* *Dictionary Refresh*: The dictionary refresh process
+(`compression_dictionary_refresh_interval`) checks for new dictionaries
+cluster-wide. The default 1-hour interval balances freshness with
+overhead.
+* *SSTable Compatibility*: Each SSTable is compressed with a specific
+dictionary version. Historical dictionaries must be retained to read
+older SSTables until they are compacted with new dictionaries.
+* *Schema Changes*: Significant schema changes or data pattern shifts may
+require retraining dictionaries to maintain optimal compression ratios.
+Monitor the `SSTable Compression Ratio` via `nodetool tablestats` to
+detect degradation.
 
 == Advanced Use
 

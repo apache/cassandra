@@ -118,6 +118,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                          .setSerializationHeader(header)
                          .addDefaultComponents(indexGroups)
                          .setSecondaryIndexGroups(indexGroups)
+                         .setCompressionDictionaryManager(cfs.compressionDictionaryManager())
                          .build(txn, cfs);
     }
 

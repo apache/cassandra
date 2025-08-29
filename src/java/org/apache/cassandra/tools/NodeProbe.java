@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+import javax.management.InstanceNotFoundException;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -88,10 +89,12 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
+import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
+import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -2681,6 +2684,68 @@ public class NodeProbe implements AutoCloseable
     public void setMixedMajorVersionRepairEnabled(boolean enabled)
     {
         autoRepairProxy.setMixedMajorVersionRepairEnabled(enabled);
+    }
+
+    /**
+     * Triggers compression dictionary training for the specified table.
+     * Samples chunks from existing SSTables and trains a dictionary.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param force force the dictionary training even if there are not enough samples
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
+    {
+        CompressionDictionaryManagerMBean proxy = getDictionaryManagerProxy(keyspace, table);
+        try
+        {
+            proxy.train(force);
+        }
+        catch (Exception e)
+        {
+            if (e.getCause() instanceof InstanceNotFoundException)
+            {
+                String message = String.format("Table %s.%s does not exist or does not support dictionary compression",
+                                               keyspace, table);
+                throw new IOException(message);
+            }
+            else
+            {
+                throw new IOException(e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Gets the compression dictionary training state for the specified table.
+     * Returns an atomic snapshot of training status, progress, and failure details.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the current training state
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public TrainingState getCompressionDictionaryTrainingState(String keyspace, String table) throws IOException
+    {
+        CompositeData compositeData = getDictionaryManagerProxy(keyspace, table).getTrainingState();
+        return TrainingState.fromCompositeData(compositeData);
+    }
+
+    private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
+    {
+        // Construct table-specific MBean name
+        String mbeanName = CompressionDictionaryManagerMBean.MBEAN_NAME + ",keyspace=" + keyspace + ",table=" + table;
+        try
+        {
+            ObjectName objectName = new ObjectName(mbeanName);
+            return JMX.newMBeanProxy(mbeanServerConn, objectName, CompressionDictionaryManagerMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new IOException("Invalid keyspace or table name", e);
+        }
     }
 }
 
