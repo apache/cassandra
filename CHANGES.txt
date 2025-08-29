@@ -1,4 +1,5 @@
 5.1
+ * Update system schema tables with new distributed keyspace on upgrade (CASSANDRA-20872)
  * Fix issue when running cms reconfiguration with paxos repair disabled (CASSANDRA-20869)
  * Added additional parameter to JVM shutdown to allow for logs to be properly shutdown (CASSANDRA-20978)
  * Improve isGossipOnlyMember and location lookup performance (CASSANDRA-21039)
