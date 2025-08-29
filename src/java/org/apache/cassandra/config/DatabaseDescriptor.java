@@ -4361,6 +4361,51 @@ public class DatabaseDescriptor
         conf.counter_cache_keys_to_save = counterCacheKeysToSave;
     }
 
+    public static int getCompressionDictionaryRefreshIntervalSeconds()
+    {
+        return conf.compression_dictionary_refresh_interval.toSeconds();
+    }
+
+    public static int getCompressionDictionaryRefreshInitialDelaySeconds()
+    {
+        return conf.compression_dictionary_refresh_initial_delay.toSeconds();
+    }
+
+    public static int getCompressionDictionaryCacheSize()
+    {
+        return conf.compression_dictionary_cache_size;
+    }
+
+    public static int getCompressionDictionaryCacheExpireSeconds()
+    {
+        return conf.compression_dictionary_cache_expire.toSeconds();
+    }
+
+    public static int getCompressionDictionaryTrainingMaxDictionarySize()
+    {
+        return conf.compression_dictionary_training_max_dictionary_size;
+    }
+
+    public static int getCompressionDictionaryTrainingMaxTotalSampleSize()
+    {
+        return conf.compression_dictionary_training_max_total_sample_size;
+    }
+
+    public static boolean getCompressionDictionaryTrainingAutoTrainEnabled()
+    {
+        return conf.compression_dictionary_training_auto_train_enabled;
+    }
+
+    public static int getCompressionDictionaryTrainingManualSamplingDurationSeconds()
+    {
+        return conf.compression_dictionary_training_manual_sampling_duration.toSeconds();
+    }
+
+    public static int getCompressionDictionaryTrainingSamplingRate()
+    {
+        return conf.compression_dictionary_training_sampling_rate;
+    }
+
     public static int getStreamingKeepAlivePeriod()
     {
         return conf.streaming_keep_alive_period.toSeconds();

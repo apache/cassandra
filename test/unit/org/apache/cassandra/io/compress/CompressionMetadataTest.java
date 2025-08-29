@@ -42,7 +42,8 @@ public class CompressionMetadataTest
                                        memory,
                                        memory.size(),
                                        dataLength,
-                                       compressedFileLength);
+                                       compressedFileLength,
+                                       null);
     }
 
     @Test

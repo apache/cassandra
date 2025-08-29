@@ -1796,6 +1796,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setSerializationHeader(sstable.header)
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
                          .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
+                         .setCompressionDictionaryManager(cfs.compressionDictionaryManager())
                          .build(txn, cfs);
     }
 
@@ -1836,6 +1837,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
                          .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
+                         .setCompressionDictionaryManager(cfs.compressionDictionaryManager())
                          .build(txn, cfs);
     }
 

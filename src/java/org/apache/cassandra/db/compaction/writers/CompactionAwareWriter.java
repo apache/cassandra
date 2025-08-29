@@ -329,6 +329,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
                          .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
-                         .addDefaultComponents(cfs.indexManager.listIndexGroups());
+                         .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                         .setCompressionDictionaryManager(cfs.compressionDictionaryManager());
     }
 }

@@ -666,6 +666,13 @@ public class ToolRunner
                 return this;
             }
 
+            public AssertHelp stdoutContains(String message)
+            {
+                assertThat(message).hasSizeGreaterThan(0);
+                assertThat(stdout).isNotNull().contains(message);
+                return this;
+            }
+
             private void fail(String msg)
             {
                 StringBuilder sb = new StringBuilder();

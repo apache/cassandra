@@ -83,6 +83,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
@@ -320,6 +321,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final TopPartitionTracker topPartitions;
 
     private final SSTableImporter sstableImporter;
+    private final CompressionDictionaryManager compressionDictionaryManager;
 
     private volatile boolean compactionSpaceCheck = true;
 
@@ -390,6 +392,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 cfs.crcCheckChance = new DefaultValue<>(tableMetadata.params.crcCheckChance);
 
         compactionStrategyManager.maybeReloadParamsFromSchema(tableMetadata.params.compaction);
+        compressionDictionaryManager.maybeReloadFromSchema(tableMetadata.params.compression);
 
         indexManager.reload(tableMetadata);
 
@@ -576,6 +579,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
+        compressionDictionaryManager = new CompressionDictionaryManager(this);
 
         if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
@@ -3418,6 +3422,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public TableMetrics getMetrics()
     {
         return metric;
+    }
+
+    @Override
+    public CompressionDictionaryManager compressionDictionaryManager()
+    {
+        return compressionDictionaryManager;
     }
 
     public TableId getTableId()

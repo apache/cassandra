@@ -36,6 +36,13 @@ public enum StorageCompatibilityMode
     CASSANDRA_4(4),
 
     /**
+     * Similar to CASSANDRA_4.
+     * The new features in 6.0 are
+     * - ZSTD dictioanry-based compression. Once SSTables are compressed with dictioanry, they cannot be rolled back.
+     */
+    CASSANDRA_5(5),
+
+    /**
      * Use the storage formats of the current version, but disabling features that are not compatible with any
      * not-upgraded nodes in the cluster. Use this during rolling upgrades to a new major Cassandra version. Once all
      * nodes have been upgraded, you can set the compatibility to {@link #NONE}.

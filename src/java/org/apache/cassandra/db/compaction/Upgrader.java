@@ -85,6 +85,7 @@ public class Upgrader
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
                          .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
+                         .setCompressionDictionaryManager(cfs.compressionDictionaryManager())
                          .build(transaction, cfs);
     }
 

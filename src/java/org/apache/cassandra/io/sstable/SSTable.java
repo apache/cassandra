@@ -43,6 +43,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
@@ -369,6 +370,8 @@ public abstract class SSTable
         OpOrder.Barrier newReadOrderingBarrier();
 
         TableMetrics getMetrics();
+
+        CompressionDictionaryManager compressionDictionaryManager();
     }
 
     /**

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -137,7 +138,8 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
                 }
             }
 
-            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components))
+            CompressionDictionaryManager compressionDictionaryManager = owner == null ? null : owner.compressionDictionaryManager();
+            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, compressionDictionaryManager))
             {
                 builder.setDataFile(dataFileBuilder(builder.getStatsMetadata())
                                     .withCompressionMetadata(compressionMetadata)

@@ -207,6 +207,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          TableStats.class,
                          TopPartitions.class,
                          TpStats.class,
+                         TrainCompressionDictionary.class,
                          TruncateHints.class,
                          UpdateCIDRGroup.class,
                          UpgradeSSTable.class,

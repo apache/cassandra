@@ -27,11 +27,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.compression.CompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -50,6 +54,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 
+import static org.apache.cassandra.db.compression.CompressionDictionary.Kind.ZSTD;
+
 /**
  * Holds metadata about compressed file
  * TODO extract interface ICompressionMetadata which will just provide non-resource properties
@@ -65,13 +71,28 @@ public class CompressionMetadata extends WrappedSharedCloseable
     private final long chunkOffsetsSize;
     public final File chunksIndexFile;
     public final CompressionParams parameters;
+    @Nullable // null when no dictionary
+    private final CompressionDictionary compressionDictionary;
+    private volatile ICompressor resolvedCompressor;
 
     @VisibleForTesting
-    public static CompressionMetadata open(File chunksIndexFile, long compressedLength, boolean hasMaxCompressedSize)
+    public static CompressionMetadata open(File chunksIndexFile,
+                                           long compressedLength,
+                                           boolean hasMaxCompressedSize)
+    {
+        return open(chunksIndexFile, compressedLength, hasMaxCompressedSize, null);
+    }
+
+    @VisibleForTesting
+    public static CompressionMetadata open(File chunksIndexFile,
+                                           long compressedLength,
+                                           boolean hasMaxCompressedSize,
+                                           @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
         CompressionParams parameters;
         long dataLength;
         Memory chunkOffsets;
+        CompressionDictionary compressionDictionary;
 
         try (FileInputStreamPlus stream = chunksIndexFile.newInputStream())
         {
@@ -99,6 +120,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
 
             dataLength = stream.readLong();
             chunkOffsets = readChunkOffsets(stream);
+            compressionDictionary = CompressionDictionary.deserialize(stream, compressionDictionaryManager);
         }
         catch (FileNotFoundException | NoSuchFileException e)
         {
@@ -109,7 +131,9 @@ public class CompressionMetadata extends WrappedSharedCloseable
             throw new CorruptSSTableException(e, chunksIndexFile);
         }
 
-        return new CompressionMetadata(chunksIndexFile, parameters, chunkOffsets, chunkOffsets.size(), dataLength, compressedLength);
+        return new CompressionMetadata(chunksIndexFile, parameters,
+                                       chunkOffsets, chunkOffsets.size(), dataLength,
+                                       compressedLength, compressionDictionary);
     }
 
     // do not call this constructor directly, unless used in testing
@@ -119,7 +143,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
                                Memory chunkOffsets,
                                long chunkOffsetsSize,
                                long dataLength,
-                               long compressedFileLength)
+                               long compressedFileLength,
+                               CompressionDictionary compressionDictionary)
     {
         super(chunkOffsets);
         this.chunksIndexFile = chunksIndexFile;
@@ -128,6 +153,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
         this.compressedFileLength = compressedFileLength;
         this.chunkOffsets = chunkOffsets;
         this.chunkOffsetsSize = chunkOffsetsSize;
+        this.compressionDictionary = compressionDictionary;
     }
 
     private CompressionMetadata(CompressionMetadata copy)
@@ -139,11 +165,54 @@ public class CompressionMetadata extends WrappedSharedCloseable
         this.compressedFileLength = copy.compressedFileLength;
         this.chunkOffsets = copy.chunkOffsets;
         this.chunkOffsetsSize = copy.chunkOffsetsSize;
+        this.compressionDictionary = copy.compressionDictionary;
     }
 
     public ICompressor compressor()
     {
-        return parameters.getSstableCompressor();
+        // classic double-checked locking to call resolveCompressor method just once per CompressionMetadata object
+        ICompressor result = resolvedCompressor;
+        if (result != null)
+            return result;
+
+        synchronized (this)
+        {
+            result = resolvedCompressor;
+            if (result == null)
+            {
+                result = resolveCompressor(parameters.getSstableCompressor(), compressionDictionary);
+                resolvedCompressor = result;
+            }
+            return result;
+        }
+    }
+
+    static ICompressor resolveCompressor(ICompressor compressor, CompressionDictionary dictionary)
+    {
+        if (dictionary == null)
+            return compressor;
+
+        // When the attached dictionary can be consumed by the current dictionary compressor
+        if (compressor instanceof IDictionaryCompressor)
+        {
+            IDictionaryCompressor dictionaryCompressor = (IDictionaryCompressor) compressor;
+            if (dictionaryCompressor.canConsumeDictionary(dictionary))
+                return dictionaryCompressor.getOrCopyWithDictionary(dictionary);
+        }
+
+        // When the current compressor is not compatible with the dictionary. It could happen in the read path when:
+        // 1. The current compressor is not a dictionary compressor, but there is dictionary attached
+        // 2. The current dictionary compressor is a different type, e.g. table schema is changed
+        // In those cases, we should get the compatible dictionary compressor based on the dictionary
+        if (dictionary.kind() == ZSTD)
+        {
+            ZstdCompressionDictionary zstdDict = (ZstdCompressionDictionary) dictionary;
+            return ZstdDictionaryCompressor.create(zstdDict);
+        }
+
+        // Program should never reach here!
+        // When adding other dictionary-based compressors, make sure the dictionaries are handled in the above
+        throw new IllegalStateException("No compressor is created for dictionary of " + dictionary.kind());
     }
 
     public int chunkLength()
@@ -349,16 +418,21 @@ public class CompressionMetadata extends WrappedSharedCloseable
 
         // provided by user when setDescriptor
         private long dataLength, chunkCount;
+        @Nullable
+        private CompressionDictionary compressionDictionary;
 
-        private Writer(CompressionParams parameters, File file)
+        private Writer(CompressionParams parameters, File file, CompressionDictionary compressionDictionary)
         {
             this.parameters = parameters;
             this.file = file;
+            this.compressionDictionary = compressionDictionary;
         }
 
-        public static Writer open(CompressionParams parameters, File file)
+        public static Writer open(CompressionParams parameters,
+                                  File file,
+                                  CompressionDictionary compressionDictionary)
         {
-            return new Writer(parameters, file);
+            return new Writer(parameters, file, compressionDictionary);
         }
 
         public void addOffset(long offset)
@@ -397,6 +471,21 @@ public class CompressionMetadata extends WrappedSharedCloseable
             }
         }
 
+        private void writeCompressionDictionary(DataOutput out)
+        {
+            if (compressionDictionary == null)
+                return;
+
+            try
+            {
+                compressionDictionary.serialize(out);
+            }
+            catch (IOException e)
+            {
+                throw new FSWriteError(e, file);
+            }
+        }
+
         // we've written everything; wire up some final metadata state
         public Writer finalizeLength(long dataLength, int chunkCount)
         {
@@ -426,6 +515,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
                 for (int i = 0; i < count; i++)
                     out.writeLong(offsets.getLong(i * 8L));
 
+                writeCompressionDictionary(out);
                 out.flush();
                 out.sync();
             }
@@ -453,7 +543,9 @@ public class CompressionMetadata extends WrappedSharedCloseable
             if (tCount < this.count)
                 compressedLength = tOffsets.getLong(tCount * 8L);
 
-            return new CompressionMetadata(file, parameters, tOffsets, tCount * 8L, dataLength, compressedLength);
+            return new CompressionMetadata(file, parameters,
+                                           tOffsets, tCount * 8L, dataLength,
+                                           compressedLength, compressionDictionary);
         }
 
         /**

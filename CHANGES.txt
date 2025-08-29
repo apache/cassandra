@@ -1,3 +1,6 @@
+trunk?? (The current trunk is on 5.1)
+* Support ZSTD dictionary compression (CASSANDRA-17021)
+
 5.1
  * Replace blocking wait with non-blocking delay in paxos repair (CASSANDRA-20983)
  * Implementation of CEP-55 - Generation of role names (CASSANDRA-20897)

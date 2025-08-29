@@ -286,11 +286,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
 
     static class BtiVersion extends Version
     {
-        public static final String current_version = "da";
+        public static final String current_version = "ea";
         public static final String earliest_supported_version = "da";
 
         // versions aa-cz are not supported in OSS
-        // da (5.0): initial version of the BIT format
+        // da (5.0): initial version of the BTI format
+        // ea (6.0): compression dictionary metadata in CompressionInfo component
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;

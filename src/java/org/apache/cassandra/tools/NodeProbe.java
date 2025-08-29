@@ -88,10 +88,11 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
+import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -2681,6 +2682,61 @@ public class NodeProbe implements AutoCloseable
     public void setMixedMajorVersionRepairEnabled(boolean enabled)
     {
         autoRepairProxy.setMixedMajorVersionRepairEnabled(enabled);
+    }
+
+    /**
+     * Triggers compression dictionary training for the specified table.
+     * 
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param options options for the training process (currently unused, reserved for future extensions)
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression  
+     */
+    public void trainCompressionDictionary(String keyspace, String table, Map<String, String> options) throws IOException
+    {
+        getDictionaryManagerProxy(keyspace, table).train(options);
+    }
+
+    /**
+     * Gets the compression dictionary training status for the specified table.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the training status as string
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public String getCompressionDictionaryTrainingStatus(String keyspace, String table) throws IOException
+    {
+        return getDictionaryManagerProxy(keyspace, table).getTrainingStatus();
+    }
+
+    /**
+     * Updates the sampling rate for compression dictionary training.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param samplingRate the new sampling rate (1 = sample every time, 2 = sample every 2nd time, etc.)
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public void updateCompressionDictionaryTrainingSamplingRate(String keyspace, String table, int samplingRate) throws IOException
+    {
+        getDictionaryManagerProxy(keyspace, table).updateSamplingRate(samplingRate);
+    }
+
+    private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
+    {
+        // Construct table-specific MBean name
+        String mbeanName = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager,keyspace=" + keyspace + ",table=" + table;
+        try
+        {
+            ObjectName objectName = new ObjectName(mbeanName);
+            return JMX.newMBeanProxy(mbeanServerConn, objectName, CompressionDictionaryManagerMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new IOException("Invalid keyspace or table name", e);
+        }
     }
 }
 

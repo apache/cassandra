@@ -37,6 +37,11 @@ public interface ICompressor
         FAST_COMPRESSION
     }
 
+    /**
+     * Get the maximum compressed size in the worst case scenario
+     * @param chunkLength input data (chunk) size
+     * @return compressed size upper bound in the worse case
+     */
     public int initialCompressedBufferLength(int chunkLength);
 
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException;
