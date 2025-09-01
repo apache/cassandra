@@ -77,7 +77,7 @@ def determine_job_name(cassandra_dir: Path) -> str:
                 version = line.split('value="')[1].split('"')[0]
                 if version.startswith("5.0."):
                     return "cassandra-5.0"
-    return "trunk"
+    return "cassandra"
 
 def get_current_branch() -> str:
     """Returns the current branch."""
