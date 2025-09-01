@@ -25,7 +25,6 @@ import java.util.Optional;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.AppenderBase;
 import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
-import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
@@ -46,7 +45,7 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
     // logged already
     protected final List<LoggingEvent> messageBuffer = new LinkedList<>();
 
-    public static  <T> T getVirtualTable(Class<T> vtableClass, String tableName)
+    public static <T> T getVirtualTable(Class<T> vtableClass, String tableName)
     {
         VirtualKeyspace keyspace = VirtualKeyspaceRegistry.instance.getKeyspaceNullable(VIRTUAL_VIEWS);
 
@@ -80,17 +79,21 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
      * were appended via logging framework sooner than registration of virtual tables was done so after they are registered,
      * they would miss logging events happened before being so.
      *
-     * @param vtable    vtable to append to
-     * @param event     event to append to
-     * @param tableName table name of virtual table to append to
+     * @param vtableClass class of vtable to append to
+     * @param vtable      vtable to append to
+     * @param event       event to append to
+     * @param tableName   table name of virtual table to append to
      * @return vtable or when null, found vtable
      */
-    protected AbstractLoggerVirtualTable<?> appendToVirtualTable(AbstractLoggerVirtualTable<?> vtable, LoggingEvent event, String tableName)
+    protected AbstractLoggerVirtualTable<?> appendToVirtualTable(Class<? extends AbstractLoggerVirtualTable<?>> vtableClass,
+                                                                 AbstractLoggerVirtualTable<?> vtable,
+                                                                 LoggingEvent event,
+                                                                 String tableName)
     {
         AbstractLoggerVirtualTable<?> foundVtable;
         if (vtable == null)
         {
-            foundVtable = getVirtualTable(SlowQueriesTable.class, tableName);
+            foundVtable = getVirtualTable(vtableClass, tableName);
             if (foundVtable == null)
                 addToBuffer(event);
             else

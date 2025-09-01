@@ -51,7 +51,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.AbstractVirtualTableAppender;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
-import static org.apache.cassandra.db.virtual.ExceptionsTable.*;
 
 /**
  * Responsible for deciding whether to kill the JVM if it gets in an "unstable" state (think OOM).
@@ -78,7 +77,7 @@ public final class JVMStabilityInspector
             StorageMetrics.uncaughtExceptions.inc();
 
             if (virtualTable == null)
-                virtualTable = AbstractVirtualTableAppender.getVirtualTable(ExceptionsTable.class, EXCEPTIONS_TABLE_NAME);
+                virtualTable = AbstractVirtualTableAppender.getVirtualTable(ExceptionsTable.class, ExceptionsTable.EXCEPTIONS_TABLE_NAME);
 
             if (virtualTable != null)
             {
@@ -89,10 +88,10 @@ public final class JVMStabilityInspector
             }
             else
             {
-                preInitialisationBuffer.add(new ExceptionRow(t.getClass().getName(),
-                                                             t.getMessage(),
-                                                             t.getStackTrace(),
-                                                             Clock.Global.currentTimeMillis()));
+                ExceptionsTable.preInitialisationBuffer.add(new ExceptionRow(t.getClass().getName(),
+                                                                             t.getMessage(),
+                                                                             t.getStackTrace(),
+                                                                             Clock.Global.currentTimeMillis()));
             }
         }
         catch (Throwable ignore)

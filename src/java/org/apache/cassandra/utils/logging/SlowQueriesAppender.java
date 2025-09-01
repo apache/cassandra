@@ -40,6 +40,6 @@ public final class SlowQueriesAppender extends AbstractVirtualTableAppender
         // are not registered, and we already try to put queries there.
         // As soon as vtable is registered (as part of node's startup / initialisation),
         // slow queries will never be null again
-        slowQueries = appendToVirtualTable(slowQueries, eventObject, SlowQueriesTable.TABLE_NAME);
+        slowQueries = appendToVirtualTable(SlowQueriesTable.class, slowQueries, eventObject, SlowQueriesTable.TABLE_NAME);
     }
 }

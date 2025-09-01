@@ -80,31 +80,34 @@ public class ExceptionsTable extends AbstractCapacityBoundVirtualTable<Exception
      * @param stackTrace     whole stacktrace of given exception
      * @param occurenceTime  time when given exception ocurred
      */
-    public synchronized void add(String exceptionClass,
-                                 String message,
-                                 StackTraceElement[] stackTrace,
-                                 long occurenceTime)
+    public void add(String exceptionClass,
+                    String message,
+                    StackTraceElement[] stackTrace,
+                    long occurenceTime)
     {
-        ExceptionRow mergeInto = null;
-        for (ExceptionRow row : buffer)
+        synchronized (buffer)
         {
-            if (row.exceptionClass.equals(exceptionClass))
+            ExceptionRow mergeInto = null;
+            for (ExceptionRow row : buffer)
             {
-                mergeInto = row;
-                break;
+                if (row.exceptionClass.equals(exceptionClass))
+                {
+                    mergeInto = row;
+                    break;
+                }
             }
-        }
 
-        if (mergeInto == null)
-        {
-            buffer.add(new ExceptionRow(exceptionClass, message, stackTrace, occurenceTime));
-        }
-        else
-        {
-            mergeInto.count += 1;
-            mergeInto.message = message;
-            mergeInto.stackTrace = ExceptionRow.extractStacktrace(new ArrayList<>(), stackTrace);
-            mergeInto.occurence = new Date(occurenceTime);
+            if (mergeInto == null)
+            {
+                buffer.add(new ExceptionRow(exceptionClass, message, stackTrace, occurenceTime));
+            }
+            else
+            {
+                mergeInto.count += 1;
+                mergeInto.message = message;
+                mergeInto.stackTrace = ExceptionRow.extractStacktrace(new ArrayList<>(), stackTrace);
+                mergeInto.occurence = new Date(occurenceTime);
+            }
         }
     }
 

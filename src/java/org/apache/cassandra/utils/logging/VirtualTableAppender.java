@@ -47,6 +47,6 @@ public final class VirtualTableAppender extends AbstractVirtualTableAppender
     protected void append(LoggingEvent eventObject)
     {
         if (!forbiddenLoggers.contains(eventObject.getLoggerName()))
-            logs = appendToVirtualTable(logs, eventObject, LogMessagesTable.TABLE_NAME);
+            logs = appendToVirtualTable(LogMessagesTable.class, logs, eventObject, LogMessagesTable.TABLE_NAME);
     }
 }
