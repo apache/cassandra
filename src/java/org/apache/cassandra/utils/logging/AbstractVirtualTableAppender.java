@@ -46,7 +46,7 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
     // logged already
     protected final List<LoggingEvent> messageBuffer = new LinkedList<>();
 
-    protected <T> T getVirtualTable(Class<T> vtableClass, String tableName)
+    public static  <T> T getVirtualTable(Class<T> vtableClass, String tableName)
     {
         VirtualKeyspace keyspace = VirtualKeyspaceRegistry.instance.getKeyspaceNullable(VIRTUAL_VIEWS);
 

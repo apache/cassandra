@@ -37,6 +37,8 @@ import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.virtual.ExceptionsTable;
+import org.apache.cassandra.db.virtual.ExceptionsTable.ExceptionRow;
 import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -46,8 +48,10 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.logging.AbstractVirtualTableAppender;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
+import static org.apache.cassandra.db.virtual.ExceptionsTable.*;
 
 /**
  * Responsible for deciding whether to kill the JVM if it gets in an "unstable" state (think OOM).
@@ -65,9 +69,36 @@ public final class JVMStabilityInspector
 
     private JVMStabilityInspector() {}
 
+    private static ExceptionsTable virtualTable;
+
     public static void uncaughtException(Thread thread, Throwable t)
     {
-        try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
+        try
+        {
+            StorageMetrics.uncaughtExceptions.inc();
+
+            if (virtualTable == null)
+                virtualTable = AbstractVirtualTableAppender.getVirtualTable(ExceptionsTable.class, EXCEPTIONS_TABLE_NAME);
+
+            if (virtualTable != null)
+            {
+                virtualTable.add(t.getClass().getName(),
+                                 t.getMessage(),
+                                 t.getStackTrace(),
+                                 Clock.Global.currentTimeMillis());
+            }
+            else
+            {
+                preInitialisationBuffer.add(new ExceptionRow(t.getClass().getName(),
+                                                             t.getMessage(),
+                                                             t.getStackTrace(),
+                                                             Clock.Global.currentTimeMillis()));
+            }
+        }
+        catch (Throwable ignore)
+        {
+            /* might not be initialised */
+        }
         logger.error("Exception in thread {}", thread, t);
         Tracing.trace("Exception in thread {}", thread, t);
         for (Throwable t2 = t; t2 != null; t2 = t2.getCause())

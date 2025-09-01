@@ -18,11 +18,8 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,18 +31,12 @@ import org.apache.cassandra.schema.TableMetadata;
  *
  * @param <U> type parameter saying what object is stored in internal bounded list for query purposes
  */
-public abstract class AbstractLoggerVirtualTable<U> extends AbstractMutableVirtualTable
+public abstract class AbstractLoggerVirtualTable<U> extends AbstractCapacityBoundVirtualTable<U>
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractLoggerVirtualTable.class);
 
     // please be sure operations on this structure are thread-safe
     protected final List<U> buffer;
-
-    @VisibleForTesting
-    protected static int resolveBufferSize(int wantedSize, int max, int defaultSize)
-    {
-        return (wantedSize < 1 || wantedSize > max) ? defaultSize : wantedSize;
-    }
 
     protected AbstractLoggerVirtualTable(TableMetadata metadata, int maxSize)
     {
@@ -74,38 +65,6 @@ public abstract class AbstractLoggerVirtualTable<U> extends AbstractMutableVirtu
         synchronized (buffer)
         {
             buffer.clear();
-        }
-    }
-
-    @Override
-    public boolean allowFilteringImplicitly()
-    {
-        return false;
-    }
-
-    private static final class BoundedLinkedList<T> extends LinkedList<T>
-    {
-        private final int maxSize;
-
-        public static <T> List<T> create(int size)
-        {
-            return Collections.synchronizedList(new BoundedLinkedList<>(size));
-        }
-
-        private BoundedLinkedList(int maxSize)
-        {
-            this.maxSize = maxSize;
-        }
-
-        @Override
-        public synchronized boolean add(T t)
-        {
-            if (size() == maxSize)
-                removeLast();
-
-            addFirst(t);
-
-            return true;
         }
     }
 }
