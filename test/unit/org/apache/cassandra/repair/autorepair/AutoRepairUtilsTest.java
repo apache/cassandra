@@ -277,7 +277,7 @@ public class AutoRepairUtilsTest extends CQLTester
             String.format("%d.%d", NodeVersion.CURRENT.cassandraVersion.major - 1, 0));
         ClusterMetadataTestHelper.addEndpoint(2, new NodeVersion(differentCassandraVersion,
                                                                  NodeVersion.CURRENT_METADATA_VERSION));
-        // With the same major versions, but different minor versions, we should still see this function return true
+        // With different major versions, we should see this function return true
         boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
         assertTrue(result);
     }
