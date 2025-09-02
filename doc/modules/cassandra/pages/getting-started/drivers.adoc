@@ -75,3 +75,7 @@ DBD::Cassandra]
 == Dart
 
 * https://github.com/achilleasa/dart_cassandra_cql[dart_cassandra_cql]
+
+== Swift
+
+* https://github.com/apple/swift-cassandra-client[Swift Driver for Apache Cassandra]
