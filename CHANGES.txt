@@ -1,3 +1,7 @@
+5.0.7
+Merged from 4.0:
+ * Updated dtest-api to 0.0.18 and removed JMX-related classes that now live in the dtest-api (CASSANDRA-20884)
+
 5.0.6
  * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Sort SSTable TOC entries for determinism (CASSANDRA-20494)

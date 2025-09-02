@@ -202,12 +202,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             withSharedClasses(SHARED_PREDICATE);
         }
 
-        @SuppressWarnings("unchecked")
-        private B self()
-        {
-            return (B) this;
-        }
-
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
         {
             this.nodeProvisionStrategy = nodeProvisionStrategy;
@@ -585,7 +579,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     }
 
     @VisibleForTesting
-    InstanceConfig createInstanceConfig(int nodeNum)
+    public InstanceConfig createInstanceConfig(int nodeNum)
     {
         INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet, portMap);
         Collection<String> tokens = tokenSupplier.tokens(nodeNum);
