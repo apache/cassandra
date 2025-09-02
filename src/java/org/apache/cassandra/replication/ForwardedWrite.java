@@ -204,7 +204,7 @@ public class ForwardedWrite
         ClusterMetadata cm = ClusterMetadata.current();
         Token token = mutation.key().getToken();
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        EndpointsForRange endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
+        EndpointsForToken endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forToken(token).get();
         logger.trace("Finding best leader from replicas {}", endpoints);
 
         // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.

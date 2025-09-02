@@ -21,12 +21,13 @@ package org.apache.cassandra.db.streaming;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.streaming.StreamOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
-import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -53,7 +53,10 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.PendingLocalTransfer;
 import org.apache.cassandra.streaming.IncomingStream;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -133,6 +136,13 @@ public class CassandraStreamReceiver implements StreamReceiver
         txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
+
+        if (session.streamOperation() == StreamOperation.TRACKED_TRANSFER)
+        {
+            Preconditions.checkState(cfs.metadata().replicationType().isTracked());
+            PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
+            MutationTrackingService.instance.received(transfer);
+        }
     }
 
     @Override
@@ -257,33 +267,31 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                 // add sstables (this will build non-SSTable-attached secondary indexes too, see CASSANDRA-10130)
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
-                cfs.addSSTables(readers);
 
-                //invalidate row and counter cache
-                if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
+                // Don't mark as live until activated by the stream coordinator
+                if (session.streamOperation() == StreamOperation.TRACKED_TRANSFER)
+                    return;
+
+                if (session.streamOperation() == StreamOperation.BOOTSTRAP)
                 {
-                    List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
-                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
-                    Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
-
-                    if (cfs.isRowCacheEnabled())
-                    {
-                        int invalidatedKeys = cfs.invalidateRowCache(nonOverlappingBounds);
-                        if (invalidatedKeys > 0)
-                            logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
-                                         "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.getKeyspaceName(), cfs.getTableName());
-                    }
-
-                    if (cfs.metadata().isCounter())
-                    {
-                        int invalidatedKeys = cfs.invalidateCounterCache(nonOverlappingBounds);
-                        if (invalidatedKeys > 0)
-                            logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
-                                         "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.getKeyspaceName(), cfs.getTableName());
-                    }
+                    cfs.addSSTableForBootstrap(readers);
                 }
+                else
+                {
+                    cfs.addSSTables(readers);
+                }
+
+                Consumer<Integer> onRowCacheInvalidation = invalidatedKeys -> {
+                    logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
+                                 "receive task completed.", session.planId(), invalidatedKeys,
+                                 cfs.getKeyspaceName(), cfs.getTableName());
+                };
+                Consumer<Integer> onCounterCacheInvalidation = invalidatedKeys -> {
+                    logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
+                                 "receive task completed.", session.planId(), invalidatedKeys,
+                                 cfs.getKeyspaceName(), cfs.getTableName());
+                };
+                cfs.invalidateRowAndCounterCache(readers, onRowCacheInvalidation, onCounterCacheInvalidation);
             }
         }
     }

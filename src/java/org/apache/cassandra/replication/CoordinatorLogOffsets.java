@@ -22,18 +22,35 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 /**
  * Mutation ID offsets present in this SSTable for each coordinator log, to determine whether an SSTable is reconciled
- * or not.
+ * or not. This includes "plain" mutation IDs for regular writes, and "activation" mutation IDs for bulk transfers.
+ * Bulk transfer IDs are kept separately because we expect to have very few of them, and they're materialized for fast
+ * access on the read path.
  * <p>
  * Note that peers may have reconciled all mutations included in an SSTable, but {@link StatsMetadata#repairedAt} is
  * dependent on compaction timing, so "nodetool repair --validate" may report temporary disagreements on the repaired
  * set.
- * <p>
- * Iterable over {@link CoordinatorLogId}.
  */
-public interface CoordinatorLogOffsets<O extends Offsets> extends Iterable<Long>
+public interface CoordinatorLogOffsets<O extends Offsets>
 {
-    O offsets(long logId);
-    int size();
+    /**
+     * Iterable over {@link CoordinatorLogId}.
+     */
+    interface Mutations<O> extends Iterable<Long>
+    {
+        O offsets(long logId);
+        int size();
+        default boolean isEmpty()
+        {
+            return size() == 0;
+        }
+    }
+
+    Mutations<O> mutations();
+
+    default ActivatedTransfers transfers()
+    {
+        return ActivatedTransfers.EMPTY;
+    }
 
     ImmutableCoordinatorLogOffsets NONE = new ImmutableCoordinatorLogOffsets.Builder(0).build();
 }

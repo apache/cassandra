@@ -122,4 +122,12 @@ public class Node2OffsetsMap
         Node2OffsetsMap that = (Node2OffsetsMap) o;
         return this.offsetsMap.equals(that.offsetsMap);
     }
+
+    @Override
+    public String toString()
+    {
+        return "Node2OffsetsMap{" +
+               "offsetsMap=" + offsetsMap +
+               '}';
+    }
 }

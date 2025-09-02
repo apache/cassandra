@@ -73,8 +73,7 @@ public class StreamPlan
                       boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
-        this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
-                                                 false, connectSequentially, pendingRepair, previewKind);
+        this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(), false, connectSequentially, pendingRepair, previewKind);
     }
 
     /**

@@ -133,6 +133,6 @@ public class AntiCompactionBytemanTest extends CQLTester
         t.join();
         assertFalse(failed.get());
         assertFalse(getCurrentColumnFamilyStore().getLiveSSTables().contains(sstableBefore));
-        Util.assertOnDiskState(getCurrentColumnFamilyStore(), 3);
+        Util.assertOnDiskState(getCurrentColumnFamilyStore(), 2);
     }
 }

@@ -783,6 +783,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         Tracing.trace("Acquiring sstable references");
         List<SSTableReader> sstables = view.sstables();
         sstables.sort(SSTableReader.maxTimestampDescending);
+        if (cfs.metadata().replicationType().isTracked())
+            controller.addTransferIds(sstables);
         ClusteringIndexFilter filter = clusteringIndexFilter();
         long minTimestamp = Long.MAX_VALUE;
         long mostRecentPartitionTombstone = Long.MIN_VALUE;
@@ -1063,6 +1065,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         /* add the SSTables on disk */
         List<SSTableReader> sstables = view.sstables();
         sstables.sort(SSTableReader.maxTimestampDescending);
+        if (cfs.metadata().replicationType().isTracked())
+        {
+            logger.trace("Executing read against SSTables {}", sstables);
+            controller.addTransferIds(view.sstables());
+        }
         // read sorted sstables
         for (SSTableReader sstable : sstables)
         {

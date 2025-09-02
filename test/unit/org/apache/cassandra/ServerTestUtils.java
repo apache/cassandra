@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -153,6 +154,9 @@ public final class ServerTestUtils
     public static void prepareServerNoRegister()
     {
         daemonInitialization();
+
+        // Need to happen after daemonInitialization for config to be set, but before CFS initialization
+        MutationJournal.instance.start();
 
         if (isServerPrepared)
             return;

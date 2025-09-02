@@ -72,4 +72,12 @@ public final class PullMutationsRequest
             MutationTrackingService.instance.requestMissingMutations(offsets, forHost);
         }
     };
+
+    @Override
+    public String toString()
+    {
+        return "PullMutationsRequest{" +
+               "offsets=" + offsets +
+               '}';
+    }
 }

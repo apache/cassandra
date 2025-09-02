@@ -18,21 +18,37 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.ColumnFamilyStore.ViewFragment;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ActivatedTransfers;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 
+@NotThreadSafe
 public class ReadExecutionController implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ReadExecutionController.class);
+
     private static final long NO_SAMPLING = Long.MIN_VALUE;
 
     // For every reads
@@ -49,6 +65,13 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
+
+    /**
+     * Track bulk transfers involved in the read, so we can do read reconciliation. These come from the
+     * {@link ViewFragment}, not the SSTable read path, so bloom filters and short-circuiting SSTable scans will still
+     * include the total set of relevant bulk transfers.
+     */
+    private Set<ShortMutationId> transferIds = null;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -242,5 +265,30 @@ public class ReadExecutionController implements AutoCloseable
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(baseMetadata.id);
         if (cfs != null)
             cfs.metric.topLocalReadQueryTime.addSample(cql, timeMicros);
+    }
+
+    public void addTransferIds(Iterable<SSTableReader> sstables)
+    {
+        Preconditions.checkState(metadata().replicationType().isTracked());
+        if (transferIds == null)
+            transferIds = new HashSet<>();
+        for (SSTableReader sstable : sstables)
+        {
+            ActivatedTransfers transfers = sstable.getCoordinatorLogOffsets().transfers();
+            if (transfers.isEmpty())
+                continue;
+            logger.trace("Adding overlapping IDs to read keyRange {}", command.dataRange.keyRange);
+            transfers.forEachIntersecting(command.dataRange.keyRange, id -> {
+                String msg = String.format("Found overlapping activation ID %s for queried range %s", id, command.dataRange.keyRange);
+                Tracing.trace(msg);
+                logger.debug(msg);
+                transferIds.add(id);
+            });
+        }
+    }
+
+    public Iterator<ShortMutationId> getTransferIds()
+    {
+        return transferIds == null ? null : transferIds.iterator();
     }
 }

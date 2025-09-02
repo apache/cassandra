@@ -950,7 +950,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                         .build());
     }
 
-    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
+    public Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
         Descriptor newDescriptor;
         do
@@ -1740,6 +1740,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
+     * addSStables variant that allows adding sstables for tracked tables without requiring tracked transfers during bootstrap
+     */
+    public void addSSTableForBootstrap(Collection<SSTableReader> sstables)
+    {
+        data.addSSTablesForBootstrap(sstables);
+        logger.debug("Adding sstables {}", sstables);
+        CompactionManager.instance.submitBackground(this);
+    }
+
+    /**
      * Calculate expected file size of SSTable after compaction.
      *
      * If operation type is {@code CLEANUP} and we're not dealing with an index sstable,
@@ -2196,6 +2206,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CacheService.instance.invalidateRowCacheForCf(metadata());
         if (metadata().isCounter())
             CacheService.instance.invalidateCounterCacheForCf(metadata());
+    }
+
+    public void invalidateRowAndCounterCache(Collection<SSTableReader> sstables, Consumer<Integer> onRowCacheInvalidation, Consumer<Integer> onCounterCacheInvalidation)
+    {
+        if (isRowCacheEnabled() || metadata().isCounter())
+        {
+            List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(sstables.size());
+            sstables.forEach(sstable -> boundsToInvalidate.add(new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
+            Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
+
+            if (isRowCacheEnabled())
+            {
+                int invalidatedKeys = invalidateRowCache(nonOverlappingBounds);
+                if (invalidatedKeys > 0)
+                    onRowCacheInvalidation.accept(invalidatedKeys);
+            }
+
+            if (metadata().isCounter())
+            {
+                int invalidatedKeys = invalidateCounterCache(nonOverlappingBounds);
+                if (invalidatedKeys > 0)
+                    onCounterCacheInvalidation.accept(invalidatedKeys);
+            }
+        }
     }
 
     public int invalidateRowCache(Collection<Bounds<Token>> boundsToInvalidate)

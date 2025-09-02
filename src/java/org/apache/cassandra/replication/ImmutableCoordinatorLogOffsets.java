@@ -19,16 +19,24 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.Long2ObjectHashMap;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -36,73 +44,73 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Offsets.Immutable>
 {
-    private final Long2ObjectHashMap<Offsets.Immutable> ids;
+    private static final Logger logger = LoggerFactory.getLogger(ImmutableCoordinatorLogOffsets.class);
 
-    @Override
-    public Offsets.Immutable offsets(long logId)
+    private final ImmutableMutations mutations;
+    private final ActivatedTransfers transfers;
+
+    private ImmutableCoordinatorLogOffsets(Builder builder)
     {
-        Offsets.Immutable offsets = ids.get(logId);
-        if (offsets == null)
-            return new Offsets.Immutable(new CoordinatorLogId(logId));
-        return offsets;
+        // Important to set shouldAvoidAllocation=false, otherwise iterators are cached and not thread safe, even when immutable and read-only
+        Long2ObjectHashMap<Offsets.Immutable> ids = new Long2ObjectHashMap<>(builder.ids.size(), 0.9f, false);
+
+        for (Map.Entry<Long, Offsets.Immutable.Builder> entry : builder.ids.entrySet())
+            ids.put(entry.getKey(), entry.getValue().build());
+
+        this.mutations = new ImmutableMutations(ids);
+        this.transfers = ActivatedTransfers.copyOf(builder.transfers);
     }
 
     @Override
-    public int size()
+    public Mutations<Offsets.Immutable> mutations()
     {
-        return ids.size();
-    }
-
-    public boolean isEmpty()
-    {
-        return size() == 0;
+        return mutations;
     }
 
     @Override
-    public Iterator<Long> iterator()
+    public ActivatedTransfers transfers()
     {
-        return Iterators.unmodifiableIterator(ids.keySet().iterator());
+        return transfers == null ? ActivatedTransfers.EMPTY : transfers;
     }
 
     public Iterable<Map.Entry<Long, Offsets.Immutable>> entries()
     {
-        return ids.entrySet();
+        return mutations.ids.entrySet();
     }
 
+    public boolean isEmpty()
+    {
+        return mutations().isEmpty() && transfers().isEmpty();
+    }
 
     @Override
     public boolean equals(Object o)
     {
         if (o == null || getClass() != o.getClass()) return false;
-        ImmutableCoordinatorLogOffsets longs = (ImmutableCoordinatorLogOffsets) o;
-        return Objects.equals(ids, longs.ids);
+        ImmutableCoordinatorLogOffsets other = (ImmutableCoordinatorLogOffsets) o;
+        return Objects.equals(mutations, other.mutations) && Objects.equals(transfers, other.transfers);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(ids);
+        return Objects.hash(mutations, transfers);
     }
 
-    public ImmutableCoordinatorLogOffsets(Builder builder)
+    @Override
+    public String toString()
     {
-        // Important to set shouldAvoidAllocation=false, otherwise iterators are cached and not thread safe, even when
-        // immutable and read-only
-        this.ids = new Long2ObjectHashMap<>(builder.ids.size(), 0.9f, false);
-
-        for (Map.Entry<Long, Offsets.Immutable.Builder> entry : builder.ids.entrySet())
-            ids.put(entry.getKey(), entry.getValue().build());
-    }
-
-    public void forEach(BiConsumer<CoordinatorLogId, Offsets.Immutable> consumer)
-    {
-        ids.forEach((logId, offsets) -> consumer.accept(new CoordinatorLogId(logId), offsets));
+        return "ImmutableCoordinatorLogOffsets{" +
+               "mutations=" + mutations +
+               ", transfers=" + transfers +
+               '}';
     }
 
     @NotThreadSafe
     public static class Builder
     {
         private final Long2ObjectHashMap<Offsets.Immutable.Builder> ids;
+        private ActivatedTransfers transfers;
 
         public Builder()
         {
@@ -112,6 +120,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         public Builder(int size)
         {
             this.ids = new Long2ObjectHashMap<>(size, 0.9f, false);
+            this.transfers = null;
         }
 
         public Builder add(MutationId mutationId)
@@ -123,14 +132,25 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             return this;
         }
 
-        public Builder addAll(CoordinatorLogOffsets<?> logOffsets)
+        private Builder addAll(CoordinatorLogOffsets.Mutations<? extends Offsets> mutations)
         {
-            for (long log : logOffsets)
+            for (long log : mutations)
             {
-                Offsets offsets = logOffsets.offsets(log);
+                Offsets offsets = mutations.offsets(log);
                 ids.computeIfAbsent(log, logId -> new Offsets.Immutable.Builder(new CoordinatorLogId(logId)))
                    .addAll(offsets);
             }
+            return this;
+        }
+
+        public Builder addAll(CoordinatorLogOffsets<?> logOffsets)
+        {
+            addAll(logOffsets.mutations());
+            ActivatedTransfers newTransfers = logOffsets.transfers();
+            if (transfers == null)
+                transfers = newTransfers;
+            else
+                transfers.addAll(newTransfers);
             return this;
         }
 
@@ -139,6 +159,62 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             ids.computeIfAbsent(offsets.logId.asLong(), logId -> new Offsets.Immutable.Builder(new CoordinatorLogId(logId)))
                .addAll(offsets);
             return this;
+        }
+
+        @VisibleForTesting
+        public Builder addTransfer(ShortMutationId transferId, Bounds<Token> bounds)
+        {
+            if (transferId.isNone())
+                return this;
+            if (transfers == null)
+                transfers = new ActivatedTransfers();
+            transfers.add(transferId, bounds);
+            return this;
+        }
+
+        public Builder addTransfer(ShortMutationId transferId, Collection<SSTableReader> sstables)
+        {
+            if (transferId.isNone())
+                return this;
+            if (transfers == null)
+                transfers = new ActivatedTransfers();
+            transfers.add(transferId, sstables);
+            return this;
+        }
+
+        public Builder addTransfers(ActivatedTransfers other)
+        {
+            if (other.isEmpty())
+                return this;
+            if (transfers == null)
+                transfers = other;
+            else
+                transfers.addAll(other);
+            return this;
+        }
+
+        /**
+         * Removes expired transfers
+         */
+        public void purgeTransfers(Predicate<ShortMutationId> predicate)
+        {
+            int purged = 0;
+            if (transfers != null)
+            {
+                Iterator<ShortMutationId> iter = transfers.iterator();
+                while (iter.hasNext())
+                {
+                    ShortMutationId id = iter.next();
+                    if (predicate.test(id))
+                    {
+                        iter.remove();
+                        purged++;
+                        logger.debug("Purging activation {}", id);
+                    }
+                }
+            }
+            if (purged > 0)
+                logger.info("Purged {} transfers", purged);
         }
 
         public ImmutableCoordinatorLogOffsets build()
@@ -154,9 +230,8 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         {
             if (version < MessagingService.VERSION_61)
                 return;
-            out.writeUnsignedVInt32(logOffsets.size());
-            for (long logId : logOffsets)
-                Offsets.serializer.serialize(logOffsets.offsets(logId), out, version);
+            ImmutableMutations.serializer.serialize(logOffsets.mutations, out, version);
+            ActivatedTransfers.serializer.serialize(logOffsets.transfers(), out, version);
         }
 
         @Override
@@ -164,13 +239,12 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         {
             if (version < MessagingService.VERSION_61)
                 return ImmutableCoordinatorLogOffsets.NONE;
-            int size = in.readUnsignedVInt32();
-            ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder(size);
-            for (int i = 0; i < size; i++)
-            {
-                Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
-                builder.addAll(offsets);
-            }
+            Builder builder = new Builder();
+            ImmutableMutations mutations = ImmutableMutations.serializer.deserialize(in, version);
+            mutations.ids.forEach((id, offsets) -> builder.addAll(offsets));
+            ActivatedTransfers transfers = ActivatedTransfers.serializer.deserialize(in, version);
+            if (!transfers.isEmpty())
+                builder.addTransfers(transfers);
             return builder.build();
         }
 
@@ -180,12 +254,97 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             if (version < MessagingService.VERSION_61)
                 return 0;
             long size = 0;
-            size += VIntCoding.computeUnsignedVIntSize(logOffsets.size());
-            for (long logId : logOffsets)
-                size += Offsets.serializer.serializedSize(logOffsets.offsets(logId), version);
+            size += ImmutableMutations.serializer.serializedSize(logOffsets.mutations, version);
+            size += ActivatedTransfers.serializer.serializedSize(logOffsets.transfers(), version);
             return size;
         }
     }
 
     public static final Serializer serializer = new Serializer();
+
+    public static class ImmutableMutations implements Mutations<Offsets.Immutable>
+    {
+        final private Long2ObjectHashMap<Offsets.Immutable> ids;
+
+        private ImmutableMutations(Long2ObjectHashMap<Offsets.Immutable> ids)
+        {
+            this.ids = ids;
+        }
+
+        @Override
+        public Offsets.Immutable offsets(long logId)
+        {
+            Offsets.Immutable offsets = ids.get(logId);
+            if (offsets == null)
+                return new Offsets.Immutable(new CoordinatorLogId(logId));
+            return offsets;
+        }
+
+        @Override
+        public int size()
+        {
+            return ids.size();
+        }
+
+        @Override
+        public Iterator<Long> iterator()
+        {
+            return Iterators.unmodifiableIterator(ids.keySet().iterator());
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            ImmutableMutations longs = (ImmutableMutations) o;
+            return Objects.equals(ids, longs.ids);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(ids);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "ImmutableMutations{" +
+                   "ids=" + ids +
+                   '}';
+        }
+
+        private static final IVersionedSerializer<ImmutableMutations> serializer = new IVersionedSerializer<>()
+        {
+            @Override
+            public void serialize(ImmutableMutations mutations, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeUnsignedVInt32(mutations.size());
+                for (long logId : mutations)
+                    Offsets.serializer.serialize(mutations.offsets(logId), out, version);
+            }
+
+            @Override
+            public ImmutableMutations deserialize(DataInputPlus in, int version) throws IOException
+            {
+                int size = in.readUnsignedVInt32();
+                Long2ObjectHashMap<Offsets.Immutable> ids = new Long2ObjectHashMap<>(size, 0.9f, false);
+                for (int i = 0; i < size; i++)
+                {
+                    Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
+                    ids.put(offsets.logId.asLong(), offsets);
+                }
+                return new ImmutableMutations(ids);
+            }
+
+            @Override
+            public long serializedSize(ImmutableMutations mutations, int version)
+            {
+                long size = VIntCoding.computeUnsignedVIntSize(mutations.size());
+                for (long logId : mutations)
+                    size += Offsets.serializer.serializedSize(mutations.offsets(logId), version);
+                return size;
+            }
+        };
+    }
 }
