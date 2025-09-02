@@ -27,8 +27,10 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -40,10 +42,11 @@ import org.jctools.maps.NonBlockingHashMapLong;
 
 public class Shard
 {
+    // TODO: private
     private final String keyspace;
-    private final Range<Token> tokenRange;
+    final Range<Token> tokenRange;
     private final int localHostId;
-    private final Participants participants;
+    final Participants participants;
     private final Epoch sinceEpoch;
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
@@ -51,6 +54,18 @@ public class Shard
     private final CoordinatorLog.CoordinatorLogPrimary currentLocalLog;
 
     private final List<Subscriber> subscribers = new ArrayList<>();
+
+    /**
+     * TODO: Improve this doc to outline transfer ID propagation.
+     *
+     * This log exists to assign transfer IDs for coordinated transfers within the current shard.
+     *
+     * For data reads, transfer IDs shouldn't be included in read summaries via collect, because concurrent reads may
+     * have different ViewFragments different transfers present, and we need to ensure the summaries match the data read
+     * from the View. Instead, they'll be included via {@link ReadExecutionController#addActivationIds(ColumnFamilyStore.ViewFragment)}.
+     *
+     * For summary reads, transfer IDs will still be served for collect via {@link UnreconciledMutations}.
+     */
 
     public interface Subscriber
     {
@@ -90,6 +105,12 @@ public class Shard
     {
         int fromHostId = ClusterMetadata.current().directory.peerId(fromHost).id();
         getOrCreate(mutationId).receivedWriteResponse(mutationId, fromHostId);
+    }
+
+    void receivedActivationAck(MutationId activationId, InetAddressAndPort onHost)
+    {
+        int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
+        getOrCreate(activationId).receivedActivationAck(activationId, onHostId);
     }
 
     void updateReplicatedOffsets(List<? extends Offsets> offsets, InetAddressAndPort onHost)

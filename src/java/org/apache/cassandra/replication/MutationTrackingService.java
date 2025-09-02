@@ -18,8 +18,12 @@
 package org.apache.cassandra.replication;
 
 import java.util.Collections;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,18 +45,24 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -62,11 +72,14 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 
@@ -158,6 +171,15 @@ public class MutationTrackingService
 //        outgoingMutations.receivedWriteResponse(mutationId, ClusterMetadata.current().directory.peerId(fromHost).id());
     }
 
+    public void receivedActivationAck(CoordinatedTransfer transfer, InetAddressAndPort fromHost)
+    {
+        MutationId activationId = transfer.activationId;
+        Preconditions.checkArgument(!activationId.isNone());
+        Shard shard = getShardNullable(activationId);
+        if (shard != null)
+            shard.receivedActivationAck(activationId, fromHost);
+    }
+
     public void retryFailedWrite(ShortMutationId mutationId, InetAddressAndPort onHost, RequestFailure reason)
     {
         Preconditions.checkArgument(!mutationId.isNone());
@@ -190,6 +212,103 @@ public class MutationTrackingService
     public boolean registerMutationCallback(ShortMutationId mutationId, IncomingMutations.Callback callback)
     {
         return incomingMutations.subscribe(mutationId, callback);
+    }
+
+    public void executeTransfers(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
+    {
+        logger.info("Creating tracked bulk transfers for keyspace {} sstables {}", keyspace, sstables);
+
+        KeyspaceShards shards = keyspaceShards.get(keyspace);
+        checkNotNull(shards);
+
+        CoordinatedTransfers transfers = CoordinatedTransfers.create(shards, sstables, cl);
+        logger.info("Split input SSTables into transfers {}", transfers);
+
+        for (CoordinatedTransfer transfer : transfers)
+            transfer.execute();
+    }
+
+    public void fetchUnreconciledTransfers()
+    {
+        logger.info("Fetching any unreconciled transfers...");
+        for (String keyspace : keyspaceShards.keySet())
+            fetchUnreconciledTransfers(Keyspace.open(keyspace).getMetadata());
+    }
+
+    private void fetchUnreconciledTransfers(KeyspaceMetadata keyspace)
+    {
+        ReplicaGroups groups = ClusterMetadata.current().placements.get(keyspace.params.replication).writes;
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
+        Message<NoPayload> msg = Message.out(Verb.TRACKED_TRANSFER_STREAM_REQ, NoPayload.noPayload);
+
+        Set<InetAddressAndPort> peers = new HashSet<>();
+
+        groups.forEach((range, forRange) -> {
+            if (!forRange.endpoints().contains(self))
+                return;
+            peers.addAll(forRange.endpoints());
+        });
+        peers.remove(self);
+
+        class OnResponse<V> extends AsyncFuture<Message<V>> implements RequestCallbackWithFailure<V>
+        {
+            @Override
+            public void onResponse(Message<V> msg)
+            {
+                logger.debug("Success {}", msg);
+                trySuccess(msg);
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
+            {
+                logger.error("Failure {} from {}", from, failure);
+                trySuccess(null);
+            }
+        }
+
+        // TODO: Parallel?
+        for (InetAddressAndPort peer : peers)
+        {
+            // This is likely to time out, especially on initial startup
+            logger.debug("Fetching unreconciled mutations for {} from {}", keyspace.name, peer);
+            OnResponse<Void> response = new OnResponse<>();
+            MessagingService.instance().sendWithCallback(msg, peer, response);
+            response.awaitUninterruptibly();
+            logger.debug("Fetched unreconciled mutations for {} from {}", keyspace.name, peer);
+        }
+    }
+
+    void streamUnreconciledTransfers(InetAddressAndPort to)
+    {
+        logger.info("Streaming unreconciled mutations to {}", to);
+        LocalTransfers.instance().streamUnreconciledTransfers(to);
+    }
+
+    public void received(PendingLocalTransfer transfer)
+    {
+        logger.debug("Received pending transfer for tracked table {}", transfer);
+        LocalTransfers.instance().received(transfer);
+    }
+
+    void activateLocal(TransferActivation activation)
+    {
+        logger.debug("activateLocal {}", activation);
+
+        // TODO: if already activated, do not activate again
+
+        PendingLocalTransfer pending = LocalTransfers.instance().getPendingTransfer(activation.planId);
+        pending.activate(activation);
+
+        if (!activation.dryRun)
+        {
+            keyspaceShards.get(pending.keyspace).lookUp(pending.range).receivedActivationAck(activation.activationId, FBUtilities.getBroadcastAddressAndPort());
+        }
+    }
+
+    public CoordinatedTransfer getActivatedTransfer(ShortMutationId activationId)
+    {
+        return LocalTransfers.instance().getActivatedTransfer(activationId);
     }
 
     public MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
@@ -310,7 +429,8 @@ public class MutationTrackingService
 
     private static class KeyspaceShards implements Shard.Subscriber
     {
-        private final String keyspace;
+        // TODO: private
+        final String keyspace;
         private final Map<Range<Token>, Shard> shards;
         private final ReplicaGroups groups;
         private final BiConsumer<Shard, CoordinatorLog> onNewLog;
@@ -369,6 +489,17 @@ public class MutationTrackingService
             return lookUp(token).nextId();
         }
 
+        void receivedWriteResponse(Token token, MutationId mutationId, InetAddressAndPort onHost)
+        {
+            lookUp(token).receivedWriteResponse(mutationId, onHost);
+        }
+
+        void receivedActivationAck(CoordinatedTransfer transfer, InetAddressAndPort onHost)
+        {
+            logger.trace("receivedActivationAck {} {}", transfer, onHost);
+            lookUp(transfer.range).receivedActivationAck(transfer.activationId, onHost);
+        }
+
         void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
         {
             shards.get(range).updateReplicatedOffsets(offsets, onHost);
@@ -388,6 +519,19 @@ public class MutationTrackingService
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
             lookUp(key.getToken()).addSummaryForKey(key.getToken(), includePending, builder);
+
+            /* REVIEW
+            Like we do for data reads, summaries need to include the set of transfers they're aware of, in order to
+            guarantee monotonic reads. Read coordinators need to know whether to read-reconcile and activate a pending
+            transfer.
+
+            I was thinking of doing that by fetching the View (volatile read) and loading all the relevant SSTables'
+            transfer IDs would be one way to do that.
+
+            The alternative is to integrate SSTable import with CoordinatorLog, and ensure that we atomically update
+            the UnreconciledMutations and View, and avoid any tearing.
+            */
+
             return builder.build();
         }
 
@@ -442,6 +586,76 @@ public class MutationTrackingService
         {
             logger.debug("Indexing current log {}", currentLog);
             logs.put(currentLog.logId, currentLog);
+        }
+
+        Shard lookUp(Range<Token> range)
+        {
+            ClusterMetadata csm = ClusterMetadata.current();
+            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
+            Range<Token> replicationRange = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(range).range();
+            return shards.get(replicationRange);
+        }
+    }
+
+    private static class CoordinatedTransfers implements Iterable<CoordinatedTransfer>
+    {
+        private final Collection<CoordinatedTransfer> transfers;
+
+        private CoordinatedTransfers(Collection<CoordinatedTransfer> transfers)
+        {
+            this.transfers = transfers;
+        }
+
+        private static CoordinatedTransfers create(KeyspaceShards shards, Collection<SSTableReader> sstables, ConsistencyLevel cl)
+        {
+            // Clean up incoming SSTables to remove any existing CoordinatorLogOffsets, can't be trusted
+            for (SSTableReader sstable : sstables)
+            {
+                try
+                {
+                    sstable.mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets.NONE);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Expensive - add a metric?
+            // TODO(expected): Fail if incoming transfer is outside owned shard ranges
+            SSTableIntervalTree intervals = SSTableIntervalTree.buildSSTableIntervalTree(sstables);
+            List<CoordinatedTransfer> transfers = new ArrayList<>();
+
+            String keyspace = shards.keyspace;
+            shards.forEachShard(shard -> {
+                Range<Token> range = shard.tokenRange;
+                Collection<SSTableReader> sstablesForRange = intervals.search(Interval.create(range.left.minKeyBound(), range.right.maxKeyBound()));
+
+                CoordinatedTransfer transfer = new CoordinatedTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
+                if (!transfer.sstables.isEmpty())
+                    transfers.add(transfer);
+
+                /* REVIEW NOTES
+                Right now for simplicity, streaming from coordinator to itself instead of copying files. This has some
+                perks: (1) it allows us to import out-of-range SSTables using the same paths, and (2) it uses the
+                existing lifecycle management to handle crash-safety, so don't need to deal with atomic multi-file copy.
+                */
+            });
+            return new CoordinatedTransfers(transfers);
+        }
+
+        @Override
+        public Iterator<CoordinatedTransfer> iterator()
+        {
+            return transfers.iterator();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "CoordinatedTransfers{" +
+                   "transfers=" + transfers +
+                   '}';
         }
     }
 

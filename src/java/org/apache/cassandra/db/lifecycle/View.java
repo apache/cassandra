@@ -308,6 +308,22 @@ public class View
         {
             public View apply(View view)
             {
+                /**
+                 * When SSTables are added, need to update BulkShards to include the new transfers
+                 *
+                 * We need to make sure that the live set used for a read (View#sstables) has CoordinatorLogBoundaries that's
+                 * reflected in any summary.
+                 *
+                 * TODO: Never mark something as live if it isn't in a data directory, since a bounce would mark it no
+                 * longer live.
+                 *
+                 * What happens when a read has a reference to a View that doesn't include a new transferred SSTable, but
+                 * does have the new transfer ID in BulkShards? I could make BulkShards part of the View, and have read
+                 * summaries merge with the contents of the view.
+                 *
+                 * We don't need to change the contents of the view, since we're tracking transfer IDs at read time.
+                 */
+
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
                 long treeBuildStart = Clock.Global.nanoTime();
                 SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.update(view.intervalTree, remove, add);

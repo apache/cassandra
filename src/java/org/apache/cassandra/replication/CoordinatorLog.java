@@ -48,6 +48,7 @@ public abstract class CoordinatorLog
     protected final Participants participants;
 
     protected final UnreconciledMutations unreconciledMutations;
+    protected final UnreconciledTransfers unreconciledTransfers;
     protected final Offsets.Mutable[] witnessedOffsets;
     protected final Offsets.Mutable reconciledOffsets;
 
@@ -70,6 +71,7 @@ public abstract class CoordinatorLog
 
         witnessedOffsets = ids;
         reconciledOffsets = new Offsets.Mutable(logId);
+        unreconciledTransfers = new UnreconciledTransfers();
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -92,6 +94,9 @@ public abstract class CoordinatorLog
                     {
                         reconciledOffsets.add(offset);
                         unreconciledMutations.remove(offset);
+                        // A given offset is either a mutation or a transfer
+                        if (!unreconciledTransfers.remove(offset))
+                            unreconciledMutations.remove(offset);
                     }
                 }
             });
@@ -176,17 +181,48 @@ public abstract class CoordinatorLog
         return othersWitnessed(offset, localHostId);
     }
 
+    void receivedActivationAck(MutationId activationId, int onHostId)
+    {
+        Preconditions.checkArgument(!activationId.isNone());
+        logger.trace("witnessed transfer activation ack {} from {}", activationId, onHostId);
+        lock.writeLock().lock();
+        try
+        {
+            if (onHostId == ClusterMetadata.current().myNodeId().id())
+                unreconciledTransfers.activated(activationId.offset());
+
+            if (!get(onHostId).add(activationId.offset()))
+                return; // already witnessed; very uncommon but possible path
+
+            if (!getLocal().contains(activationId.offset()))
+                return; // local host hasn't witnessed yet -> no cleanup needed
+
+            if (remoteReplicasWitnessed(activationId.offset()))
+            {
+                logger.trace("marking transfer {} as fully reconciled", activationId);
+                // if all replicas have now witnessed the id, remove it from the index
+                unreconciledTransfers.remove(activationId.offset());
+                reconciledOffsets.add(activationId.offset());
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
     /**
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
+    void collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
     {
         lock.readLock().lock();
         try
         {
             reconciledInto.addAll(reconciledOffsets);
-            return unreconciledMutations.collect(token, tableId, includePending, unreconciledInto);
+            unreconciledMutations.collect(token, tableId, includePending, unreconciledInto);
+            unreconciledTransfers.collect(token, tableId, unreconciledInto);
         }
         finally
         {
@@ -198,13 +234,14 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
+    void collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
     {
         lock.readLock().lock();
         try
         {
             reconciledInto.addAll(reconciledOffsets);
-            return unreconciledMutations.collect(range, tableId, includePending, unreconciledInto);
+            unreconciledMutations.collect(range, tableId, includePending, unreconciledInto);
+            unreconciledTransfers.collect(range, tableId, unreconciledInto);
         }
         finally
         {
@@ -354,5 +391,4 @@ public abstract class CoordinatorLog
             // no-op
         }
     }
-
 }

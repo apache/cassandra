@@ -52,6 +52,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.PendingLocalTransfer;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -256,6 +258,15 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                 // add sstables (this will build non-SSTable-attached secondary indexes too, see CASSANDRA-10130)
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
+
+                if (cfs.metadata().replicationType().isTracked())
+                {
+                    // Don't mark as live until activated by the stream coordinator
+                    PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
+                    MutationTrackingService.instance.received(transfer);
+                    return;
+                }
+
                 cfs.addSSTables(readers);
 
                 //invalidate row and counter cache

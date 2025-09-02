@@ -87,6 +87,15 @@ public class MutationJournal
         return journal.readLast(id, consumer);
     }
 
+    public boolean readIfExists(ShortMutationId id, Collection<Mutation> into)
+    {
+        Mutation mutation = read(id);
+        if (mutation == null)
+            return false;
+        into.add(mutation);
+        return true;
+    }
+
     /**
      * @return record pointer of the last mutation with the provided id, or null if not found
      */

@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -177,6 +178,12 @@ public class Tracker
             cur = view;
             if (!permit.apply(cur))
                 return null;
+
+            /*
+            When adding a new SSTable, need to ensure that the CoordinatorLogBoundaries in the added tables is reflected
+            in the read indexes (BulkShard).
+            */
+
             updated = function.apply(cur);
             view = updated;
         }
@@ -270,6 +277,7 @@ public class Tracker
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
+        Preconditions.checkState(!cfstore.metadata().replicationType().isTracked());
         addSSTablesInternal(sstables, false, true, true);
     }
 
@@ -282,6 +290,25 @@ public class Tracker
             setupOnline(sstables);
         apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
         if(updateSize)
+            maybeFail(updateSizeTracking(emptySet(), sstables, null));
+        if (maybeIncrementallyBackup)
+            maybeIncrementallyBackup(sstables);
+        notifyAdded(sstables, isInitialSSTables);
+    }
+
+    // TODO: Is this necessary anymore?
+    public void addSSTablesTracked(Collection<SSTableReader> sstables)
+    {
+        logger.debug("Adding tracked SSTables: {}", sstables);
+        // TODO: Are these applicable?
+        boolean isInitialSSTables = false;
+        boolean maybeIncrementallyBackup = true;
+        boolean updateSize = true;
+
+        if (!isDummy())
+            setupOnline(sstables);
+        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
+        if (updateSize)
             maybeFail(updateSizeTracking(emptySet(), sstables, null));
         if (maybeIncrementallyBackup)
             maybeIncrementallyBackup(sstables);

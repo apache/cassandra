@@ -34,6 +34,10 @@ public interface CoordinatorLogOffsets<O extends Offsets> extends Iterable<Long>
 {
     O offsets(long logId);
     int size();
+    default boolean isEmpty()
+    {
+        return size() == 0;
+    }
 
     ImmutableCoordinatorLogOffsets NONE = new ImmutableCoordinatorLogOffsets.Builder(0).build();
 }

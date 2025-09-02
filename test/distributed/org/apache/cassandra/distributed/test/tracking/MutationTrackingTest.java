@@ -26,8 +26,6 @@ import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.Offsets;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -50,8 +48,6 @@ import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUti
 
 public class MutationTrackingTest extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(MutationTrackingTest.class);
-
     @Test
     public void testBasicWritePath() throws Throwable
     {

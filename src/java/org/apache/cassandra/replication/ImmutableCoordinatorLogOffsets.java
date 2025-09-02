@@ -19,7 +19,10 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -36,6 +39,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Offsets.Immutable>
 {
     private final Long2ObjectHashMap<Offsets.Immutable> ids;
+    private final List<ShortMutationId> transfers;
 
     @Override
     public Offsets.Immutable offsets(long logId)
@@ -44,6 +48,15 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         if (offsets == null)
             return new Offsets.Immutable(new CoordinatorLogId(logId));
         return offsets;
+    }
+
+    /* REVIEW:
+    Still thinking about the right way to have this relate to offsets / size, and whether it's required on the Mutable
+    variants of CoordinatorLogOffests.
+    */
+    public Collection<? extends ShortMutationId> transfers()
+    {
+        return transfers;
     }
 
     @Override
@@ -63,16 +76,16 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
     {
         if (o == null || getClass() != o.getClass()) return false;
         ImmutableCoordinatorLogOffsets longs = (ImmutableCoordinatorLogOffsets) o;
-        return Objects.equals(ids, longs.ids);
+        return Objects.equals(ids, longs.ids) && Objects.equals(transfers, longs.transfers);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(ids);
+        return Objects.hash(ids, transfers);
     }
 
-    public ImmutableCoordinatorLogOffsets(Builder builder)
+    private ImmutableCoordinatorLogOffsets(Builder builder)
     {
         // Important to set shouldAvoidAllocation=false, otherwise iterators are cached and not thread safe, even when
         // immutable and read-only
@@ -80,12 +93,15 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
 
         for (Map.Entry<Long, Offsets.Immutable.Builder> entry : builder.ids.entrySet())
             ids.put(entry.getKey(), entry.getValue().build());
+
+        this.transfers = builder.transfers;
     }
 
     @NotThreadSafe
     public static class Builder
     {
         private final Long2ObjectHashMap<Offsets.Immutable.Builder> ids;
+        private final List<ShortMutationId> transfers;
 
         public Builder()
         {
@@ -95,6 +111,9 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         public Builder(int size)
         {
             this.ids = new Long2ObjectHashMap<>(size, 0.9f, false);
+
+            // Transfers are very rare, opt to save memory
+            this.transfers = new ArrayList<>(1);
         }
 
         public Builder add(MutationId mutationId)
@@ -121,6 +140,14 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         {
             ids.computeIfAbsent(offsets.logId.asLong(), logId -> new Offsets.Immutable.Builder(new CoordinatorLogId(logId)))
                .addAll(offsets);
+            return this;
+        }
+
+        public Builder addTransfer(MutationId activationId)
+        {
+            if (activationId.isNone())
+                return this;
+            transfers.add(activationId);
             return this;
         }
 
