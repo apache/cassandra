@@ -1378,6 +1378,18 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
+     * Mutate {@link ImmutableCoordinatorLogOffsets} with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
+     */
+    public void mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets logOffsets) throws IOException
+    {
+        synchronized (tidy.global)
+        {
+            descriptor.getMetadataSerializer().mutateCoordinatorLogOffsets(descriptor, logOffsets);
+            reloadSSTableMetadata();
+        }
+    }
+
+    /**
      * Reloads the sstable metadata from disk.
      * <p>
      * Called after level is changed on sstable, for example if the sstable is dropped to L0

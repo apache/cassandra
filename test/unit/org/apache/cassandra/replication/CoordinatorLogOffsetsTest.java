@@ -22,6 +22,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -82,10 +83,13 @@ public class CoordinatorLogOffsetsTest
     private static final Gen<MutationId> MUTATION_ID_GEN = rs -> new MutationId(LOG_ID_GEN.next(rs), SEQUENCE_ID_GEN.next(rs));
 
     private static final Gen<ImmutableCoordinatorLogOffsets> COORDINATOR_LOG_OFFSETS_GEN = rs -> {
-        int numIds = rs.nextBiasedInt(0, 10, 1000);
-        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder(numIds);
-        for (int i = 0; i < numIds; i++)
+        int numMutations = rs.nextBiasedInt(0, 10, 1000);
+        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder(numMutations);
+        for (int i = 0; i < numMutations; i++)
             builder.add(MUTATION_ID_GEN.next(rs));
+        int numTransfers = rs.nextBiasedInt(0, 1, 10);
+        for (int i = 0; i < numTransfers; i++)
+            builder.addTransfer(MUTATION_ID_GEN.next(rs), new Bounds<>(new Murmur3Partitioner.LongToken(1), new Murmur3Partitioner.LongToken(2)));
         return builder.build();
     };
 
@@ -100,18 +104,18 @@ public class CoordinatorLogOffsetsTest
     {
         qt()
         .forAll(COORDINATOR_LOG_OFFSETS_GEN)
-        .check(offsets -> {
+        .check(originals -> {
             try (DataOutputBuffer outputBuffer = DataOutputBuffer.scratchBuffer.get())
             {
-                ImmutableCoordinatorLogOffsets.serializer.serialize(offsets, outputBuffer, MessagingService.current_version);
-                byte[] bytes = outputBuffer.toByteArray();
-                try (DataInputBuffer inputBuffer = new DataInputBuffer(bytes))
+                ImmutableCoordinatorLogOffsets.serializer.serialize(originals, outputBuffer, MessagingService.current_version);
+                try (DataInputBuffer inputBuffer = new DataInputBuffer(outputBuffer.buffer(), true))
                 {
                     ImmutableCoordinatorLogOffsets deserialized = ImmutableCoordinatorLogOffsets.serializer.deserialize(inputBuffer, MessagingService.current_version);
-                    Assertions.assertThat(Sets.newHashSet(deserialized.iterator())).isEqualTo(Sets.newHashSet(offsets.iterator()));
-                    for (long logId : offsets)
-                        Assertions.assertThat(deserialized.offsets(logId)).isEqualTo(offsets.offsets(logId));
-                    Assertions.assertThat(bytes.length).isEqualTo(ImmutableCoordinatorLogOffsets.serializer.serializedSize(offsets, MessagingService.current_version));
+                    CoordinatorLogOffsets.Mutations<Offsets.Immutable> mutations = deserialized.mutations();
+                    Assertions.assertThat(Sets.newHashSet(mutations)).isEqualTo(Sets.newHashSet(originals.mutations().iterator()));
+                    for (long logId : originals.mutations())
+                        Assertions.assertThat(mutations.offsets(logId)).isEqualTo(originals.mutations().offsets(logId));
+                    Assertions.assertThat(outputBuffer.getLength()).isEqualTo(ImmutableCoordinatorLogOffsets.serializer.serializedSize(originals, MessagingService.current_version));
                 }
             }
         });
@@ -132,10 +136,10 @@ public class CoordinatorLogOffsetsTest
             MutableCoordinatorLogOffsets logOffsets = ctor.get();
             for (MutationId id : ids)
             {
-                Offsets originalOffsets = logOffsets.offsets(id.logId());
+                Offsets originalOffsets = logOffsets.mutations().offsets(id.logId());
                 boolean existed = originalOffsets.contains(id.offset());
                 logOffsets.add(id);
-                Offsets updatedOffsets = logOffsets.offsets(id.logId());
+                Offsets updatedOffsets = logOffsets.mutations().offsets(id.logId());
                 if (existed)
                     Assertions.assertThat(updatedOffsets).hasSameSizeAs(originalOffsets);
                 Assertions.assertThat(updatedOffsets.contains(id.offset())).isTrue();
@@ -156,13 +160,13 @@ public class CoordinatorLogOffsetsTest
         .forAll(COORDINATOR_LOG_OFFSETS_GEN, COORDINATOR_LOG_OFFSETS_GEN)
         .check((left, right) -> {
             MutableCoordinatorLogOffsets merged = ctor.get();
-            merged.addAll(left);
-            merged.addAll(right);
-            for (Long logId : merged)
+            merged.addAll(left.mutations());
+            merged.addAll(right.mutations());
+            for (Long logId : merged.mutations())
             {
-                Offsets leftOffsets = left.offsets(logId);
-                Offsets rightOffsets = right.offsets(logId);
-                Offsets mergedOffsets = Offsets.Immutable.copy(merged.offsets(logId));
+                Offsets leftOffsets = left.mutations().offsets(logId);
+                Offsets rightOffsets = right.mutations().offsets(logId);
+                Offsets mergedOffsets = Offsets.Immutable.copy(merged.mutations().offsets(logId));
                 Assertions.assertThat(mergedOffsets).isEqualTo(Offsets.Immutable.union(leftOffsets, rightOffsets));
             }
         });
@@ -189,9 +193,9 @@ public class CoordinatorLogOffsetsTest
             }
 
             ImmutableCoordinatorLogOffsets fromBuilder = builder.build();
-            Assertions.assertThat(fromBuilder).hasSize(logOffsets.size());
-            for (Long logId : logOffsets)
-                Assertions.assertThat(fromBuilder.offsets(logId)).isEqualTo(Offsets.Immutable.copy(logOffsets.offsets(logId)));
+            Assertions.assertThat(fromBuilder.mutations()).hasSize(logOffsets.mutations().size());
+            for (Long logId : logOffsets.mutations())
+                Assertions.assertThat(fromBuilder.mutations().offsets(logId)).isEqualTo(Offsets.Immutable.copy(logOffsets.mutations().offsets(logId)));
         });
     }
 
@@ -232,9 +236,9 @@ public class CoordinatorLogOffsetsTest
             for (Future<?> task : concurrentUpdates)
                 task.get();
 
-            Assertions.assertThatIterable(exclusive).hasSameSizeAs(concurrent);
-            for (Long logId : exclusive)
-                Assertions.assertThat(exclusive.offsets(logId)).isEqualTo(concurrent.offsets(logId));
+            Assertions.assertThatIterable(exclusive.mutations()).hasSameSizeAs(concurrent.mutations());
+            for (Long logId : exclusive.mutations())
+                Assertions.assertThat(exclusive.mutations().offsets(logId)).isEqualTo(concurrent.mutations().offsets(logId));
         });
     }
 
@@ -289,7 +293,7 @@ public class CoordinatorLogOffsetsTest
                     .add(mutation.id())
                     .build();
             Range<Token> range = getShardRange(mutation);
-            List<? extends Offsets> offsets = Collections.singletonList(logOffsets.offsets(mutation.id().logId()));
+            List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
             MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr2);
             MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr3);
 
@@ -323,7 +327,7 @@ public class CoordinatorLogOffsetsTest
                     .build();
 
             Range<Token> range = getShardRange(mutation);
-            List<? extends Offsets> offsets = Collections.singletonList(logOffsets.offsets(mutation.id().logId()));
+            List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
             MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr2);
             MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr3);
 

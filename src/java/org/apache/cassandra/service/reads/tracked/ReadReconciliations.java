@@ -23,6 +23,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
@@ -126,6 +129,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
 
     public void acceptMutation(TrackedRead.Id id, ShortMutationId mutationId)
     {
+        logger.debug("Accepted mutation {} {}", id, mutationId);
         Coordinator reconcile = coordinators.get(id);
         if (reconcile != null && reconcile.acceptMutation(mutationId)) // could be already timed out / expired
             coordinators.remove(id);
@@ -155,6 +159,8 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
 
     private static final class Coordinator
     {
+        private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
+
         private static final AtomicLongFieldUpdater<Coordinator> remainingUpdater =
             AtomicLongFieldUpdater.newUpdater(Coordinator.class, "remaining");
         private volatile long remaining; // three values packed into one atomic long
@@ -343,6 +349,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
                 int mutations = remainingMutations(prev) + mutationsDelta;
                 int summaries = remainingSummaries(prev) + summariesDelta;
                 int syncAcks = remainingSyncAcks(prev) + syncAcksDelta;
+                logger.trace("[Read {}] Still waiting for {} mutations, {} summaries, {} syncAcks", id, mutations, summaries, syncAcks);
                 next = remaining(mutations, summaries, syncAcks);
             } while (!remainingUpdater.compareAndSet(this, prev, next));
             return next;
@@ -369,6 +376,8 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         }
     }
 
+    private static final Logger logger = LoggerFactory.getLogger(ReadReconciliations.class);
+
     /**
      * @param node node id of the remote replica from which we got the summary
      * @param offsets offsets that we need to pull - from the coordinator, if alive, or from the
@@ -389,6 +398,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         if (!toPull.isEmpty())
         {
             PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull));
+            logger.debug("Pulling {} from {}", pull, pullFrom);
             MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, pull), pullFrom);
         }
     }

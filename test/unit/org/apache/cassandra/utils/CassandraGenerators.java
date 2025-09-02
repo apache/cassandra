@@ -1434,6 +1434,50 @@ public final class CassandraGenerators
         }
     }
 
+    public static Gen<Token> randomTokenIn(Range<Token> range)
+    {
+        BigInteger left = (BigInteger) range.left.getTokenValue();
+        BigInteger right = (BigInteger) range.right.getTokenValue();
+        BigInteger min = RandomPartitioner.instance.getMinimumToken().getTokenValue();
+        BigInteger max = (BigInteger) RandomPartitioner.instance.getMaximumTokenForSplitting().getTokenValue();
+        Gen<byte[]> bytesGen = Generate.byteArrays(SourceDSL.integers().between(0, RandomPartitioner.MAXIMUM_TOKEN_SIZE), Generate.bytes(Byte.MIN_VALUE, Byte.MAX_VALUE, (byte) 0));
+
+        return rs -> {
+            BigInteger from;
+            BigInteger to;
+
+            if (range.isWrapAround())
+            {
+                Boolean inUpperRange = SourceDSL.booleans().all().generate(rs);
+                if (inUpperRange)
+                {
+                    from = right;
+                    to = max;
+                }
+                else
+                {
+                    from = min;
+                    to = left;
+                }
+            }
+            else
+            {
+                from = left;
+                to = right;
+            }
+
+            byte[] bytes = bytesGen.generate(rs);
+            BigInteger random = bytes.length == 0 ? min : new BigInteger(bytes);
+            BigInteger delta = to.subtract(from);
+            BigInteger mod;
+            if (delta.equals(BigInteger.ZERO))
+                mod = min;
+            else
+                mod = random.mod(delta);
+            return RandomPartitioner.instance.getToken(ByteBuffer.wrap(mod.toByteArray()));
+        };
+    }
+
     public static Gen<Token> byteOrderToken()
     {
         // empty token only happens if partition key is byte[0], which isn't allowed
@@ -1502,6 +1546,7 @@ public final class CassandraGenerators
     {
         IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner instanceof Murmur3Partitioner) return murmurTokenIn(range);
+        if (partitioner instanceof RandomPartitioner) return randomTokenIn(range);
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
     }
 

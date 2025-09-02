@@ -376,6 +376,8 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
+        if (cfs.metadata().replicationType().isTracked())
+            controller.addTransferIds(view.sstables);
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));
 
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.

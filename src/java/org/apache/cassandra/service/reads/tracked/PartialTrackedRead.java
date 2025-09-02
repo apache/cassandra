@@ -247,10 +247,19 @@ public abstract class PartialTrackedRead
         augmentingOffsets.forEach(this::augment);
     }
 
+    /**
+     * If a mutation to augment isn't present in {@link MutationJournal}, it's either a newly-activated transfer, or a
+     * serious bug. In the case it's a transfer, we still want to signal this to the client to retry against another
+     * node. This could be optimized to augment with updates from the newly-transferred SSTables.
+     */
     void augment(ShortMutationId mutationId)
     {
         Mutation mutation = MutationJournal.instance.read(mutationId);
-        Preconditions.checkNotNull(mutation, "Missing mutation %s", mutationId);
+        if (mutation == null)
+        {
+            logger.error("Could not augment read with mutation not present in journal {}", mutationId);
+            throw new RuntimeException(String.format("Missing mutation %s", mutationId));
+        }
         if (!command().selectsKey(mutation.key()))
         {
             logger.trace("Skipping mutation {} - {} not in read range", mutationId, mutation.key());

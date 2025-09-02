@@ -139,7 +139,7 @@ public class Shard
         {
             CoordinatorLog newLog = log.withParticipants(newParticipants);
             newLogs.put(newLog.logId.asLong(), newLog);
-            
+
             if (log == currentLocalLog)
                 newCurrentLocalLog = (CoordinatorLog.CoordinatorLogPrimary) newLog;
         }
@@ -153,9 +153,10 @@ public class Shard
     MutationId nextId()
     {
         MutationId nextId = currentLocalLog.nextId();
-        if (nextId != null)
-            return nextId;
-        return maybeRotateLocalLogAndGetNextId();
+        if (nextId == null)
+            nextId = maybeRotateLocalLogAndGetNextId();
+        logger.trace("Issuing next MutationId {}", nextId);
+        return nextId;
     }
 
     // if ids overflow, we need to rotate the local log
@@ -174,6 +175,17 @@ public class Shard
     {
         int fromHostId = ClusterMetadata.current().directory.peerId(fromHost).id();
         getOrCreate(mutationId).receivedWriteResponse(mutationId, fromHostId);
+    }
+
+    void finishActivation(PendingLocalTransfer transfer, TransferActivation activation)
+    {
+        getOrCreate(activation.transferId).finishActivation(transfer, activation);
+    }
+
+    void receivedActivationResponse(CoordinatedTransfer transfer, InetAddressAndPort onHost)
+    {
+        int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
+        getOrCreate(transfer.id()).receivedActivationResponse(transfer, onHostId);
     }
 
     void updateReplicatedOffsets(List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
@@ -253,6 +265,11 @@ public class Shard
             }
         }
         return replicas;
+    }
+
+    boolean isDurablyReconciled(ShortMutationId id)
+    {
+        return logs.get(id.logId()).isDurablyReconciled(id);
     }
 
     boolean isDurablyReconciled(long logId, CoordinatorLogOffsets<?> logOffsets)

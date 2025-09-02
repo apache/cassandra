@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -61,6 +62,7 @@ import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.notifications.TableDroppedNotification;
 import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -270,6 +272,20 @@ public class Tracker
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
+        Preconditions.checkState(!cfstore.metadata().replicationType().isTracked());
+        addSSTablesInternal(sstables, false, true, true);
+    }
+
+    public void addSSTablesTracked(Collection<SSTableReader> sstables)
+    {
+        Preconditions.checkState(cfstore.metadata().replicationType().isTracked());
+        for (SSTableReader sstable : sstables)
+        {
+            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
+            Preconditions.checkState(logOffsets.mutations().isEmpty());
+            Preconditions.checkState(!logOffsets.transfers().isEmpty());
+        }
+
         addSSTablesInternal(sstables, false, true, true);
     }
 

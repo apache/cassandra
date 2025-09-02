@@ -71,18 +71,31 @@ abstract class NonBlockingCoordinatorLogOffsets<E extends NonBlockingCoordinator
     }
 
     @Override
-    public Offsets.Mutable offsets(long logId)
+    public Mutations<Offsets.Mutable> mutations()
     {
-        E logOffsets = get(logId);
-        if (logOffsets == null)
-            return new Offsets.Mutable(new CoordinatorLogId(logId));
-        return logOffsets.offsets();
-    }
+        return new Mutations<>()
+        {
+            @Override
+            public Offsets.Mutable offsets(long logId)
+            {
+                E logOffsets = get(logId);
+                if (logOffsets == null)
+                    return new Offsets.Mutable(new CoordinatorLogId(logId));
+                return logOffsets.offsets();
+            }
 
-    @Override
-    public Iterator<Long> iterator()
-    {
-        return Iterators.unmodifiableIterator(keys().asIterator());
+            @Override
+            public int size()
+            {
+                return NonBlockingCoordinatorLogOffsets.super.size();
+            }
+
+            @Override
+            public Iterator<Long> iterator()
+            {
+                return Iterators.unmodifiableIterator(keys().asIterator());
+            }
+        };
     }
 
     public static class Exclusive extends NonBlockingCoordinatorLogOffsets<Exclusive.Entry>

@@ -26,6 +26,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -95,6 +96,11 @@ public interface IMetadataSerializer
      * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
      */
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair) throws IOException;
+
+    /**
+     * Replace mutation tracking metadata.
+     */
+    public void mutateCoordinatorLogOffsets(Descriptor descriptor, ImmutableCoordinatorLogOffsets logOffsets) throws IOException;
 
     /**
      * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.

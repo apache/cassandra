@@ -38,10 +38,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
@@ -53,6 +55,7 @@ import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -75,6 +78,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.lang.String.format;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -88,9 +92,12 @@ public class MutationTrackingService
     /**
      * Split ranges into this many shards.
      * <p>
+     * REVIEW: Reset back to 1 because for transfers, replicas need to know each others' shards, since transfers are
+     * sliced to fit within shards. Can we achieve sharding via split range ownership, instead of it being local-only?
+     * <p>
      * TODO (expected): ability to rebalance / change this constant
      */
-    private static final int SHARD_MULTIPLIER = 8;
+    private static final int SHARD_MULTIPLIER = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
     public static final MutationTrackingService instance = new MutationTrackingService();
@@ -250,11 +257,45 @@ public class MutationTrackingService
         }
     }
 
+    public void receivedActivationResponse(CoordinatedTransfer transfer, InetAddressAndPort fromHost)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            logger.debug("{} receivedActivationAck from {}", transfer.logPrefix(), fromHost);
+            Preconditions.checkArgument(!transfer.id().isNone());
+
+            // REVIEW: This will be called with ShortMutationId, which overrides hashCode from CoordinatorLogId, but map
+            // is updated with CoordinatorLogId; shouldn't call this with a ShortMutationId, not sure why that's working
+            // elsewhere
+            Shard shard = getShardNullable(new CoordinatorLogId(transfer.id().logId()));
+            // Local activation acknowledged in MutationTrackingService.activateLocal
+            if (shard != null && !fromHost.equals(FBUtilities.getBroadcastAddressAndPort()))
+                shard.receivedActivationResponse(transfer, fromHost);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     public void retryFailedWrite(ShortMutationId mutationId, InetAddressAndPort onHost, RequestFailure reason)
     {
         Preconditions.checkArgument(!mutationId.isNone());
 //        outgoingMutations.writeFailed(mutationId, reason, onHost);
         activeReconciler.schedule(mutationId, onHost, ActiveLogReconciler.Priority.REGULAR);
+    }
+
+    public void retryFailedTransfer(CoordinatedTransfer transfer, InetAddressAndPort onHost, Throwable cause)
+    {
+        if (transfer.isCommitted())
+        {
+            logger.debug("Failed transfer {} to {} is already committed, skipping reconciliation", transfer, onHost, cause);
+            return;
+        }
+        logger.debug("Retrying failed transfer {} to {} with exception", transfer, onHost, cause);
+        Preconditions.checkArgument(!transfer.id().isNone());
+        activeReconciler.schedule(transfer.id(), onHost, ActiveLogReconciler.Priority.REGULAR);
     }
 
     public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
@@ -323,6 +364,54 @@ public class MutationTrackingService
     public boolean registerMutationCallback(ShortMutationId mutationId, IncomingMutations.Callback callback)
     {
         return incomingMutations.subscribe(mutationId, callback);
+    }
+
+    public void executeTransfers(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            logger.info("Creating tracked bulk transfers for keyspace '{}' SSTables {}...", keyspace, sstables);
+
+            KeyspaceShards shards = checkNotNull(keyspaceShards.get(keyspace));
+            CoordinatedTransfers transfers = CoordinatedTransfers.create(keyspace, shards, sstables, cl);
+            logger.info("Split input SSTables into transfers {}", transfers);
+
+            for (CoordinatedTransfer transfer : transfers)
+                transfer.execute();
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    public void received(PendingLocalTransfer transfer)
+    {
+        logger.debug("Received pending transfer for tracked table {}", transfer);
+        LocalTransfers.instance().received(transfer);
+    }
+
+    void activateLocal(TransferActivation activation)
+    {
+        PendingLocalTransfer pending = LocalTransfers.instance().getPendingTransfer(activation.planId);
+        if (pending == null)
+            throw new IllegalStateException(String.format("Cannot activate unknown local pending transfer %s", activation));
+        pending.activate(activation);
+
+        shardLock.readLock().lock();
+        try
+        {
+            if (activation.isCommit())
+            {
+                keyspaceShards.get(pending.keyspace).lookUp(pending.range).finishActivation(pending, activation);
+                incomingMutations.invokeListeners(activation.transferId);
+            }
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
     }
 
     public MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
@@ -459,14 +548,33 @@ public class MutationTrackingService
     }
     private int prevHostLogId;
 
+    public boolean isDurablyReconciled(ShortMutationId id)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            long logId = id.logId();
+            Shard shard = getShardNullable(new CoordinatorLogId(logId));
+            if (shard == null)
+                throw new IllegalStateException("Could not find shard for logId " + logId);
+
+            return shard.isDurablyReconciled(id);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     public boolean isDurablyReconciled(ImmutableCoordinatorLogOffsets logOffsets)
     {
         shardLock.readLock().lock();
         try
         {
-            // Could pass through SSTable bounds to exclude shards for non-overlapping ranges, but this will mostly be
-            // called on flush for L0 SSTables with wide bounds.
-            for (Long logId : logOffsets)
+            Iterable<Long> mutations = logOffsets.mutations();
+            Iterable<Long> transfers = Iterables.transform(logOffsets.transfers(), ShortMutationId::logId);
+            Iterable<Long> logIds = Iterables.concat(mutations, transfers);
+            for (Long logId : logIds)
             {
                 Shard shard = getShardNullable(new CoordinatorLogId(logId));
                 if (shard == null)
@@ -886,7 +994,18 @@ public class MutationTrackingService
 
         Shard lookUp(Token token)
         {
-            return shards.get(groups.forRange(token).range());
+            VersionedEndpoints.ForRange forRange = groups.matchToken(token);
+            if (forRange == null)
+                throw new UnknownShardException(token, groups);
+            return shards.get(forRange.range());
+        }
+
+        Shard lookUp(Range<Token> range)
+        {
+            VersionedEndpoints.ForRange forRange = groups.matchRange(range);
+            if (forRange == null)
+                throw new UnknownShardException(range, groups);
+            return shards.get(forRange.range());
         }
 
         void persistToSystemTables()
