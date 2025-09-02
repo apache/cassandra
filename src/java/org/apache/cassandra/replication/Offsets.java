@@ -354,9 +354,11 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 if (pos - 1 >= 0 && bounds[pos - 1] == offset)
                     pos--; // normalize pos to always point to floor if this is a single-offset range
 
-                if (bounds[pos] == bounds[pos + 1]) // remove entire single-offset range
+                int rangeStart = pos - (pos % 2);
+
+                if (bounds[rangeStart] == bounds[rangeStart + 1]) // remove entire single-offset range
                 {
-                    System.arraycopy(bounds, pos + 2, bounds, pos, size - pos - 2);
+                    System.arraycopy(bounds, rangeStart + 2, bounds, rangeStart, size - rangeStart - 2);
                     bounds[--size] = 0;
                     bounds[--size] = 0;
                 }

@@ -222,7 +222,19 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         void acknowledgeReconcile(Log2OffsetsMap<?> augmentingOffsets)
         {
             logger.trace("Reconciliation completed for {}, missing {}", readId, augmentingOffsets);
-            Stage.READ.submit(() -> { read.augment(augmentingOffsets); complete(); });
+
+            Stage.READ.submit(() -> { 
+
+                try
+                {
+                    read.augment(augmentingOffsets);
+                    complete();
+                } catch (Throwable t) {
+                    logger.error("Exception thrown during read completion", t);
+                    promise.tryFailure(t);
+                    throw t;
+                }
+            });
         }
 
         private void complete()

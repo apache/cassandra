@@ -20,8 +20,6 @@ package org.apache.cassandra.service.reads.tracked;
 
 import java.util.List;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -78,7 +76,11 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
         @Override
         public State augment(PartitionUpdate update)
         {
-            Preconditions.checkArgument(update.partitionKey().equals(command.partitionKey()));
+            if (!update.partitionKey().equals(command.partitionKey()))
+                throw new IllegalArgumentException(String.format("Received update for partition key %s but command was for %s",
+                                                                 update.partitionKey(),
+                                                                 command.partitionKey()));
+
             if (augmentedData == null)
                 augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
 

@@ -838,4 +838,26 @@ public class OffsetsTest
         from.remove(toRemove);
         assertOffsetsEqual(expectedAfter, from);
     }
+
+    @Test
+    public void testRemoveWithExactSizedArray()
+    {
+        {
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {10, 11}, 2);
+            offsets.remove(10);
+            assertOffsetsEqual(offsets(11, 11), offsets);
+        }
+
+        {
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {10, 11}, 2);
+            offsets.remove(11);
+            assertOffsetsEqual(offsets(10, 10), offsets);
+        }
+
+        {
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {11, 11}, 2);
+            offsets.remove(11);
+            assertOffsetsEqual(offsets(), offsets);
+        }
+    }
 }

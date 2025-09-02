@@ -170,8 +170,19 @@ public class UnreconciledMutations
         int cmp = start.token.compareTo(end.token);
         if (cmp == 0)
         {
-            // full range
-            return collect(statesSet, tableId, includePending, into);
+            // When start and end tokens are equal, check if this is a single-token range
+            // Single-token ranges have start inclusive (offset=0) and end inclusive (offset=MAX_VALUE)
+            if (start.offset == 0 && end.offset == Integer.MAX_VALUE)
+            {
+                // Single token range - collect only mutations for this specific token
+                SortedSet<Entry> subset = statesSet.subSet(Entry.start(start.token, true), Entry.end(end.token, true));
+                return collect(subset, tableId, includePending, into);
+            }
+            else
+            {
+                // Full range - collect all mutations
+                return collect(statesSet, tableId, includePending, into);
+            }
         }
         else if (cmp > 0)
         {
