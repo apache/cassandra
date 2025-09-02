@@ -19,14 +19,13 @@
 package org.apache.cassandra.utils.logging;
 
 import ch.qos.logback.classic.spi.LoggingEvent;
-import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
 import org.apache.cassandra.db.virtual.SlowQueriesTable;
 
 public final class SlowQueriesAppender extends AbstractVirtualTableAppender
 {
     public static final String APPENDER_NAME = "SLOW_QUERIES_APPENDER";
 
-    private AbstractLoggerVirtualTable<?> slowQueries;
+    private SlowQueriesTable slowQueries;
 
     public SlowQueriesAppender()
     {
@@ -40,6 +39,6 @@ public final class SlowQueriesAppender extends AbstractVirtualTableAppender
         // are not registered, and we already try to put queries there.
         // As soon as vtable is registered (as part of node's startup / initialisation),
         // slow queries will never be null again
-        slowQueries = appendToVirtualTable(slowQueries, eventObject, SlowQueriesTable.TABLE_NAME);
+        slowQueries = appendToVirtualTable(SlowQueriesTable.class, slowQueries, eventObject, SlowQueriesTable.TABLE_NAME);
     }
 }

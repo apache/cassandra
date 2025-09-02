@@ -25,7 +25,6 @@ import java.util.Optional;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.AppenderBase;
 import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
-import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
@@ -46,9 +45,9 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
     // logged already
     protected final List<LoggingEvent> messageBuffer = new LinkedList<>();
 
-    protected <T> T getVirtualTable(Class<T> vtableClass, String tableName)
+    public static <T> T getVirtualTable(Class<T> vtableClass, String keyspaceName, String tableName)
     {
-        VirtualKeyspace keyspace = VirtualKeyspaceRegistry.instance.getKeyspaceNullable(VIRTUAL_VIEWS);
+        VirtualKeyspace keyspace = VirtualKeyspaceRegistry.instance.getKeyspaceNullable(keyspaceName);
 
         if (keyspace == null)
             return null;
@@ -65,12 +64,17 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
 
         if (!vt.getClass().equals(vtableClass))
             throw new IllegalStateException(String.format("Virtual table %s.%s is not backed by an instance of %s but by %s",
-                                                          VIRTUAL_VIEWS,
+                                                          keyspaceName,
                                                           tableName,
                                                           vtableClass.getName(),
                                                           vt.getClass().getName()));
 
         return (T) vt;
+    }
+
+    public static <T> T getVirtualTable(Class<T> vtableClass, String tableName)
+    {
+        return getVirtualTable(vtableClass, VIRTUAL_VIEWS, tableName);
     }
 
     /**
@@ -80,17 +84,21 @@ public abstract class AbstractVirtualTableAppender extends AppenderBase<LoggingE
      * were appended via logging framework sooner than registration of virtual tables was done so after they are registered,
      * they would miss logging events happened before being so.
      *
-     * @param vtable    vtable to append to
-     * @param event     event to append to
-     * @param tableName table name of virtual table to append to
+     * @param vtableClass class of vtable to append to
+     * @param vtable      vtable to append to
+     * @param event       event to append to
+     * @param tableName   table name of virtual table to append to
      * @return vtable or when null, found vtable
      */
-    protected AbstractLoggerVirtualTable<?> appendToVirtualTable(AbstractLoggerVirtualTable<?> vtable, LoggingEvent event, String tableName)
+    protected <T extends AbstractLoggerVirtualTable<?>> T appendToVirtualTable(Class<T> vtableClass,
+                                                                               T vtable,
+                                                                               LoggingEvent event,
+                                                                               String tableName)
     {
-        AbstractLoggerVirtualTable<?> foundVtable;
+        T foundVtable;
         if (vtable == null)
         {
-            foundVtable = getVirtualTable(SlowQueriesTable.class, tableName);
+            foundVtable = getVirtualTable(vtableClass, tableName);
             if (foundVtable == null)
                 addToBuffer(event);
             else

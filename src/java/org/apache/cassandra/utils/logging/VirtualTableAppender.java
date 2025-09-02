@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 
 import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.audit.FileAuditLogger;
-import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 
 /**
@@ -36,7 +35,7 @@ public final class VirtualTableAppender extends AbstractVirtualTableAppender
 
     private static final Set<String> forbiddenLoggers = ImmutableSet.of(FileAuditLogger.class.getName());
 
-    private AbstractLoggerVirtualTable<?> logs;
+    private LogMessagesTable logs;
 
     public VirtualTableAppender()
     {
@@ -47,6 +46,6 @@ public final class VirtualTableAppender extends AbstractVirtualTableAppender
     protected void append(LoggingEvent eventObject)
     {
         if (!forbiddenLoggers.contains(eventObject.getLoggerName()))
-            logs = appendToVirtualTable(logs, eventObject, LogMessagesTable.TABLE_NAME);
+            logs = appendToVirtualTable(LogMessagesTable.class, logs, eventObject, LogMessagesTable.TABLE_NAME);
     }
 }

@@ -47,6 +47,16 @@ public final class VirtualKeyspaceRegistry
         keyspace.tables().forEach(t -> virtualTables.put(t.metadata().id, t));
     }
 
+    public void unregister(VirtualKeyspace keyspace)
+    {
+        VirtualKeyspace virtualKeyspace = virtualKeyspaces.get(keyspace.name());
+        if (virtualKeyspace == null)
+            return;
+
+        keyspace.tables().forEach(t -> virtualTables.remove(t.metadata().id));
+        virtualKeyspaces.remove(keyspace.name());
+    }
+
     @Nullable
     public VirtualKeyspace getKeyspaceNullable(String name)
     {

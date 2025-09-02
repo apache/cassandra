@@ -37,6 +37,7 @@ import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.virtual.ExceptionsTable;
 import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -70,6 +71,7 @@ public final class JVMStabilityInspector
         try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
         logger.error("Exception in thread {}", thread, t);
         Tracing.trace("Exception in thread {}", thread, t);
+        ExceptionsTable.persist(t);
         for (Throwable t2 = t; t2 != null; t2 = t2.getCause())
         {
             // make sure error gets logged exactly once.
