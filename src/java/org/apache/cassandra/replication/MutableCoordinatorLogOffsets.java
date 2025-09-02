@@ -28,11 +28,11 @@ public interface MutableCoordinatorLogOffsets extends CoordinatorLogOffsets<Offs
 {
     void add(ShortMutationId mutationId);
 
-    default void addAll(ImmutableCoordinatorLogOffsets from)
+    default void addAll(Mutations<? extends Offsets> mutations)
     {
-        for (long logId : from)
+        for (long logId : mutations)
         {
-            Offsets offsets = from.offsets(logId);
+            Offsets offsets = mutations.offsets(logId);
             offsets.forEach(this::add);
         }
     }

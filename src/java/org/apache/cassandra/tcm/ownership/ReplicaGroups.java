@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
@@ -111,6 +112,20 @@ public class ReplicaGroups
         int pos = Collections.binarySearch(ranges, range, Comparator.comparing(o -> o.left));
         if (pos >= 0 && pos < ranges.size() && ranges.get(pos).equals(range))
             return endpoints.get(pos);
+        return null;
+    }
+
+    /**
+     * Intended to be used for lookup of range-shards, such as those managed by {@link MutationTrackingService}.
+     */
+    public VersionedEndpoints.ForRange matchToken(Token token)
+    {
+        int pos = ordering.binarySearchAsymmetric(ranges, token, AsymmetricOrdering.Op.CEIL);
+        if (pos >= 0 && pos < ranges.size() && ranges.get(pos).contains(token))
+            return endpoints.get(pos);
+        // Last range can wrap around
+        if (!ranges.isEmpty() && pos == ranges.size() && ranges.get(pos - 1).contains(token))
+            return endpoints.get(pos - 1);
         return null;
     }
 

@@ -49,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
@@ -397,6 +398,7 @@ public class CompactionTask extends AbstractCompactionTask
         ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
         for (SSTableReader sstable : sstables)
             builder.addAll(sstable.getCoordinatorLogOffsets());
+        builder.purgeTransfers(MutationTrackingService.instance::isDurablyReconciled);
         return builder.build();
     }
 

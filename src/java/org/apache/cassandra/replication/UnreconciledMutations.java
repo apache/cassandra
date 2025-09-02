@@ -27,11 +27,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -40,8 +44,14 @@ import org.apache.cassandra.schema.TableId;
  */
 public class UnreconciledMutations
 {
+    private static final Logger logger = LoggerFactory.getLogger(UnreconciledMutations.class);
+
+    // Mutations (single-partition)
     private final Int2ObjectHashMap<Entry> statesMap = new Int2ObjectHashMap<>();
     private final SortedSet<Entry> statesSet = new TreeSet<>(Entry.comparator);
+
+    // Transfers (partition-range)
+    private final ActivatedTransfers transfers = new ActivatedTransfers();
 
     enum Visibility
     {
@@ -135,8 +145,15 @@ public class UnreconciledMutations
     public void remove(int offset)
     {
         Entry state = statesMap.remove(offset);
-        if (state != null)
+        if (state == null)
+            transfers.removeOffset(offset);
+        else
             statesSet.remove(state);
+    }
+
+    public void activatedTransfer(ShortMutationId id, Collection<SSTableReader> sstables)
+    {
+        transfers.add(id, sstables);
     }
 
     public UnreconciledMutations copy()
@@ -144,6 +161,7 @@ public class UnreconciledMutations
         UnreconciledMutations copy = new UnreconciledMutations();
         copy.statesMap.putAll(statesMap);
         copy.statesSet.addAll(statesSet);
+        copy.transfers.addAll(transfers);
         return copy;
     }
 
@@ -151,12 +169,14 @@ public class UnreconciledMutations
     {
         Entry start = Entry.start(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND);
         Entry end = Entry.end(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND);
+        transfers.forEachIntersecting(range, id -> into.add(id.offset()));
         return collect(start, end, tableId, includePending, into);
     }
 
     public boolean collect(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         SortedSet<Entry> subset = statesSet.subSet(Entry.start(token, true), Entry.end(token, true));
+        transfers.forEachIntersecting(token, id -> into.add(id.offset()));
         return collect(subset, tableId, includePending, into);
     }
 
@@ -210,7 +230,7 @@ public class UnreconciledMutations
     @VisibleForTesting
     boolean equalsForTesting(UnreconciledMutations other)
     {
-        return this.statesMap.equals(other.statesMap) && this.statesSet.equals(other.statesSet);
+        return this.statesMap.equals(other.statesMap) && this.statesSet.equals(other.statesSet) && this.transfers.equals(other.transfers);
     }
 
     @VisibleForTesting
@@ -243,9 +263,24 @@ public class UnreconciledMutations
             for (int offset = iter.start(), end = iter.end(); offset <= end; offset++)
             {
                 ShortMutationId id = new ShortMutationId(witnessed.logId, offset);
-                result.addDirectly(MutationJournal.instance.read(id));
+                Mutation mutation = MutationJournal.instance.read(id);
+                if (mutation != null)
+                {
+                    result.addDirectly(mutation);
+                    continue;
+                }
+                CoordinatedTransfer transfer = LocalTransfers.instance().getActivatedTransfer(id);
+                if (transfer != null)
+                {
+                    result.transfers.add(transfer.id(), transfer.sstables);
+                    continue;
+                }
+
+                logger.error("Cannot load unknown mutation ID {}", id);
             }
         }
+
+        // Transfers are never present in the journal, since they're added as SSTables directly
 
         return result;
     }

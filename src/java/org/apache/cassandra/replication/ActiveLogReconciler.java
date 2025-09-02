@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Interruptible;
@@ -46,6 +50,8 @@ import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 // TODO (expected): handle temporarily down nodes
 public final class ActiveLogReconciler implements Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ActiveLogReconciler.class);
+
     public enum Priority { HIGH, REGULAR }
 
     // prioritised delivery of mutations that are needed by reads;
@@ -71,7 +77,7 @@ public final class ActiveLogReconciler implements Shutdownable
      */
     void schedule(ShortMutationId mutationId, InetAddressAndPort toHost, Priority priority)
     {
-        queue(priority).offer(new Task(mutationId, toHost));
+        queue(priority).offer(Task.from(mutationId, toHost));
         haveWork.release(1);
     }
 
@@ -82,7 +88,7 @@ public final class ActiveLogReconciler implements Shutdownable
     void schedule(Offsets offsets, InetAddressAndPort toHost, Priority priority)
     {
         ManyToOneConcurrentLinkedQueue<Task> queue = queue(priority);
-        offsets.forEach(id -> queue.offer(new Task(id, toHost)));
+        offsets.forEach(id -> queue.offer(Task.from(id, toHost)));
         haveWork.release(1);
     }
 
@@ -114,12 +120,26 @@ public final class ActiveLogReconciler implements Shutdownable
         }
     }
 
-    private static final class Task implements RequestCallback<NoPayload>
+    private static abstract class Task implements RequestCallback<NoPayload>
+    {
+        private static Task from(ShortMutationId id, InetAddressAndPort toHost)
+        {
+            CoordinatedTransfer transfer = LocalTransfers.instance().getActivatedTransfer(id);
+            if (transfer != null)
+                return new TransferTask(transfer, toHost);
+            else
+                return new MutationTask(id, toHost);
+        }
+
+        abstract void send();
+    }
+
+    private static final class MutationTask extends Task
     {
         private final ShortMutationId mutationId;
         private final InetAddressAndPort toHost;
 
-        Task(ShortMutationId mutationId, InetAddressAndPort toHost)
+        MutationTask(ShortMutationId mutationId, InetAddressAndPort toHost)
         {
             this.mutationId = mutationId;
             this.toHost = toHost;
@@ -153,6 +173,59 @@ public final class ActiveLogReconciler implements Shutdownable
                                 new PushMutationRequest.Referenced(mutationId, pointer),
                                 MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWithCallback(message, toHost, this);
+        }
+    }
+
+    private static final class TransferTask extends Task
+    {
+        private final CoordinatedTransfer transfer;
+        private final InetAddressAndPort toHost;
+
+        TransferTask(CoordinatedTransfer transfer, InetAddressAndPort toHost)
+        {
+            this.transfer = transfer;
+            this.toHost = toHost;
+        }
+
+        @Override
+        public boolean invokeOnFailure()
+        {
+            return true;
+        }
+
+        @Override
+        public void onResponse(Message<NoPayload> msg)
+        {
+            logger.debug("Received activation ack for TransferTask from {}", toHost);
+            MutationTrackingService.instance.receivedActivationResponse(transfer, toHost);
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+        {
+            onFailure(failureReason.failure);
+        }
+
+        public void onFailure(Throwable cause)
+        {
+            logger.debug("Received activation failure for TransferTask from {} due to", toHost, cause);
+            MutationTrackingService.instance.retryFailedTransfer(transfer, toHost, cause);
+        }
+
+        void send()
+        {
+            logger.debug("Sending activation to {}", toHost);
+            LocalTransfers.instance().executor.submit(() -> {
+                try
+                {
+                    transfer.activateOn(Collections.singleton(toHost));
+                    onResponse(null);
+                }
+                catch (Throwable t)
+                {
+                    onFailure(t);
+                }
+            });
         }
     }
 

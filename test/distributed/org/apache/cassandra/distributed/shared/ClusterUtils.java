@@ -1744,4 +1744,14 @@ public class ClusterUtils
                     .collect(Collectors.toList());
         });
     }
+
+    public static Integer instanceId(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> {
+            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            if (cl instanceof InstanceClassLoader)
+                return ((InstanceClassLoader) cl).getInstanceId();
+            return null;
+        });
+    }
 }

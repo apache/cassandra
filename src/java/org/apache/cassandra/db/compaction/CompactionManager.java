@@ -2005,7 +2005,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             fullWriter.commit();
             unrepairedWriter.commit();
             txn.commit();
-            logger.info("Anticompacted {} in {}.{} to full = {}, transient = {}, unrepaired = {} for {}",
+            logger.info("Anticompacted {} in {}.{} to full = {}, unrepaired = {} for {}",
                         sstableAsSet,
                         cfs.getKeyspaceName(),
                         cfs.getTableName(),

@@ -1,0 +1,90 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.replication;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.Interval;
+
+/**
+ * Factory and container for creating multiple {@link CoordinatedTransfer} instances from a collection
+ * of SSTables, partitioned by {@link MutationTrackingService.KeyspaceShards}, which are aligned to replica ownership
+ * ranges. Each shard receives its own CoordinatedTransfer instance, which can be executed independently.
+ */
+class CoordinatedTransfers implements Iterable<CoordinatedTransfer>
+{
+    private final Collection<CoordinatedTransfer> transfers;
+
+    private CoordinatedTransfers(Collection<CoordinatedTransfer> transfers)
+    {
+        this.transfers = transfers;
+    }
+
+    static CoordinatedTransfers create(String keyspace, MutationTrackingService.KeyspaceShards shards, Collection<SSTableReader> sstables, ConsistencyLevel cl)
+    {
+        // Clean up incoming SSTables to remove any existing untrusted CoordinatorLogOffsets
+        for (SSTableReader sstable : sstables)
+        {
+            try
+            {
+                sstable.mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets.NONE);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        SSTableIntervalTree intervals = SSTableIntervalTree.buildSSTableIntervalTree(sstables);
+        List<CoordinatedTransfer> transfers = new ArrayList<>();
+
+        shards.forEachShard(shard -> {
+            Range<Token> range = shard.tokenRange();
+            Collection<SSTableReader> sstablesForRange = intervals.search(Interval.create(range.left.minKeyBound(), range.right.maxKeyBound()));
+            if (sstablesForRange.isEmpty())
+                return;
+
+            CoordinatedTransfer transfer = new CoordinatedTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
+            transfers.add(transfer);
+        });
+        return new CoordinatedTransfers(transfers);
+    }
+
+    @Override
+    public Iterator<CoordinatedTransfer> iterator()
+    {
+        return transfers.iterator();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CoordinatedTransfers{transfers=" + transfers + '}';
+    }
+}

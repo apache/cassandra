@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -80,11 +81,8 @@ public class SSTableImporter
         UUID importID = UUID.randomUUID();
         logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
-        // This will be supported in the future
         TableMetadata metadata = cfs.metadata();
-        if (metadata.replicationType() != null && metadata.replicationType().isTracked())
-            throw new IllegalStateException("Can't import into tables with mutation tracking enabled");
-
+        boolean isTracked = metadata.replicationType().isTracked();
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
         Set<Descriptor> currentDescriptors = new HashSet<>();
@@ -183,7 +181,10 @@ public class SSTableImporter
                     Descriptor newDescriptor = cfs.getUniqueDescriptorFor(entry.getKey(), targetDir);
                     maybeMutateMetadata(entry.getKey(), options);
                     movedSSTables.add(new MovedSSTable(newDescriptor, entry.getKey(), entry.getValue()));
-                    SSTableReader sstable = SSTableReader.moveAndOpenSSTable(cfs, entry.getKey(), newDescriptor, entry.getValue(), options.copyData);
+                    // Don't move tracked SSTables, since that will move them to the live set on bounce
+                    SSTableReader sstable = isTracked
+                                ? SSTableReader.open(cfs, oldDescriptor, metadata.ref)
+                                : SSTableReader.moveAndOpenSSTable(cfs, oldDescriptor, newDescriptor, entry.getValue(), options.copyData);
                     newSSTablesPerDirectory.add(sstable);
                 }
                 catch (Throwable t)
@@ -233,12 +234,14 @@ public class SSTableImporter
             if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
-            cfs.getTracker().addSSTables(newSSTables);
+            if (isTracked)
+                TrackedBulkTransfer.execute(cfs.keyspace.getName(), newSSTables);
+            else
+                cfs.getTracker().addSSTables(newSSTables);
+
             for (SSTableReader reader : newSSTables)
-            {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
                     invalidateCachesForSSTable(reader);
-            }
         }
         catch (Throwable t)
         {
@@ -248,6 +251,17 @@ public class SSTableImporter
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
         return failedDirectories;
+    }
+
+    /**
+     * TODO: Support user-defined consistency level for import, for import with replicas down
+     */
+    private static class TrackedBulkTransfer
+    {
+        private static void execute(String keyspace, Set<SSTableReader> sstables)
+        {
+            MutationTrackingService.instance.executeTransfers(keyspace, sstables, ConsistencyLevel.ALL);
+        }
     }
 
     /**
