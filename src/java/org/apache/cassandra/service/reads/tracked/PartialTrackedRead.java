@@ -35,9 +35,13 @@ import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.transport.Dispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface PartialTrackedRead
 {
+    Logger logger = LoggerFactory.getLogger(PartialTrackedRead.class);
+    
     interface CompletedRead extends AutoCloseable
     {
         TrackedDataResponse response(); // must be called from the read stage
@@ -95,6 +99,11 @@ public interface PartialTrackedRead
     {
         Mutation mutation = MutationJournal.instance.read(mutationId);
         Preconditions.checkNotNull(mutation);
+        if (!command().selectsKey(mutation.key()))
+        {
+            logger.trace("Skipping mutation {} - {} not in read range", mutationId, mutation.key());
+            return;
+        }
         augment(mutation);
     }
 

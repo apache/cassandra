@@ -21,6 +21,7 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -53,6 +54,34 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
         for (T offsets : offsets())
             count += offsets.offsetCount();
         return count;
+    }
+
+    @Override
+    public String toString()
+    {
+
+        StringBuilder builder = new StringBuilder("Log2OffsetsMap{");
+        boolean isFirst = true;
+        for (Map.Entry<Long, T> entry : asMap().entrySet())
+        {
+            if (!isFirst)
+                builder.append(", ");
+
+            CoordinatorLogId logId = new CoordinatorLogId(entry.getKey());
+            T offsets = entry.getValue();
+            builder.append(logId);
+            builder.append("->");
+            builder.append(offsets);
+            isFirst = false;
+        }
+        for (T offsets : offsets())
+        {
+            if (!isFirst)
+                builder.append(", ");
+            builder.append(offsets);
+            isFirst = false;
+        }
+        return builder.append('}').toString();
     }
 
     public boolean isEmpty()
