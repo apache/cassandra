@@ -42,6 +42,8 @@ import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.SimpleBitSet;
+import accord.utils.SimpleBitSets;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -69,6 +71,7 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.SimpleBitSetSerializers;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
@@ -84,9 +87,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
 
-    public static final TxnWrite EMPTY_CONDITION_FAILED = new TxnWrite(TableMetadatas.none(), Collections.emptyList(), false);
-
-    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_CONDITION_FAILED);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(1)));
 
     public static class Update extends AbstractParameterisedVersionedSerialized<PartitionUpdate, TableMetadatas>
     {
@@ -398,24 +399,54 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 size += TypeSizes.sizeofUnsignedVInt(fragment.timestamp);
                 return size;
             }
+
+            public static ByteBuffer serialize(Fragment fragment, TableMetadatas tables, Version version)
+            {
+                long size = TypeSizes.sizeofUnsignedVInt(version.version);
+                size += Fragment.serializer.serializedSize(fragment, tables, version);
+
+                try (DataOutputBuffer out = new DataOutputBuffer((int) size))
+                {
+                    out.writeUnsignedVInt32(version.version);
+                    Fragment.serializer.serialize(fragment, tables, out, version);
+                    return out.buffer(false);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            private static Fragment deserialize(PartitionKey key, TableMetadatas tables, ByteBuffer bytes)
+            {
+                try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+                {
+                    Version version = Version.fromVersion(in.readUnsignedVInt32());
+                    return Fragment.serializer.deserialize(key, tables, in, version);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 
     public final TableMetadatas tables;
-    private final boolean isConditionMet;
+    private final SimpleBitSet conditionalBlockBitSet;
 
-    private TxnWrite(TableMetadatas tables, Update[] items, boolean isConditionMet)
+    private TxnWrite(TableMetadatas tables, Update[] items, SimpleBitSet conditionalBlockBitSet)
     {
         super(items, Domain.Key);
         this.tables = tables;
-        this.isConditionMet = isConditionMet;
+        this.conditionalBlockBitSet = conditionalBlockBitSet;
     }
 
-    public TxnWrite(TableMetadatas tables, List<Update> items, boolean isConditionMet)
+    public TxnWrite(TableMetadatas tables, List<Update> items, SimpleBitSet conditionalBlockBitSet)
     {
         super(items, Domain.Key);
         this.tables = tables;
-        this.isConditionMet = isConditionMet;
+        this.conditionalBlockBitSet = conditionalBlockBitSet;
     }
 
     @Override
@@ -461,7 +492,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         // TODO (expected): optimise for the common single update case; lots of lists allocated
         List<AsyncChain<Void>> results = new ArrayList<>();
-        if (isConditionMet)
+        if (!conditionalBlockBitSet.isEmpty())
         {
             AccordExecutor executor = ((AccordCommandStore) commandStore).executor();
             boolean preserveTimestamps = txnUpdate.preserveTimestamps().preserve;
@@ -471,7 +502,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             // Apply updates that are fully specified by the client and not reliant on data from reads.
             // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
             // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
-            List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
+            List<Update> updates = txnUpdate.completeUpdatesForKey(conditionalBlockBitSet, (RoutableKey) key);
             updates.forEach(write -> results.add(write.write(executor, tables, preserveTimestamps, timestamp)));
         }
 
@@ -498,7 +529,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public void serialize(TxnWrite write, Seekables keys, DataOutputPlus out, Version version) throws IOException
         {
             write.tables.serializeSelf(out);
-            BooleanSerializer.serializer.serialize(write.isConditionMet, out);
+            SimpleBitSetSerializers.any.serialize(write.conditionalBlockBitSet, out);
             serializeArray(write.items, new TableMetadatasAndKeys(write.tables, keys), out, version, Update.serializer);
         }
 
@@ -506,8 +537,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public TxnWrite deserialize(Seekables keys, DataInputPlus in, Version version) throws IOException
         {
             TableMetadatas tables = TableMetadatas.deserializeSelf(in);
-            boolean isConditionMet = BooleanSerializer.serializer.deserialize(in);
-            return new TxnWrite(tables, deserializeArray(new TableMetadatasAndKeys(tables, keys), in, version, Update.serializer, Update[]::new), isConditionMet);
+            SimpleBitSet conditionalBlockBitSet = SimpleBitSetSerializers.any.deserialize(in);
+            return new TxnWrite(tables, deserializeArray(new TableMetadatasAndKeys(tables, keys), in, version, Update.serializer, Update[]::new), conditionalBlockBitSet);
         }
 
         @Override
@@ -522,7 +553,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public long serializedSize(TxnWrite write, Seekables keys, Version version)
         {
             return write.tables.serializedSelfSize()
-                   + BooleanSerializer.serializer.serializedSize(write.isConditionMet)
+                   + SimpleBitSetSerializers.any.serializedSize(write.conditionalBlockBitSet)
                    + serializedArraySize(write.items, new TableMetadatasAndKeys(write.tables, keys), version, Update.serializer);
         }
     };

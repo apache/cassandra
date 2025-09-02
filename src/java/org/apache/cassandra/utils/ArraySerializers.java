@@ -21,8 +21,10 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.util.function.IntFunction;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -60,6 +62,13 @@ public class ArraySerializers
             serializer.serialize(item, p, out, version);
     }
 
+    public static <T, P> void serializeArray(T[] items, P p, DataOutputPlus out, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (T item : items)
+            serializer.serialize(item, p, out);
+    }
+
     public static <T> T[] deserializeArray(DataInputPlus in, UnversionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
         int size = in.readUnsignedVInt32();
@@ -69,11 +78,26 @@ public class ArraySerializers
         return items;
     }
 
-    public static <T, P, Version> void skipArray(DataInputPlus in, UnversionedSerializer<T> serializer) throws IOException
+    public static void serializeVInt32Array(int[] items, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (int item : items)
+            out.writeVInt32(item);
+    }
+
+    public static void serializeUnsignedVInt32Array(int[] items, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (int item : items)
+            out.writeUnsignedVInt32(item);
+    }
+
+    public static <T> int skipArray(DataInputPlus in, UnversionedSerializer<T> serializer) throws IOException
     {
         int size = in.readUnsignedVInt32();
         for (int i = 0; i < size; i++)
             serializer.skip(in);
+        return size;
     }
 
     public static <T> T[] deserializeArray(DataInputPlus in, int version, IVersionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
@@ -101,7 +125,6 @@ public class ArraySerializers
             serializer.skip(in, version);
     }
 
-
     public static <T, P, Version> T[] deserializeArray(P p, DataInputPlus in, Version version, ParameterisedVersionedSerializer<T, P, Version> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
         int size = in.readUnsignedVInt32();
@@ -116,6 +139,54 @@ public class ArraySerializers
         int size = in.readUnsignedVInt32();
         for (int i = 0; i < size; i++)
             serializer.skip(p, in, version);
+    }
+
+    public static <T, P> T[] deserializeArray(P p, DataInputPlus in, ParameterisedUnversionedSerializer<T, P> serializer, IntFunction<T[]> arrayFactory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        T[] items = arrayFactory.apply(size);
+        for (int i = 0; i < size; i++)
+            items[i] = serializer.deserialize(p, in);
+        return items;
+    }
+
+    public static <T, P> void skipArray(P p, DataInputPlus in, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            serializer.skip(p, in);
+    }
+
+    public static void skipVInt32Array(DataInputPlus in) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            in.readVInt32();
+    }
+
+    public static int[] deserializeVInt32Array(DataInputPlus in) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        int[] items = new int[size];
+        for (int i = 0; i < size; i++)
+            items[i] = in.readVInt32();
+        return items;
+    }
+
+    public static void skipUnsignedVInt32Array(DataInputPlus in) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            in.readUnsignedVInt32();
+    }
+
+    public static int[] deserializeUnsignedVInt32Array(DataInputPlus in) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        int[] items = new int[size];
+        for (int i = 0; i < size; i++)
+            items[i] = in.readUnsignedVInt32();
+        return items;
     }
 
     public static <T> long serializedArraySize(T[] array, UnversionedSerializer<T> serializer)
@@ -147,6 +218,30 @@ public class ArraySerializers
         long size = sizeofUnsignedVInt(array.length);
         for (T item : array)
             size += serializer.serializedSize(item, p, version);
+        return size;
+    }
+
+    public static <T, P> long serializedArraySize(T[] array, P p, ParameterisedUnversionedSerializer<T, P> serializer)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (T item : array)
+            size += serializer.serializedSize(item, p);
+        return size;
+    }
+
+    public static long serializedVInt32ArraySize(int[] array)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (int item : array)
+            size += TypeSizes.sizeofVInt(item);
+        return size;
+    }
+
+    public static long serializedUnsignedVInt32ArraySize(int[] array)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (int item : array)
+            size += TypeSizes.sizeofUnsignedVInt(item);
         return size;
     }
 }
