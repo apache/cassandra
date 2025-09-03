@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,12 +178,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         public AbstractBuilder(Factory<I, C, B> factory)
         {
             super(factory);
-        }
-
-        @SuppressWarnings("unchecked")
-        private B self()
-        {
-            return (B) this;
         }
 
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
@@ -454,7 +449,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return createInstanceConfig(size() + 1);
     }
 
-    private InstanceConfig createInstanceConfig(int nodeNum)
+    @VisibleForTesting
+    public InstanceConfig createInstanceConfig(int nodeNum)
     {
         INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet, portMap);
         long token = tokenSupplier.token(nodeNum);
