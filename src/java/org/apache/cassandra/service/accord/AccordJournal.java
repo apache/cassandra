@@ -370,9 +370,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public CloseableIterator<TopologyUpdate> replayTopologies()
+    public List<TopologyUpdate> replayTopologies()
     {
-        return new CloseableIterator<>()
+        List<TopologyUpdate> images = new ArrayList<>();
+        try (CloseableIterator<TopologyUpdate> iter = new CloseableIterator<>()
         {
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(topologyUpdateKey(0L),
                                                                                                  topologyUpdateKey(Timestamp.MAX_EPOCH));
@@ -388,6 +389,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             public TopologyUpdate next()
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
+                System.out.println(ref.key());
                 Accumulator read = readAll(ref.key());
                 if (read.accumulated.kind() == Kind.NoOp)
                     prev = read.accumulated.asImage(Invariants.nonNull(prev.getUpdate()));
@@ -403,7 +405,22 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             {
                 iter.close();
             }
-        };
+        })
+        {
+            TopologyUpdate prev = null;
+            while (iter.hasNext())
+            {
+                TopologyUpdate next = iter.next();
+                Invariants.require(prev == null || next.global.epoch() > prev.global.epoch());
+                // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
+                if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
+                    images.clear();
+
+                images.add(next);
+                prev = next;
+            }
+        }
+        return images;
     }
 
     @Override

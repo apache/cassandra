@@ -152,7 +152,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
             DatabaseDescriptor.getAccord().fetch_txn = "1s";
-            TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
 
             execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
@@ -215,7 +215,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         AccordService accord = accord();
-        TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+        TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
         String keyStr = txn.keys().get(0).toUnseekable().toString();
         AsyncChains.getBlocking(accord.node().coordinate(id, txn));
@@ -237,7 +237,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
-            TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
                                              "    IF r IS NULL THEN\n " +
@@ -273,7 +273,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
-            TxnId first = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId first = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
                                              "    IF r IS NULL THEN\n " +
@@ -292,7 +292,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
             filter.reset();
 
-            TxnId second = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId second = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             accord.node().coordinate(second, createTxn(insertTxn, 0, 0, 0, 0, 0));
 
             filter.commit.awaitThrowUncheckedOnInterrupt();
@@ -356,7 +356,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
                                              KEYSPACE,
                                              tableName);
             AccordService accord = accord();
-            TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             accord.node().coordinate(id, createTxn(insertTxn, 0, 0, 0));
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();

@@ -22,7 +22,6 @@ import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -205,10 +204,10 @@ public class AccordConfigurationServiceTest
             listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
             loaded.registerListener(listener);
             journal_.closeCurrentSegmentForTestingIfNonEmpty();
-            Iterator<TopologyUpdate> iter = journal.replayTopologies();
+            List<TopologyUpdate> list = journal.replayTopologies();
             // Simulate journal replay
-            while (iter.hasNext())
-                loaded.reportTopology(iter.next().global);
+            for (TopologyUpdate update : list)
+                loaded.reportTopology(update.global);
             loaded.start();
 
             listener.assertTopologiesFor(1L, 2L, 3L);

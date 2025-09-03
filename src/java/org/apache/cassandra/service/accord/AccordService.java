@@ -128,7 +128,6 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -144,7 +143,6 @@ import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.primitives.TxnId.Cardinality.cardinality;
 import static accord.topology.TopologyManager.TopologyRange;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -203,6 +201,7 @@ public class AccordService implements IAccordService, Shutdownable
             @Override
             public synchronized void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
             {
+                logger.debug("Saving epoch {} to deliver after startup", next.epoch);
                 items.add(next);
             }
 
@@ -428,29 +427,11 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        List<TopologyUpdate> images = new ArrayList<>();
-
-        TopologyUpdate prev = null;
-        // Collect locally known topologies
-        try (CloseableIterator<TopologyUpdate> iter = journal.replayTopologies())
-        {
-            while (iter.hasNext())
-            {
-                TopologyUpdate next = iter.next();
-                // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
-                if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
-                    images.clear();
-
-                images.add(next);
-                prev = next;
-            }
-        }
+        List<TopologyUpdate> images = journal.replayTopologies();
 
         // Instantiate latest topology from the log, if known
-        if (prev != null)
-        {
-            node.commandStores().initializeTopologyUnsafe(prev);
-        }
+        if (!images.isEmpty())
+            node.commandStores().initializeTopologyUnsafe(images.get(images.size() - 1));
 
         // Replay local epochs
         for (TopologyUpdate image : images)
@@ -494,8 +475,8 @@ public class AccordService implements IAccordService, Shutdownable
         {
             TopologyRange remote = fetchTopologies(highestKnown + 1);
 
-            if (remote != null)
-                remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+            if (remote != null) // TODO (required): if remote.min > highestKnown + 1, should we decide if we need to truncate our local topologies? Probably not until startup has finished.
+                remote.forEach(configService::reportTopology, remote.min, Integer.MAX_VALUE);
         }
         catch (InterruptedException e)
         {
@@ -693,7 +674,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc) throws RequestExecutionException
     {
-        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, minHlc).awaitAndGet();
+        return coordinateAsync(minEpoch, minHlc, txn, consistencyLevel, requestTime).awaitAndGet();
     }
 
     @Override
@@ -709,9 +690,9 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc)
+    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, long minHlc, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
-        TxnId txnId = node.nextTxnId(minHlc >= 0 ? minHlc : 0, txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
+        TxnId txnId = node.nextTxnId(minEpoch, minHlc, txn);
         long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
         ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
         bookkeeping.metrics.keySize.update(txn.keys().size());

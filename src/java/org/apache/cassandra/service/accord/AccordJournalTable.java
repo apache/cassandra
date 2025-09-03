@@ -567,7 +567,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                 return journalIterator.next();
             }
 
-            return cmp > 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
+            return cmp < 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
         }
 
         public void close()
