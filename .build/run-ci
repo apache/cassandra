@@ -64,25 +64,44 @@ except OSError as import_jenkins_error:
     else:
         raise
 
-def determine_job_name(cassandra_dir: Path) -> str:
+def base_job_name(args) -> str:
     """
     Determines the default Jenkins job name based on the Cassandra version.
     Separate jobs are required because Jenkinsfiles are baked into the job configuration.
     ref: .jenkins/k8s/jenkins-deployment.yaml JCasC.configScripts.test-job
-    TODO: add new version each release branching
     """
-    with open(cassandra_dir / "build.xml", "r", encoding="utf-8") as build_file:
-        for line in build_file:
+    if not hasattr(base_job_name, "_cached_result"):
+        raw_url = args.repository.replace("https://github.com/", "https://raw.githubusercontent.com/").removesuffix(".git") + f"/{args.branch}/build.xml"
+        if 200 != requests.head(raw_url).status_code:
+            raise ValueError(f"GitHub unavailable, or this branch has not been pushed yet: {args.repository} @ {args.branch} (or remote tracking not setup up: `git config --get branch.{args.branch}.remote` and `git config --get branch.{args.branch}.merge`)")
+        response = requests.get(raw_url)
+        response.raise_for_status()
+        for line in response.text.splitlines():
             if 'property' in line and 'name="base.version"' in line:
                 version = line.split('value="')[1].split('"')[0]
+                # TODO: add new version each release branching
                 if version.startswith("5.0."):
-                    return "cassandra-5.0"
-    return "cassandra"
+                    base_job_name._cached_result = "cassandra-5.0"
+                else:
+                    base_job_name._cached_result = "cassandra"
+                break
+    return base_job_name._cached_result
 
 def get_current_branch() -> str:
     """Returns the current branch."""
     return subprocess.run(["git", "-C", str(CASSANDRA_DIR), "branch", "--show-current"],
                           capture_output=True, text=True, check=True).stdout.strip()
+
+def is_local_git_dirty(args) -> bool:
+    """Returns True if there are uncommitted/unpushed changes in the local git repository."""
+    # use base_job_name to verify the remote branch exists
+    base_job_name(args)
+    # check if the working directory is clean
+    clean = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "diff-index", "--quiet", "HEAD", "--"]).returncode
+    # check if there are unpushed committed changes
+    unpushed_commits = bool(subprocess.run(["git", "-C", str(CASSANDRA_DIR), "log", "@{u}..HEAD", "--name-only"],
+                                           capture_output=True, text=True, check=False).stdout.strip())
+    return 0 != clean or unpushed_commits
 
 def get_tracking_remote_url() -> str:
     """
@@ -90,9 +109,8 @@ def get_tracking_remote_url() -> str:
     """
     try:
         # Get the tracking remote URL of the current branch
-        remote_name = subprocess.run(
-            ["git", "-C", str(CASSANDRA_DIR), "config", "--get", f"branch.{DEFAULT_REPO_BRANCH}.remote"],
-            capture_output=True, text=True, check=True).stdout.strip()
+        remote_name = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "config", "--get", f"branch.{DEFAULT_REPO_BRANCH}.remote"],
+                                     capture_output=True, text=True, check=True).stdout.strip()
 
     except subprocess.CalledProcessError:
         # Fallback to the 'origin' remote URL
@@ -102,7 +120,9 @@ def get_tracking_remote_url() -> str:
                                capture_output=True, text=True, check=True).stdout.strip()
     if repo_url.startswith("git@github.com:"):
         repo_url = repo_url.replace("git@github.com:", "https://github.com/")
-    return repo_url
+
+    # and change gitbox to github
+    return repo_url.replace("https://gitbox.apache.org/repos/asf/cassandra.git", "https://github.com/apache/cassandra.git")
 
 # Constants
 DEFAULT_KUBE_NS = "default"
@@ -113,7 +133,6 @@ DEFAULT_REPO_URL = get_tracking_remote_url()
 DEFAULT_DTEST_REPO_URL = "https://github.com/apache/cassandra-dtest.git"
 DEFAULT_DTEST_REPO_BRANCH = "trunk"
 DEFAULT_PROFILE = "skinny"
-DEFAULT_JOB_NAME = determine_job_name(CASSANDRA_DIR)
 DEFAULT_POD_NAME = "cassius-jenkins-0"
 DEFAULT_CONTAINER_NAME = "jenkins"
 LOCAL_RESULTS_BASEDIR = CASSANDRA_DIR / "build/ci/"
@@ -306,7 +325,7 @@ def trigger_jenkins_build(server: jenkins.Jenkins, job_name: str, **build_params
             print("Parameters should now be available.")
 
     # Check and trigger non-parameter build if parameters are not visible
-    check_for_parameter_build(server, DEFAULT_JOB_NAME)
+    check_for_parameter_build(server, job_name)
     print("Triggering Jenkins build… ")
     return server.build_job(job_name, parameters=build_params)
 
@@ -587,9 +606,9 @@ def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubeco
         time.sleep(10)
 
 
-def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, build_number: int):
+def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, base_job_name: str, build_number: int):
     debug("Cleaning remote individual JUnit XML files...")
-    exec_command = ['rm', '-rf', f'/var/jenkins_home/jobs/{DEFAULT_JOB_NAME}/builds/{build_number}/archive/test/output']
+    exec_command = ['rm', '-rf', f'/var/jenkins_home/jobs/{base_job_name}/builds/{build_number}/archive/test/output']
     stream.stream(k8s_client.connect_get_namespaced_pod_exec,
         pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME, command=exec_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
     debug("Remote JUnit XML files cleaned.")
@@ -702,8 +721,8 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
     ci_summary_file = local_results_dir / f"ci_summary_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.html"
     ci_details_file = local_results_dir / f"results_details_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.tar.xz"
     if args.url:
-        download_url(f"http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/artifact/ci_summary.html", ci_summary_file)
-        download_url(f"http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/artifact/results_details.tar.xz", ci_details_file)
+        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/ci_summary.html", ci_summary_file)
+        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/results_details.tar.xz", ci_details_file)
         if (ci_summary_file).exists():
             print(f"CI summary saved as {ci_summary_file}")
         if (ci_details_file).exists():
@@ -716,7 +735,7 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
         kubecontext = args.kubecontext
         local_console_log = local_results_dir / "console_log.txt"
         local_archive_tar = local_results_dir / "archive.tar.gz"
-        remote_build_dir = f"/var/jenkins_home/jobs/{DEFAULT_JOB_NAME}/builds/{build_number}"
+        remote_build_dir = f"/var/jenkins_home/jobs/{base_job_name(args)}/builds/{build_number}"
         remote_console_log_path = f"{remote_build_dir}/log"
         remote_archive_dir = f"{remote_build_dir}/archive"
 
@@ -822,14 +841,23 @@ def main():
         "dtest_branch": args.dtest_branch or ""
     }
 
-    queue_item = trigger_jenkins_build(server, DEFAULT_JOB_NAME, **build_params)
+    if DEFAULT_REPO_URL == args.repository and DEFAULT_REPO_BRANCH == args.branch and is_local_git_dirty(args):
+        print("Local uncommitted/unpushed changes.")
+        print(f"CI only runs on what is pushed in {args.repository} @ {args.branch}")
+        print("  See `git diff-index HEAD --` for uncommitted changes")
+        print("  See `git log @{u}.. --name-only` for unpushed changes")
+        print(" Do you want to continue anyway (y/N):")
+        if "y" != input().strip().lower():
+            return
+
+    queue_item = trigger_jenkins_build(server, base_job_name(args), **build_params)
     build_number = wait_for_build_number(server, queue_item)
-    print(f"Jenkins UI at http://{ip}/job/{DEFAULT_JOB_NAME}/{build_number}/pipeline-overview/")
-    wait_for_build_complete(server, DEFAULT_JOB_NAME, build_number)
+    print(f"Jenkins UI at http://{ip}/job/{base_job_name(args)}/{build_number}/pipeline-overview/")
+    wait_for_build_complete(server, base_job_name(args), build_number)
 
     # Post-build processing and cleanup
     if not args.url:
-        delete_remote_junit_files(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number)
+        delete_remote_junit_files(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, base_job_name(args), build_number)
     download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
     cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.tear_down)
 
