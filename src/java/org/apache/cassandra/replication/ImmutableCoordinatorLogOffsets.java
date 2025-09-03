@@ -34,6 +34,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Offsets.Immutable>
@@ -143,7 +144,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             return this;
         }
 
-        public Builder addTransfer(MutationId activationId)
+        public Builder addTransfer(ShortMutationId activationId)
         {
             if (activationId.isNone())
                 return this;
@@ -167,6 +168,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             out.writeUnsignedVInt32(logOffsets.size());
             for (long logId : logOffsets)
                 Offsets.serializer.serialize(logOffsets.offsets(logId), out, version);
+            CollectionSerializers.serializeCollection(logOffsets.transfers, out, version, ShortMutationId.serializer);
         }
 
         @Override
@@ -181,6 +183,9 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
                 Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
                 builder.addAll(offsets);
             }
+            List<ShortMutationId> transfers = CollectionSerializers.deserializeList(in, version, ShortMutationId.serializer);
+            for (ShortMutationId transfer : transfers)
+                builder.addTransfer(transfer);
             return builder.build();
         }
 
@@ -193,6 +198,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             size += VIntCoding.computeUnsignedVIntSize(logOffsets.size());
             for (long logId : logOffsets)
                 size += Offsets.serializer.serializedSize(logOffsets.offsets(logId), version);
+            size += CollectionSerializers.serializedCollectionSize(logOffsets.transfers, version, ShortMutationId.serializer);
             return size;
         }
     }

@@ -62,6 +62,7 @@ import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.notifications.TableDroppedNotification;
 import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -281,6 +282,19 @@ public class Tracker
         addSSTablesInternal(sstables, false, true, true);
     }
 
+    public void addSSTablesTracked(Collection<SSTableReader> sstables)
+    {
+        Preconditions.checkState(cfstore.metadata().replicationType().isTracked());
+        for (SSTableReader sstable : sstables)
+        {
+            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
+            Preconditions.checkState(logOffsets.isEmpty());
+            Preconditions.checkState(!logOffsets.transfers().isEmpty());
+        }
+
+        addSSTablesInternal(sstables, false, true, true);
+    }
+
     private void addSSTablesInternal(Collection<SSTableReader> sstables,
                                      boolean isInitialSSTables,
                                      boolean maybeIncrementallyBackup,
@@ -290,25 +304,6 @@ public class Tracker
             setupOnline(sstables);
         apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
         if(updateSize)
-            maybeFail(updateSizeTracking(emptySet(), sstables, null));
-        if (maybeIncrementallyBackup)
-            maybeIncrementallyBackup(sstables);
-        notifyAdded(sstables, isInitialSSTables);
-    }
-
-    // TODO: Is this necessary anymore?
-    public void addSSTablesTracked(Collection<SSTableReader> sstables)
-    {
-        logger.debug("Adding tracked SSTables: {}", sstables);
-        // TODO: Are these applicable?
-        boolean isInitialSSTables = false;
-        boolean maybeIncrementallyBackup = true;
-        boolean updateSize = true;
-
-        if (!isDummy())
-            setupOnline(sstables);
-        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
-        if (updateSize)
             maybeFail(updateSizeTracking(emptySet(), sstables, null));
         if (maybeIncrementallyBackup)
             maybeIncrementallyBackup(sstables);

@@ -90,9 +90,12 @@ public class MutationTrackingService
     /**
      * Split ranges into this many shards.
      *
+     * REVIEW: Reset back to 1 because for transfers, replicas need to know each others' shards, since transfers are
+     * sliced to fit within shards. Can we achieve sharding via split range ownership, instead of it being local-only?
+     *
      * TODO (expected): ability to rebalance / change this constant
      */
-    private static final int SHARD_MULTIPLIER = 8;
+    private static final int SHARD_MULTIPLIER = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
     public static final MutationTrackingService instance = new MutationTrackingService();
@@ -304,11 +307,6 @@ public class MutationTrackingService
         {
             keyspaceShards.get(pending.keyspace).lookUp(pending.range).receivedActivationAck(activation.activationId, FBUtilities.getBroadcastAddressAndPort());
         }
-    }
-
-    public CoordinatedTransfer getActivatedTransfer(ShortMutationId activationId)
-    {
-        return LocalTransfers.instance().getActivatedTransfer(activationId);
     }
 
     public MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
@@ -574,6 +572,14 @@ public class MutationTrackingService
             return shards.get(groups.forRange(token).range());
         }
 
+        Shard lookUp(Range<Token> range)
+        {
+            ClusterMetadata csm = ClusterMetadata.current();
+            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
+            Range<Token> replicationRange = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(range).range();
+            return shards.get(replicationRange);
+        }
+
         @Override
         public void onLogCreation(CoordinatorLog log)
         {
@@ -586,14 +592,6 @@ public class MutationTrackingService
         {
             logger.debug("Indexing current log {}", currentLog);
             logs.put(currentLog.logId, currentLog);
-        }
-
-        Shard lookUp(Range<Token> range)
-        {
-            ClusterMetadata csm = ClusterMetadata.current();
-            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
-            Range<Token> replicationRange = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(range).range();
-            return shards.get(replicationRange);
         }
     }
 

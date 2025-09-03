@@ -275,6 +275,6 @@ public class ReadExecutionController implements AutoCloseable
 
     public Iterator<ShortMutationId> getActivationIds()
     {
-        return activationIds.iterator();
+        return activationIds == null ? null : activationIds.iterator();
     }
 }

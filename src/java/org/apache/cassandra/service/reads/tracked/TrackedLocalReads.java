@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.reads.tracked;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -128,6 +129,9 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);
             processDelta(read, initialSummary, secondarySummary);
+
+            // Include in summary any transfer IDs that were present for the read
+            secondarySummary = merge(controller.getActivationIds(), secondarySummary);
         }
         catch (Exception e)
         {
@@ -149,6 +153,30 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
 
         // pass the final summary to the reconcile service
         ReadReconciliations.instance.acceptLocalSummary(readId, secondarySummary, summaryNodes);
+    }
+
+    private static MutationSummary merge(Iterator<ShortMutationId> activationIds, MutationSummary summary)
+    {
+        if (activationIds == null || !activationIds.hasNext())
+            return summary;
+
+        MutationSummary.Builder builder = new MutationSummary.Builder(summary.tableId());
+
+        // TODO: Make faster without a copy
+        for (int i = 0; i < summary.size(); i++)
+        {
+            MutationSummary.CoordinatorSummary coordinatorSummary = summary.get(i);
+            MutationSummary.CoordinatorSummary.Builder coordinatorSummaryBuilder = builder.builderForLog(coordinatorSummary.logId());
+            coordinatorSummaryBuilder.unreconciled.addAll(coordinatorSummary.unreconciled);
+            coordinatorSummaryBuilder.reconciled.addAll(coordinatorSummary.reconciled);
+        }
+
+        while (activationIds.hasNext())
+        {
+            ShortMutationId id = activationIds.next();
+            builder.builderForLog(id).unreconciled.add(id.offset());
+        }
+        return builder.build();
     }
 
     @VisibleForTesting

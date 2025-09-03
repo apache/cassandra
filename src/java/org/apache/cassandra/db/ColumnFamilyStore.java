@@ -905,7 +905,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                         .build());
     }
 
-    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
+    public Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
         Descriptor newDescriptor;
         do

@@ -71,7 +71,7 @@ public final class ActiveLogReconciler implements Shutdownable
      */
     void schedule(ShortMutationId mutationId, InetAddressAndPort toHost, Priority priority)
     {
-        queue(priority).offer(new Task(mutationId, toHost));
+        queue(priority).offer(Task.from(mutationId, toHost));
         haveWork.release(1);
     }
 
@@ -82,7 +82,7 @@ public final class ActiveLogReconciler implements Shutdownable
     void schedule(Offsets offsets, InetAddressAndPort toHost, Priority priority)
     {
         ManyToOneConcurrentLinkedQueue<Task> queue = queue(priority);
-        offsets.forEach(id -> queue.offer(new Task(id, toHost)));
+        offsets.forEach(id -> queue.offer(Task.from(id, toHost)));
         haveWork.release(1);
     }
 
@@ -114,12 +114,26 @@ public final class ActiveLogReconciler implements Shutdownable
         }
     }
 
-    private static final class Task implements RequestCallback<NoPayload>
+    private static abstract class Task implements RequestCallback<NoPayload>
+    {
+        private static Task from(ShortMutationId id, InetAddressAndPort toHost)
+        {
+            CoordinatedTransfer transfer = LocalTransfers.instance().getActivatedTransfer(id);
+            if (transfer != null)
+                return new TransferTask(transfer, toHost);
+            else
+                return new MutationTask(id, toHost);
+        }
+
+        abstract void send();
+    }
+
+    private static final class MutationTask extends Task
     {
         private final ShortMutationId mutationId;
         private final InetAddressAndPort toHost;
 
-        Task(ShortMutationId mutationId, InetAddressAndPort toHost)
+        MutationTask(ShortMutationId mutationId, InetAddressAndPort toHost)
         {
             this.mutationId = mutationId;
             this.toHost = toHost;
@@ -153,6 +167,29 @@ public final class ActiveLogReconciler implements Shutdownable
                                 new PushMutationRequest.Referenced(mutationId, pointer),
                                 MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWithCallback(message, toHost, this);
+        }
+    }
+
+    private static final class TransferTask extends Task
+    {
+        private final CoordinatedTransfer transfer;
+        private final InetAddressAndPort toHost;
+
+        TransferTask(CoordinatedTransfer transfer, InetAddressAndPort toHost)
+        {
+            this.transfer = transfer;
+            this.toHost = toHost;
+        }
+
+        @Override
+        public void onResponse(Message<NoPayload> msg)
+        {
+            MutationTrackingService.instance.receivedActivationAck(transfer, toHost);
+        }
+
+        void send()
+        {
+            transfer.maybeActivate();
         }
     }
 

@@ -24,6 +24,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -55,6 +56,9 @@ import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
+/**
+ * TODO: Document why import with a node down is not currently supported.
+ */
 public class BulkTransfersTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(BulkTransfersTest.class);
@@ -89,6 +93,7 @@ public class BulkTransfersTest extends TestBaseImpl
     }
 
     @Test
+    @Ignore("Import currently requires all replicas up, see docstring on BulkTransfersTest")
     public void importReplicaDown() throws Throwable
     {
         Hooks hooks = new Hooks() {

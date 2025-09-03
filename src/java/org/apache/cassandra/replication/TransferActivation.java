@@ -108,7 +108,7 @@ public class TransferActivation
             LocalTransfers.instance().executor.submit(() -> {
                 msg.payload.apply();
                 MessagingService.instance().respond(NoPayload.noPayload, msg);
-            });
+            }).rethrowIfFailed();
         }
     }
 

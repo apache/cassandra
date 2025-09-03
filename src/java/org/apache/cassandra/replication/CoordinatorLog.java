@@ -63,6 +63,7 @@ public abstract class CoordinatorLog
         this.participants = participants;
 
         this.unreconciledMutations = new UnreconciledMutations();
+        this.unreconciledTransfers = new UnreconciledTransfers();
         this.lock = new ReentrantReadWriteLock();
 
         Offsets.Mutable[] ids = new Offsets.Mutable[participants.size()];
@@ -71,7 +72,6 @@ public abstract class CoordinatorLog
 
         witnessedOffsets = ids;
         reconciledOffsets = new Offsets.Mutable(logId);
-        unreconciledTransfers = new UnreconciledTransfers();
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -93,7 +93,6 @@ public abstract class CoordinatorLog
                     if (othersWitnessed(offset, onHostId))
                     {
                         reconciledOffsets.add(offset);
-                        unreconciledMutations.remove(offset);
                         // A given offset is either a mutation or a transfer
                         if (!unreconciledTransfers.remove(offset))
                             unreconciledMutations.remove(offset);
@@ -165,26 +164,11 @@ public abstract class CoordinatorLog
         }
     }
 
-    private boolean othersWitnessed(int offset, int exceptHostId)
-    {
-        for (int i = 0; i < participants.size(); ++i)
-        {
-            int hostId = participants.get(i);
-            if (hostId != exceptHostId && !get(hostId).contains(offset))
-                return false;
-        }
-        return true;
-    }
-
-    protected boolean remoteReplicasWitnessed(int offset)
-    {
-        return othersWitnessed(offset, localHostId);
-    }
-
     void receivedActivationAck(MutationId activationId, int onHostId)
     {
-        Preconditions.checkArgument(!activationId.isNone());
         logger.trace("witnessed transfer activation ack {} from {}", activationId, onHostId);
+
+        Preconditions.checkArgument(!activationId.isNone());
         lock.writeLock().lock();
         try
         {
@@ -209,6 +193,22 @@ public abstract class CoordinatorLog
         {
             lock.writeLock().unlock();
         }
+    }
+
+    private boolean othersWitnessed(int offset, int exceptHostId)
+    {
+        for (int i = 0; i < participants.size(); ++i)
+        {
+            int hostId = participants.get(i);
+            if (hostId != exceptHostId && !get(hostId).contains(offset))
+                return false;
+        }
+        return true;
+    }
+
+    protected boolean remoteReplicasWitnessed(int offset)
+    {
+        return othersWitnessed(offset, localHostId);
     }
 
     /**

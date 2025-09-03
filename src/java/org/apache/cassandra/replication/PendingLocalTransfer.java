@@ -33,6 +33,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
@@ -133,12 +134,22 @@ public class PendingLocalTransfer
             {
                 throw new RuntimeException(e);
             }
+
+            Preconditions.checkState(sstable.getCoordinatorLogOffsets().isEmpty());
+            Preconditions.checkState(!sstable.getCoordinatorLogOffsets().transfers().isEmpty());
         }
         if (activation.dryRun)
         {
             logger.info("{} Not adding SSTables to live set for dryRun {}", logPrefix(), activation);
             return;
         }
+
+        File dst = cfs.getDirectories().getDirectoryForNewSSTables();
+        logger.debug("{} Moving pending SSTables for activation to {}", logPrefix(), dst);
+        dst.createFileIfNotExists();
+        for (SSTableReader sstable : sstables)
+            SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, cfs.getUniqueDescriptorFor(sstable.descriptor, dst), sstable.getComponents(), false);
+
         cfs.getTracker().addSSTablesTracked(sstables);
     }
 

@@ -130,7 +130,9 @@ public class CoordinatedTransfer
         for (InetAddressAndPort to : streams.keySet())
             streaming.add(stream(to));
 
-        FutureCombiner.successfulOf(streaming).awaitUninterruptibly();
+        Future<List<Void>> future = FutureCombiner.allOf(streaming);
+        future.awaitUninterruptibly();
+        future.rethrowIfFailed();
     }
 
     private boolean sufficient()
@@ -158,7 +160,7 @@ public class CoordinatedTransfer
         return maybeActivate();
     }
 
-    private synchronized Future<Void> maybeActivate()
+    synchronized Future<Void> maybeActivate()
     {
         /* TODO
         If topology has changed after streaming, need to ensure new topology doesn't break consistency of completed
@@ -201,7 +203,7 @@ public class CoordinatedTransfer
         return ImmediateFuture.success(null);
     }
 
-    private Future<Void> activateOn(Collection<InetAddressAndPort> peers)
+    private synchronized Future<Void> activateOn(Collection<InetAddressAndPort> peers)
     {
         Preconditions.checkState(!peers.isEmpty());
 
@@ -252,7 +254,7 @@ public class CoordinatedTransfer
             MessagingService.instance().sendWithCallback(msg, peer, allRespond);
         }
         allRespond.awaitUninterruptibly();
-        logger.debug("{} Dry run complete", logPrefix());
+        logger.debug("{} Dry run complete for {}", logPrefix(), peers);
 
         // Acknowledgement of activation is equivalent to a remote write acknowledgement. The imported SSTables
         // are now part of the live set, visible to reads
@@ -424,7 +426,7 @@ public class CoordinatedTransfer
             LocalTransfers.instance().executor.submit(() -> {
                 MutationTrackingService.instance.streamUnreconciledTransfers(message.from());
                 MessagingService.instance().respond(NoPayload.noPayload, message);
-            });
+            }).rethrowIfFailed();
         }
     }
 }
