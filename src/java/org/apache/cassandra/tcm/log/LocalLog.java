@@ -24,10 +24,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -240,7 +240,7 @@ public abstract class LocalLog implements Closeable
      * However, snapshots should be applied out of order, and snapshots with higher epoch should be applied before snapshots
      * with a lower epoch in cases when there are multiple snapshots present.
      */
-    protected final ConcurrentSkipListSet<Entry> pending = new ConcurrentSkipListSet<>((Entry e1, Entry e2) -> {
+    protected final ConcurrentSkipListMap<Entry, Boolean> pending = new ConcurrentSkipListMap<>((Entry e1, Entry e2) -> {
         if (e1.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT && e2.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT)
             return e2.epoch.compareTo(e1.epoch);
 
@@ -335,7 +335,7 @@ public abstract class LocalLog implements Closeable
     public boolean hasGaps()
     {
         Epoch start = committed.get().epoch;
-        for (Entry entry : pending)
+        for (Entry entry : pending.keySet())
         {
             if (!entry.epoch.isDirectlyAfter(start))
                 return true;
@@ -347,14 +347,8 @@ public abstract class LocalLog implements Closeable
 
     public Optional<Epoch> highestPending()
     {
-        try
-        {
-            return Optional.of(pending.last().epoch);
-        }
-        catch (NoSuchElementException eag)
-        {
-            return Optional.empty();
-        }
+        Map.Entry<Entry, Boolean> e = pending.lastEntry();
+        return e == null ? Optional.empty() : Optional.of(e.getKey().epoch);
     }
 
     public LogState getLocalEntries(Epoch since)
@@ -381,7 +375,7 @@ public abstract class LocalLog implements Closeable
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Appending entries to the pending buffer: {}", entries.stream().map(e -> e.epoch).collect(Collectors.toList()));
-                pending.addAll(entries);
+                entries.forEach(e -> pending.put(e, true));
             }
             processPending();
         }
@@ -433,7 +427,7 @@ public abstract class LocalLog implements Closeable
         }
 
         logger.debug("Appending entry to the pending buffer: {}", entry.epoch);
-        pending.add(entry);
+        pending.put(entry, true);
     }
 
     public abstract ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException;
@@ -459,14 +453,8 @@ public abstract class LocalLog implements Closeable
 
     private Entry peek()
     {
-        try
-        {
-            return pending.first();
-        }
-        catch (NoSuchElementException ignore)
-        {
-            return null;
-        }
+        Map.Entry<Entry, Boolean> e = pending.firstEntry();
+        return e == null ? null : e.getKey();
     }
 
     /**
@@ -571,7 +559,7 @@ public abstract class LocalLog implements Closeable
             }
             else
             {
-                Entry tmp = pending.first();
+                Entry tmp = pending.firstKey();
                 if (tmp.epoch.is(pendingEntry.epoch))
                 {
                     logger.debug("Smallest entry is non-consecutive {} to {}", pendingEntry.epoch, prev.epoch);
@@ -745,7 +733,7 @@ public abstract class LocalLog implements Closeable
                     {
                         throw new TimeoutException(String.format("Timed out waiting for follower to run at least once. " +
                                                                  "Pending is %s and current is now at epoch %s.",
-                                                                 pending.stream().map((re) -> re.epoch).collect(Collectors.toList()),
+                                                                 pending.keySet().stream().map((re) -> re.epoch).collect(Collectors.toList()),
                                                                  metadata().epoch));
                     }
                 }

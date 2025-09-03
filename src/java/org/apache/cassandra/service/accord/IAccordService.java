@@ -87,9 +87,9 @@ public interface IAccordService
     @Nonnull
     default IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
     {
-        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, IAccordService.NO_HLC);
+        return coordinateAsync(minEpoch, IAccordService.NO_HLC, txn, consistencyLevel, requestTime);
     }
-    @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc);
+    @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, long minHlc, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime);
     @Nonnull default TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
     {
         return coordinate(minEpoch, txn, consistencyLevel, requestTime, NO_HLC);
@@ -244,7 +244,7 @@ public interface IAccordService
         }
 
         @Override
-        public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc)
+        public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, long minHlc, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -454,9 +454,9 @@ public interface IAccordService
 
         @Nonnull
         @Override
-        public IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc)
+        public IAccordResult<TxnResult> coordinateAsync(long minEpoch, long minHlc, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
         {
-            return delegate.coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, minHlc);
+            return delegate.coordinateAsync(minEpoch, minHlc, txn, consistencyLevel, requestTime);
         }
 
         @Override
