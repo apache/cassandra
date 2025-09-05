@@ -132,15 +132,6 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next)
-    {
-        // TODO (expected): better reporting
-        AssertionError error = new AssertionError("Inconsistent execution timestamp detected for txnId " + command.txnId() + ": " + prev + " != " + next);
-        onUncaughtException(error);
-        throw error;
-    }
-
-    @Override
     public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
     {
         logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);

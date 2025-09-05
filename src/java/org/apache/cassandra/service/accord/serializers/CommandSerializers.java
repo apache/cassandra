@@ -761,6 +761,29 @@ public class CommandSerializers
             return ts;
         }
 
+        public int skipArray(DataInputPlus in) throws IOException
+        {
+            int length = in.readUnsignedVInt32();
+            if (length == 0)
+                return 0;
+
+            // we could pack these a bit more tightly if we wanted to
+            in.readUnsignedVInt();
+            in.readUnsignedVInt();
+            in.readUnsignedVInt32();
+            in.readUnsignedVInt32();
+            int epochBits = in.readByte();
+            int hlcBits = in.readByte();
+            int flagBits = in.readByte();
+            int nodeBits = in.readByte();
+
+            in.skipBytesFully(SerializePacked.serializedPackedSize(length, mask(epochBits))
+                              + SerializePacked.serializedPackedSize(length, mask(hlcBits))
+                              + SerializePacked.serializedPackedSize(length, mask(flagBits))
+                              + SerializePacked.serializedPackedSize(length, mask(nodeBits)));
+            return length;
+        }
+
         private static long mask(int bits)
         {
             return bits == 0 ? 0 : -1L >>> (64 - bits);
