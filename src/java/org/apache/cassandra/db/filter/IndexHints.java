@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -44,6 +45,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 
@@ -57,7 +59,7 @@ public class IndexHints
     public static final String WRONG_KEYSPACE_ERROR = "Index %s is not in the same keyspace as the queried table.";
     public static final String MISSING_INDEX_ERROR = "Table %s doesn't have an index named %s";
     public static final String NON_INCLUDABLE_INDEXES_ERROR = "It's not possible to use all the specified included indexes with this query.";
-    public static final String TOO_MANY_INDEXES_ERROR = format("Cannot have more than %d included/excluded indexes, found ", Short.MAX_VALUE);
+    public static final String TOO_MANY_INDEXES_ERROR = "Cannot have more than 'secondary_indexes_per_table_fail_threshold' included/excluded indexes, found ";
 
     public static final IndexHints NONE = new IndexHints(Collections.emptySet(), Collections.emptySet())
     {
@@ -169,8 +171,11 @@ public class IndexHints
      * @param indexes a set of indexes
      * @return the indexes that are not excluded by these hints
      */
-    public <T extends Index> Set<T> nonExcluded(Iterable<T> indexes)
+    public <T extends Index> Iterable<T> nonExcluded(Iterable<T> indexes)
     {
+        if (excluded.isEmpty())
+            return indexes;
+
         Set<T> result = new HashSet<>();
         for (T index : indexes)
         {
@@ -370,10 +375,10 @@ public class IndexHints
                                           TableMetadata table,
                                           IndexRegistry indexRegistry)
     {
-        if (included != null && included.size() > Short.MAX_VALUE)
+        if (included != null && included.size() > maxIncludedOrExcludedIndexCount())
             throw new InvalidRequestException(TOO_MANY_INDEXES_ERROR + included.size());
 
-        if (excluded != null && excluded.size() > Short.MAX_VALUE)
+        if (excluded != null && excluded.size() > maxIncludedOrExcludedIndexCount())
             throw new InvalidRequestException(TOO_MANY_INDEXES_ERROR + excluded.size());
 
         IndexHints hints = IndexHints.create(fetchIndexes(included, table, indexRegistry),
@@ -397,6 +402,14 @@ public class IndexHints
             throw new InvalidRequestException("Index hints are not supported in clusters below 14.");
 
         return hints;
+    }
+
+    private static int maxIncludedOrExcludedIndexCount()
+    {
+        int guardrail = DatabaseDescriptor.getSecondaryIndexesPerTableFailThreshold();
+
+        // If no guardrail is configured, use a value that safely fits in a single byte for serialization:
+        return guardrail > 0 ? guardrail : 128;
     }
 
     private static Set<IndexMetadata> fetchIndexes(Set<QualifiedName> indexNames, TableMetadata table, IndexRegistry indexRegistry)
@@ -573,16 +586,16 @@ public class IndexHints
                 return;
 
             int n = indexes.size();
-            assert n < Short.MAX_VALUE : TOO_MANY_INDEXES_ERROR + n;
+            assert n < maxIncludedOrExcludedIndexCount() : TOO_MANY_INDEXES_ERROR + n;
 
-            out.writeShort(n);
+            out.writeVInt32(n);
             for (IndexMetadata index : indexes)
                 IndexMetadata.serializer.serialize(index, out, version);
         }
 
         private Set<IndexMetadata> deserialize(DataInputPlus in, int version, TableMetadata table) throws IOException
         {
-            short n = in.readShort();
+            int n = in.readVInt32();
             Set<IndexMetadata> indexes = new HashSet<>(n);
             for (short i = 0; i < n; i++)
             {
@@ -597,7 +610,7 @@ public class IndexHints
             if (indexes.isEmpty())
                 return 0;
 
-            long size = TypeSizes.SHORT_SIZE;
+            long size = VIntCoding.computeVIntSize(indexes.size());
             for (IndexMetadata index : indexes)
                 size += IndexMetadata.serializer.serializedSize(index, version);
             return size;

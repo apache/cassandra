@@ -282,10 +282,12 @@ public final class MergedRestriction implements SingleRestriction
     {
         // multiple contains might require filtering on some indexes, since that is equivalent to a disjunction (or)
         boolean hasMultipleContains = containsCount > 1;
-        Set<Index> nonExcluded = indexHints.nonExcluded(indexGroup.getIndexes());
 
-        for (Index index : nonExcluded)
+        for (Index index : indexGroup.getIndexes())
         {
+            if (indexHints.excludes(index))
+                continue;
+
             if (isSupportedBy(index) && !(hasMultipleContains && index.filtersMultipleContains()))
                 return false;
         }
