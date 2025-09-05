@@ -389,12 +389,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             public TopologyUpdate next()
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
-                System.out.println(ref.key());
-                Accumulator read = readAll(ref.key());
-                if (read.accumulated.kind() == Kind.NoOp)
-                    prev = read.accumulated.asImage(Invariants.nonNull(prev.getUpdate()));
-                else
-                    prev = read.accumulated;
+                Accumulator reader = readAll(ref.key());
+                if (reader.read().kind() == Kind.Repeat)
+                {
+                    if (prev == null)
+                    {
+                        logger.error("Encountered TopologyImage Repeat record for epoch {}, but no prior image record was found", ref.key().id.epoch());
+                        return null;
+                    }
+                    prev = reader.read().asImage(Invariants.nonNull(prev.getUpdate()));
+                }
+                else prev = reader.read();
 
                 return new TopologyUpdate(prev.getUpdate().commandStores,
                                           prev.getUpdate().global);
@@ -411,6 +416,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             while (iter.hasNext())
             {
                 TopologyUpdate next = iter.next();
+                if (next == null)
+                    continue;
+
                 Invariants.require(prev == null || next.global.epoch() > prev.global.epoch());
                 // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
                 if (prev != null && next.global.epoch() > prev.global.epoch() + 1)

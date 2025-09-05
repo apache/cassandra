@@ -44,7 +44,7 @@ public interface AccordTopologyUpdate
     Kind kind();
     void applyTo(TopologyImage accumulator);
     long epoch();
-    AccordTopologyUpdate asNoOp();
+    AccordTopologyUpdate asRepeat();
 
     Journal.TopologyUpdate getUpdate();
     static AccordTopologyUpdate newTopology(Journal.TopologyUpdate update)
@@ -151,13 +151,13 @@ public interface AccordTopologyUpdate
             out.writeUnsignedVInt32(t.kind().ordinal());
             switch (t.kind())
             {
-                case NewTopology:
+                case New:
                 {
                     TopologyUpdateSerializer.instance.serialize(((NewTopology) t).update, out);
                     break;
                 }
-                case NoOp:
-                case TopologyImage:
+                case Repeat:
+                case Image:
                     TopologyImage image = (TopologyImage) t;
                     out.writeBoolean(image.update != null);
                     if (image.update != null)
@@ -183,14 +183,15 @@ public interface AccordTopologyUpdate
 
             switch (kind)
             {
-                case NewTopology:
+                case New:
                     return new NewTopology(TopologyUpdateSerializer.instance.deserialize(in));
-                case NoOp:
-                case TopologyImage:
-                    TopologyImage image = new TopologyImage(epoch);
+                case Repeat:
+                case Image:
+                    Journal.TopologyUpdate update = null;
                     if (in.readBoolean())
-                        image.update = TopologyUpdateSerializer.instance.deserialize(in);
+                        update = TopologyUpdateSerializer.instance.deserialize(in);
 
+                    TopologyImage image = new TopologyImage(epoch, kind, update);
                     byte syncStateByte = in.readByte();
                     if (syncStateByte != Byte.MAX_VALUE)
                         image.syncStatus = AccordConfigurationService.SyncStatus.values()[syncStateByte];
@@ -211,11 +212,11 @@ public interface AccordTopologyUpdate
 
             switch (t.kind())
             {
-                case NewTopology:
+                case New:
                     size += TopologyUpdateSerializer.instance.serializedSize(((NewTopology) t).update);
                     break;
-                case TopologyImage:
-                case NoOp:
+                case Image:
+                case Repeat:
                     TopologyImage image = (TopologyImage) t;
                     size += TypeSizes.BOOL_SIZE;
                     if (image.update != null)
@@ -235,49 +236,52 @@ public interface AccordTopologyUpdate
     enum Kind
     {
         // New Topology, written to journal when the node first learned about it
-        NewTopology,
+        New,
         // Used when accumulating state during compaction or replay
-        TopologyImage,
+        Image,
         // Effectively unchanged topology
         // During compaction, we can write a no-op if we know that from Accord's perspective topology has not changed
         // (see CompactionIterator$TopologyCompactor). During replay/deserialization, we collect last known changed
         // epoch, and reconstruct its topology.
-        NoOp
+        Repeat
     }
 
 
     class TopologyImage implements AccordTopologyUpdate
     {
+        private final long epoch;
+        private final Kind kind;
         private Journal.TopologyUpdate update;
         private AccordConfigurationService.SyncStatus syncStatus = null;
 
         private Ranges closed = Ranges.EMPTY;
         private Ranges retired = Ranges.EMPTY;
 
-        private final long epoch;
 
-        public TopologyImage(long epoch)
+        public TopologyImage(long epoch, Kind kind)
         {
             this.epoch = epoch;
+            this.kind = Invariants.requireArgument(kind, kind == Kind.Repeat);
         }
 
-        public TopologyImage(long epoch, Journal.TopologyUpdate update)
+        public TopologyImage(long epoch, Kind kind, Journal.TopologyUpdate update)
         {
             this.epoch = epoch;
-            this.update = update;
+            this.kind = kind;
+            this.update = Invariants.requireArgument(update, update != null || kind == Kind.Repeat);
         }
 
         public TopologyImage asImage(Journal.TopologyUpdate update)
         {
-            TopologyImage image = new TopologyImage(epoch, update.cloneWithEquivalentEpoch(epoch));
+            TopologyImage image = new TopologyImage(epoch, Kind.Image, update.cloneWithEquivalentEpoch(epoch));
             image.closed = closed;
             image.retired = retired;
             return image;
         }
 
-        public TopologyImage asNoOp()
+        public TopologyImage asRepeat()
         {
-            TopologyImage image = new TopologyImage(epoch);
+            TopologyImage image = new TopologyImage(epoch, Kind.Repeat, update);
             image.closed = closed;
             image.retired = retired;
             return image;
@@ -298,14 +302,14 @@ public interface AccordTopologyUpdate
         @Override
         public Kind kind()
         {
-            return update == null ? Kind.NoOp : Kind.TopologyImage;
+            return kind;
         }
 
         @Override
         public void applyTo(TopologyImage accumulator)
         {
             Invariants.require(accumulator.epoch == epoch, "Expected %d but got %d", epoch, accumulator.epoch);
-            if (kind() == Kind.NoOp)
+            if (kind() == Kind.Repeat)
             {
                 accumulator.update = null;
                 return;
@@ -362,7 +366,7 @@ public interface AccordTopologyUpdate
         @Override
         public Kind kind()
         {
-            return Kind.NewTopology;
+            return Kind.New;
         }
 
         @Override
@@ -374,9 +378,9 @@ public interface AccordTopologyUpdate
         }
 
         @Override
-        public AccordTopologyUpdate asNoOp()
+        public AccordTopologyUpdate asRepeat()
         {
-            return new TopologyImage(epoch);
+            return new TopologyImage(epoch, Kind.Repeat, update);
         }
 
         @Override
@@ -395,24 +399,39 @@ public interface AccordTopologyUpdate
         }
     }
 
-    class Accumulator extends AccordJournalValueSerializers.Accumulator<TopologyImage, AccordTopologyUpdate>
+    class Accumulator implements AccordJournalValueSerializers.FlyweightImage
     {
+        TopologyImage read, write;
+
         public Accumulator()
         {
-            super(null);
         }
 
         @Override
         public void reset(JournalKey key)
         {
-            accumulated = new TopologyImage(key.id.epoch());
+            read = write = null;
         }
 
-        @Override
-        protected TopologyImage accumulate(TopologyImage acc, AccordTopologyUpdate update)
+        public TopologyImage read()
         {
-            update.applyTo(acc);
-            return acc;
+            return read;
+        }
+
+        public void read(AccordTopologyUpdate update)
+        {
+            Invariants.require(read == null);
+            if (Objects.requireNonNull(update.kind()) == Kind.New)
+                read = new TopologyImage(update.epoch(), Kind.Image, update.getUpdate());
+            else
+                read = (TopologyImage) update;
+            write = read;
+        }
+
+        public void write(TopologyImage image)
+        {
+            Invariants.require(write == read);
+            this.write = image;
         }
     }
 
@@ -435,13 +454,13 @@ public interface AccordTopologyUpdate
         @Override
         public void reserialize(JournalKey key, Accumulator from, DataOutputPlus out, Version version) throws IOException
         {
-            serialize(key, from.get(), out, version);
+            serialize(key, from.write, out, version);
         }
 
         @Override
         public void deserialize(JournalKey key, Accumulator into, DataInputPlus in, Version version) throws IOException
         {
-            into.update(Serializer.instance.deserialize(in));
+            into.read(Serializer.instance.deserialize(in));
         }
     }
 }

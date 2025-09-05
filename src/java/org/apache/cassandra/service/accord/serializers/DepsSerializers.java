@@ -42,9 +42,11 @@ import static accord.primitives.KeyDeps.SerializerSupport.txnIdsToKeys;
 import static accord.primitives.RangeDeps.SerializerSupport.ranges;
 import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIds;
 import static accord.primitives.RangeDeps.SerializerSupport.txnIdsToRanges;
+import static org.apache.cassandra.service.accord.serializers.KeySerializers.keys;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.deserializePackedInts;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializePackedInts;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializedPackedIntsSize;
+import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializedPackedSize;
 
 public class DepsSerializers
 {
@@ -204,6 +206,36 @@ public class DepsSerializers
             return xtoy;
         }
 
+        private static void skipPackedXtoY(int xCount, int yCount, DataInputPlus in) throws IOException
+        {
+            int length = in.readUnsignedVInt32();
+
+            if (!((xCount <= 1 || yCount <= 1) && (length == (xCount == 1 ? 1 + yCount : 2 * xCount) || xCount == 0 || yCount == 0)))
+            {
+                in.skipBytesFully(serializedPackedSize(xCount, length)
+                                  + serializedPackedSize(length - xCount, yCount - 1));
+            }
+        }
+
+        @Override
+        public void skip(DataInputPlus in) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            {
+                int keyCount = KeySerializers.routingKeys.countAndSkip(in);
+                int txnIdCount = CommandSerializers.txnId.skipArray(in);
+                if (0 != (flags & KEYS_BY_TXNID)) skipPackedXtoY(txnIdCount, keyCount, in);
+                else skipPackedXtoY(keyCount, txnIdCount, in);
+            }
+
+            {
+                int rangeCount = KeySerializers.rangeArray.countAndSkip(in);
+                int txnIdCount = CommandSerializers.txnId.skipArray(in);
+                if (0 != (flags & RANGES_BY_TXNID)) skipPackedXtoY(txnIdCount, rangeCount, in);
+                else skipPackedXtoY(rangeCount, txnIdCount, in);
+            }
+        }
+
         @Override
         public long serializedSize(D deps)
         {
@@ -269,6 +301,13 @@ public class DepsSerializers
         {
             return super.serializedSize(partialDeps)
                    + KeySerializers.participants.serializedSize(partialDeps.covering);
+        }
+
+        @Override
+        public void skip(DataInputPlus in) throws IOException
+        {
+            super.skip(in);
+            KeySerializers.participants.skip(in);
         }
     }
 

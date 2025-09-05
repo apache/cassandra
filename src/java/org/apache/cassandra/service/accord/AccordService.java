@@ -39,6 +39,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
@@ -132,6 +133,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
@@ -315,7 +317,10 @@ public class AccordService implements IAccordService, Shutdownable
         as.node.durability().start();
 
         instance = as;
+        
         AccordReplicaMetrics.touch();
+        AccordViolationHandler.setup();
+
         WatermarkCollector.fetchAndReportWatermarksAsync(as.configService);
         return as;
     }
@@ -596,9 +601,25 @@ public class AccordService implements IAccordService, Shutdownable
         async.begin(result);
         return result.awaitAndGet();
     }
+
     public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
     {
         return getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
+    }
+
+    public static <V> V getBlocking(AsyncChain<V> async)
+    {
+        return asPromise(async).syncUninterruptibly().getNow();
+    }
+
+    public static <V> Promise<V> asPromise(AsyncChain<V> async)
+    {
+        AsyncPromise<V> promise = new AsyncPromise<>();
+        async.begin((result, failure) -> {
+            if (failure == null) promise.trySuccess(result);
+            else promise.tryFailure(failure);
+        });
+        return promise;
     }
 
     public static Keys intersecting(Keys keys)
@@ -974,7 +995,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public void ensureMinHlc(long minHlc)
     {
-        node.updateMinHlc(minHlc >= 0 ? minHlc : 0);
+        asPromise(node.updateMinHlc(minHlc >= 0 ? minHlc : 0)).syncUninterruptibly();
     }
 
     public AccordJournal journal()
@@ -985,13 +1006,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Future<Void> epochReady(Epoch epoch)
     {
-        AsyncPromise<Void> promise = new AsyncPromise<>();
-        AsyncChain<Void> ready = configService.epochReady(epoch.getEpoch());
-        ready.begin((result, failure) -> {
-            if (failure == null) promise.trySuccess(result);
-            else promise.tryFailure(failure);
-        });
-        return promise;
+        return asPromise(configService.epochReady(epoch.getEpoch()));
     }
 
     @Override
