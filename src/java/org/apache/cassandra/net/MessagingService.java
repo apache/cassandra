@@ -788,13 +788,26 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         Set<InetAddressAndPort> nodes = new HashSet<>();
         for (InetAddressAndPort node : ClusterMetadata.current().directory.allAddresses())
         {
-            ConnectionType.MESSAGING_TYPES.forEach(type -> {
-                OutboundConnections connections = getOutbound(node, false);
-                OutboundConnection connection = connections != null ? connections.connectionFor(type) : null;
-                if (connection != null && connection.messagingVersion() < version)
-                    nodes.add(node);
-            });
+            if (hasConnectionWithVersionBelow(node, version))
+                nodes.add(node);
         }
         return nodes;
+    }
+
+    private boolean hasConnectionWithVersionBelow(InetAddressAndPort node, int version)
+    {
+        OutboundConnections connections = getOutbound(node, false);
+
+        if (connections == null)
+            return false;
+
+        for (ConnectionType type : ConnectionType.MESSAGING_TYPES)
+        {
+            OutboundConnection connection = connections.connectionFor(type);
+            if (connection != null && connection.messagingVersion() < version)
+                return true;
+        }
+
+        return false;
     }
 }
