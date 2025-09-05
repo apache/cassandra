@@ -401,13 +401,31 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         protected void doPrepare()
         {
             transactionals.get().forEach(Transactional::prepareToCommit);
-            new StatsComponent(finalizeMetadata()).save(descriptor);
+            Map<MetadataType, MetadataComponent> metadata = finalizeMetadata();
+            new StatsComponent(metadata).save(descriptor);
 
             // save the table of components
             TOCComponent.updateTOC(descriptor, components);
 
             if (openResult)
+            {
                 finalReader = openFinal(SSTableReader.OpenReason.NORMAL);
+
+                /*
+                When we open above, we re-finalize metadata and may be durably reconciled, but this is after
+                StatsComponent is saved, so the next reload from disk loses the reconciliation update. We need to save
+                again to ensure the descriptor file matches what's in memory.
+
+                Could move this to the post-flush compaction, but then we couldn't flush directly into the repaired set.
+                Or see if we can open before the first save, so we never have to write stats to disk twice.
+                */
+                StatsMetadata stale = ((StatsMetadata) metadata.get(MetadataType.STATS));
+                if (finalReader.getSSTableMetadata().repairedAt != stale.repairedAt)
+                {
+                    metadata.put(MetadataType.STATS, finalReader.getSSTableMetadata());
+                    new StatsComponent(metadata).save(descriptor);
+                }
+            }
         }
 
         protected Throwable doCommit(Throwable accumulate)
