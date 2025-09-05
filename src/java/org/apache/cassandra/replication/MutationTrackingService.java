@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,6 +62,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
@@ -115,8 +116,9 @@ public class MutationTrackingService
 
         logger.info("Starting mutation tracking service. Previous host log id: {}", prevHostLogId);
 
-        for (KeyspaceShards ks : KeyspaceShards.loadFromSystemTables(metadata, this::nextHostLogId, this::onNewLog))
-            keyspaceShards.put(ks.keyspace, ks);
+        if (metadata.myNodeId() != null)
+            for (KeyspaceShards ks : KeyspaceShards.loadFromSystemTables(metadata, this::nextLogId, this::onNewLog))
+                keyspaceShards.put(ks.keyspace, ks);
 
         offsetsBroadcaster.start();
         offsetsPersister.start();
@@ -274,14 +276,21 @@ public class MutationTrackingService
 
         ClusterMetadata csm = ClusterMetadata.current();
         KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
-        return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextHostLogId, this::onNewLog));
+        return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
+    }
+
+    private long nextLogId()
+    {
+        NodeId nodeId = ClusterMetadata.current().myNodeId();
+        Preconditions.checkNotNull(nodeId);
+        return CoordinatorLogId.asLong(nodeId.id(), nextHostLogId());
     }
 
     /*
      * Allocate and persist the next host log id.
      * We only do this on startup and when rotating logs.
      */
-    synchronized int nextHostLogId()
+    private int nextHostLogId()
     {
         int nextHostLogId = ++prevHostLogId;
         persistHostLogIdToSystemTable(nextHostLogId);
@@ -322,7 +331,7 @@ public class MutationTrackingService
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
 
-        static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
 
@@ -349,12 +358,12 @@ public class MutationTrackingService
                     groups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
                 }
             });
-            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups), onNewLog);
+            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups));
             keyspaceShards.persistToSystemTables();
             return keyspaceShards;
         }
 
-        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups)
         {
             this.keyspace = keyspace;
             this.shards = shards;
@@ -436,7 +445,7 @@ public class MutationTrackingService
             for (Shard shard : shards.values()) shard.persistToSystemTables();
         }
 
-        static List<KeyspaceShards> loadFromSystemTables(ClusterMetadata cluster, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        static List<KeyspaceShards> loadFromSystemTables(ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             Map<String, Map<Range<Token>, Shard>> groupedShards = new HashMap<>();
             for (Shard shard : Shard.loadFromSystemTables(cluster.myNodeId().id(), logIdProvider, onNewLog))
@@ -451,7 +460,7 @@ public class MutationTrackingService
                 for (Range<Token> splitRange : entry.getValue().keySet())
                     splitGroups.put(splitRange, originalGroups.matchRange(splitRange));
 
-                keyspaceShards.add(new KeyspaceShards(entry.getKey(), entry.getValue(), new ReplicaGroups(splitGroups), onNewLog));
+                keyspaceShards.add(new KeyspaceShards(entry.getKey(), entry.getValue(), new ReplicaGroups(splitGroups)));
             }
             return keyspaceShards;
         }

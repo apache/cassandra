@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 import javax.annotation.Nonnull;
 
@@ -54,7 +54,7 @@ public class Shard
     final Range<Token> range;
 
     private final Participants participants;
-    private final IntSupplier logIdProvider;
+    private final LongSupplier logIdProvider;
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
     private volatile CoordinatorLogPrimary currentLocalLog;
@@ -64,7 +64,7 @@ public class Shard
           Range<Token> range,
           Participants participants,
           List<CoordinatorLog> logs,
-          IntSupplier logIdProvider,
+          LongSupplier logIdProvider,
           BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         Preconditions.checkArgument(participants.contains(localNodeId));
@@ -84,7 +84,7 @@ public class Shard
         this.currentLocalLog = createNewPrimayLog();
     }
 
-    Shard(int localNodeId, String keyspace, Range<Token> range, Participants participants, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+    Shard(int localNodeId, String keyspace, Range<Token> range, Participants participants, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         this(localNodeId, keyspace, range, participants, Collections.emptyList(), logIdProvider, onNewLog);
     }
@@ -232,7 +232,7 @@ public class Shard
 
     private CoordinatorLogPrimary createNewPrimayLog()
     {
-        return (CoordinatorLogPrimary) createNewLog(logIdProvider.getAsInt());
+        return (CoordinatorLogPrimary) createNewLog(logIdProvider.getAsLong());
     }
 
     /*
@@ -240,7 +240,7 @@ public class Shard
      */
 
     private static final String INSERT_QUERY =
-        format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, participanS) VALUES (?, ?, ?, ?)",
+        format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, participants) VALUES (?, ?, ?, ?)",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
 
     void persistToSystemTables()
@@ -259,7 +259,7 @@ public class Shard
     private static final String SELECT_QUERY =
         format("SELECT * FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
 
-    static ArrayList<Shard> loadFromSystemTables(int localNodeId, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+    static ArrayList<Shard> loadFromSystemTables(int localNodeId, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         Token.TokenFactory factory = ClusterMetadata.current().partitioner.getTokenFactory();
         ArrayList<Shard> shards = new ArrayList<>();
