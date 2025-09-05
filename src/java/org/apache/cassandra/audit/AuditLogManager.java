@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Principal;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -315,12 +314,47 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             log(entry, cause, query == null ? null : ImmutableList.of(query));
     }
 
-    public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    public void batchSuccess(BatchStatement.Type batchType,
+                             List<? extends CQLStatement> statements,
+                             List<String> queries,
+                             List<List<ByteBuffer>> values,
+                             QueryOptions options,
+                             QueryState state,
+                             long queryStartTimeMillis,
+                             Message.Response response)
     {
-        List<AuditLogEntry> entries = buildEntriesForBatch(statements, queries, state, options, queryTime);
-        for (AuditLogEntry auditLogEntry : entries)
+        UUID batchId = null;
+        if (!filter.isFiltered(AuditLogEntryType.BATCH))
         {
-            log(auditLogEntry);
+            batchId = UUID.randomUUID(); // lazy init only if needed, to reduce overheads
+            log(new AuditLogEntry.Builder(state)
+                                   .setOperation("BatchId:[" + batchId + "] - BATCH of [" + statements.size() + "] statements")
+                                   .setOptions(options)
+                                   .setTimestamp(queryStartTimeMillis)
+                                   .setBatch(batchId)
+                                   .setType(AuditLogEntryType.BATCH)
+                                   .build());
+        }
+
+        for (int i = 0; i < statements.size(); i++)
+        {
+            CQLStatement statement = statements.get(i);
+            if (filter.isFiltered(statement.getAuditLogContext()))
+                continue;
+
+            if (batchId == null)
+                batchId = UUID.randomUUID();
+
+            log(new AuditLogEntry.Builder(state)
+                                  .setType(statement.getAuditLogContext().auditLogEntryType)
+                                  .setOperation(queries.get(i))
+                                  .setTimestamp(queryStartTimeMillis)
+                                  .setScope(statement)
+                                  .setKeyspace(state, statement)
+                                  .setOptions(options)
+                                  .setBatch(batchId)
+                                  .build());
+
         }
     }
 
@@ -332,38 +366,6 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                                                               .setType(AuditLogEntryType.BATCH)
                                                               .build();
         log(entry, cause, queries);
-    }
-
-    private static List<AuditLogEntry> buildEntriesForBatch(List<? extends CQLStatement> statements, List<String> queries, QueryState state, QueryOptions options, long queryStartTimeMillis)
-    {
-        List<AuditLogEntry> auditLogEntries = new ArrayList<>(statements.size() + 1);
-        UUID batchId = UUID.randomUUID();
-        String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, statements.size());
-        AuditLogEntry entry = new AuditLogEntry.Builder(state)
-                              .setOperation(queryString)
-                              .setOptions(options)
-                              .setTimestamp(queryStartTimeMillis)
-                              .setBatch(batchId)
-                              .setType(AuditLogEntryType.BATCH)
-                              .build();
-        auditLogEntries.add(entry);
-
-        for (int i = 0; i < statements.size(); i++)
-        {
-            CQLStatement statement = statements.get(i);
-            entry = new AuditLogEntry.Builder(state)
-                    .setType(statement.getAuditLogContext().auditLogEntryType)
-                    .setOperation(queries.get(i))
-                    .setTimestamp(queryStartTimeMillis)
-                    .setScope(statement)
-                    .setKeyspace(state, statement)
-                    .setOptions(options)
-                    .setBatch(batchId)
-                    .build();
-            auditLogEntries.add(entry);
-        }
-
-        return auditLogEntries;
     }
 
     public void prepareSuccess(CQLStatement statement, String query, QueryState state, long queryTime, ResultMessage.Prepared response)
