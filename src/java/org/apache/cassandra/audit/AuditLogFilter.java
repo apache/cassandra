@@ -153,6 +153,17 @@ final class AuditLogFilter
                || isFiltered(auditLogEntry.getUser(), includedUsers, excludedUsers);
     }
 
+    boolean isFiltered(AuditLogContext auditLogContext)
+    {
+        return isFiltered(auditLogContext.keyspace, includedKeyspaces, excludedKeyspaces)
+               || isFiltered(auditLogContext.auditLogEntryType.getCategory().toString(), includedCategories, excludedCategories);
+    }
+
+    boolean isFiltered(AuditLogEntryType auditLogEntryType)
+    {
+        return isFiltered(auditLogEntryType.getCategory().toString(), includedCategories, excludedCategories);
+    }
+
     /**
      * Checks whether given input is being filtered or not.
      * If excludeSet does not contain any items, by default nothing is excluded (unless there are
