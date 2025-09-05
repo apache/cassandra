@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.RangeSet;
@@ -172,7 +171,7 @@ public final class SimpleRestriction implements SingleRestriction
     @Override
     public boolean needsFiltering(Index.Group indexGroup, IndexHints indexHints)
     {
-        Set<Index> nonExcluded = indexHints.nonExcluded(indexGroup.getIndexes());
+        Iterable<Index> nonExcluded = indexHints.nonExcluded(indexGroup.getIndexes());
         for (ColumnMetadata column : columns())
         {
             if (!isSupportedBy(nonExcluded, column))

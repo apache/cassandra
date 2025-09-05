@@ -5906,6 +5906,11 @@ public class DatabaseDescriptor
         return conf.sai_sstable_indexes_per_query_fail_threshold;
     }
 
+    public static int getSecondaryIndexesPerTableFailThreshold()
+    {
+        return conf.secondary_indexes_per_table_fail_threshold;
+    }
+
     @VisibleForTesting
     public static void setTriggersPolicy(Config.TriggersPolicy policy)
     {
