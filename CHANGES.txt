@@ -1,4 +1,5 @@
 4.0.20
+ * Fix cleanup of old incremental repair sessions in case of owned token range changes or a table deleting (CASSANDRA-20877)
  * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)
  * Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created (CASSANDRA-20570)
  * Updated dtest-api to 0.0.18 and removed JMX-related classes that now live in the dtest-api (CASSANDRA-20884)
