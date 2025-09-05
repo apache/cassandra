@@ -1,4 +1,5 @@
 5.1
+ * Optimize audit logic for batch operations especially when audit is not enabled for DML (CASSANDRA-20885)
  * Implement nodetool history (CASSANDRA-20851)
  * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Expose Metric for Prepared Statement Cache Size (in bytes) (CASSANDRA-20864)
