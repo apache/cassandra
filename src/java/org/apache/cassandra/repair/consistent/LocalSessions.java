@@ -89,6 +89,7 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
@@ -241,19 +242,44 @@ public class LocalSessions
      */
     private boolean isSuperseded(LocalSession session)
     {
+        // to reduce overheads of intersect calculation for tables within the same keyspace
+        Map<String, Collection<Range<Token>>> rangesPerKeyspaceCache = new HashMap<>();
         for (TableId tid : session.tableIds)
         {
-            RepairedState state = repairedStates.get(tid);
+            TableMetadata tableMetadata = getTableMetadata(tid);
+            if (tableMetadata == null) // if a table was removed - ignore it
+                continue;
 
+            RepairedState state = repairedStates.get(tid);
             if (state == null)
                 return false;
 
-            long minRepaired = state.minRepairedAt(session.ranges);
+            Collection<Range<Token>> actualRanges = rangesPerKeyspaceCache.computeIfAbsent(tableMetadata.keyspace, (keyspace) -> {
+                List<Range<Token>> localRanges = getLocalRanges(tableMetadata.keyspace);
+                if (localRanges.isEmpty()) // to handle the case when we run before the information about owned ranges is properly populated
+                    return session.ranges;
+
+                // ignore token ranges which were moved to other nodes and not owned by the current one anymore
+                return Range.intersect(session.ranges, localRanges);
+            });
+            long minRepaired = state.minRepairedAt(actualRanges);
             if (minRepaired <= session.repairedAt)
                 return false;
         }
 
         return true;
+    }
+
+    @VisibleForTesting
+    protected TableMetadata getTableMetadata(TableId tableId)
+    {
+        return Schema.instance.getTableMetadata(tableId);
+    }
+
+    @VisibleForTesting
+    protected List<Range<Token>> getLocalRanges(String keyspace)
+    {
+        return StorageService.instance.getLocalAndPendingRanges(keyspace);
     }
 
     public RepairedState.Stats getRepairedStats(TableId tid, Collection<Range<Token>> ranges)
