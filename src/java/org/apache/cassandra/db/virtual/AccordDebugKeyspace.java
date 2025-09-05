@@ -219,8 +219,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  txn_id 'TxnIdUtf8Type',\n" +
                         "  txn_id_additional 'TxnIdUtf8Type',\n" +
                         "  keys text,\n" +
-                        "  keysLoad text,\n" +
-                        "  keysLoadFor text,\n" +
+                        "  keys_loading text,\n" +
+                        "  keys_loading_for text,\n" +
                         "  PRIMARY KEY (executor_id, status, position, unique_position)" +
                         ')', UTF8Type.instance));
         }
@@ -242,14 +242,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     else uniquePos = 0;
                     prev = info;
                     PreLoadContext preLoadContext = info.preLoadContext();
-                    ds.row(executorId, info.status(), info.position(), uniquePos)
+                    ds.row(executorId, Objects.toString(info.status()), info.position(), uniquePos)
                       .column("description", info.describe())
                       .column("command_store_id", info.commandStoreId())
-                      .column("txn_id", preLoadContext == null ? null : preLoadContext.primaryTxnId())
-                      .column("txn_id_additional", preLoadContext == null ? null : preLoadContext.additionalTxnId())
-                      .column("keys", preLoadContext == null ? null : preLoadContext.keys())
-                      .column("keysLoad", preLoadContext == null ? null : preLoadContext.loadKeys())
-                      .column("keysLoadFor", preLoadContext == null ? null : preLoadContext.loadKeysFor())
+                      .column("txn_id", preLoadContext == null ? null : toStringOrNull(preLoadContext.primaryTxnId()))
+                      .column("txn_id_additional", preLoadContext == null ? null : toStringOrNull(preLoadContext.additionalTxnId()))
+                      .column("keys", preLoadContext == null ? null : toStringOrNull(preLoadContext.keys()))
+                      .column("keys_loading", preLoadContext == null ? null : toStringOrNull(preLoadContext.loadKeys()))
+                      .column("keys_loading_for", preLoadContext == null ? null : toStringOrNull(preLoadContext.loadKeysFor()))
                     ;
                 }
             }
@@ -265,9 +265,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             super(parse(VIRTUAL_ACCORD_DEBUG, COORDINATIONS,
                         "Accord Coordination State",
                         "CREATE TABLE %s (\n" +
-                        "  txn_id int,\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
                         "  kind text,\n" +
-                        "  coordination_id int,\n" +
+                        "  coordination_id bigint,\n" +
                         "  description text,\n" +
                         "  nodes text,\n" +
                         "  nodes_inflight text,\n" +
@@ -286,7 +286,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             SimpleDataSet ds = new SimpleDataSet(metadata());
             for (Coordination c : coordinations)
             {
-                ds.row(c.txnId(), c.kind().toString(), c.coordinationId())
+                ds.row(toStringOrNull(c.txnId()), c.kind().toString(), c.coordinationId())
                   .column("nodes", toStringOrNull(c.nodes()))
                   .column("nodes_inflight", toStringOrNull(c.inflight()))
                   .column("nodes_contacted", toStringOrNull(c.contacted()))

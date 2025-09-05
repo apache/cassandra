@@ -133,13 +133,13 @@ public class SerializePacked
         }
     }
 
-    public static long serializedPackedSize(int count, long max)
+    public static int serializedPackedSize(int count, long max)
     {
         return serializedPackedBitsSize(count, BitUtils.numberOfBitsToRepresent(max));
     }
 
-    public static long serializedPackedBitsSize(int count, int bitsPerEntry)
+    public static int serializedPackedBitsSize(int count, int bitsPerEntry)
     {
-        return ((long)bitsPerEntry * count + 7)/8;
+        return (int) (((long)bitsPerEntry * count + 7) / 8);
     }
 }

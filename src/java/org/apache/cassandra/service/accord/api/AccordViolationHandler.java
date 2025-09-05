@@ -18,28 +18,37 @@
 
 package org.apache.cassandra.service.accord.api;
 
-import javax.annotation.Nullable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.ViolationHandler;
+import accord.local.Command;
+import accord.local.SafeCommandStore;
 import accord.primitives.Participants;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+
+import static accord.utils.Invariants.illegalState;
 
 public class AccordViolationHandler implements ViolationHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordViolationHandler.class);
 
-    static
+    public static void setup()
     {
         ViolationHandlerHolder.set(AccordViolationHandler::new);
     }
 
     @Override
-    public void onViolation(String message, Participants<?> participants, @Nullable TxnId notWitnessed, @Nullable Timestamp notWitnessedExecuteAt, @Nullable TxnId by, @Nullable Timestamp byEexecuteAt)
+    public void onTimestampViolation(SafeCommandStore safeStore, Command command, Participants<?> otherParticipants, Route<?> otherRoute, Timestamp otherExecuteAt)
     {
-        logger.error(message);
+        throw illegalState(ViolationHandler.timestampViolationMessage(safeStore, command, otherParticipants, otherRoute, otherExecuteAt));
+    }
+
+    @Override
+    public void onDependencyViolation(Participants<?> participants, TxnId notWitnessed, Timestamp notWitnessedExecuteAt, TxnId by, Timestamp byExecuteAt)
+    {
+        logger.error(ViolationHandler.dependencyViolationMessage(participants, notWitnessed, notWitnessedExecuteAt, by, byExecuteAt));
     }
 }

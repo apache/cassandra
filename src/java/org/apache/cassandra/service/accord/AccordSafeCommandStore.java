@@ -42,6 +42,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
+import org.apache.cassandra.service.paxos.PaxosState;
 
 import static accord.utils.Invariants.illegalState;
 
@@ -167,6 +168,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         if (commandsForKey == null)
             return null;
         return commandsForKey.get(key);
+    }
+
+    @Override
+    public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    {
+        super.setRangesForEpoch(rangesForEpoch);
+        commandStore.updateMinHlc(PaxosState.ballotTracker().getLowBound().unixMicros() + 1);
     }
 
     @Override

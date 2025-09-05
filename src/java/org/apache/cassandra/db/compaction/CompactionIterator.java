@@ -95,6 +95,7 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
+import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -118,6 +119,8 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Image;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Repeat;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -868,7 +871,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         public AccordJournalPurger(AccordCompactionInfos compactionInfos, Version version, ColumnFamilyStore cfs)
         {
             this.userVersion = version;
-
             this.infos = compactionInfos;
             this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
             this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
@@ -943,8 +945,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate.Accumulator>
     {
-        AccordTopologyUpdate.TopologyImage lastChangedTopology;
+        TopologyImage lastImage;
+        boolean hasWritten;
         final long minEpoch;
+
         TopologyCompactor(FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator> serializer, Version userVersion, long minEpoch)
         {
             super(serializer, userVersion);
@@ -960,21 +964,33 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException
         {
-            AccordTopologyUpdate.TopologyImage current = builder.get();
+            Invariants.require(lastImage != null || !hasWritten);
+            TopologyImage read = builder.read();
 
-            if (lastChangedTopology != null && current.getUpdate() != null && lastChangedTopology.getUpdate().isEquivalent(current.getUpdate()))
-                builder.update(current.asNoOp());
-
-            if (builder.get().kind() != AccordTopologyUpdate.Kind.NoOp)
+            if (read.epoch() < minEpoch)
             {
-                lastChangedTopology = builder.get();
-                Invariants.nonNull(lastChangedTopology.getUpdate());
+                if (read.kind() == Image)
+                    lastImage = read;
+                return null;
             }
 
-            if (builder.get().epoch() >= minEpoch)
-                return super.result(journalKey, partitionKey);
-            else
-                return null;
+            TopologyImage write = read;
+            if (read.kind() == Repeat && !hasWritten)
+            {
+                Invariants.require(lastImage != null);
+                write = new TopologyImage(read.epoch(), Image, lastImage.getUpdate());
+            }
+            else if (hasWritten && read.kind() == Repeat && lastImage.getUpdate().isEquivalent(read.getUpdate()))
+            {
+                write = read.asRepeat();
+            }
+
+            if (write.kind() == Image)
+                lastImage = write;
+
+            hasWritten = true;
+            builder.write(write);
+            return super.result(journalKey, partitionKey);
         }
     }
 
