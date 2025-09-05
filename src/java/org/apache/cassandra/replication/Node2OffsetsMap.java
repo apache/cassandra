@@ -17,6 +17,14 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.base.Preconditions;
+
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntObjConsumer;
 
@@ -25,24 +33,93 @@ import org.agrona.collections.IntObjConsumer;
  */
 public class Node2OffsetsMap
 {
-    private final Int2ObjectHashMap<Offsets> map = new Int2ObjectHashMap<>();
+    private final Int2ObjectHashMap<Offsets.Mutable> offsetstMap;
+
+    public Node2OffsetsMap()
+    {
+        offsetstMap = new Int2ObjectHashMap<>(8, 0.65f, false);
+    }
+
+    public static Node2OffsetsMap forParticipants(CoordinatorLogId logId, Participants participants)
+    {
+        Node2OffsetsMap map = new Node2OffsetsMap();
+        for (int i = 0; i < participants.size(); i++)
+            map.set(participants.get(i), new Offsets.Mutable(logId));
+        return map;
+    }
+
+    void set(int node, Offsets.Mutable offsets)
+    {
+        offsetstMap.put(node, offsets);
+    }
+
+    @Nonnull
+    Offsets.Mutable get(int node)
+    {
+        return Preconditions.checkNotNull(offsetstMap.get(node));
+    }
+
+    Offsets.Mutable intersection()
+    {
+        Iterator<Offsets.Mutable> iter = offsetstMap.values().iterator();
+
+        Preconditions.checkArgument(iter.hasNext());
+        if (offsetstMap.size() == 1)
+            return Offsets.Mutable.copy(iter.next());
+
+        Offsets.Mutable intersection = iter.next();
+        while (iter.hasNext())
+            intersection = Offsets.Mutable.intersection(intersection, iter.next());
+        return intersection;
+    }
 
     public void add(int node, Offsets offsets)
     {
-        Offsets.Mutable current = (Offsets.Mutable) map.get(node);
+        Offsets.Mutable current = offsetstMap.get(node);
         if (current != null)
             current.addAll(offsets);
         else
-            map.put(node, Offsets.Mutable.copy(offsets));
+            offsetstMap.put(node, Offsets.Mutable.copy(offsets));
     }
 
-    public void forEach(IntObjConsumer<Offsets> consumer)
+    public void forEach(IntObjConsumer<Offsets.Mutable> consumer)
     {
-        map.forEachInt(consumer);
+        offsetstMap.forEachInt(consumer);
     }
 
     public void clear()
     {
-        map.clear();
+        offsetstMap.clear();
+    }
+
+    public int size()
+    {
+        return offsetstMap.size();
+    }
+
+    void convertToPrimitiveMap(Map<Integer, List<Integer>> into)
+    {
+        for (Int2ObjectHashMap<Offsets.Mutable>.EntryIterator iter = offsetstMap.entrySet().iterator(); iter.hasNext();)
+        {
+            iter.next();
+            into.put(iter.getIntKey(), iter.getValue().asList());
+        }
+    }
+
+    static Node2OffsetsMap fromPrimitiveMap(CoordinatorLogId logId, Map<Integer, List<Integer>> from)
+    {
+        Node2OffsetsMap map = new Node2OffsetsMap();
+        for (Map.Entry<Integer, List<Integer>> entry : from.entrySet())
+            map.set(entry.getKey(), Offsets.fromList(logId, entry.getValue()));
+        return map;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof Node2OffsetsMap))
+            return false;
+        Node2OffsetsMap that = (Node2OffsetsMap) o;
+        return this.offsetstMap.equals(that.offsetstMap);
     }
 }

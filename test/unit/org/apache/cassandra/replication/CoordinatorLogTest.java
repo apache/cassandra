@@ -160,7 +160,11 @@ public class CoordinatorLogTest
         Offsets.Mutable offsets3 = new Offsets.Mutable(logId);
         offsets3.add(3, 4, 5);
 
-        Offsets.Mutable[] witnessed = new Offsets.Mutable[] { offsets1, offsets2, offsets3 };
+        Node2OffsetsMap witnessed = new Node2OffsetsMap();
+        witnessed.set(LOCAL_HOST_ID, offsets1);
+        witnessed.set(REMOTE_HOST_ID_1, offsets2);
+        witnessed.set(REMOTE_HOST_ID_2, offsets3);
+
         CoordinatorLog log = CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
@@ -183,12 +187,14 @@ public class CoordinatorLogTest
         assertEquals(log.range, loaded.range);
         assertEquals(log.logId, loaded.logId);
         assertEquals(log.participants, loaded.participants);
-        assertEquals(log.localHostId, loaded.localHostId);
+        assertEquals(log.localNodeId, loaded.localNodeId);
 
-        assertEquals(log.participants.size(), log.witnessedOffsets.length);
-        assertEquals(loaded.participants.size(), loaded.witnessedOffsets.length);
-        for (int i = 0; i < loaded.participants.size(); i++)
-            assertEquals(log.witnessedOffsets[i], loaded.witnessedOffsets[i]);
+        assertEquals(log.participants.size(), log.witnessedOffsets.size());
+        assertEquals(log.participants.size(), log.persistedOffsets.size());
+        assertEquals(loaded.participants.size(), loaded.witnessedOffsets.size());
+        assertEquals(loaded.participants.size(), loaded.persistedOffsets.size());
+        assertEquals(log.witnessedOffsets, loaded.witnessedOffsets);
+        assertEquals(log.persistedOffsets, loaded.persistedOffsets);
         assertEquals(log.reconciledOffsets, loaded.reconciledOffsets);
     }
 }
