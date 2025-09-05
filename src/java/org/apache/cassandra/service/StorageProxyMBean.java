@@ -70,6 +70,7 @@ public interface StorageProxyMBean
     public int getOtcBacklogExpirationInterval();
 
     public void loadPartitionDenylist();
+    public boolean getPartitionDenylistEnabled();
     public int getPartitionDenylistLoadAttempts();
     public int getPartitionDenylistLoadSuccesses();
     public void setEnablePartitionDenylist(boolean enabled);
