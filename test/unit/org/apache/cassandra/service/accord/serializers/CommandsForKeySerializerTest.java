@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -649,14 +648,15 @@ public class CommandsForKeySerializerTest
         }
 
         @Override public boolean inStore() { return true; }
+        @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
+        @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+
         @Override public Journal.Replayer replayer() { throw new UnsupportedOperationException(); }
 
         @Override protected void ensureDurable(Ranges ranges, RedundantBefore onSuccess) {}
         @Override public Agent agent() { return this; }
-        @Override public AsyncChain<Void> build(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { return null; }
-        @Override public <T> AsyncChain<T> build(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public void execute(Runnable run) {}
         @Override public void shutdown() { }
-        @Override public <T> AsyncChain<T> build(Callable<T> task) { throw new UnsupportedOperationException(); }
         @Override public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
         @Override public void onStale(Timestamp staleSince, Ranges ranges) { throw new UnsupportedOperationException(); }
         @Override public void onUncaughtException(Throwable t) { throw new UnsupportedOperationException(); }

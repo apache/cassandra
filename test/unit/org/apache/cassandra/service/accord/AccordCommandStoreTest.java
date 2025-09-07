@@ -50,7 +50,6 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
 import accord.utils.LargeBitSet;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -73,6 +72,7 @@ import org.apache.cassandra.utils.Pair;
 import static accord.primitives.Status.Durability.AllQuorums;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
@@ -133,7 +133,7 @@ public class AccordCommandStoreTest
         LargeBitSet waitingOnApply = new LargeBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
-        Pair<Writes, Result> result = AsyncChains.getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
+        Pair<Writes, Result> result = getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
 
         Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,

@@ -35,7 +35,7 @@ import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncResults;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
@@ -231,7 +231,7 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
     {
         ReadCommand command = deserialize(tables);
         if (command == null)
-            return AsyncResults.success(new TxnData());
+            return AsyncChains.success(new TxnData());
 
         // It's fine for our nowInSeconds to lag slightly our insertion timestamp, as to the user
         // this simply looks like the transaction witnessed TTL'd data and the data then expired

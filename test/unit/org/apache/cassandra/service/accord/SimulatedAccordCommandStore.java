@@ -77,7 +77,6 @@ import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
-import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
@@ -100,6 +99,7 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
 public class SimulatedAccordCommandStore implements AutoCloseable
@@ -430,7 +430,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     {
         var result = processAsync(loadCtx, function);
         processAll();
-        return AsyncChains.getBlocking(result);
+        return getBlocking(result);
     }
 
     public <T extends Reply> AsyncResult<T> processAsync(TxnRequest<T> request)
@@ -440,7 +440,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
     public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
-        return commandStore.submit(loadCtx, function).beginAsResult();
+        return commandStore.submit(loadCtx, function);
     }
 
     public Pair<TxnId, AsyncResult<PreAccept.PreAcceptOk>> enqueuePreAccept(Txn txn, FullRoute<?> route)
@@ -464,7 +464,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             var reply = br.apply(safe);
             Assertions.assertThat(reply.kind() == BeginRecovery.RecoverReply.Kind.Ok).isTrue();
             return (BeginRecovery.RecoverOk) reply;
-        }).beginAsResult());
+        }));
     }
 
     public void processAll()

@@ -146,7 +146,6 @@ import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
 import static accord.local.RedundantStatus.Property.QUORUM_APPLIED;
 import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
 import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
-import static accord.utils.async.AsyncChains.getBlockingAndRethrow;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -368,14 +367,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             List<Entry> cfks = new CopyOnWriteArrayList<>();
             PreLoadContext context = PreLoadContext.contextFor(key, LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "commands_for_key table query");
             CommandStores commandStores = AccordService.instance().node().commandStores();
-            getBlockingAndRethrow(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
+            AccordService.getBlocking(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                 SafeCommandsForKey safeCfk = safeStore.get(key);
                 CommandsForKey cfk = safeCfk.current();
                 if (cfk == null)
                     return;
 
                 cfks.add(new Entry(safeStore.commandStore().id(), cfk));
-            }).beginAsResult());
+            }));
 
             if (cfks.isEmpty())
                 return null;
@@ -478,7 +477,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             List<Entry> cfks = new CopyOnWriteArrayList<>();
             PreLoadContext context = PreLoadContext.contextFor(key, LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "commands_for_key_unmanaged table query");
             CommandStores commandStores = AccordService.instance().node().commandStores();
-            getBlockingAndRethrow(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
+            AccordService.getBlocking(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                 SafeCommandsForKey safeCfk = safeStore.get(key);
                 CommandsForKey cfk = safeCfk.current();
                 if (cfk == null)
@@ -1469,7 +1468,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 {
                     consumer.accept(command.route(), result);
                 }
-                return result;
+                return result.chain();
             });
         }
 
@@ -1504,12 +1503,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         private void run(TxnId txnId, int commandStoreId, Function<SafeCommandStore, AsyncChain<Void>> apply)
         {
             AccordService accord = (AccordService) AccordService.instance();
-            AsyncChains.awaitUninterruptibly(accord.node()
-                                                   .commandStores()
-                                                   .forId(commandStoreId)
-                                                   .submit(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
-                                                   .flatMap(i -> i)
-                                                   .beginAsResult());
+            AccordService.getBlocking(accord.node()
+                                            .commandStores()
+                                            .forId(commandStoreId)
+                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply));
         }
 
         private void cleanup(TxnId txnId, int commandStoreId, Cleanup cleanup)

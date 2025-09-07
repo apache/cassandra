@@ -32,6 +32,7 @@ import com.google.common.collect.Maps;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import accord.api.AsyncExecutor;
 import accord.api.RoutingKey;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
@@ -56,7 +57,6 @@ import accord.topology.Topologies;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
-import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -77,6 +77,7 @@ import org.apache.cassandra.utils.RangeTree;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
 public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
@@ -202,7 +203,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
     {
         var pair = assertDepsMessageAsync(instance, messageType, txn, route, keyConflicts, rangeConflicts);
         instance.processAll();
-        AsyncChains.getBlocking(pair.right);
+        getBlocking(pair.right);
 
         return pair.left;
     }
@@ -241,7 +242,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         return Pair.create(pair.left, pair.right.map(success -> {
             assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
             return null;
-        }).beginAsResult());
+        }));
     }
 
     protected static Pair<TxnId, AsyncResult<?>> assertBeginRecoveryAsync(SimulatedAccordCommandStore instance,
@@ -260,7 +261,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
             Deps proposeDeps = LatestDeps.mergeProposal(Collections.singletonList(success), ok -> ok.deps);
             assertDeps(success.txnId, proposeDeps, cloneKeyConflicts, cloneRangeConflicts);
             return null;
-        }).beginAsResult());
+        }));
     }
 
     protected static Pair<TxnId, AsyncResult<?>> assertBeginRecoveryAfterPreAcceptAsync(SimulatedAccordCommandStore instance,
@@ -285,10 +286,10 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
             assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
             return success;
         });
-        var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.ofCallable(instance.unorderedScheduled, () -> {
+        var delay = preAcceptAsync.flatMap(ignore -> AsyncExecutor.chain(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.storeService.epoch(), instance.storeService.now(), nodeId);
             return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, false, txn, route, ballot);
-        }));
+        }).beginAsResult());
         var recoverAsync = delay.flatMap(br -> instance.processAsync(br, safe -> {
             var reply = br.apply(safe);
             Assertions.assertThat(reply.kind() == BeginRecovery.RecoverReply.Kind.Ok).isTrue();
@@ -298,7 +299,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
             return success;
         }));
 
-        return Pair.create(txnId, recoverAsync.beginAsResult());
+        return Pair.create(txnId, recoverAsync);
     }
 
     protected static void assertDeps(TxnId txnId, Deps deps,

@@ -56,6 +56,10 @@ import accord.utils.QuintConsumer;
 import accord.utils.TriConsumer;
 import accord.utils.TriFunction;
 import accord.utils.UnhandledEnum;
+import accord.utils.async.AsyncCallbacks.CallAndCallback;
+import accord.utils.async.AsyncCallbacks.FlatCallAndCallback;
+import accord.utils.async.AsyncCallbacks.RunAndCallback;
+import accord.utils.async.AsyncCallbacks.RunOrFail;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
@@ -430,16 +434,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     }
 
     @Override
-    public <T> AsyncChain<T> build(Callable<T> task)
+    public Cancellable execute(RunOrFail runOrFail)
     {
-        return new AsyncChains.Head<>()
-        {
-            @Override
-            protected Cancellable start(BiConsumer<? super T, Throwable> callback)
-            {
-                return submit(new PlainChain<>(task, callback, null));
-            }
-        };
+        PlainChain submit = new PlainChain(runOrFail);
+        return submit(submit);
     }
 
     public <T> AsyncChain<T> buildDebuggable(Callable<T> task, Object describe)
@@ -449,7 +447,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             @Override
             protected Cancellable start(BiConsumer<? super T, Throwable> callback)
             {
-                return submit(new DebuggableChain<>(task, callback, null, describe));
+                return submit(new DebuggableChain(new CallAndCallback<>(task, callback), null, 0, describe));
             }
         };
     }
@@ -581,7 +579,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     void submitExclusive(Runnable runnable)
     {
-        submitPlainExclusive(new PlainRunnable(null, runnable, null));
+        submitPlainExclusive(new PlainRunnable(null, runnable));
     }
 
     private void submitPlainExclusive(Plain task)
@@ -774,14 +772,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public Future<?> submit(Runnable run)
     {
-        PlainRunnable task = new PlainRunnable(new AsyncPromise<>(), run, null);
+        PlainRunnable task = new PlainRunnable(new AsyncPromise<>(), run);
         submit(task);
         return task.result;
     }
 
     public void execute(Runnable command)
     {
-        submit(new PlainRunnable(null, command, null));
+        submit(new PlainRunnable(null, command));
     }
 
     private Cancellable submit(Plain task)
@@ -802,11 +800,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             beforeUnlock();
             lock.unlock();
         }
-    }
-
-    public void execute(Runnable command, AccordCommandStore commandStore)
-    {
-        submit(new PlainRunnable(null, command, commandStore.exclusiveExecutor));
     }
 
     @Override
@@ -1107,53 +1100,91 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        public <T> AsyncChain<T> build(Callable<T> call)
+        public AsyncChain<Void> chain(Runnable run)
         {
-            int position = inExecutor() && task != null ? task.queuePosition : 0;
+            int position = inheritQueuePosition();
             return new AsyncChains.Head<>()
             {
                 @Override
-                protected Cancellable start(BiConsumer<? super T, Throwable> callback)
+                protected Cancellable start(BiConsumer<? super Void, Throwable> callback)
                 {
-                    PlainChain<T> submit = new PlainChain<>(call, callback, SequentialExecutor.this);
-                    submit.queuePosition = position;
-                    return AccordExecutor.this.submit(submit);
+                    return execute(new RunAndCallback(run, callback), position);
                 }
             };
         }
 
         @Override
+        public <T> AsyncChain<T> chain(Callable<T> call)
+        {
+            int position = inheritQueuePosition();
+            return new AsyncChains.Head<>()
+            {
+                @Override
+                protected Cancellable start(BiConsumer<? super T, Throwable> callback)
+                {
+                    return execute(new CallAndCallback<>(call, callback), position);
+                }
+            };
+        }
+
+        @Override
+        public <T> AsyncChain<T> flatChain(Callable<? extends AsyncChain<T>> call)
+        {
+            int position = inheritQueuePosition();
+            return new AsyncChains.Head<>()
+            {
+                @Override
+                protected Cancellable start(BiConsumer<? super T, Throwable> callback)
+                {
+                    return execute(new FlatCallAndCallback<>(call, callback), position);
+                }
+            };
+        }
+
+        @Override
+        public Cancellable execute(RunOrFail runOrFail)
+        {
+            return execute(runOrFail, inheritQueuePosition());
+        }
+
+        private int inheritQueuePosition()
+        {
+            return inExecutor() && task != null ? task.queuePosition : 0;
+        }
+
+        private Cancellable execute(RunOrFail runOrFail, int queuePosition)
+        {
+            PlainChain submit = new PlainChain(runOrFail, SequentialExecutor.this, queuePosition);
+            return AccordExecutor.this.submit(submit);
+        }
+
+        @Override
         public void execute(Runnable run)
         {
-            PlainRunnable submit = new PlainRunnable(null, run, this);
-            if (inExecutor() && this.task != null)
-                submit.queuePosition = this.task.queuePosition;
+            PlainRunnable submit = new PlainRunnable(null, run, this, inheritQueuePosition());
             AccordExecutor.this.submit(submit);
         }
 
         @Override
-        public void maybeExecuteImmediately(Runnable run)
+        public boolean tryExecuteImmediately(Runnable run)
         {
             Thread self = Thread.currentThread();
             Thread owner = this.owner;
-            if (owner == self || (owner == null && ownerUpdater.compareAndSet(this, null, self)))
+            if (owner != null ? owner != self : !ownerUpdater.compareAndSet(this, null, self))
+                return false;
+
+            try { run.run(); }
+            catch (Throwable t) { agent.onUncaughtException(t); }
+            finally
             {
-                try { run.run(); }
-                catch (Throwable t) { agent.onUncaughtException(t); }
-                finally
+                if (owner == null)
                 {
-                    if (owner == null)
-                    {
-                        this.owner = null;
-                        if (waiting != null)
-                            LockSupport.unpark(waiting);
-                    }
+                    this.owner = null;
+                    if (waiting != null)
+                        LockSupport.unpark(waiting);
                 }
             }
-            else
-            {
-                execute(run);
-            }
+            return true;
         }
     }
 
@@ -1287,14 +1318,20 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         PlainRunnable(Runnable run)
         {
-            this(null, run, null);
+            this(null, run);
         }
 
-        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor)
+        PlainRunnable(AsyncPromise<Void> result, Runnable run)
+        {
+            this(result, run, null, 0);
+        }
+
+        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor, int queuePosition)
         {
             this.result = result;
             this.run = run;
             this.executor = executor;
+            this.queuePosition = queuePosition;
         }
 
         @Override
@@ -1514,17 +1551,21 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    class PlainChain<T> extends Plain
+    class PlainChain extends Plain
     {
-        final Callable<T> call;
-        final BiConsumer<? super T, Throwable> callback;
+        final RunOrFail runOrFail;
         final @Nullable SequentialExecutor executor;
 
-        PlainChain(Callable<T> call, BiConsumer<? super T, Throwable> callback, @Nullable SequentialExecutor executor)
+        PlainChain(RunOrFail runOrFail)
         {
-            this.call = call;
-            this.callback = callback;
+            this(runOrFail, null, 0);
+        }
+
+        PlainChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, int queuePosition)
+        {
+            this.runOrFail = runOrFail;
             this.executor = executor;
+            this.queuePosition = queuePosition;
         }
 
         @Override
@@ -1536,23 +1577,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            T success;
             try (Closeable close = locals.get())
             {
-                success = call.call();
-            }
-            catch (Throwable t)
-            {
-                fail(t);
-                return;
-            }
-            try
-            {
-                callback.accept(success, null);
+                runOrFail.run();
             }
             catch (Throwable t)
             {
                 agent.onUncaughtException(t);
+                return;
             }
         }
 
@@ -1561,7 +1593,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             try
             {
-                callback.accept(null, fail);
+                runOrFail.fail(fail);
             }
             catch (Throwable t)
             {
@@ -1571,15 +1603,15 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    class DebuggableChain<T> extends PlainChain<T> implements DebuggableTask
+    class DebuggableChain extends PlainChain implements DebuggableTask
     {
         final long createdAtNanos;
         long startedAtNanos;
         final Object describe;
 
-        DebuggableChain(Callable<T> call, BiConsumer<? super T, Throwable> callback, @Nullable SequentialExecutor executor, Object describe)
+        DebuggableChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, int queuePosition, Object describe)
         {
-            super(call, callback, executor);
+            super(runOrFail, executor, queuePosition);
             this.createdAtNanos = MonotonicClock.Global.approxTime.now();
             this.describe = Invariants.nonNull(describe);
         }

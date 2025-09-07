@@ -116,9 +116,9 @@ import static accord.primitives.SaveStatus.NotDefined;
 import static accord.primitives.SaveStatus.PreAccepted;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 public class AccordTestUtils
 {
@@ -238,8 +238,8 @@ public class AccordTestUtils
     public static AsyncChain<Pair<Writes, Result>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
         AtomicReference<AsyncChain<Pair<Writes, Result>>> result = new AtomicReference<>();
-        getUninterruptibly(commandStore.execute((PreLoadContext.Empty)() -> "Test",
-                           safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
+        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test",
+                                         safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
 

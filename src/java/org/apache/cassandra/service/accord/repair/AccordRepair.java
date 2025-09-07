@@ -164,7 +164,7 @@ public class AccordRepair
             long timeoutNanos = getAccordRepairTimeoutNanos();
             long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
                 Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), null, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc());
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), null, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 
