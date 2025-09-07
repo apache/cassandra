@@ -221,7 +221,7 @@ public class UFJavaTest extends CQLTester
                               "  }\n" +
                               "  return Math.sin( val );\n";
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS double " +
@@ -252,7 +252,7 @@ public class UFJavaTest extends CQLTester
         String functionBody = '\n' +
                               "  throw new RuntimeException(\"oh no!\");\n";
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
@@ -285,7 +285,7 @@ public class UFJavaTest extends CQLTester
                               "  }\n" +
                               "  return \"'\"+Math.sin(input)+'\\\'';\n";
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE FUNCTION %s( input double ) " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS text " +
@@ -304,19 +304,19 @@ public class UFJavaTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, lst list<double>, st set<text>, mp map<int, boolean>)");
 
-        String fList = createFunction(KEYSPACE_PER_TEST, "list<double>",
+        String fList = createFunction(KEYSPACE, "list<double>",
                                       "CREATE FUNCTION %s( lst list<double> ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS list<double> " +
                                       "LANGUAGE java\n" +
                                       "AS $$return lst;$$;");
-        String fSet = createFunction(KEYSPACE_PER_TEST, "set<text>",
+        String fSet = createFunction(KEYSPACE, "set<text>",
                                      "CREATE FUNCTION %s( st set<text> ) " +
                                      "RETURNS NULL ON NULL INPUT " +
                                      "RETURNS set<text> " +
                                      "LANGUAGE java\n" +
                                      "AS $$return st;$$;");
-        String fMap = createFunction(KEYSPACE_PER_TEST, "map<int, boolean>",
+        String fMap = createFunction(KEYSPACE, "map<int, boolean>",
                                      "CREATE FUNCTION %s( mp map<int, boolean> ) " +
                                      "RETURNS NULL ON NULL INPUT " +
                                      "RETURNS map<int, boolean> " +
@@ -372,35 +372,35 @@ public class UFJavaTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, tup frozen<" + tupleTypeDef + ">)");
 
-        String fTup0 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup0 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS " + tupleTypeDef + ' ' +
                                       "LANGUAGE java\n" +
                                       "AS $$return " +
                                       "       tup;$$;");
-        String fTup1 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup1 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE java\n" +
                                       "AS $$return " +
                                       "       Double.valueOf(tup.getDouble(0));$$;");
-        String fTup2 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup2 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS list<double> " +
                                       "LANGUAGE java\n" +
                                       "AS $$return " +
                                       "       tup.getList(1, Double.class);$$;");
-        String fTup3 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup3 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS set<text> " +
                                       "LANGUAGE java\n" +
                                       "AS $$return " +
                                       "       tup.getSet(2, String.class);$$;");
-        String fTup4 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+        String fTup4 = createFunction(KEYSPACE, tupleTypeDef,
                                       "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS map<int, boolean> " +
@@ -794,7 +794,7 @@ public class UFJavaTest extends CQLTester
             if (type == CQL3Type.Native.EMPTY)
                 continue;
 
-            createFunction(KEYSPACE_PER_TEST, type.toString(),
+            createFunction(KEYSPACE, type.toString(),
                            "CREATE OR REPLACE FUNCTION %s(val " + type.toString() + ") " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +

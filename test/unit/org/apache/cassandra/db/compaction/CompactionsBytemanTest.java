@@ -68,7 +68,6 @@ public class CompactionsBytemanTest extends CQLTester
         assertEquals(5, getCurrentColumnFamilyStore().getLiveSSTables().size());
         cfs.forceMajorCompaction(false);
         assertEquals(2, getCurrentColumnFamilyStore().getLiveSSTables().size());
-        dropTable("DROP TABLE %s");
     }
 
     /*
@@ -111,7 +110,6 @@ public class CompactionsBytemanTest extends CQLTester
         createPossiblyExpiredSSTable(cfs, false);
         createPossiblyExpiredSSTable(cfs, false);
         cfs.forceMajorCompaction(false);
-        dropTable("DROP TABLE %s");
     }
 
     @Test

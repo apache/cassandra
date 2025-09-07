@@ -56,7 +56,7 @@ public abstract class ViewAbstractTest extends CQLTester
     @After
     public void end() throws Throwable
     {
-        end(views, this);
+        unsafeDrop(() -> end(views, this));
     }
 
     private static void end(List<String> views, CQLTester tester) throws Throwable

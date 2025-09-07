@@ -166,8 +166,6 @@ public class ViewFiltering2Test extends ViewFilteringTester
         } catch(Exception e) {
             throw new RuntimeException("MV creation with non primary column restrictions failed.", e);
         }
-
-        dropTable("DROP TABLE %s");
     }
 
     @Test
@@ -266,9 +264,6 @@ public class ViewFiltering2Test extends ViewFilteringTester
                                 row(0, 0, 1, 0),
                                 row(0, 1, 1, 0)
         );
-
-        dropView("mv_test");
-        dropTable("DROP TABLE %s");
     }
 
     @Test
@@ -418,7 +413,7 @@ public class ViewFiltering2Test extends ViewFilteringTester
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "c int, " +
-                    "val text, " + "" +
+                    "val text, " +
                     "PRIMARY KEY(k, c))");
 
         execute("USE " + keyspace());
