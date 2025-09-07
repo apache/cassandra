@@ -652,7 +652,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public Future<Void> unsafeLocalSyncNotified(long epoch)
     {
         AsyncPromise<Void> promise = new AsyncPromise<>();
-        getOrCreateEpochState(epoch).localSyncNotified().begin((result, failure) -> {
+        getOrCreateEpochState(epoch).localSyncNotified().invoke((result, failure) -> {
             if (failure != null) promise.tryFailure(failure);
             else promise.trySuccess(result);
         });

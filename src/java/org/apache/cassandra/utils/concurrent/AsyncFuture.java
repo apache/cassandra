@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
 import accord.utils.Invariants;
+import accord.utils.async.AsyncResult;
 import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.utils.concurrent.ListenerList.Waiting;
 
@@ -146,7 +147,7 @@ public class AsyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
+    public <T> Future<T> flatMap(Function<? super V, ? extends AsyncResult<T>> flatMapper, @Nullable Executor executor)
     {
         return flatMap(new AsyncFuture<>(), flatMapper, executor);
     }

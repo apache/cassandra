@@ -30,7 +30,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -48,6 +47,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 public class AccordDropTableBase extends TestBaseImpl
 {
@@ -138,7 +138,7 @@ public class AccordDropTableBase extends TestBaseImpl
                 for (int storeId : stores.ids())
                 {
                     AccordCommandStore store = (AccordCommandStore) stores.forId(storeId);
-                    AsyncChains.getUnchecked(store.submit(ctx, input -> {
+                    getBlocking(store.chain(ctx, input -> {
                         AccordSafeCommandStore safe = (AccordSafeCommandStore) input;
                         for (RoutingKey key : safe.commandsForKeysKeys())
                         {

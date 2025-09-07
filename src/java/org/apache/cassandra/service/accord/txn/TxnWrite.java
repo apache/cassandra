@@ -27,11 +27,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.AsyncExecutor;
 import accord.api.Write;
 import accord.local.CommandStore;
 import accord.local.SafeCommandStore;
@@ -138,13 +138,13 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public AsyncChain<Void> write(Executor executor, TableMetadatas tables, boolean preserveTimestamps, long timestamp)
+        public AsyncChain<Void> write(AsyncExecutor executor, TableMetadatas tables, boolean preserveTimestamps, long timestamp)
         {
             PartitionUpdate update = deserialize(tables);
             if (!preserveTimestamps)
                 update = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build();
             Mutation mutation = new Mutation(update, PotentialTxnConflicts.ALLOW);
-            return AsyncChains.ofRunnable(executor, () -> mutation.apply(false, false));
+            return executor.chain(() -> mutation.apply(false, false));
         }
 
         @Override
@@ -479,9 +479,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return AsyncChains.success(null);
 
         if (results.size() == 1)
-            return results.get(0).map(o -> null);
+            return results.get(0).mapToNull();
 
-        return AsyncChains.reduce(results, (i1, i2) -> null, (Void)null).map(ignore -> null);
+        return AsyncChains.reduce(results, (i1, i2) -> null, null);
     }
 
     public long estimatedSizeOnHeap()

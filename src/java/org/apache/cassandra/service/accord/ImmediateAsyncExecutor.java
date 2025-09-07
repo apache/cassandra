@@ -33,11 +33,11 @@ public class ImmediateAsyncExecutor implements AsyncExecutor, BiConsumer<Object,
     public static final ImmediateAsyncExecutor INSTANCE = new ImmediateAsyncExecutor();
 
     @Override
-    public <T> AsyncChain<T> build(Callable<T> task)
+    public <T> AsyncChain<T> chain(Callable<T> call)
     {
         try
         {
-            return AsyncChains.success(task.call());
+            return AsyncChains.success(call.call());
         }
         catch (Throwable t)
         {

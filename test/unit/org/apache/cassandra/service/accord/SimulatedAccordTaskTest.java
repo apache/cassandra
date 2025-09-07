@@ -129,7 +129,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                             }
                         };
                         instance.maybeCacheEvict(txn.keys().toParticipants());
-                        instance.processAsync(preAccept).begin(counter);
+                        instance.processAsync(preAccept).invoke(counter);
                     }
                     break;
                     default:

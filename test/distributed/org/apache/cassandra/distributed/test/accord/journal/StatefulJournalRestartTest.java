@@ -32,7 +32,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.utils.Property;
 import accord.utils.Property.SimpleCommand;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -47,6 +46,7 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JOURNAL;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 /**
  * There are 2 errors blocking this test from being run
@@ -119,7 +119,7 @@ public class StatefulJournalRestartTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                AsyncChains.getBlockingAndRethrow(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
+                getBlocking(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
 
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();

@@ -58,8 +58,7 @@ import accord.utils.SortedList;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
+import accord.utils.async.Cancellable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
@@ -392,9 +391,15 @@ public class AccordAgent implements Agent
             return AsyncChains.success(staleId);
 
         logger.debug("Waiting {} micros for {} to be stale", waitMicros, staleId);
-        AsyncResult.Settable<TxnId> result = AsyncResults.settable();
-        node.scheduler().once(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
-        return result;
+        return new AsyncChains.Head<>()
+        {
+            @Override
+            protected @Nullable Cancellable start(BiConsumer<? super TxnId, Throwable> callback)
+            {
+                node.scheduler().once(() -> callback.accept(staleId, null), waitMicros, MICROSECONDS);
+                return null;
+            }
+        };
     }
 
     @Override
