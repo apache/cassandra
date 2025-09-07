@@ -56,6 +56,9 @@ ide/nbproject/private
 nb-configuration.xml
 nbactions.xml
 
+#VS code
+.vscode/
+
 # Maven, etc.
 out/
 target/
