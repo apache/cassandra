@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.interop;
 import java.io.IOException;
 import javax.annotation.Nullable;
 
+import accord.api.AsyncExecutor;
 import accord.api.Data;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
@@ -34,7 +35,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
 import org.apache.cassandra.db.TypeSizes;
@@ -110,11 +110,8 @@ public class AccordInteropReadRepair extends ReadData
 
     private static final IVersionedSerializer<Data> noop_data_serializer = new IVersionedSerializer<>()
     {
-        @Override
-        public void serialize(Data t, DataOutputPlus out, Version version) throws IOException {}
-        @Override
-        public Data deserialize(DataInputPlus in, Version version) throws IOException { return Data.NOOP_DATA; }
-
+        @Override public void serialize(Data t, DataOutputPlus out, Version version) {}
+        @Override public Data deserialize(DataInputPlus in, Version version) { return Data.NOOP_DATA; }
         public long serializedSize(Data t, Version version) { return 0; }
     };
 
@@ -148,7 +145,7 @@ public class AccordInteropReadRepair extends ReadData
     protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Participants<?> execute)
     {
         // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
-        return AsyncChains.ofCallable(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
+        return AsyncExecutor.chain(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
                                           ReadRepairVerbHandler.instance.applyMutation(mutation);
                                           return Data.NOOP_DATA;
                                       });

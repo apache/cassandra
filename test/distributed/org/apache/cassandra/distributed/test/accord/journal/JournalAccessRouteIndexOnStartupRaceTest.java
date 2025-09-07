@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import accord.local.durability.DurabilityService;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
-import accord.utils.async.AsyncChains;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -53,6 +52,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JOURNAL;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 /**
  * This is a specific history of {@link StatefulJournalRestartTest}, which offers a more general way of testing this
@@ -90,7 +90,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                AsyncChains.getBlockingAndRethrow(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
+                getBlocking(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
 
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();

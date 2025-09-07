@@ -62,10 +62,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
-import static accord.utils.async.AsyncChains.awaitUninterruptiblyAndRethrow;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 public class AccordBootstrapTest extends TestBaseImpl
 {
@@ -278,7 +278,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertTrue(session.getNumKeyspaceTransfers() > 0);
                     });
 
-                    awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
+                    getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
                         AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.bootstrapBeganAt().keySet()));
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.safeToReadAt().keySet()));
@@ -321,7 +321,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertEquals(key, row.getInt("c"));
                         Assert.assertEquals(key, row.getInt("v"));
 
-                        awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
+                        getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
                                 AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
@@ -464,7 +464,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 
                             PartitionKey partitionKey = new PartitionKey(tableId, dk);
 
-                            awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test",
+                            getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test",
                                                                                           partitionKey.toUnseekable(), moveMax, moveMax,
                                                                                           safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))

@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -41,6 +42,7 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,7 +135,6 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
@@ -553,7 +554,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public AsyncChain<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+    public AsyncResult<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
     {
         return node.durability().sync(requestedBy, ExclusiveSyncPoint, minBound, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
     }
@@ -580,14 +581,61 @@ public class AccordService implements IAccordService, Shutdownable
         return node.withEpochAtLeast(txnId.epoch(), null, () -> {
             Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.UNSAFE_EMPTY, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
             return CoordinateTransaction.coordinate(node, route, txnId, txn)
-                                        .map(ignore -> (Void) null).beginAsResult();
-        }).beginAsResult();
+                                        .mapToNull();
+        });
     }
 
     @Override
     public AsyncChain<Timestamp> maxConflict(Ranges ranges)
     {
         return CoordinateMaxConflict.maxConflict(node, ranges);
+    }
+
+    static class AsyncFutureCallback<V> extends AsyncFuture<V> implements BiConsumer<V, Throwable>
+    {
+        @Override
+        public void accept(V v, Throwable fail)
+        {
+            if (fail == null) trySuccess(v);
+            else tryFailure(fail);
+        }
+    }
+
+    public static <V> Future<V> toFuture(AsyncChain<V> chain)
+    {
+        AsyncFutureCallback<V> future = new AsyncFutureCallback<>();
+        chain.begin(future);
+        return future;
+    }
+
+    public static <V> Future<V> toFuture(AsyncResult<V> result)
+    {
+        if (result instanceof Future<?>)
+            return (Future<V>) result;
+
+        AsyncPromise<V> promise = new AsyncPromise<>();
+        result.invoke((success, failure) -> {
+            if (failure == null) promise.trySuccess(success);
+            else promise.tryFailure(failure);
+        });
+        return promise;
+    }
+
+    public static <V> V getBlocking(AsyncChain<V> async)
+    {
+        return syncAndRethrow(toFuture(async)).getNow();
+    }
+
+    public static <V> V getBlocking(AsyncResult<V> async)
+    {
+        return syncAndRethrow(toFuture(async)).getNow();
+    }
+
+    private static <V> Future<V> syncAndRethrow(Future<V> future)
+    {
+        future.syncThrowUncheckedOnInterrupt()
+              .rethrowIfFailed();
+        return future;
     }
 
     public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
@@ -602,24 +650,21 @@ public class AccordService implements IAccordService, Shutdownable
         return result.awaitAndGet();
     }
 
+    public static <V> V getBlocking(AsyncResult<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        return getBlocking(async, null, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+    }
+
+    public static <V> V getBlocking(AsyncResult<V> async, @Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+        async.invoke(result);
+        return result.awaitAndGet();
+    }
+
     public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
     {
         return getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
-    }
-
-    public static <V> V getBlocking(AsyncChain<V> async)
-    {
-        return asPromise(async).syncUninterruptibly().getNow();
-    }
-
-    public static <V> Promise<V> asPromise(AsyncChain<V> async)
-    {
-        AsyncPromise<V> promise = new AsyncPromise<>();
-        async.begin((result, failure) -> {
-            if (failure == null) promise.trySuccess(result);
-            else promise.tryFailure(failure);
-        });
-        return promise;
     }
 
     public static Keys intersecting(Keys keys)
@@ -719,7 +764,7 @@ public class AccordService implements IAccordService, Shutdownable
         bookkeeping.metrics.keySize.update(txn.keys().size());
         long deadlineNanos = requestTime.computeDeadline(timeout);
         AccordResult<TxnResult> result = new AccordResult<>(txnId, txn.keys(), bookkeeping, requestTime.startedAtNanos(), deadlineNanos, true);
-        ((AsyncResult)node.coordinate(txnId, txn, minEpoch, deadlineNanos)).begin(result);
+        node.coordinate(txnId, txn, minEpoch, deadlineNanos).begin((BiConsumer) result);
         return result;
     }
 
@@ -754,7 +799,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         Ready ready = new Ready();
         AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
-        AsyncChains.getBlockingAndRethrow(commandStores.forEach((PreLoadContext.Empty)() -> "Flush Caches", safeStore -> {
+        getBlocking(commandStores.forEach((PreLoadContext.Empty)() -> "Flush Caches", safeStore -> {
             AccordCommandStore commandStore = (AccordCommandStore)safeStore.commandStore();
             try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
             {
@@ -769,7 +814,7 @@ public class AccordService implements IAccordService, Shutdownable
         }));
         ready.decrement();
         AsyncPromise<Void> result = new AsyncPromise<>();
-        ready.begin((success, fail) -> {
+        ready.invoke((success, fail) -> {
             if (fail != null) result.tryFailure(fail);
             else result.trySuccess(null);
         });
@@ -839,19 +884,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
     {
-        AsyncChain<List<CommandStoreTxnBlockedGraph>> states = loadDebug(txnId);
-        try
-        {
-            return AsyncChains.getBlocking(states);
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e.getCause());
-        }
+        return getBlocking(loadDebug(txnId));
     }
 
     public AsyncChain<List<CommandStoreTxnBlockedGraph>> loadDebug(TxnId original)
@@ -862,11 +895,11 @@ public class AccordService implements IAccordService, Shutdownable
         int[] ids = commandStores.ids();
         List<AsyncChain<CommandStoreTxnBlockedGraph>> chains = new ArrayList<>(ids.length);
         for (int id : ids)
-            chains.add(loadDebug(original, commandStores.forId(id)));
+            chains.add(loadDebug(original, commandStores.forId(id)).chain());
         return AsyncChains.allOf(chains);
     }
 
-    private AsyncChain<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
+    private AsyncResult<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
     {
         CommandStoreTxnBlockedGraph.Builder state = new CommandStoreTxnBlockedGraph.Builder(store.id());
         populateAsync(state, store, txnId);
@@ -995,7 +1028,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public void ensureMinHlc(long minHlc)
     {
-        asPromise(node.updateMinHlc(minHlc >= 0 ? minHlc : 0)).syncUninterruptibly();
+        toFuture(node.updateMinHlc(minHlc >= 0 ? minHlc : 0)).syncUninterruptibly();
     }
 
     public AccordJournal journal()
@@ -1006,7 +1039,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Future<Void> epochReady(Epoch epoch)
     {
-        return asPromise(configService.epochReady(epoch.getEpoch()));
+        return toFuture(configService.epochReady(epoch.getEpoch()));
     }
 
     @Override

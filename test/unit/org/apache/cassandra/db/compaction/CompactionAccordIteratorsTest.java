@@ -94,12 +94,12 @@ import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_DURA
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;
 import static accord.primitives.Timestamp.Flag.SHARD_BOUND;
-import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.COMMANDS_FOR_KEY;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -314,32 +314,32 @@ public class CompactionAccordIteratorsTest
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeGetRangesForEpoch().currentRanges(), true);
             Route<?> partialRoute = route.slice(commandStore.unsafeGetRangesForEpoch().currentRanges());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, (a, b) -> {});
-            }).beginAsResult());
+            }));
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, txnId, partialDeps, (a, b) -> {});
-            }).beginAsResult());
+            }));
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, (a, b) -> {});
-            }).beginAsResult());
+            }));
             flush(commandStore);
-            getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.chain(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 return AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
-            }).flatMap(i -> i).flatMap(result -> commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            }).flatMap(i -> i).flatMap(result -> commandStore.chain(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, (a, b) -> {});
             })));
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () -> {
-                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+                return getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                     StoreParticipants participants = StoreParticipants.all(route);
                     Command command = safe.get(txnId, participants).current();
                     return command.hasBeen(Status.Applied);
-                }).beginAsResult());
+                }));
             });
             flush(commandStore);
         }

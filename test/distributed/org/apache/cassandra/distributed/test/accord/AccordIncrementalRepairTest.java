@@ -35,7 +35,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -72,6 +72,7 @@ import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.test.accord.AccordTestBase.executeWithRetry;
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
 public class AccordIncrementalRepairTest extends TestBaseImpl
 {
@@ -92,16 +93,16 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, 10L, TimeUnit.MINUTES).map(v -> {
                 executedBarriers = true;
                 return v;
-            }).beginAsResult();
+            });
         }
 
         @Override
-        public AsyncResult<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
                 executedBarriers = true;
                 return v;
-            }).beginAsResult();
+            });
         }
 
         public void reset()
@@ -206,7 +207,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
     {
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
-        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key, SYNC, READ_WRITE, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+        getBlocking(node.commandStores().ifLocal(PreLoadContext.contextFor(key, SYNC, READ_WRITE, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
             AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
             SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
@@ -228,7 +229,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
             long now = Clock.Global.currentTimeMillis();
             if (now - start > TimeUnit.MINUTES.toMillis(1))
                 throw new AssertionError("Timeout");
-            AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(txnId, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+            AccordService.getBlocking(node.commandStores().ifLocal(PreLoadContext.contextFor(txnId, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
                 SafeCommand command = safeStore.get(txnId, StoreParticipants.empty(txnId));
                 Assert.assertNotNull(command.current());
                 if (command.current().status().hasBeen(Status.Applied))
