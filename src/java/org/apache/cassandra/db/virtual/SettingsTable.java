@@ -100,19 +100,11 @@ final class SettingsTable extends AbstractVirtualTable
         if (value == null)
             return null;
 
-        if (value.getClass().isArray() || value instanceof Collection || value instanceof Map)
-        {
-            try {
-                if (value.getClass().isArray())
-                    value = Arrays.asList((Object[]) value);
-            
-                return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(value);
-            } catch (Exception e) {
-                return value.toString();
-            }
-        }
-
-        if (value instanceof Map)
+        if (value.getClass().isArray())
+            return tryConstructJson(Arrays.asList((Object[]) value));
+        else if (value instanceof Collection)
+            return tryConstructJson(value);
+        else if (value instanceof Map)
         {
             Map<String, Object> map = new HashMap<>();
             for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet())
@@ -126,10 +118,22 @@ final class SettingsTable extends AbstractVirtualTable
                     map.put(entry.getKey(), entry.getValue());
             }
 
-            return map.toString();
+            return tryConstructJson(map);
         }
 
         return value.toString();
+    }
+
+    private String tryConstructJson(Object o)
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(o);
+        }
+        catch (Exception e)
+        {
+            return o.toString();
+        }
     }
 
     private static Map<String, Property> getProperties()
