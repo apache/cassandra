@@ -376,7 +376,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         try (CloseableIterator<TopologyUpdate> iter = new CloseableIterator<>()
         {
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(topologyUpdateKey(0L),
-                                                                                                 topologyUpdateKey(Timestamp.MAX_EPOCH));
+                                                                                                 topologyUpdateKey(Timestamp.MAX_EPOCH),
+                                                                                                 true);
             TopologyImage prev = null;
 
             @Override
@@ -571,9 +572,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         journalTable.forceCompaction();
     }
 
-    public void forEach(Consumer<JournalKey> consumer)
+    public void forEach(Consumer<JournalKey> consumer, boolean includeActive)
     {
-        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null))
+        forEach(consumer, null, null, includeActive);
+    }
+
+    public void forEach(Consumer<JournalKey> consumer, @Nullable JournalKey min, @Nullable JournalKey max, boolean includeActive)
+    {
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(min, max, includeActive))
         {
             while (iter.hasNext())
             {
@@ -610,7 +616,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 this.commandStore = commandStore;
                 this.replayer = commandStore.replayer();
                 // Keys in the index are sorted by command store id, so index iteration will be sequential
-                this.iter = journalTable.keyIterator(new JournalKey(TxnId.NONE, COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()));
+                this.iter = journalTable.keyIterator(new JournalKey(TxnId.NONE, COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false);
             }
 
             boolean replay()

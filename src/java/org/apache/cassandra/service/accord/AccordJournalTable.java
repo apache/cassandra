@@ -75,6 +75,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
+import org.apache.cassandra.journal.Segment;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns;
@@ -457,9 +458,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max)
+    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max, boolean includeActive)
     {
-        return new JournalAndTableKeyIterator(min, max);
+        return new JournalAndTableKeyIterator(min, max, includeActive);
     }
 
     private class TableIterator extends AbstractIterator<K> implements CloseableIterator<K>
@@ -515,12 +516,12 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     private class JournalAndTableKeyIterator extends AbstractIterator<Journal.KeyRefs<K>> implements CloseableIterator<Journal.KeyRefs<K>>
     {
         final TableIterator tableIterator;
-        final Journal<K, V>.StaticSegmentKeyIterator journalIterator;
+        final Journal<K, V>.SegmentKeyIterator journalIterator;
 
-        private JournalAndTableKeyIterator(K min, K max)
+        private JournalAndTableKeyIterator(K min, K max, boolean includeActive)
         {
             this.tableIterator = new TableIterator(min, max);
-            this.journalIterator = journal.staticSegmentKeyIterator(min, max);
+            this.journalIterator = journal.segmentKeyIterator(min, max, includeActive ?  ignore -> true : Segment::isStatic);
         }
 
         K prevFromTable = null;

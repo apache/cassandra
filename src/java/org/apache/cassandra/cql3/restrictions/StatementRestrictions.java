@@ -156,13 +156,13 @@ public final class StatementRestrictions
         return new StatementRestrictions(type, table, IndexHints.NONE, false);
     }
 
-    private StatementRestrictions(StatementType type, TableMetadata table, IndexHints indexHints, boolean allowFiltering)
+    private StatementRestrictions(StatementType type, TableMetadata table, IndexHints indexHints, boolean allowFilteringOfPrimaryKeys)
     {
         this.type = type;
         this.table = table;
         this.indexHints = indexHints;
         this.partitionKeyRestrictions = new PartitionKeyRestrictions(table.partitionKeyAsClusteringComparator());
-        this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(table, allowFiltering);
+        this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(table, allowFilteringOfPrimaryKeys);
         this.nonPrimaryKeyRestrictions = RestrictionSet.empty();
         this.notNullColumns = new HashSet<>();
     }
@@ -370,7 +370,7 @@ public final class StatementRestrictions
             }
             else
             {
-                if (!allowFiltering && requiresAllowFilteringIfNotSpecified(table))
+                if (!allowFiltering && requiresAllowFilteringIfNotSpecified(table, false))
                     throw invalidRequest(allowFilteringMessage(state));
             }
 
@@ -381,14 +381,14 @@ public final class StatementRestrictions
             validateSecondaryIndexSelections();
     }
 
-    public static boolean requiresAllowFilteringIfNotSpecified(TableMetadata metadata)
+    public static boolean requiresAllowFilteringIfNotSpecified(TableMetadata metadata, boolean isPrimaryKey)
     {
         if (!metadata.isVirtual())
             return true;
 
         VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(metadata.id);
         assert tableNullable != null;
-        return !tableNullable.allowFilteringImplicitly();
+        return isPrimaryKey ? !tableNullable.allowFilteringPrimaryKeysImplicitly() : !tableNullable.allowFilteringImplicitly();
     }
 
     private void addRestriction(Restriction restriction, IndexRegistry indexRegistry, IndexHints indexHints)
@@ -593,7 +593,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering())
             {
-                if (!allowFiltering && !forView && !hasQueriableIndex && requiresAllowFilteringIfNotSpecified(table))
+                if (!allowFiltering && !forView && !hasQueriableIndex && requiresAllowFilteringIfNotSpecified(table, true))
                     throw new InvalidRequestException(allowFilteringMessage(state));
 
                 isKeyRange = true;

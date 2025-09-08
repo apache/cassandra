@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +39,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.api.ConfigurationService.EpochReady;
+import accord.primitives.Txn;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.utils.Clock;
@@ -58,17 +58,11 @@ import accord.impl.DefaultRemoteListeners;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLogs;
-import accord.local.Command;
-import accord.local.CommandStore;
-import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.PreLoadContext;
-import accord.local.SafeCommand;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
 import accord.local.cfk.CommandsForKey;
-import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.DurabilityService;
 import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
@@ -76,13 +70,9 @@ import accord.messages.Request;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
-import accord.primitives.RoutingKeys;
-import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -90,7 +80,6 @@ import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -115,7 +104,6 @@ import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
@@ -140,8 +128,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
-import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -873,139 +859,6 @@ public class AccordService implements IAccordService, Shutdownable
     public Id nodeId()
     {
         return node.id();
-    }
-
-    @Override
-    public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-    {
-        return getBlocking(loadDebug(txnId));
-    }
-
-    public AsyncChain<List<CommandStoreTxnBlockedGraph>> loadDebug(TxnId original)
-    {
-        CommandStores commandStores = node.commandStores();
-        if (commandStores.count() == 0)
-            return AsyncChains.success(Collections.emptyList());
-        int[] ids = commandStores.ids();
-        List<AsyncChain<CommandStoreTxnBlockedGraph>> chains = new ArrayList<>(ids.length);
-        for (int id : ids)
-            chains.add(loadDebug(original, commandStores.forId(id)).chain());
-        return AsyncChains.allOf(chains);
-    }
-
-    private AsyncResult<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
-    {
-        CommandStoreTxnBlockedGraph.Builder state = new CommandStoreTxnBlockedGraph.Builder(store.id());
-        populateAsync(state, store, txnId);
-        return state;
-    }
-
-    private static void populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TxnId blockedBy)
-    {
-        if (safeStore.ifLoadedAndInitialised(blockedBy) != null) populateSync(state, safeStore, blockedBy);
-        else populateAsync(state, safeStore.commandStore(), blockedBy);
-    }
-
-    private static void populateAsync(CommandStoreTxnBlockedGraph.Builder state, CommandStore store, TxnId txnId)
-    {
-        state.asyncTxns.incrementAndGet();
-        store.execute(PreLoadContext.contextFor(txnId, "Populate txn_blocked_by"), in -> {
-            populateSync(state, (AccordSafeCommandStore) in, txnId);
-            if (0 == state.asyncTxns.decrementAndGet() && 0 == state.asyncKeys.get())
-                state.complete();
-        });
-    }
-
-    @Nullable
-    private static void populateSync(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TxnId txnId)
-    {
-        try
-        {
-            if (state.txns.containsKey(txnId))
-                return; // could plausibly request same txn twice
-
-            SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-            Invariants.nonNull(safeCommand, "Txn %s is not in the cache", txnId);
-            if (safeCommand.current() == null || safeCommand.current().saveStatus() == SaveStatus.Uninitialised)
-                return;
-
-            CommandStoreTxnBlockedGraph.TxnState cmdTxnState = populateSync(state, safeCommand.current());
-            if (cmdTxnState.notBlocked())
-                return;
-
-            for (TxnId blockedBy : cmdTxnState.blockedBy)
-            {
-                if (!state.knows(blockedBy))
-                    populate(state, safeStore, blockedBy);
-            }
-            for (TokenKey blockedBy : cmdTxnState.blockedByKey)
-            {
-                if (!state.keys.containsKey(blockedBy))
-                    populate(state, safeStore, blockedBy, txnId, safeCommand.current().executeAt());
-            }
-        }
-        catch (Throwable t)
-        {
-            state.tryFailure(t);
-        }
-    }
-
-    private static void populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
-    {
-        if (safeStore.ifLoadedAndInitialised(txnId) != null && safeStore.ifLoadedAndInitialised(blockedBy) != null) populateSync(state, safeStore, blockedBy, txnId, executeAt);
-        else populateAsync(state, safeStore.commandStore(), blockedBy, txnId, executeAt);
-    }
-
-    private static void populateAsync(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
-    {
-        state.asyncKeys.incrementAndGet();
-        commandStore.execute(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), SYNC, READ_WRITE, "Populate txn_blocked_by"), in -> {
-            populateSync(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
-            if (0 == state.asyncKeys.decrementAndGet() && 0 == state.asyncTxns.get())
-                state.complete();
-        });
-    }
-
-    private static void populateSync(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey pk, TxnId txnId, Timestamp executeAt)
-    {
-        try
-        {
-            SafeCommandsForKey commandsForKey = safeStore.ifLoadedAndInitialised(pk);
-            TxnId blocking = commandsForKey.current().blockedOnTxnId(txnId, executeAt);
-            if (blocking instanceof CommandsForKey.TxnInfo)
-                blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
-            state.keys.put(pk, blocking);
-            if (state.txns.containsKey(blocking))
-                return;
-            populate(state, safeStore, blocking);
-        }
-        catch (Throwable t)
-        {
-            state.tryFailure(t);
-        }
-    }
-
-    private static CommandStoreTxnBlockedGraph.TxnState populateSync(CommandStoreTxnBlockedGraph.Builder state, Command cmd)
-    {
-        CommandStoreTxnBlockedGraph.Builder.TxnBuilder cmdTxnState = state.txn(cmd.txnId(), cmd.executeAt(), cmd.saveStatus());
-        if (!cmd.hasBeen(Status.Applied) && cmd.hasBeen(Status.Stable))
-        {
-            // check blocking state
-            Command.WaitingOn waitingOn = cmd.asCommitted().waitingOn();
-            waitingOn.waitingOn.reverseForEach(null, null, null, null, (i1, i2, i3, i4, i) -> {
-                if (i < waitingOn.txnIdCount())
-                {
-                    // blocked on txn
-                    cmdTxnState.blockedBy.add(waitingOn.txnId(i));
-                }
-                else
-                {
-                    // blocked on key
-                    cmdTxnState.blockedByKey.add((TokenKey) waitingOn.keys.get(i - waitingOn.txnIdCount()));
-                }
-            });
-        }
-        return cmdTxnState.build();
     }
 
     @Override

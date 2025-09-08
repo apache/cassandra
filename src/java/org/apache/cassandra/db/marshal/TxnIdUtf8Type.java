@@ -36,7 +36,7 @@ public class TxnIdUtf8Type extends PseudoUtf8Type
         {
             super.validate(value, accessor);
             String str = deserialize(value, accessor);
-            if (null == TxnId.tryParse(str))
+            if (!str.isEmpty() && null == TxnId.tryParse(str))
                 throw new MarshalException("Invalid TxnId: " + str);
         }
     };
@@ -59,6 +59,12 @@ public class TxnIdUtf8Type extends PseudoUtf8Type
     {
         String leftStr = UTF8Serializer.instance.deserialize(left, accessorL);
         String rightStr = UTF8Serializer.instance.deserialize(right, accessorR);
+        if (leftStr.isEmpty() || rightStr.isEmpty())
+        {
+            if (leftStr.isEmpty() && rightStr.isEmpty())
+                return 0;
+            return leftStr.isEmpty() ? -1 : 1;
+        }
         TxnId leftId = TxnId.parse(leftStr);
         TxnId rightId = TxnId.parse(rightStr);
         return leftId.compareTo(rightId);
