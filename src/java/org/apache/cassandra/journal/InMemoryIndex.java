@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -124,6 +125,16 @@ public final class InMemoryIndex<K> extends Index<K>
     long[] lookUpAll(K id)
     {
         return lookUp(id);
+    }
+
+    public Iterator<K> keyIterator(@Nullable K min, @Nullable K max)
+    {
+        NavigableMap<K, long[]> m;
+        if (min == null && max == null) m = index;
+        else if (min == null) m = index.headMap(max, true);
+        else if (max == null) m = index.tailMap(min, true);
+        else m = index.subMap(min, true, max, true);
+        return m.keySet().iterator();
     }
 
     public void persist(Descriptor descriptor)

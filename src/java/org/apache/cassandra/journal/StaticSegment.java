@@ -247,6 +247,12 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     @Override
+    boolean isEmpty()
+    {
+        return entryCount() == 0;
+    }
+
+    @Override
     boolean isActive()
     {
         return false;

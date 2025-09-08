@@ -1655,7 +1655,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public static class TaskInfo implements Comparable<TaskInfo>
     {
-        public enum Status { WAITING_TO_LOAD, SCANNING_RANGES, LOADING, WAITING_TO_RUN, RUNNING }
+        // sorted in name order for reporting to virtual tables
+        public enum Status { LOADING, RUNNING, SCANNING_RANGES, WAITING_TO_LOAD, WAITING_TO_RUN }
 
         final Status status;
         final int commandStoreId;
@@ -1706,7 +1707,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public int compareTo(TaskInfo that)
         {
             int c = this.status.compareTo(that.status);
-            if (c == 0) c = this.position() - that.position();
+            if (c == 0) c = Integer.compare(this.position(), that.position());
             return c;
         }
     }

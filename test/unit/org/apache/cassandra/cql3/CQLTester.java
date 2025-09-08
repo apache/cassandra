@@ -3185,7 +3185,7 @@ public abstract class CQLTester
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
     {
-        if (bb == null)
+        if (bb == null || (!bb.hasRemaining() && type.isEmptyValueMeaningless()))
             return "null";
 
         if (type instanceof CollectionType)

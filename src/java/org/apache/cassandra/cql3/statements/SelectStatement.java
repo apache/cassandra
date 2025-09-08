@@ -1474,7 +1474,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                              boundNames,
                                              orderings,
                                              selectsOnlyStaticColumns,
-                                             parameters.allowFiltering || !requiresAllowFilteringIfNotSpecified(metadata),
+                                             parameters.allowFiltering || !requiresAllowFilteringIfNotSpecified(metadata, true),
                                              forView);
         }
 
@@ -1700,7 +1700,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             {
                 // We will potentially filter data if the row filter is not the identity and there isn't any index group
                 // supporting all the expressions in the filter.
-                if (requiresAllowFilteringIfNotSpecified(table))
+                if (requiresAllowFilteringIfNotSpecified(table, true))
                     checkFalse(restrictions.needFiltering(table), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
         }

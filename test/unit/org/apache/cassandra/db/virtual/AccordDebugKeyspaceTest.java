@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -35,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.ProtocolModifiers;
 import accord.messages.NoWaitRequest;
+import accord.api.RoutingKey;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
@@ -47,6 +50,7 @@ import org.apache.cassandra.config.OptionaldPositiveInt;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -56,11 +60,14 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
@@ -86,6 +93,12 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
     private static final String QUERY_TXN =
         String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
+
+    private static final String QUERY_TXNS =
+        String.format("SELECT save_status FROM %s.%s WHERE command_store_id = ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
+
+    private static final String QUERY_TXNS_SEARCH =
+        String.format("SELECT save_status FROM %s.%s WHERE command_store_id = ? AND txn_id > ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
 
     private static final String QUERY_JOURNAL =
         String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.JOURNAL);
@@ -234,10 +247,40 @@ public class AccordDebugKeyspaceTest extends CQLTester
         getBlocking(accord.node().coordinate(id, txn));
 
         spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                                          row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
-        spinUntilSuccess(() -> assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied")));
+                                          row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
+        assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
         assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
         assertRows(execute(QUERY_COMMANDS_FOR_KEY, keyStr), row(id.toString(), "APPLIED_DURABLE"));
+    }
+
+    @Test
+    public void manyTxns() throws ExecutionException, InterruptedException
+    {
+        String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+        AccordService accord = accord();
+        List<IAccordService.IAccordResult> await = new ArrayList<>();
+        Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+        for (int i = 0 ; i < 100; ++i)
+            await.add(accord.coordinateAsync(0, 0, txn, ConsistencyLevel.QUORUM, new Dispatcher.RequestTime(Clock.Global.nanoTime())));
+
+        AccordCommandStore commandStore = (AccordCommandStore) accord.node().commandStores().unsafeForKey((RoutingKey) txn.keys().get(0).toUnseekable());
+        await.forEach(IAccordService.IAccordResult::awaitAndGet);
+
+        assertRows(execute(QUERY_TXNS, commandStore.id()),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied")
+        );
+
+        assertRows(execute(QUERY_TXNS_SEARCH, commandStore.id(), TxnId.NONE.toString()),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied")
+        );
     }
 
     @Test
@@ -263,11 +306,10 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
-
+                       row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, SaveStatus.ReadyToExecute.name()));
+                       row(id.toString(), anyInt(), 0, "", "", any(), SaveStatus.ReadyToExecute.name()));
         }
         finally
         {
@@ -299,12 +341,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
             accord.node().coordinate(first, createTxn(insertTxn, 0, 0, 0, 0, 0)).beginAsResult();
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
-            spinUntilSuccess(() ->assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name()))));
-
+            assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
+                       row(first.toString(), anyInt(), 0, "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
-            spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.ReadyToExecute.name())));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
+                       row(first.toString(), anyInt(), 0, "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+
+            filter.reset();
 
             TxnId second = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             filter.reset();
@@ -319,12 +362,10 @@ public class AccordDebugKeyspaceTest extends CQLTester
                                               return rs.size() == 2;
                                           });
             assertRows(execute(QUERY_TXN_BLOCKED_BY, second.toString()),
-                       row(second.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.Stable.name()),
-                       row(second.toString(), KEYSPACE, tableName, anyInt(), 1, first.toString(), "Key", anyNonNull(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
-
+                       row(second.toString(), anyInt(), 0, "", "", anyNonNull(), SaveStatus.Stable.name()),
+                       row(second.toString(), anyInt(), 1, any(), first.toString(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY + " AND depth < 1", second.toString()),
-                       row(second.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.Stable.name()));
-
+                       row(second.toString(), anyInt(), 0, any(), "", anyNonNull(), SaveStatus.Stable.name()));
         }
         finally
         {
@@ -463,4 +504,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
             return !dropVerbs.contains(msg.verb());
         }
     }
+
+
 }
