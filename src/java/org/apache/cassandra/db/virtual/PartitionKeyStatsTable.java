@@ -42,6 +42,7 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -146,7 +147,7 @@ public class PartitionKeyStatsTable implements VirtualTable
     }
 
     @Override
-    public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter)
+    public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
     {
         if (clusteringIndexFilter.isReversed())
             throw new InvalidRequestException(REVERSED_QUERY_ERROR);
@@ -345,7 +346,7 @@ public class PartitionKeyStatsTable implements VirtualTable
     }
 
     @Override
-    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter)
+    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
     {
         throw new InvalidRequestException(UNSUPPORTED_RANGE_QUERY_ERROR);
     }

@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +48,6 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
-import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -177,8 +175,6 @@ public interface IAccordService
     Agent agent();
 
     Id nodeId();
-
-    List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
 
     long minEpoch();
 
@@ -339,12 +335,6 @@ public interface IAccordService
         public Id nodeId()
         {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-        {
-            return Collections.emptyList();
         }
 
         @Override
@@ -549,12 +539,6 @@ public interface IAccordService
         public Id nodeId()
         {
             return delegate.nodeId();
-        }
-
-        @Override
-        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-        {
-            return delegate.debugTxnBlockedGraph(txnId);
         }
 
         @Override

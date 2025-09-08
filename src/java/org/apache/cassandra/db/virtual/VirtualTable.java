@@ -21,6 +21,7 @@ import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -31,6 +32,8 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public interface VirtualTable
 {
+    enum Sorted { UNSORTED, ASC, DESC, SORTED }
+
     /**
      * Returns the view name.
      *
@@ -57,23 +60,25 @@ public interface VirtualTable
     /**
      * Selects the rows from a single partition.
      *
-     * @param partitionKey the partition key
+     * @param partitionKey          the partition key
      * @param clusteringIndexFilter the clustering columns to selected
-     * @param columnFilter the selected columns
-     * @param rowFilter filter on which rows a given query should include or exclude
+     * @param columnFilter          the selected columns
+     * @param rowFilter             filter on which rows a given query should include or exclude
+     * @param limits                result limits to apply
      * @return the rows corresponding to the requested data.
      */
-    UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter);
+    UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits);
 
     /**
      * Selects the rows from a range of partitions.
      *
-     * @param dataRange the range of data to retrieve
+     * @param dataRange    the range of data to retrieve
      * @param columnFilter the selected columns
-     * @param rowFilter filter on which rows a given query should include or exclude
+     * @param rowFilter    filter on which rows a given query should include or exclude
+     * @param limits
      * @return the rows corresponding to the requested data.
      */
-    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter);
+    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits);
 
     /**
      * Truncates data from the underlying source, if supported.
@@ -89,5 +94,10 @@ public interface VirtualTable
     default boolean allowFilteringImplicitly()
     {
         return true;
+    }
+
+    default boolean allowFilteringPrimaryKeysImplicitly()
+    {
+        return allowFilteringImplicitly();
     }
 }
