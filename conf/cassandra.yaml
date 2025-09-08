@@ -1762,6 +1762,12 @@ report_unconfirmed_repaired_data_mismatches: false
 # Materialized views are considered experimental and are not recommended for production use.
 materialized_views_enabled: false
 
+# Controls whether materialized views should be automatically backfilled when first created.
+# When disabled, newly created views will be marked as built but remain empty until manually rebuilt.
+# This can be useful for large base tables where immediate backfill would be too expensive.
+# Default: true (maintain current behavior)
+materialized_view_auto_backfill_enabled: true
+
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
 sasi_indexes_enabled: false

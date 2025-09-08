@@ -4027,6 +4027,16 @@ public class DatabaseDescriptor
         return conf.skip_sufficient_live_check_for_mv;
     }
 
+    public static boolean getMaterializedViewAutoBackfillEnabled()
+    {
+        return conf.materialized_view_auto_backfill_enabled;
+    }
+
+    public static void setMaterializedViewAutoBackfillEnabled(boolean enabled)
+    {
+        conf.materialized_view_auto_backfill_enabled = enabled;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;

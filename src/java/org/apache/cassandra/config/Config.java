@@ -622,6 +622,13 @@ public class Config
 
     public boolean materialized_view_strict_consistency_enforced = false;
 
+    /**
+     * Controls whether materialized views should be automatically backfilled when first created.
+     * When disabled, newly created views will be marked as built but remain empty until manually rebuilt.
+     * Default: true (maintain current behavior)
+     */
+    public boolean materialized_view_auto_backfill_enabled = true;
+
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;
 

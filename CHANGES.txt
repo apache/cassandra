@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-51264] Add flag to disable MV backfill when creating MV
  * [SO-49489] Migrate KafkaHandler to Cassandra Mesos
  * [SO-51809] Ensure auto-repair orphaned node cleanup happens regardless of when the node last ran repair
  * [SO-40690] Use LWTs for all auto_repair_history_v2 mutations

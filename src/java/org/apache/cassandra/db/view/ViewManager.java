@@ -33,6 +33,7 @@ import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 
@@ -125,6 +126,17 @@ public class ViewManager
             logger.info("Not submitting build tasks for views in keyspace {} as " +
                         "storage service is not initialized", keyspace.getName());
             return;
+        }
+
+        // Check if auto-backfill is enabled and mark views as built if disabled
+        if (!DatabaseDescriptor.getMaterializedViewAutoBackfillEnabled())
+        {
+            logger.info("Materialized view auto-backfill is disabled. Marking all views as built without backfilling data.");
+            // Mark all views as built without actually building them
+            for (Map.Entry<String, ViewMetadata> entry : newViewsByName.entrySet())
+            {
+                SystemKeyspace.finishViewBuildStatus(keyspace.getName(), entry.getKey());
+            }
         }
 
         for (View view : allViews())
