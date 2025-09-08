@@ -26,6 +26,7 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -126,11 +127,18 @@ final class SettingsTable extends AbstractVirtualTable
 
     private String tryConstructJson(Object o)
     {
-        try
+        if (CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON.getBoolean())
         {
-            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(o);
+            try
+            {
+                return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(o);
+            }
+            catch (Exception e)
+            {
+                return o.toString();
+            }
         }
-        catch (Exception e)
+        else
         {
             return o.toString();
         }

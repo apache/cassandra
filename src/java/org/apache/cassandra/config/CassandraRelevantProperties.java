@@ -679,6 +679,8 @@ public enum CassandraRelevantProperties
     /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
      * and removing individual files. This is now used only tests, but eventually we will make it true by default.*/
     USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
+    /** Controls output format for Map-type settings in system_views.settings table */
+    VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON("cassandra.virtual_table_complex_settings_format_json", "true"),
     /** Gossiper compute expiration timeout. Default value 3 days. */
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
     WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),
