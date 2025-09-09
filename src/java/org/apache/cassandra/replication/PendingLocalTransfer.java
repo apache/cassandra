@@ -20,6 +20,7 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
@@ -32,7 +33,9 @@ import org.apache.cassandra.db.streaming.CassandraStreamReceiver;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -59,6 +62,8 @@ public class PendingLocalTransfer
     final long createdAt = currentTimeMillis();
     transient String keyspace;
     transient Range<Token> range;
+
+    private volatile boolean activated = false;
 
     public PendingLocalTransfer(TableId tableId, TimeUUID planId, Collection<SSTableReader> sstables)
     {
@@ -112,10 +117,22 @@ public class PendingLocalTransfer
      */
     public void activate(TransferActivation activation)
     {
+        if (activated)
+        {
+            logger.warn("{} Received duplicate activation?", logPrefix());
+            return;
+        }
+
         logger.info("{} Activating transfer {}, {} ms since pending", logPrefix(), this, currentTimeMillis() - createdAt);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         Preconditions.checkNotNull(cfs);
         Preconditions.checkState(!sstables.isEmpty());
+
+        if (activation.dryRun)
+        {
+            logger.info("{} Not adding SSTables to live set for dryRun {}", logPrefix(), activation);
+            return;
+        }
 
         // Ensure no lingering mutation IDs, only activation IDs
         for (SSTableReader sstable : sstables)
@@ -138,19 +155,17 @@ public class PendingLocalTransfer
             Preconditions.checkState(sstable.getCoordinatorLogOffsets().isEmpty());
             Preconditions.checkState(!sstable.getCoordinatorLogOffsets().transfers().isEmpty());
         }
-        if (activation.dryRun)
-        {
-            logger.info("{} Not adding SSTables to live set for dryRun {}", logPrefix(), activation);
-            return;
-        }
 
         File dst = cfs.getDirectories().getDirectoryForNewSSTables();
         logger.debug("{} Moving pending SSTables for activation to {}", logPrefix(), dst);
         dst.createFileIfNotExists();
         for (SSTableReader sstable : sstables)
-            SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, cfs.getUniqueDescriptorFor(sstable.descriptor, dst), sstable.getComponents(), false);
+        {
+            SSTableReader moved = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, cfs.getUniqueDescriptorFor(sstable.descriptor, dst), sstable.getComponents(), false);
+            cfs.getTracker().addSSTablesTracked(Collections.singleton(moved));
+        }
 
-        cfs.getTracker().addSSTablesTracked(sstables);
+        activated = true;
     }
 
     @Override

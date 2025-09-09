@@ -75,7 +75,7 @@ public class CoordinatedTransfer
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatedTransfer.class);
 
-    private String logPrefix()
+    String logPrefix()
     {
         return String.format("[CoordinatedTransfer #%s]", transferId);
     }
@@ -90,7 +90,13 @@ public class CoordinatedTransfer
     final ConcurrentMap<InetAddressAndPort, SingleTransferResult> streams;
 
     // Acknowledged activations
-    final ConcurrentMap<InetAddressAndPort, InetAddressAndPort> activations = new ConcurrentHashMap<>();
+    private enum ActivationState
+    {
+        SENT,
+        COMPLETED
+    }
+
+    final ConcurrentMap<InetAddressAndPort, ActivationState> activations = new ConcurrentHashMap<>();
 
     final Collection<SSTableReader> sstables;
 
@@ -171,7 +177,7 @@ public class CoordinatedTransfer
 
         // If any activations have already been sent out, send new activations to any received plans that have not yet
         // been activated
-        if (!activations.isEmpty())
+        if (activations.containsValue(ActivationState.COMPLETED))
         {
             Set<InetAddressAndPort> peers = new HashSet<>();
             for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
@@ -179,10 +185,12 @@ public class CoordinatedTransfer
                 if (entry.getValue().complete())
                     peers.add(entry.getKey());
             }
+
             peers.removeAll(activations.keySet());
+
             if (!peers.isEmpty())
             {
-                logger.debug("{} Transfer already activated on peers {}, sending remaining activations to {}", logPrefix(), activations, peers);
+                logger.debug("{} Transfer already activated on peers {}, sending activations to {}", logPrefix(), activations, peers);
                 return activateOn(peers);
             }
         }
@@ -190,20 +198,22 @@ public class CoordinatedTransfer
         // If no activations have been sent out, check whether we have enough planIds back to meet the required CL
         else if (sufficient())
         {
-            logger.debug("{} Transfer meets consistency level {}, starting activation", logPrefix(), cl);
             Set<InetAddressAndPort> peers = new HashSet<>();
             for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
             {
-                if (entry.getValue().activate())
-                    peers.add(entry.getKey());
+                InetAddressAndPort peer = entry.getKey();
+                if (entry.getValue().activate() && !activations.containsKey(peer))
+                    peers.add(peer);
             }
+            logger.debug("{} Transfer meets consistency level {}, sending activations to {}", logPrefix(), cl, peers);
             return activateOn(peers);
         }
 
+        logger.debug("Nothing to activate");
         return ImmediateFuture.success(null);
     }
 
-    private synchronized Future<Void> activateOn(Collection<InetAddressAndPort> peers)
+    synchronized Future<Void> activateOn(Collection<InetAddressAndPort> peers)
     {
         Preconditions.checkState(!peers.isEmpty());
 
@@ -231,7 +241,6 @@ public class CoordinatedTransfer
             public void onResponse(Message<NoPayload> msg)
             {
                 logger.debug("{} Got response from: {}", logPrefix(), msg.from());
-                CoordinatedTransfer.this.activations.put(msg.from(), msg.from());
                 responses.remove(msg.from());
                 if (responses.isEmpty())
                     trySuccess(null);
@@ -252,6 +261,7 @@ public class CoordinatedTransfer
             Message<TransferActivation> msg = Message.out(Verb.TRACKED_TRANSFER_ACTIVATE_REQ, activation);
             logger.debug("{} Sending {} to peer {}", logPrefix(), activation, peer);
             MessagingService.instance().sendWithCallback(msg, peer, allRespond);
+            CoordinatedTransfer.this.activations.put(msg.from(), ActivationState.SENT);
         }
         allRespond.awaitUninterruptibly();
         logger.debug("{} Dry run complete for {}", logPrefix(), peers);
@@ -263,7 +273,7 @@ public class CoordinatedTransfer
         {
             final ConcurrentHashMap<InetAddressAndPort, InetAddressAndPort> acks = new ConcurrentHashMap<>();
 
-            public Callback(Collection<InetAddressAndPort> acks)
+            private Callback(Collection<InetAddressAndPort> acks)
             {
                 for (InetAddressAndPort ack : acks)
                     this.acks.put(ack, ack);
@@ -273,6 +283,10 @@ public class CoordinatedTransfer
             public void onResponse(Message<Void> msg)
             {
                 logger.debug("Activation successfully applied on {}", msg.from());
+                ActivationState existing = CoordinatedTransfer.this.activations.put(msg.from(), ActivationState.COMPLETED);
+                // Preconditions.checkState(existing == ActivationState.SENT);
+                logger.debug("Activation prior state {}", existing);
+
                 MutationTrackingService.instance.receivedActivationAck(CoordinatedTransfer.this, msg.from());
                 acks.remove(msg.from());
                 if (acks.isEmpty())
@@ -283,7 +297,11 @@ public class CoordinatedTransfer
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 logger.error("Failed activation on {} due to {}", from, failure);
-                tryFailure(new RuntimeException(String.format("Failed activation on %s due to %s", from, failure)));
+                // TODO(expected): should fail if we don't meet requested CL, even though individual failures are fine
+                // tryFailure(new RuntimeException(String.format("Failed activation on %s due to %s", from, failure)));
+                acks.remove(from);
+                if (acks.isEmpty())
+                    trySuccess(null);
             }
         }
 

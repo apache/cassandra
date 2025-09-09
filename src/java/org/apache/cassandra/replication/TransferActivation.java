@@ -31,6 +31,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.service.reads.tracked.ReadReconciliations;
 import org.apache.cassandra.utils.TimeUUID;
 
 public class TransferActivation
@@ -108,6 +109,7 @@ public class TransferActivation
             LocalTransfers.instance().executor.submit(() -> {
                 msg.payload.apply();
                 MessagingService.instance().respond(NoPayload.noPayload, msg);
+                // This could be running as part of a read, so need to mark it like an applied mutation
             }).rethrowIfFailed();
         }
     }

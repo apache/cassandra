@@ -154,9 +154,24 @@ public class BulkTransfersTest extends TestBaseImpl
                     TableId tableId = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).metadata().id;
                     MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(key, tableId, false);
                     Assertions.assertThat(summary).satisfies(s -> {
-                        assert s.size() != 0;
+                        assert s.reconciledIds() == 0;
+                        assert s.unreconciledIds() == 1;
                     });
                 });
+
+                cluster.get(2).runOnInstance(() -> {
+                    DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(1));
+                    TableId tableId = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).metadata().id;
+                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(key, tableId, false);
+                    Assertions.assertThat(summary).satisfies(s -> {
+                        assert s.reconciledIds() == 0;
+                        assert s.unreconciledIds() == 0;
+                    });
+                });
+
+                cluster.forEach(() -> ByteBuddyInjections.SkipActivation.skip = false);
+
+                logger.debug("Checking read at ALL");
 
                 // Use coordinated query rather than executeInternal to confirm read reconciliation triggers activation
                 String cql = "SELECT * FROM %s." + TABLE + " WHERE k = 1";
@@ -176,6 +191,8 @@ public class BulkTransfersTest extends TestBaseImpl
         // Only skips direct transfer activation, not activation as part of read reconciliation
         public static class SkipActivation
         {
+            public static volatile boolean skip = true;
+
             public static IInstanceInitializer install(int...nodes)
             {
                 return (ClassLoader cl, ThreadGroup tg, int num, int generation) -> {
@@ -192,11 +209,13 @@ public class BulkTransfersTest extends TestBaseImpl
             @SuppressWarnings("unused")
             public static void doVerb(Message<TransferActivation> msg, @SuperCall Callable<?> zuper)
             {
-                if (!msg.payload.dryRun)
+                if (skip && !msg.payload.dryRun)
                 {
                     logger.info("Skipping activation for test {}", msg.payload);
                     return;
                 }
+
+                logger.info("Test running activation as usual {}", msg.payload);
 
                 try
                 {
@@ -277,6 +296,13 @@ public class BulkTransfersTest extends TestBaseImpl
             // Hack: need to bounce for KeyspaceShards to be created for new table, schema changes not yet supported
             bounce(cluster);
 
+            // In unified reconciliation, we depend on ALR to execute read reconciliation
+            /*
+            cluster.forEach(instance -> instance.runOnInstance(() -> {
+                MutationTrackingService.instance.pauseActiveReconciler();
+            }));
+            */
+
             // Needs to run outside of instance executor because creates schema
             String file = Files.createTempDirectory(MutationTrackingTest.class.getSimpleName()).toString();
 
@@ -306,6 +332,10 @@ public class BulkTransfersTest extends TestBaseImpl
             });
 
             hooks.afterImport(cluster);
+
+            /*
+            cluster.forEach(instance -> instance.runOnInstance(MutationTrackingService.instance::resumeActiveReconciler));
+            */
         }
     }
 

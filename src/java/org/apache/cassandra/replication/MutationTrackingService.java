@@ -176,6 +176,7 @@ public class MutationTrackingService
 
     public void receivedActivationAck(CoordinatedTransfer transfer, InetAddressAndPort fromHost)
     {
+        logger.debug("{} receivedActivationAck from {}", transfer.logPrefix(), fromHost);
         MutationId activationId = transfer.activationId;
         Preconditions.checkArgument(!activationId.isNone());
         Shard shard = getShardNullable(activationId);
@@ -294,7 +295,7 @@ public class MutationTrackingService
         LocalTransfers.instance().received(transfer);
     }
 
-    void activateLocal(TransferActivation activation)
+    synchronized void activateLocal(TransferActivation activation)
     {
         logger.debug("activateLocal {}", activation);
 
@@ -306,6 +307,7 @@ public class MutationTrackingService
         if (!activation.dryRun)
         {
             keyspaceShards.get(pending.keyspace).lookUp(pending.range).receivedActivationAck(activation.activationId, FBUtilities.getBroadcastAddressAndPort());
+            incomingMutations.invokeListeners(activation.activationId);
         }
     }
 
@@ -485,17 +487,6 @@ public class MutationTrackingService
         MutationId nextMutationId(Token token)
         {
             return lookUp(token).nextId();
-        }
-
-        void receivedWriteResponse(Token token, MutationId mutationId, InetAddressAndPort onHost)
-        {
-            lookUp(token).receivedWriteResponse(mutationId, onHost);
-        }
-
-        void receivedActivationAck(CoordinatedTransfer transfer, InetAddressAndPort onHost)
-        {
-            logger.trace("receivedActivationAck {} {}", transfer, onHost);
-            lookUp(transfer.range).receivedActivationAck(transfer.activationId, onHost);
         }
 
         void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)

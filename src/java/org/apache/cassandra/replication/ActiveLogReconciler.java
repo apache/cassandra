@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Interruptible;
@@ -46,6 +50,8 @@ import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 // TODO (expected): handle temporarily down nodes
 public final class ActiveLogReconciler implements Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ActiveLogReconciler.class);
+
     public enum Priority { HIGH, REGULAR }
 
     // prioritised delivery of mutations that are needed by reads;
@@ -184,12 +190,18 @@ public final class ActiveLogReconciler implements Shutdownable
         @Override
         public void onResponse(Message<NoPayload> msg)
         {
+            logger.debug("Received activation for TransferTask from {}", toHost);
             MutationTrackingService.instance.receivedActivationAck(transfer, toHost);
         }
 
         void send()
         {
-            transfer.maybeActivate();
+            logger.debug("Sending activation to {}", toHost);
+            transfer.activateOn(Collections.singleton(toHost)).addCallback((ok, err) -> {
+                logger.debug("Activation done {}", ok, err);
+                if (err == null)
+                    onResponse(null);
+            });
         }
     }
 

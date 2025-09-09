@@ -55,6 +55,7 @@ public abstract class CoordinatorLog
     protected final ReadWriteLock lock;
 
     abstract void receivedWriteResponse(ShortMutationId mutationId, int fromHostId);
+    abstract void receivedActivationAck(ShortMutationId mutationId, int fromHostId);
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
     {
@@ -156,37 +157,6 @@ public abstract class CoordinatorLog
             {
                 reconciledOffsets.add(offset);
                 unreconciledMutations.remove(offset);
-            }
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
-    void receivedActivationAck(MutationId activationId, int onHostId)
-    {
-        logger.trace("witnessed transfer activation ack {} from {}", activationId, onHostId);
-
-        Preconditions.checkArgument(!activationId.isNone());
-        lock.writeLock().lock();
-        try
-        {
-            if (onHostId == ClusterMetadata.current().myNodeId().id())
-                unreconciledTransfers.activated(activationId.offset());
-
-            if (!get(onHostId).add(activationId.offset()))
-                return; // already witnessed; very uncommon but possible path
-
-            if (!getLocal().contains(activationId.offset()))
-                return; // local host hasn't witnessed yet -> no cleanup needed
-
-            if (remoteReplicasWitnessed(activationId.offset()))
-            {
-                logger.trace("marking transfer {} as fully reconciled", activationId);
-                // if all replicas have now witnessed the id, remove it from the index
-                unreconciledTransfers.remove(activationId.offset());
-                reconciledOffsets.add(activationId.offset());
             }
         }
         finally
@@ -355,6 +325,38 @@ public abstract class CoordinatorLog
             }
         }
 
+        @Override
+        void receivedActivationAck(ShortMutationId activationId, int onHostId)
+        {
+            logger.trace("witnessed transfer activation ack {} from {}", activationId, onHostId);
+
+            Preconditions.checkArgument(!activationId.isNone());
+            lock.writeLock().lock();
+            try
+            {
+                if (onHostId == ClusterMetadata.current().myNodeId().id())
+                    unreconciledTransfers.activated(activationId.offset());
+
+                if (!get(onHostId).add(activationId.offset()))
+                    return; // already witnessed; very uncommon but possible path
+
+                if (!getLocal().contains(activationId.offset()))
+                    return; // local host hasn't witnessed yet -> no cleanup needed
+
+                if (remoteReplicasWitnessed(activationId.offset()))
+                {
+                    logger.trace("marking transfer {} as fully reconciled", activationId);
+                    // if all replicas have now witnessed the id, remove it from the index
+                    unreconciledTransfers.remove(activationId.offset());
+                    reconciledOffsets.add(activationId.offset());
+                }
+            }
+            finally
+            {
+                lock.writeLock().unlock();
+            }
+        }
+
         MutationId nextId()
         {
             return new MutationId(logId.asLong(), nextSequenceId());
@@ -387,6 +389,12 @@ public abstract class CoordinatorLog
 
         @Override
         void receivedWriteResponse(ShortMutationId mutationId, int fromHostId)
+        {
+            // no-op
+        }
+
+        @Override
+        void receivedActivationAck(ShortMutationId activationId, int fromHostId)
         {
             // no-op
         }
