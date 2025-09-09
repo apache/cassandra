@@ -103,6 +103,11 @@ public class TrackedWriteRequest
         writeMetrics.localRequests.mark();
         MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
+
+        if (logger.isTraceEnabled())
+            logger.trace("Write replication plan for mutation {}: live={}, pending={}, all={}",
+                         id, plan.live(), plan.pending(), plan.contacts());
+
         TrackedWriteResponseHandler handler =
             TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime), id);
         applyLocallyAndSendToReplicas(mutation, plan, handler);
@@ -137,6 +142,8 @@ public class TrackedWriteRequest
         {
             if (!plan.isAlive(destination))
             {
+                if (logger.isTraceEnabled())
+                    logger.trace("Skipping dead replica {} for mutation {}", destination, mutation.id());
                 handler.expired(); // immediately mark the response as expired since the request will not be sent
                 continue;
             }
@@ -186,6 +193,8 @@ public class TrackedWriteRequest
         {
             for (Replica replica : localDCReplicas)
             {
+                if (logger.isTraceEnabled())
+                    logger.trace("Sending mutation {} to local replica {}", mutation.id(), replica);
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler);
                 remoteReplicas.add(ClusterMetadata.current().directory.peerId(replica.endpoint()).id());
             }
@@ -196,6 +205,8 @@ public class TrackedWriteRequest
             // for each datacenter, send the message to one node to relay the write to other replicas
             for (List<Replica> dcReplicas : remoteDCReplicas.values())
             {
+                if (logger.isTraceEnabled())
+                    logger.trace("Sending mutation {} to remote dc replicas {}", mutation.id(), dcReplicas);
                 sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler, null);
                 for (Replica replica : dcReplicas)
                     remoteReplicas.add(ClusterMetadata.current().directory.peerId(replica.endpoint()).id());
@@ -203,7 +214,11 @@ public class TrackedWriteRequest
         }
 
         if (remoteReplicas != null)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Sending mutation {} to remote replicas {}", mutation.id(), remoteReplicas);
             MutationTrackingService.instance.sentWriteRequest(mutation, remoteReplicas);
+        }
     }
 
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
