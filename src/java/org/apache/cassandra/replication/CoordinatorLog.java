@@ -72,7 +72,7 @@ public abstract class CoordinatorLog
     protected final Offsets.Mutable reconciledOffsets;
     protected final Offsets.Mutable reconciledPersistedOffsets;
 
-    protected final ReadWriteLock lock;
+    protected final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     abstract void receivedWriteResponse(ShortMutationId mutationId, int fromNodeId);
 
@@ -95,7 +95,6 @@ public abstract class CoordinatorLog
         this.reconciledOffsets = witnessedOffsets.intersection();
         this.persistedOffsets = persistedOffsets;
         this.reconciledPersistedOffsets = persistedOffsets.intersection();
-        this.lock = new ReentrantReadWriteLock();
     }
 
     CoordinatorLog(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
@@ -117,11 +116,85 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
     }
 
+    abstract CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations);
+
+    CoordinatorLog withParticipants(Participants newParticipants)
+    {
+        if (participants.equals(newParticipants))
+            return this;
+
+        lock.readLock().lock();
+        try
+        {
+            Node2OffsetsMap newWitnessedOffsets = new Node2OffsetsMap();
+            Node2OffsetsMap newPersistedOffsets = new Node2OffsetsMap();
+            Offsets passivelyReconciled = null;
+            for (int newIndex = 0; newIndex < newParticipants.size(); newIndex++)
+            {
+                int participantId = newParticipants.get(newIndex);
+
+                Offsets.Mutable offsets;
+                if (participants.contains(participantId))
+                {
+                    offsets = witnessedOffsets.get(participantId);
+                }
+                else
+                {
+                    offsets = new Offsets.Mutable(logId);
+
+                    // the new node doesn't actually have these reconciled offsets yet, but they will receive them
+                    // as part of the topology change. We preemptively mark them as reconciled here to prevent so
+                    // we don't stream journal entries that the new node will receive in sstables and to prevent
+                    // retroactively un-reconciling previously reconciled offsets for the other replicas.
+                    offsets.addAll(reconciledOffsets);
+                }
+
+                Offsets.Mutable persisted = participants.contains(participantId)
+                                                     ? persistedOffsets.get(participantId)
+                                                     : new Offsets.Mutable(logId);
+
+                passivelyReconciled = passivelyReconciled != null
+                                      ? Offsets.Immutable.intersection(passivelyReconciled, offsets)
+                                      : offsets;
+
+                newWitnessedOffsets.add(participantId, offsets);
+                newPersistedOffsets.add(participantId, persisted);
+            }
+
+            UnreconciledMutations newUnreconciled;
+            passivelyReconciled = Offsets.Immutable.difference(passivelyReconciled, reconciledOffsets);
+            if (!passivelyReconciled.isEmpty())
+            {
+                logger.debug("Toplogy change implicitly reconciled offsets: {}", passivelyReconciled);
+                newUnreconciled = unreconciledMutations.copy();
+                passivelyReconciled.forEach(id -> newUnreconciled.remove(id.offset));
+            }
+            else
+            {
+                newUnreconciled = unreconciledMutations;
+            }
+
+            if (logger.isTraceEnabled())
+                logger.trace("Updating coordinator log {} participants: {} -> {}. Passively reconciled: {}",
+                             logId, participants, newParticipants, passivelyReconciled);
+
+            return withUpdatedParticipants(newParticipants, newWitnessedOffsets, newPersistedOffsets, newUnreconciled);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     void updateReplicatedOffsets(Offsets offsets, boolean persisted, int onNodeId)
     {
         lock.writeLock().lock();
         try
         {
+            // there may have been a topology change we're not yet aware of
+            if (!participants.contains(onNodeId))
+                return;
+
             if (persisted)
                 updatePersistedReplicatedOffsets(offsets, onNodeId);
             else
@@ -155,6 +228,20 @@ public abstract class CoordinatorLog
         reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
     }
 
+    public void recordFullyReconciledOffsets(Offsets.Immutable reconciled)
+    {
+        lock.writeLock().lock();
+        try {
+            for (int i = 0; i < participants.size(); ++i)
+            {
+                int participant = participants.get(i);
+                updateWitnessedReplicatedOffsets(reconciled, participant);
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     @Nullable
     Offsets.Immutable collectReplicatedOffsets(boolean persisted)
     {
@@ -165,6 +252,19 @@ public abstract class CoordinatorLog
                             ? persistedOffsets.get(localNodeId)
                             : witnessedOffsets.get(localNodeId);
             return offsets.isEmpty() ? null : Offsets.Immutable.copy(offsets);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    Offsets.Immutable collectReconciledOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return Offsets.Immutable.copy(reconciledOffsets);
         }
         finally
         {
@@ -342,6 +442,16 @@ public abstract class CoordinatorLog
             super(keyspace, range, localNodeId, logId, participants);
         }
 
+
+
+        @Override
+        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
+        {
+            CoordinatorLogPrimary next = new CoordinatorLogPrimary(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, unreconciledMutations);
+            next.sequenceId.set(sequenceId.get());
+            return next;
+        }
+
         @Override
         void receivedWriteResponse(ShortMutationId mutationId, int fromNodeId)
         {
@@ -414,6 +524,12 @@ public abstract class CoordinatorLog
         CoordinatorLogReplica(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
         {
             super(keyspace, range, localNodeId, logId, participants);
+        }
+
+        @Override
+        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
+        {
+            return new CoordinatorLogReplica(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
         @Override

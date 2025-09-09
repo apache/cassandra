@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.LogStreamManifest;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
@@ -42,6 +44,16 @@ public class PrepareSynMessage extends StreamMessage
             int numSummaries = input.readInt();
             for (int i = 0; i < numSummaries; i++)
                 message.summaries.add(StreamSummary.serializer.deserialize(input, version));
+
+            if (version >= MessagingService.VERSION_61)
+            {
+                if (input.readBoolean())
+                    message.logRequest = LogStreamManifest.serializer.deserialize(input, version);
+
+                if (input.readBoolean())
+                    message.logSummary = LogStreamManifest.serializer.deserialize(input, version);
+            }
+
             return message;
         }
 
@@ -52,6 +64,16 @@ public class PrepareSynMessage extends StreamMessage
                 size += StreamRequest.serializer.serializedSize(request, version);
             for (StreamSummary summary : message.summaries)
                 size += StreamSummary.serializer.serializedSize(summary, version);
+            // log request and summary (optional, added in version 52)
+            if (version >= MessagingService.VERSION_61)
+            {
+                size += 1; // boolean for logRequest presence
+                if (message.logRequest != null)
+                    size += LogStreamManifest.serializer.serializedSize(message.logRequest, version);
+                size += 1; // boolean for logSummary presence
+                if (message.logSummary != null)
+                    size += LogStreamManifest.serializer.serializedSize(message.logSummary, version);
+            }
             return size;
         }
 
@@ -65,6 +87,16 @@ public class PrepareSynMessage extends StreamMessage
             out.writeInt(message.summaries.size());
             for (StreamSummary summary : message.summaries)
                 StreamSummary.serializer.serialize(summary, out, version);
+            // log request and summary (optional, added in version 52)
+            if (version >= MessagingService.VERSION_61)
+            {
+                out.writeBoolean(message.logRequest != null);
+                if (message.logRequest != null)
+                    LogStreamManifest.serializer.serialize(message.logRequest, out, version);
+                out.writeBoolean(message.logSummary != null);
+                if (message.logSummary != null)
+                    LogStreamManifest.serializer.serialize(message.logSummary, out, version);
+            }
         }
     };
 
@@ -77,6 +109,16 @@ public class PrepareSynMessage extends StreamMessage
      * Summaries of streaming out
      */
     public final Collection<StreamSummary> summaries = new ArrayList<>();
+
+    /**
+     * Optional request for log stream
+     */
+    public LogStreamManifest logRequest = null;
+
+    /**
+     * Optional summary of log stream tx
+     */
+    public LogStreamManifest logSummary = null;
 
     public PrepareSynMessage()
     {

@@ -46,6 +46,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -58,6 +59,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -661,6 +663,24 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
                 return m;
             }
+        }
+
+        /**
+         * Partially deserializes mutation data to get the key and table metadata. This does not skip the remainder of
+         * the mutation, hence the in argument being DataInputBuffer not DataInputPlus
+         */
+        public Pair<DecoratedKey, TableMetadata> deserializeKeyAndTableMetadata(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            if (version >= VERSION_60)
+                in.skipBytes(1); // potentialTxnConflicts
+
+            if (version >= VERSION_61)
+                MutationId.serializer.skip(in, version);
+
+            int size = in.readUnsignedVInt32();
+            assert size > 0;
+
+            return PartitionUpdate.serializer.deserializeMetadataAndKey(in, version, flag);
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException

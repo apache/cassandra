@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 import javax.annotation.Nonnull;
@@ -280,6 +282,17 @@ public class CollectionSerializers
             result.put(key, value);
         }
         return result;
+    }
+
+    public static <K, V> void deserializeMapToConsumer(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, BiConsumer<K, V> consumer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        while (size-- > 0)
+        {
+            K key = keySerializer.deserialize(in, version);
+            V value = valueSerializer.deserialize(in, version);
+            consumer.accept(key, value);
+        }
     }
 
     public static <K, V, M extends Map<K, V>> M deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, IntFunction<M> factory) throws IOException
@@ -540,6 +553,13 @@ public class CollectionSerializers
         while (size-- > 0)
             result.add(serializer.deserialize(in));
         return result;
+    }
+
+    public static <V> void deserializeCollectionToConsumer(DataInputPlus in, int version, IVersionedSerializer<V> serializer, Consumer<V> consumer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        while (size-- > 0)
+            consumer.accept(serializer.deserialize(in, version));
     }
 
     /*

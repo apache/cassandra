@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -65,12 +66,19 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.ReconciledLogSnapshot;
+import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.streaming.messages.IncomingMutationLogStreamMessage;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.MutationLogReceivedMessage;
+import org.apache.cassandra.streaming.messages.OutgoingMutationLogStreamMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.PrepareAckMessage;
 import org.apache.cassandra.streaming.messages.PrepareSynAckMessage;
@@ -201,6 +209,9 @@ public class StreamSession
     protected final ConcurrentHashMap<TableId, StreamTransferTask> transfers = new ConcurrentHashMap<>();
     // data receivers, filled after receiving prepare message
     private final Map<TableId, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
+    // log streaming tasks
+    private LogTransferTask logTransfer = null;
+    private LogReceiveTask logReceive = null;
     private final StreamingMetrics metrics;
 
     final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
@@ -445,6 +456,30 @@ public class StreamSession
     }
 
     /**
+     * Request mutation log data from this session.
+     *
+     * @param keyspace Requesting keyspace
+     * @param fullRanges Ranges to retrieve mutation logs for
+     * @param transientRanges Ranges to retrieve mutation logs for
+     */
+    public synchronized void addMutationLogRequest(String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges)
+    {
+        //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
+        assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
+        assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
+
+        // Create log receive task for the combined ranges
+        RangesAtEndpoint allRanges = RangesAtEndpoint.concat(fullRanges, transientRanges);
+
+        if (logReceive == null)
+        {
+            logReceive = new LogReceiveTask(this, peer);
+            logger.trace("[Stream #{}] Created log receive task for peer {}", planId(), peer);
+        }
+        logReceive.addKeyspaceRanges(keyspace, allRanges);
+    }
+
+    /**
      * Set up transfer for specific keyspace/ranges/CFs
      *
      * @param keyspace Transfer keyspace
@@ -452,7 +487,7 @@ public class StreamSession
      * @param columnFamilies Transfer ColumnFamilies
      * @param flushTables flush tables?
      */
-    synchronized void addTransferRanges(String keyspace, RangesAtEndpoint replicas, Collection<String> columnFamilies, boolean flushTables)
+    synchronized void addTransferRanges(String keyspace, RangesAtEndpoint replicas, Collection<String> columnFamilies, boolean flushTables, ReconciledKeyspaceOffsets reconciledKeyspaceOffsets)
     {
         failIfFinished();
         Collection<ColumnFamilyStore> stores = getColumnFamilyStores(keyspace, columnFamilies);
@@ -463,7 +498,7 @@ public class StreamSession
         //Do we need to unwrap here also or is that just making it worse?
         //Range and if it's transient
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
-        List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
+        List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind, reconciledKeyspaceOffsets);
 
         addTransferStreams(streams);
         Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
@@ -473,6 +508,46 @@ public class StreamSession
         }
         toBeUpdated.addAll(replicas.ranges());
         transferredRangesPerKeyspace.put(keyspace, toBeUpdated);
+    }
+
+    private LogTransferTask createLogTransferTask()
+    {
+        ReconciledLogSnapshot reconciled = MutationTrackingService.instance.snapshotReconciledLogs();
+
+        // TODO: consider tradeoffs of eagerly reading the index of each segment and filtering out the ones that
+        //  only contain fully reconciled ids vs just filtering out fully reconciled when reading out of the
+        //  snapshot for streaming
+        MutationJournal.Snapshot snapshot = MutationJournal.instance.snapshot();
+        try
+        {
+            // TODO: grab references to all current segments and the relevant reconciled sets
+            // TODO: Journal has a select and reference method we could use
+            LogTransferTask task = new LogTransferTask(this, peer, reconciled, snapshot);
+            logger.trace("[Stream #{}] Created log transfer task for peer {}", planId(), peer);
+            return task;
+        }
+        catch (Throwable t)
+        {
+            snapshot.close();
+            throw t;
+        }
+    }
+    /**
+     * Set up mutation log transfer for specific keyspace and ranges.
+     *
+     * @param keyspace Transfer keyspace
+     * @param replicas Transfer ranges
+     */
+    synchronized ReconciledKeyspaceOffsets addMutationLogTransfer(String keyspace, RangesAtEndpoint replicas)
+    {
+        failIfFinished();
+
+        if (logTransfer == null)
+            logTransfer = createLogTransferTask();
+
+        Collection<Range<Token>> ranges = replicas.ranges();
+        logTransfer.addKeyspaceRanges(keyspace, ranges);
+        return logTransfer.reconciled(keyspace, ranges);
     }
 
     private void failIfFinished()
@@ -498,14 +573,14 @@ public class StreamSession
     }
 
     @VisibleForTesting
-    public List<OutgoingStream> getOutgoingStreamsForRanges(RangesAtEndpoint replicas, Collection<ColumnFamilyStore> stores, TimeUUID pendingRepair, PreviewKind previewKind)
+    public List<OutgoingStream> getOutgoingStreamsForRanges(RangesAtEndpoint replicas, Collection<ColumnFamilyStore> stores, TimeUUID pendingRepair, PreviewKind previewKind, ReconciledKeyspaceOffsets reconciledKeyspaceOffsets)
     {
         List<OutgoingStream> streams = new ArrayList<>();
         try
         {
             for (ColumnFamilyStore cfs: stores)
             {
-                streams.addAll(cfs.getStreamManager().createOutgoingStreams(this, replicas, pendingRepair, previewKind));
+                streams.addAll(cfs.getStreamManager().createOutgoingStreams(this, replicas, pendingRepair, previewKind, reconciledKeyspaceOffsets));
             }
         }
         catch (Throwable t)
@@ -589,6 +664,8 @@ public class StreamSession
         {
             receivers.values().forEach(StreamReceiveTask::abort);
             transfers.values().forEach(StreamTransferTask::abort);
+            if (logReceive != null) logReceive.abort();
+            if (logTransfer != null) logTransfer.abort();
         }
         catch (Exception e)
         {
@@ -658,7 +735,7 @@ public class StreamSession
             case PREPARE_SYN:
                 // at follower
                 PrepareSynMessage msg = (PrepareSynMessage) message;
-                prepare(msg.requests, msg.summaries);
+                prepare(msg.requests, msg.summaries, msg.logRequest, msg.logSummary);
                 break;
             case PREPARE_SYNACK:
                 // at initiator
@@ -685,6 +762,12 @@ public class StreamSession
             case SESSION_FAILED:
                 sessionFailed();
                 break;
+            case MUTATION_LOG_STREAM:
+                receiveMutationLog((IncomingMutationLogStreamMessage) message);
+                break;
+            case MUTATION_LOG_RECEIVED:
+                mutationLogReceived((MutationLogReceivedMessage) message);
+                break;
             default:
                 throw new AssertionError("unhandled StreamMessage type: " + message.getClass().getName());
         }
@@ -703,6 +786,9 @@ public class StreamSession
         {
             prepare.summaries.add(task.getSummary());
         }
+
+        prepare.logRequest =  logReceive != null ? logReceive.getManifest() : null;
+        prepare.logSummary = logTransfer != null ? logTransfer.getManifest() : null;
 
         sendControlMessage(prepare).syncUninterruptibly();
     }
@@ -779,14 +865,15 @@ public class StreamSession
      *
      * @return the prepare future for testing
      */
-    public Future<Exception> prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    public Future<Exception> prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries,
+                                     LogStreamManifest logRequest, LogStreamManifest logSummary)
     {
         // prepare tasks
         state(State.PREPARING);
         return ScheduledExecutors.nonPeriodicTasks.submit(() -> {
             try
             {
-                prepareAsync(requests, summaries);
+                prepareAsync(requests, summaries, logRequest, logSummary);
                 return null;
             }
             catch (Exception e)
@@ -807,7 +894,8 @@ public class StreamSession
      * so the logic should not execute on the main IO thread (read: netty event loop).
      */
     @VisibleForTesting
-    void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries,
+                      LogStreamManifest logRequest, LogStreamManifest logSummary)
     {
         if (StreamOperation.REPAIR == streamOperation())
             checkAvailableDiskSpaceAndCompactions(summaries);
@@ -815,10 +903,19 @@ public class StreamSession
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
 
+        // Process mutation log manifests
+        if (logRequest != null)
+            prepareLogTransferring(logRequest);
+        if (logSummary != null)
+            prepareLogReceiving(logSummary);
+
         PrepareSynAckMessage prepareSynAck = new PrepareSynAckMessage();
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
+
+        // Include mutation log summary if we have log transfer task
+        prepareSynAck.logSummary = logTransfer != null ? logTransfer.getManifest() : null;
 
         streamResult.handleSessionPrepared(this, PrepareDirection.SEND);
         // After sending the message the initiator can close the channel which will cause a ClosedChannelException
@@ -850,6 +947,10 @@ public class StreamSession
                 sendControlMessage(new PrepareAckMessage()).syncUninterruptibly();
         }
 
+        // Process mutation log summary if present
+        if (msg.logSummary != null)
+            prepareLogReceiving(msg.logSummary);
+
         if (isPreview())
             completePreview();
         else
@@ -877,21 +978,49 @@ public class StreamSession
         requests.forEach(r -> requestsByKeyspace.put(r.keyspace, r));
 
         requestsByKeyspace.asMap().forEach((ks, reqs) ->
-                                           {
-                                               OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks, getBroadcastAddressAndPort());
+                                            {
+                                                OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks, getBroadcastAddressAndPort());
 
-                                               reqs.forEach(req ->
-                                                            {
-                                                                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
-                                                                if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
-                                                                    addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true); // always flush on stream request
-                                                                else
-                                                                    rejectedRequests.add(req);
-                                                            });
-                                           });
+                                                reqs.forEach(req ->
+                                                             {
+                                                                 RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
+                                                                 if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
+                                                                 {
+
+                                                                     ReconciledKeyspaceOffsets reconciledKeyspaceOffsets = null;
+                                                                     if (logTransfer != null)
+                                                                         reconciledKeyspaceOffsets = logTransfer.reconciled(req.keyspace, allRangesAtEndpoint.ranges());
+                                                                     addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true, reconciledKeyspaceOffsets); // always flush on stream request
+                                                                 }
+                                                                 else
+                                                                     rejectedRequests.add(req);
+                                                             });
+                                            });
 
         if (!rejectedRequests.isEmpty())
             throw new StreamRequestOutOfTokenRangeException(rejectedRequests);
+    }
+
+    private void prepareLogReceiving(LogStreamManifest manifest)
+    {
+        // Create log receive task based on manifest
+        if (logReceive == null)
+            logReceive = new LogReceiveTask(this, peer);
+
+        // Add keyspace ranges from manifest
+        manifest.keyspaceRanges.forEach((keyspace, ranges) ->
+            logReceive.addKeyspaceRanges(keyspace, ranges));
+    }
+
+    private void prepareLogTransferring(LogStreamManifest manifest)
+    {
+        // Create log transfer task based on manifest
+        if (logTransfer == null)
+            logTransfer = createLogTransferTask();
+
+        // Add keyspace ranges from manifest
+        manifest.keyspaceRanges.forEach((keyspace, ranges) ->
+            logTransfer.addKeyspaceRanges(keyspace, ranges));
     }
     /**
      * In the case where we have an error checking disk space we allow the Operation to continue.
@@ -1076,6 +1205,17 @@ public class StreamSession
     }
 
     /**
+     * Call back after sending OutgoingMutationLogStreamMessage.
+     *
+     * @param message sent mutation log stream message
+     */
+    public void logStreamSent(OutgoingMutationLogStreamMessage message)
+    {
+        if (logTransfer != null)
+            logTransfer.scheduleTimeout();
+    }
+
+    /**
      * Call back after receiving a stream.
      *
      * @param message received stream
@@ -1116,6 +1256,26 @@ public class StreamSession
         }
     }
 
+    /**
+     * Call back after receiving a mutation log stream.
+     *
+     * @param message received mutation log stream
+     */
+    public void receiveMutationLog(IncomingMutationLogStreamMessage message)
+    {
+        if (isPreview())
+        {
+            throw new RuntimeException(String.format("[Stream #%s] Cannot receive mutation log stream for preview session", planId()));
+        }
+
+        logger.debug("[Stream #{}] Received {}", planId(), message);
+        // Mutations are already applied during deserialization
+
+        // Create and track the log receive task, then let it handle the message
+        if (logReceive != null)
+            logReceive.received(message);
+    }
+
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
     {
         if (delta < 0)
@@ -1129,6 +1289,12 @@ public class StreamSession
     public void received(TableId tableId, int sequenceNumber)
     {
         transfers.get(tableId).complete(sequenceNumber);
+    }
+
+    public void mutationLogReceived(MutationLogReceivedMessage message)
+    {
+        if (logTransfer != null)
+            logTransfer.complete();
     }
 
     /**
@@ -1154,7 +1320,16 @@ public class StreamSession
      */
     private synchronized boolean maybeCompleted()
     {
-        if (!(receivers.isEmpty() && transfers.isEmpty()))
+        if (!receivers.isEmpty())
+            return false;
+
+        if (!transfers.isEmpty())
+            return false;
+
+        if (logReceive != null && !logReceive.isCompleted())
+            return false;
+
+        if (logTransfer != null && !logTransfer.isCompleted())
             return false;
 
         // if already executed once, skip it
@@ -1237,6 +1412,22 @@ public class StreamSession
         maybeCompleted();
     }
 
+    public synchronized void taskCompleted(LogReceiveTask completedTask)
+    {
+        Preconditions.checkState(logReceive == completedTask);
+        logger.trace("[Stream #{}] Log receive task completed, clearing reference", planId());
+        logReceive = null;
+        maybeCompleted();
+    }
+
+    public synchronized void taskCompleted(LogTransferTask completedTask)
+    {
+        Preconditions.checkState(logTransfer == completedTask);
+        logger.trace("[Stream #{}] Log transfer task completed, clearing reference", planId());
+        logTransfer = null;
+        maybeCompleted();
+    }
+
     private void completePreview()
     {
         try
@@ -1251,6 +1442,9 @@ public class StreamSession
             // expected streaming, but don't leak any resources held by the task
             for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
                 task.abort();
+
+            if (logReceive != null) logReceive.abort();
+            if (logTransfer != null) logTransfer.abort();
         }
     }
 
@@ -1281,6 +1475,8 @@ public class StreamSession
 
         state(State.STREAMING);
 
+        startLogStreaming();
+
         for (StreamTransferTask task : transfers.values())
         {
             Collection<OutgoingStreamMessage> messages = task.getFileMessages();
@@ -1300,6 +1496,14 @@ public class StreamSession
             }
         }
         maybeCompleted();
+    }
+
+    private void startLogStreaming()
+    {
+        if (logTransfer != null)
+        {
+            sendControlMessage(logTransfer.getMessage(this));
+        }
     }
 
     @VisibleForTesting

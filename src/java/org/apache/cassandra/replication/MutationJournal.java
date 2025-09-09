@@ -67,6 +67,27 @@ public class MutationJournal
     // in NBHM.
     private SegmentStateTracker lastSegmentTracker;
 
+    public static class Snapshot implements AutoCloseable
+    {
+        private final Journal.Snapshot<ShortMutationId, Mutation> wrapped;
+
+        public Snapshot(Journal.Snapshot<ShortMutationId, Mutation> wrapped)
+        {
+            this.wrapped = wrapped;
+        }
+
+        public void readAll(RecordConsumer<ShortMutationId> consumer)
+        {
+            wrapped.readAll(consumer);
+        }
+
+        @Override
+        public void close()
+        {
+            wrapped.close();
+        }
+    }
+
     private MutationJournal()
     {
         this(new File(DatabaseDescriptor.getCommitLogLocation()), new JournalParams());
@@ -166,6 +187,17 @@ public class MutationJournal
     boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
     {
         return journal.readLast(id, consumer);
+    }
+
+    public MutationJournal.Snapshot snapshot()
+    {
+        return new MutationJournal.Snapshot(journal.snapshot(s -> true));
+    }
+
+    @VisibleForTesting
+    public void advanceSegment()
+    {
+        journal.advanceSegment();
     }
 
     /**
@@ -278,6 +310,11 @@ public class MutationJournal
     public void closeCurrentSegmentForTestingIfNonEmpty()
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
+    }
+
+    public void readAll(RecordConsumer<ShortMutationId> consumer)
+    {
+        journal.readAll(consumer);
     }
 
     static class JournalParams implements Params

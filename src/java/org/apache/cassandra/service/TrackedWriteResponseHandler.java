@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -28,6 +30,8 @@ import org.apache.cassandra.replication.MutationTrackingService;
 
 public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<NoPayload>
 {
+    private static final Logger logger = LoggerFactory.getLogger(TrackedWriteResponseHandler.class);
+
     private final AbstractWriteResponseHandler<NoPayload> wrapped;
 
     private final MutationId mutationId;
@@ -49,13 +53,19 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     {
         // Local mutations are witnessed from Keyspace.applyInternalTracked
         if (msg != null)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Received write response for mutation {} from {}", mutationId, msg.from());
             MutationTrackingService.instance.receivedWriteResponse(mutationId, msg.from());
+        }
         wrapped.onResponse(msg);
     }
 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
+        if (logger.isTraceEnabled())
+            logger.trace("Write failed for mutation {} from {}: {}", mutationId, from, failure);
         MutationTrackingService.instance.retryFailedWrite(mutationId, from, failure);
         wrapped.onFailure(from, failure);
     }

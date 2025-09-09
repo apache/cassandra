@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.Iterators;
@@ -52,11 +53,22 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         return ids.size();
     }
 
+    public boolean isEmpty()
+    {
+        return size() == 0;
+    }
+
     @Override
     public Iterator<Long> iterator()
     {
         return Iterators.unmodifiableIterator(ids.keySet().iterator());
     }
+
+    public Iterable<Map.Entry<Long, Offsets.Immutable>> entries()
+    {
+        return ids.entrySet();
+    }
+
 
     @Override
     public boolean equals(Object o)
@@ -80,6 +92,11 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
 
         for (Map.Entry<Long, Offsets.Immutable.Builder> entry : builder.ids.entrySet())
             ids.put(entry.getKey(), entry.getValue().build());
+    }
+
+    public void forEach(BiConsumer<CoordinatorLogId, Offsets.Immutable> consumer)
+    {
+        ids.forEach((logId, offsets) -> consumer.accept(new CoordinatorLogId(logId), offsets));
     }
 
     @NotThreadSafe
@@ -135,7 +152,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         @Override
         public void serialize(ImmutableCoordinatorLogOffsets logOffsets, DataOutputPlus out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_52)
+            if (version < MessagingService.VERSION_61)
                 return;
             out.writeUnsignedVInt32(logOffsets.size());
             for (long logId : logOffsets)
@@ -145,7 +162,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         @Override
         public ImmutableCoordinatorLogOffsets deserialize(DataInputPlus in, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_52)
+            if (version < MessagingService.VERSION_61)
                 return ImmutableCoordinatorLogOffsets.NONE;
             int size = in.readUnsignedVInt32();
             ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder(size);
@@ -160,7 +177,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         @Override
         public long serializedSize(ImmutableCoordinatorLogOffsets logOffsets, int version)
         {
-            if (version < MessagingService.VERSION_52)
+            if (version < MessagingService.VERSION_61)
                 return 0;
             long size = 0;
             size += VIntCoding.computeUnsignedVIntSize(logOffsets.size());

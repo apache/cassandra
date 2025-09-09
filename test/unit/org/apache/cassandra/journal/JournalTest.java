@@ -19,12 +19,15 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -78,6 +81,45 @@ public class JournalTest
         assertEquals(2L, (long) journal.readLast(id2));
         assertEquals(3L, (long) journal.readLast(id3));
         assertEquals(4L, (long) journal.readLast(id4));
+
+        journal.shutdown();
+    }
+
+    @Test
+    public void testReadAll() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("JournalTestReadAll"));
+        directory.deleteRecursiveOnExit();
+
+        Journal<TimeUUID, Long> journal =
+            new Journal<>("TestJournalReadAll", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
+
+        journal.start();
+
+        TimeUUID id1 = nextTimeUUID();
+        TimeUUID id2 = nextTimeUUID();
+        TimeUUID id3 = nextTimeUUID();
+
+        journal.blockingWrite(id1, 10L);
+        journal.blockingWrite(id2, 20L);
+        journal.blockingWrite(id3, 30L);
+
+        Map<TimeUUID, Long> readValues = new HashMap<>();
+        journal.readAll((segment, position, key, buffer, userVersion) -> {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+            {
+                readValues.put(key, LongSerializer.INSTANCE.deserialize(key, in, userVersion));
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(3, readValues.size());
+        assertEquals(10L, (long) readValues.get(id1));
+        assertEquals(20L, (long) readValues.get(id2));
+        assertEquals(30L, (long) readValues.get(id3));
 
         journal.shutdown();
     }

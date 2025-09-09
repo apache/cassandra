@@ -66,6 +66,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -98,6 +99,7 @@ public class StreamReaderTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.prepareServerNoRegister();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
     }

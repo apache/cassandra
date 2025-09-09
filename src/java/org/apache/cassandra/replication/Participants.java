@@ -51,7 +51,7 @@ public class Participants
 
     boolean contains(int hostId)
     {
-        return indexOf(hostId) >= 0;
+        return Arrays.binarySearch(hosts, hostId) >= 0;
     }
 
     int get(int idx)

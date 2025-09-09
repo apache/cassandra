@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -55,5 +56,6 @@ public interface TableStreamManager
     Collection<OutgoingStream> createOutgoingStreams(StreamSession session,
                                                      RangesAtEndpoint replicas,
                                                      TimeUUID pendingRepair,
-                                                     PreviewKind previewKind);
+                                                     PreviewKind previewKind,
+                                                     ReconciledKeyspaceOffsets reconciledKeyspaceOffsets);
 }

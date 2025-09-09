@@ -168,6 +168,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       ClusterMetadataService::state,
                                                                       logSpec));
         ClusterMetadataService.instance().log().ready();
+        MutationTrackingService.instance.registerTCMListener();
 
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();
@@ -299,6 +300,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       logSpec));
 
         ClusterMetadataService.instance().log().ready();
+        MutationTrackingService.instance.registerTCMListener();
         initMessaging.run();
         try
         {
@@ -411,6 +413,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       logSpec));
 
         ClusterMetadataService.instance().log().ready();
+        MutationTrackingService.instance.registerTCMListener();
         initMessaging.run();
         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
         ClusterMetadataService.instance().triggerSnapshot();
