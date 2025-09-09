@@ -306,10 +306,7 @@ public class MutationTrackingService
         {
             Shard shard = log2ShardMap.get(new CoordinatorLogId(logId));
             if (shard == null)
-            {
-                logger.debug("Could not find shard for logId {}", logId);
-                return false;
-            }
+                throw new IllegalStateException("Could not find shard for logId " + logId);
 
             if (!shard.isDurablyReconciled(logId, logOffsets))
                 return false;

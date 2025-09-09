@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.Int2ObjectHashMap;
@@ -387,7 +388,7 @@ public abstract class CoordinatorLog
                 int prevTimestamp = MutationId.timestamp(prev);
 
                 // int overflow
-                if (prevOffset == Integer.MAX_VALUE)
+                if (prevOffset == MAX_OFFSET)
                     return -1;
 
                 int nextOffset = prevOffset + 1;
@@ -517,4 +518,13 @@ public abstract class CoordinatorLog
     {
         executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId, logId.hostLogId);
     }
+
+    @VisibleForTesting
+    static void overrideMaxOffsetForTesting(int nexMaxOffset)
+    {
+        MAX_OFFSET = nexMaxOffset;
+    }
+    // don't make volatile unless it genuinely is an issue for some test,
+    // otherwise it should be *fine* as is, and slight overkill to make volatile
+    private static int MAX_OFFSET = Integer.MAX_VALUE;
 }

@@ -28,6 +28,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Mutation;
@@ -49,6 +52,8 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 public class Shard
 {
+    private static final Logger logger = LoggerFactory.getLogger(Shard.class);
+
     final int localNodeId;
     final String keyspace;
     final Range<Token> range;
@@ -103,7 +108,9 @@ public class Shard
         MutationId nextId = currentLocalLog.nextId();
         if (nextId != null) // another thread got to rotate before us
             return nextId;
+        CoordinatorLogId oldLogId = currentLocalLog.logId;
         currentLocalLog = createNewPrimayLog();
+        logger.info("Rotated primary log for {}/{} from {} to {}", keyspace, range, oldLogId, currentLocalLog.logId);
         return nextId();
     }
 
