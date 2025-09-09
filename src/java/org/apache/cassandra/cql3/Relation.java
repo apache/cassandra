@@ -187,7 +187,7 @@ public final class Relation
      * @return the <code>Restriction</code> corresponding to this <code>Relation</code>
      * @throws InvalidRequestException if this <code>Relation</code> is not valid
      */
-    public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames)
+    public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames, boolean allowFiltering)
     {
         ColumnsExpression columnsExpression = rawExpressions.prepare(table);
 
@@ -217,9 +217,9 @@ public final class Relation
 
         // An IN restriction with only one element is the same as an EQ restriction
         if (operator.isIN() && terms.containsSingleTerm())
-            return new SimpleRestriction(columnsExpression, Operator.EQ, terms);
+            return new SimpleRestriction(columnsExpression, Operator.EQ, terms, allowFiltering);
 
-        return new SimpleRestriction(columnsExpression, operator, terms);
+        return new SimpleRestriction(columnsExpression, operator, terms, allowFiltering);
     }
 
     public ColumnIdentifier column()

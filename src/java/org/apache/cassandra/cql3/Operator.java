@@ -611,7 +611,7 @@ public enum Operator
 
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return leftOperand != null && ByteBufferUtil.contains(leftOperand, rightOperand);
+            return leftOperand != null && leftOperand.equals(rightOperand);
         }
     },
     LIKE(14)
@@ -620,12 +620,6 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean requiresIndexing()
-        {
-            return true;
         }
     },
     ANN(15)

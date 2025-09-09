@@ -33,7 +33,7 @@ import org.apache.cassandra.service.StorageService;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
-
+import org.apache.cassandra.exceptions.InvalidRequestException;
 /**
  * Tests that {@code ALLOW FILTERING} is required only if needed.
  */
@@ -433,4 +433,83 @@ public class AllowFilteringTest extends SAITester
         execute("SELECT * FROM %s WHERE v=0");
         execute("SELECT * FROM %s WHERE v=0 ALLOW FILTERING");
     }
+
+    @Test
+    public void testAllowFilteringWithLikePrefixPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'f%%' ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'ca%%' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'f%%'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeSuffixPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%o' ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%c' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%c'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeContainsPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ar%%' ALLOW FILTERING"), 1);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ca%%' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ca%%'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeMatchesPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'foo' ALLOW FILTERING"), 1);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'baar' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'baar'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+
+
 }

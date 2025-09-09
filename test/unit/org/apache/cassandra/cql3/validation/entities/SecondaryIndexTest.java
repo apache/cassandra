@@ -843,16 +843,16 @@ public class SecondaryIndexTest extends CQLTester
 
         // LIKE is not supported on indexes of non-literal values
         // this is rejected before binding, so the value isn't available in the error message
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "abc");
     }
