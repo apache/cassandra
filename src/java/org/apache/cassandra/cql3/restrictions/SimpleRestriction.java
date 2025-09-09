@@ -43,6 +43,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import java.util.Optional;
 
 /**
  * A simple predicate on a columns expression (e.g. columnA = X).
@@ -64,11 +65,17 @@ public final class SimpleRestriction implements SingleRestriction
      */
     private final Terms values;
 
-    public SimpleRestriction(ColumnsExpression columnsExpression, Operator operator, Terms values)
+    /**
+     * Indicates if the query has allow filtering
+     */
+    private final boolean allowFiltering;
+
+    public SimpleRestriction(ColumnsExpression columnsExpression, Operator operator, Terms values, boolean allowFiltering)
     {
         this.columnsExpression = columnsExpression;
         this.operator = operator;
         this.values = values;
+        this.allowFiltering = allowFiltering;
     }
 
     @Override
@@ -344,11 +351,11 @@ public final class SimpleRestriction implements SingleRestriction
                 else if (operator == Operator.LIKE)
                 {
                     LikePattern pattern = LikePattern.parse(buffers.get(0));
-                    // there must be a suitable INDEX for LIKE_XXX expressions
+                    
                     RowFilter.SimpleExpression expression = filter.add(column, pattern.kind().operator(), pattern.value());
-                    indexRegistry.getBestIndexFor(expression, indexHints)
-                                 .orElseThrow(() -> invalidRequest("%s is only supported on properly indexed columns",
-                                                                   expression));
+                    Optional<Index> index = indexRegistry.getBestIndexFor(expression, indexHints);
+                    if(!index.isPresent() && !allowFiltering)
+                        throw invalidRequest("%s is only supported on properly indexed columns or with ALLOW FILTERING", expression);
                 }
                 else
                 {

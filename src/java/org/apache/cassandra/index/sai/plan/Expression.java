@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * An {@link Expression} is an internal representation of an index query operation. They are built from
@@ -79,7 +80,7 @@ public abstract class Expression
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN, IN;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN, IN, LIKE_PREFIX, LIKE_SUFFIX, LIKE_MATCHES, LIKE_CONTAINS;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -106,6 +107,15 @@ public abstract class Expression
 
                 case IN:
                     return IN;
+                case LIKE_PREFIX:
+                    return LIKE_PREFIX;
+                case LIKE_SUFFIX:
+                    return LIKE_SUFFIX;
+                case LIKE_CONTAINS:
+                    return LIKE_CONTAINS;
+                case LIKE_MATCHES:
+                    return LIKE_MATCHES;
+
 
                 default:
                     return null;
@@ -114,12 +124,17 @@ public abstract class Expression
 
         public boolean isEquality()
         {
-            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE || this == IN;
+            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE || this == IN || isLikeVariant();
         }
 
         public boolean isEqualityOrRange()
         {
             return isEquality() || this == RANGE;
+        }
+
+        public boolean isLikeVariant()
+        {
+            return this == LIKE_SUFFIX || this == LIKE_PREFIX || this == LIKE_CONTAINS || this == LIKE_MATCHES;
         }
     }
 
@@ -172,6 +187,10 @@ public abstract class Expression
             case EQ:
             case CONTAINS:
             case CONTAINS_KEY:
+            case LIKE_PREFIX:
+            case LIKE_SUFFIX:
+            case LIKE_MATCHES:
+            case LIKE_CONTAINS:
             case IN:
                 lower = new Bound(value, indexTermType, true);
                 upper = lower;
@@ -354,6 +373,26 @@ public abstract class Expression
                     }
                 }
                 break;
+            case LIKE_PREFIX:   
+                {
+                    isMatch = ByteBufferUtil.startsWith(term, requestedValue);
+                    break;
+                }
+            case LIKE_SUFFIX:
+                {
+                    isMatch = ByteBufferUtil.endsWith(term, requestedValue);
+                    break;
+                }
+            case LIKE_CONTAINS:
+                {
+                    isMatch = ByteBufferUtil.contains(term, requestedValue);
+                    break;
+                }
+            case LIKE_MATCHES:
+                {
+                    isMatch = term.equals(requestedValue);
+                    break;
+                }
         }
         return isMatch;
     }

@@ -1927,16 +1927,8 @@ public class SASIIndexTest
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        try
-        {
-            executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%U' ALLOW FILTERING");
-            Assert.fail();
-        }
-        catch (InvalidRequestException e)
-        {
-            Assert.assertTrue(e.getMessage().contains("only supported"));
-            // expected
-        }
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%U' ALLOW FILTERING");
+        Assert.assertNotNull(results);
 
         try
         {

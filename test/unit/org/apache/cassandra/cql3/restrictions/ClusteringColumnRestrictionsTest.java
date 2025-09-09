@@ -1645,7 +1645,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleRestriction(TableMetadata tableMetadata, int index, Operator operator, ByteBuffer... values)
     {
         ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, index);
-        return new SimpleRestriction(ColumnsExpression.singleColumn(column, tableMetadata), operator, toTerms(values));
+        return new SimpleRestriction(ColumnsExpression.singleColumn(column, tableMetadata), operator, toTerms(values), false);
     }
 
     /**
@@ -1669,7 +1669,8 @@ public class ClusteringColumnRestrictionsTest
         TupleType tupleType = new TupleType(types);
         return new SimpleRestriction(ColumnsExpression.multiColumns(columns, tableMetadata),
                                      Operator.EQ,
-                                     Terms.of(new MultiElements.Value(tupleType, asList(values))));
+                                     Terms.of(new MultiElements.Value(tupleType, asList(values))), 
+                                     false);
     }
 
     /**
@@ -1700,7 +1701,7 @@ public class ClusteringColumnRestrictionsTest
         {
             terms.add(new MultiElements.Value(tupleType, values[i]));
         }
-        return new SimpleRestriction(ColumnsExpression.multiColumns(columns, tableMetadata), Operator.IN, Terms.of(terms));
+        return new SimpleRestriction(ColumnsExpression.multiColumns(columns, tableMetadata), Operator.IN, Terms.of(terms), false);
     }
 
     /**
@@ -1737,7 +1738,8 @@ public class ClusteringColumnRestrictionsTest
         TupleType type = new TupleType(types);
         return new SimpleRestriction(ColumnsExpression.multiColumns(columns, tableMetadata),
                                      operator,
-                                     Terms.of(new MultiElements.Value(type, asList(values))));
+                                     Terms.of(new MultiElements.Value(type, asList(values))), 
+                                     false);
     }
 
     /**

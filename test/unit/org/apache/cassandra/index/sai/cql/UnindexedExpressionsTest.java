@@ -63,7 +63,7 @@ public class UnindexedExpressionsTest extends SAITester
         execute("INSERT INTO %s (pk, val1, val2) VALUES (4, 4, '44')");
 
         // The LIKE operator is rejected because it needs to be handled by an index
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT pk FROM %s WHERE val1 = 1 AND val2 like '1%%'");
 
         // The IS NOT operator is only valid on materialized views

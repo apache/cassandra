@@ -226,11 +226,11 @@ public final class StatementRestrictions
                 if (!forView)
                     throw new InvalidRequestException("Unsupported restriction: " + relation);
 
-                this.notNullColumns.addAll(relation.toRestriction(table, boundNames).columns());
+                this.notNullColumns.addAll(relation.toRestriction(table, boundNames, allowFiltering).columns());
             }
             else if (operator.requiresIndexing())
             {
-                Restriction restriction = relation.toRestriction(table, boundNames);
+                Restriction restriction = relation.toRestriction(table, boundNames, allowFiltering);
 
                 if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry, indexHints))
                     throw invalidRequest("%s restriction is only supported on properly " +
@@ -240,7 +240,7 @@ public final class StatementRestrictions
             }
             else
             {
-                addRestriction(relation.toRestriction(table, boundNames), indexRegistry, indexHints);
+                addRestriction(relation.toRestriction(table, boundNames, allowFiltering), indexRegistry, indexHints);
             }
         }
 

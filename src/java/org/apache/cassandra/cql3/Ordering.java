@@ -105,7 +105,8 @@ public class Ordering
         {
             return new SimpleRestriction(ColumnsExpression.singleColumn(columnMetadata, tableMetadata),
                                          Operator.ANN,
-                                         Terms.of(vectorValue));
+                                         Terms.of(vectorValue), 
+                                         false);
         }
     }
 
