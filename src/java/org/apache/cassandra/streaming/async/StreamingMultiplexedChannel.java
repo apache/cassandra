@@ -47,6 +47,7 @@ import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
+import org.apache.cassandra.streaming.messages.OutgoingMutationLogStreamMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -212,7 +213,7 @@ public class StreamingMultiplexedChannel
         if (closed)
             throw new RuntimeException("stream has been closed, cannot send " + message);
 
-        if (message instanceof OutgoingStreamMessage)
+        if (message instanceof OutgoingStreamMessage || message instanceof OutgoingMutationLogStreamMessage)
         {
             if (session.isPreview())
                 throw new RuntimeException("Cannot send stream data messages for preview streaming sessions");
@@ -220,7 +221,10 @@ public class StreamingMultiplexedChannel
                 logger.debug("{} Sending {}", createLogTag(session), message);
 
             InetAddressAndPort connectTo = factory.supportsPreferredIp() ? SystemKeyspace.getPreferredIP(to) : to;
-            return fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, connectTo));
+            FileStreamTask task = message instanceof OutgoingStreamMessage
+                                  ? new FileStreamTask((OutgoingStreamMessage) message, connectTo)
+                                  : new FileStreamTask((OutgoingMutationLogStreamMessage) message, connectTo);
+            return fileTransferExecutor.submit(task);
         }
 
         try
@@ -288,7 +292,13 @@ public class StreamingMultiplexedChannel
 
         private final InetAddressAndPort connectTo;
 
-        FileStreamTask(OutgoingStreamMessage ofm, InetAddressAndPort connectTo)
+        private FileStreamTask(OutgoingStreamMessage ofm, InetAddressAndPort connectTo)
+        {
+            this.msg = ofm;
+            this.connectTo = connectTo;
+        }
+
+        FileStreamTask(OutgoingMutationLogStreamMessage ofm, InetAddressAndPort connectTo)
         {
             this.msg = ofm;
             this.connectTo = connectTo;

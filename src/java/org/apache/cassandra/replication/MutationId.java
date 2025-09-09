@@ -113,7 +113,7 @@ public class MutationId extends ShortMutationId
      */
     public static final Comparator<MutationId> comparator = ShortMutationId.comparator::compare;
 
-    public static final IVersionedSerializer<MutationId> serializer = new IVersionedSerializer<>()
+    public static class Serializer implements IVersionedSerializer<MutationId>
     {
         @Override
         public void serialize(MutationId id, DataOutputPlus out, int version) throws IOException
@@ -137,5 +137,13 @@ public class MutationId extends ShortMutationId
         {
             return TypeSizes.sizeof(id.logId()) + TypeSizes.sizeof(id.sequenceId());
         }
+
+        public void skip(DataInputPlus in, int version) throws IOException
+        {
+            in.readLong();
+            in.readLong();
+        }
     };
+
+    public static Serializer serializer = new Serializer();
 }

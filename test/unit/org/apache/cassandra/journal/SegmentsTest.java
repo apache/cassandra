@@ -111,6 +111,7 @@ public class SegmentsTest
         @Override boolean isFlushed(long position) { throw new UnsupportedOperationException(); }
         @Override public void persistMetadata() { throw new UnsupportedOperationException(); }
         @Override boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)  { throw new UnsupportedOperationException(); }
+        @Override public void readAll(RecordConsumer<K> consumer) { throw new UnsupportedOperationException(); }
         @Override public ActiveSegment<K, V> asActive() { throw new UnsupportedOperationException(); }
         @Override public StaticSegment<K, V> asStatic() { throw new UnsupportedOperationException(); }
         @Override public Ref<Segment<K, V>> selfRef() { throw new UnsupportedOperationException(); }

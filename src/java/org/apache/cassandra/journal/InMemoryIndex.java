@@ -155,6 +155,26 @@ public final class InMemoryIndex<K> extends Index<K>
         return index;
     }
 
+    public interface EntryConsumer<K>
+    {
+        void accept(K key, int offset, int size);
+    }
+
+    /**
+     * Iterate through all key-offset pairs in the index.
+     * For each key, iterates through all its offsets and calls the consumer
+     * with the key and individual offset/size values.
+     */
+    public void forEach(EntryConsumer<K> consumer)
+    {
+        index.forEach((key, offsetsAndSizes) -> {
+            for (long offsetAndSize : offsetsAndSizes)
+            {
+                consumer.accept(key, Index.readOffset(offsetAndSize), Index.readSize(offsetAndSize));
+            }
+        });
+    }
+
     @Override
     public void close()
     {

@@ -81,6 +81,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -788,16 +789,11 @@ public class PartitionUpdate extends AbstractBTreePartition
             }
         }
 
-        public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        private TableMetadata getTableMetadata(TableId tableId, Epoch remoteVersion) throws IOException
         {
-            TableId tableId = TableId.deserialize(in);
-            Epoch remoteVersion = null;
-            if (version >= MessagingService.VERSION_51)
-                remoteVersion = Epoch.serializer.deserialize(in);
-            TableMetadata tableMetadata;
             try
             {
-                tableMetadata = Schema.instance.getExistingTableMetadata(tableId);
+                return Schema.instance.getExistingTableMetadata(tableId);
             }
             catch (UnknownTableException e)
             {
@@ -810,8 +806,32 @@ public class PartitionUpdate extends AbstractBTreePartition
                 }
                 throw e;
             }
+        }
+
+        public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            TableId tableId = TableId.deserialize(in);
+            Epoch remoteVersion = null;
+            if (version >= MessagingService.VERSION_51)
+                remoteVersion = Epoch.serializer.deserialize(in);
+            TableMetadata tableMetadata = getTableMetadata(tableId, remoteVersion);
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
             return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
+        /**
+         * Partially deserializes a serialized partition update to get the key and table metadata. This does not skip the remainder of
+         * the mutation, hence the in argument being DataInputBuffer not DataInputPlus
+         */
+        public Pair<DecoratedKey, TableMetadata> deserializeMetadataAndKey(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            TableId tableId = TableId.deserialize(in);
+            Epoch remoteVersion = null;
+            if (version >= MessagingService.VERSION_51)
+                remoteVersion = Epoch.serializer.deserialize(in);
+            TableMetadata tableMetadata = getTableMetadata(tableId, remoteVersion);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
+            return Pair.create(header.key, tableMetadata);
         }
 
         public PartitionUpdate deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException

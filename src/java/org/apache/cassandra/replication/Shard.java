@@ -58,7 +58,6 @@ public class Shard
     final String keyspace;
     final Range<Token> range;
     final Participants participants;
-
     private final LongSupplier logIdProvider;
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
@@ -94,6 +93,63 @@ public class Shard
         this(localNodeId, keyspace, range, participants, Collections.emptyList(), logIdProvider, onNewLog);
     }
 
+    Shard(int localNodeId,
+          String keyspace,
+          Range<Token> range,
+          Participants participants,
+          NonBlockingHashMapLong<CoordinatorLog> logs,
+          CoordinatorLog.CoordinatorLogPrimary currentLocalLog,
+          LongSupplier logIdProvider,
+          BiConsumer<Shard, CoordinatorLog> onNewLog)
+    {
+        this.localNodeId = localNodeId;
+        this.keyspace = keyspace;
+        this.range = range;
+        this.participants = participants;
+        this.logIdProvider = logIdProvider;
+        this.logs = logs;
+        this.onNewLog = onNewLog;
+        this.currentLocalLog = currentLocalLog;
+    }
+
+    /**
+     * For rebuilding the MTS log->shard index after a topology change
+     */
+    void reportAllLogsToCallback()
+    {
+        logs.values().forEach(log -> {
+            onNewLog.accept(this, log);
+        });
+    }
+
+    Shard withParticipants(Participants newParticipants)
+    {
+        if (participants.equals(newParticipants))
+            return this;
+
+        if (logger.isTraceEnabled())
+            logger.trace("Reconfiguring shard {} participants: {} -> {}",
+                        range, participants, newParticipants);
+
+        NonBlockingHashMapLong<CoordinatorLog> newLogs = new NonBlockingHashMapLong<>();
+        CoordinatorLog.CoordinatorLogPrimary newCurrentLocalLog = null;
+
+        // FIXME: confirm all new logs are added to the relevant views
+        for (CoordinatorLog log : logs.values())
+        {
+            CoordinatorLog newLog = log.withParticipants(newParticipants);
+            newLogs.put(newLog.logId.asLong(), newLog);
+            
+            if (log == currentLocalLog)
+                newCurrentLocalLog = (CoordinatorLog.CoordinatorLogPrimary) newLog;
+        }
+
+        Shard shard = new Shard(localNodeId, keyspace, range, newParticipants,
+                                newLogs, newCurrentLocalLog, logIdProvider, onNewLog);
+        newLogs.values().forEach(log -> onNewLog.accept(shard, log));
+        return shard;
+    }
+
     MutationId nextId()
     {
         MutationId nextId = currentLocalLog.nextId();
@@ -125,6 +181,17 @@ public class Shard
         int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
         for (Offsets logOffsets : offsets)
             getOrCreate(logOffsets.logId()).updateReplicatedOffsets(logOffsets, durable, onHostId);
+    }
+
+    public void recordFullyReconciledOffsets(CoordinatorLogId logId, Offsets.Immutable reconciled)
+    {
+        CoordinatorLog log = logs.get(logId.asLong());
+
+        // Create the coordinator log if it doesn't exist
+        if (log == null)
+            log = getOrCreate(logId);
+
+        log.recordFullyReconciledOffsets(reconciled);
     }
 
     boolean startWriting(Mutation mutation)
@@ -172,7 +239,18 @@ public class Shard
         {
             int hostId = participants.get(i);
             if (hostId != localNodeId)
-                replicas.add(ClusterMetadata.current().directory.endpoint(new NodeId(hostId)));
+            {
+                InetAddressAndPort ep = ClusterMetadata.current().directory.endpoint(new NodeId(hostId));
+                if (ep == null)
+                {
+                    // offset broadcasting can race with topology changes
+                    // TODO (expected): consider adding a more sophisticated check so we don't die during normal topology operations, but still detect bugs
+                    logger.warn("No endpoint found for hostId {}", hostId);
+                    continue;
+                }
+
+                replicas.add(ep);
+            }
         }
         return replicas;
     }
@@ -281,5 +359,15 @@ public class Shard
             shards.add(new Shard(localNodeId, keyspace, range, new Participants(participants), logs, logIdProvider, onNewLog));
         }
         return shards;
+    }
+
+    public Range<Token> tokenRange()
+    {
+        return range;
+    }
+
+    void collectShardReconciledOffsetsToBuilder(ReconciledKeyspaceOffsets.Builder keyspaceBuilder)
+    {
+        logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
     }
 }

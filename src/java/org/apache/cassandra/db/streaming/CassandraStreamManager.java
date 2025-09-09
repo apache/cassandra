@@ -21,8 +21,10 @@ package org.apache.cassandra.db.streaming;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
@@ -42,6 +44,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.Offsets;
+import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -86,8 +91,34 @@ public class CassandraStreamManager implements TableStreamManager
         return new CassandraStreamReceiver(cfs, session, ranges, totalStreams);
     }
 
+    public Predicate<SSTableReader> getSSTablePredicateForKeyspaceRanges(ReconciledKeyspaceOffsets reconciledKeyspaceOffsets)
+    {
+        if (reconciledKeyspaceOffsets == null)
+            return sstable -> true;
+
+        return sstable -> {
+            if (sstable.isRepaired())
+                return false;
+
+            ImmutableCoordinatorLogOffsets sstableOffsets = sstable.getSSTableMetadata().coordinatorLogOffsets;
+
+            // if it's not repaired and there are no offsets, it was probably written before the table was using
+            // mutation tracking and therefore should be considered unreconciled
+            if (sstableOffsets.isEmpty())
+                return true;
+
+            for (Map.Entry<Long, Offsets.Immutable> entry : sstableOffsets.entries())
+            {
+                if (!reconciledKeyspaceOffsets.isFullyReconciled(entry.getKey(), entry.getValue()))
+                    return true;
+            }
+
+            return false;
+        };
+    }
+
     @Override
-    public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, TimeUUID pendingRepair, PreviewKind previewKind)
+    public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, TimeUUID pendingRepair, PreviewKind previewKind, ReconciledKeyspaceOffsets reconciledKeyspaceOffsets)
     {
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -99,7 +130,14 @@ public class CassandraStreamManager implements TableStreamManager
                 Set<SSTableReader> sstables = Sets.newHashSet();
                 SSTableIntervalTree intervalTree = buildSSTableIntervalTree(ImmutableList.copyOf(view.select(SSTableSet.CANONICAL)));
                 Predicate<SSTableReader> predicate;
-                if (previewKind.isPreview())
+                if (reconciledKeyspaceOffsets != null)
+                {
+                    // TODO: relax these restrictions as repair support is add
+                    Preconditions.checkArgument(previewKind == PreviewKind.NONE);
+                    Preconditions.checkArgument(pendingRepair == ActiveRepairService.NO_PENDING_REPAIR);
+                    predicate = getSSTablePredicateForKeyspaceRanges(reconciledKeyspaceOffsets);
+                }
+                else if (previewKind.isPreview())
                 {
                     predicate = previewKind.predicate();
                 }

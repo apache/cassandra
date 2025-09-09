@@ -135,8 +135,16 @@ public class UnreconciledMutations
     public void remove(int offset)
     {
         Entry state = statesMap.remove(offset);
-        Preconditions.checkNotNull(state);
-        statesSet.remove(state);
+        if (state != null)
+            statesSet.remove(state);
+    }
+
+    public UnreconciledMutations copy()
+    {
+        UnreconciledMutations copy = new UnreconciledMutations();
+        copy.statesMap.putAll(statesMap);
+        copy.statesSet.addAll(statesSet);
+        return copy;
     }
 
     public boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
@@ -212,6 +220,12 @@ public class UnreconciledMutations
         entry.visibility = Visibility.VISIBLE;
         statesMap.put(entry.offset, entry);
         statesSet.add(entry);
+    }
+
+    @VisibleForTesting
+    boolean isEmpty()
+    {
+        return statesMap.isEmpty();
     }
 
     static UnreconciledMutations loadFromJournal(Node2OffsetsMap witnessedOffsets, int localNodeId)

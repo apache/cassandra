@@ -164,6 +164,23 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         return true;
     }
 
+    @Override
+    public void readAll(RecordConsumer<K> consumer)
+    {
+        // Ensure all in-progress writes are completed and flushed to the buffer
+        updateWrittenTo();
+
+        // Use the forEach method to iterate through all key-offset pairs
+        index.forEach((key, offset, size) -> {
+            // Read the record at this offset
+            EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+            if (read(offset, size, holder))
+            {
+                consumer.accept(descriptor.timestamp, offset, key, holder.value, descriptor.userVersion);
+            }
+        });
+    }
+
     /**
      * Stop writing to this file, flush and close it. Does nothing if the file is already closed.
      */

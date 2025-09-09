@@ -59,7 +59,16 @@ public class BroadcastLogOffsets
     @Override
     public String toString()
     {
-        return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + replicatedOffsets + ", " + durable + '}';
+        StringBuilder sb = new StringBuilder('[');
+        boolean isFirst = true;
+        for (Offsets.Immutable logOffsets : replicatedOffsets)
+        {
+            if (!isFirst) sb.append(", ");
+            sb.append('(').append(logOffsets.logId()).append(" -> ").append(logOffsets).append(')');
+            isFirst = false;
+        }
+        sb.append(']');
+        return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + sb + ", " + durable + '}';
     }
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {

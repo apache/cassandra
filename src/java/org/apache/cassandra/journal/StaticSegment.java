@@ -310,6 +310,18 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
     }
 
+    @Override
+    public void readAll(RecordConsumer<K> consumer)
+    {
+        try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit))
+        {
+            while (reader.advance())
+            {
+                consumer.accept(descriptor.timestamp, reader.offset(), reader.key(), reader.record(), descriptor.userVersion);
+            }
+        }
+    }
+
     /*
      * Sequential and in-key order reading (replay and components rebuild)
      */

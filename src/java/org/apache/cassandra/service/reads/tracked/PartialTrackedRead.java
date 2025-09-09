@@ -98,7 +98,7 @@ public interface PartialTrackedRead
     default void augment(ShortMutationId mutationId)
     {
         Mutation mutation = MutationJournal.instance.read(mutationId);
-        Preconditions.checkNotNull(mutation);
+        Preconditions.checkNotNull(mutation, "Missing mutation %s", mutationId);
         if (!command().selectsKey(mutation.key()))
         {
             logger.trace("Skipping mutation {} - {} not in read range", mutationId, mutation.key());

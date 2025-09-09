@@ -33,6 +33,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.*;
 import java.util.zip.CRC32;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -172,6 +173,36 @@ public class Journal<K, V> implements Shutdownable
         public void run()
         {
             onFlush.run();
+        }
+    }
+
+    public static class Snapshot<K, V> implements AutoCloseable
+    {
+        private final Segments.ReferencedSegments<K, V> segments;
+
+        private Snapshot(@Nonnull ReferencedSegments<K, V> segments)
+        {
+            this.segments = segments;
+        }
+
+        /**
+         * Read all records from all segments in the journal.
+         * This method provides an atomic snapshot of all segments and iterates through each one.
+         *
+         * @param consumer function to consume each record found
+         */
+        public void readAll(RecordConsumer<K> consumer)
+        {
+            for (Segment<K, V> segment : segments.allSorted(false))
+            {
+                segment.readAll(consumer);
+            }
+        }
+
+        @Override
+        public void close()
+        {
+            segments.close();
         }
     }
 
@@ -381,6 +412,28 @@ public class Journal<K, V> implements Shutdownable
     }
 
     /**
+     * Read all records from all segments in the journal.
+     * This method provides an atomic snapshot of all segments and iterates through each one.
+     *
+     * @param consumer function to consume each record found
+     */
+    public void readAll(RecordConsumer<K> consumer)
+    {
+        try (OpOrder.Group group = readOrder.start())
+        {
+            for (Segment<K, V> segment : segments.get().allSorted(false))
+            {
+                segment.readAll(consumer);
+            }
+        }
+    }
+
+    public Snapshot<K, V> snapshot(Predicate<Segment<K, V>> predicate)
+    {
+        return new Snapshot<>(selectAndReference(predicate));
+    }
+
+    /**
      * Looks up a record by the provided id, if the value satisfies the provided condition.
      * <p/>
      * Looking up an invalidated record may or may not return a record, depending on
@@ -575,6 +628,12 @@ public class Journal<K, V> implements Shutdownable
         return alloc;
     }
 
+    @VisibleForTesting
+    public void advanceSegment()
+    {
+        advanceSegment(currentSegment);
+    }
+
     /*
      * Segment allocation logic.
      */
@@ -751,7 +810,7 @@ public class Journal<K, V> implements Shutdownable
     }
 
     @SuppressWarnings("unused")
-    ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K,V>> selector)
+    public ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K,V>> selector)
     {
         while (true)
         {
