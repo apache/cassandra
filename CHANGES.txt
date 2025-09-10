@@ -9,6 +9,7 @@
  * IntrusiveStack.accumulate is not accumulating correctly (CASSANDRA-20670)
  * Add nodetool get/setguardrailsconfig commands (CASSANDRA-19552)
 Merged from 4.0:
+ * Prevent too long table names not fitting file names (CASSANDRA-20389)
  * Fix IndexOutOfBoundsException in sstablemetadata tool when a range tombstone is a max clustering value (CASSANDRA-20855)
  * Update Jackson to 2.19.2 (CASSANDRA-20848)
  * Update commons-lang3 to 3.18.0 (CASSANDRA-20849)
@@ -7841,5 +7842,3 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-
-

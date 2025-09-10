@@ -102,6 +102,7 @@ public class Directories
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String TMP_SUBDIR = "tmp";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
+    public static final String TABLE_DIRECTORY_NAME_SEPARATOR = "-";
 
     /**
      * The directories used to store keyspaces data.
@@ -209,14 +210,11 @@ public class Directories
         this.metadata = metadata;
         this.paths = paths;
         ImmutableMap.Builder<Path, DataDirectory> canonicalPathsBuilder = ImmutableMap.builder();
-        String tableId = metadata.id.toHexString();
-        int idx = metadata.name.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
-        String cfName = idx >= 0 ? metadata.name.substring(0, idx) : metadata.name;
-        String indexNameWithDot = idx >= 0 ? metadata.name.substring(idx) : null;
+        String indexNameWithDot = metadata.getIndexNameWithDot();
 
         this.dataPaths = new File[paths.length];
         // If upgraded from version less than 2.1, use existing directories
-        String oldSSTableRelativePath = join(metadata.keyspace, cfName);
+        String oldSSTableRelativePath = join(metadata.keyspace, metadata.getTableName());
         for (int i = 0; i < paths.length; ++i)
         {
             // check if old SSTable directory exists
@@ -229,7 +227,7 @@ public class Directories
         {
             canonicalPathsBuilder = ImmutableMap.builder();
             // use 2.1+ style
-            String newSSTableRelativePath = join(metadata.keyspace, cfName + '-' + tableId);
+            String newSSTableRelativePath = join(metadata.keyspace, metadata.getTableDirectoryName());
             for (int i = 0; i < paths.length; ++i)
             {
                 File dataPath = new File(paths[i].location, newSSTableRelativePath);
