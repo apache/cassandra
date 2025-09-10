@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -52,8 +54,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.apache.cassandra.schema.SchemaConstants.NAME_LENGTH;
+import static org.apache.cassandra.utils.AssertionUtils.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -131,13 +136,21 @@ public class SchemaChangesTest
     @Test
     public void testInvalidNames()
     {
-        String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
+        String[] valid = { "1", "a", "_1", "b_", "__", "1_a" };
         for (String s : valid)
-            assertTrue(SchemaConstants.isValidName(s));
-
-        String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
+        {
+            assertTrue(SchemaConstants.isValidCharsName(s));
+            KeyspaceMetadata.validateKeyspaceName(s, InvalidRequestException::new);
+        }
+        String[] invalid = { "b@t", "dash-y", "", " ", "dot.s", ".hidden" };
         for (String s : invalid)
-            assertFalse(SchemaConstants.isValidName(s));
+        {
+            assertFalse(SchemaConstants.isValidCharsName(s));
+            assertThatThrownBy(() -> KeyspaceMetadata.validateKeyspaceName(s, InvalidRequestException::new)).isInstanceOf(InvalidRequestException.class);
+        }
+
+        KeyspaceMetadata.validateKeyspaceName("k".repeat(NAME_LENGTH), InvalidRequestException::new);
+        assertThatThrownBy(() -> KeyspaceMetadata.validateKeyspaceName("k".repeat(NAME_LENGTH + 1), InvalidRequestException::new)).isInstanceOf(InvalidRequestException.class);
     }
 
     @Test
@@ -341,7 +354,7 @@ public class SchemaChangesTest
 
         KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
-        assertFalse(newFetchedKs.params.replication.klass.equals(oldKs.params.replication.klass));
+        assertNotEquals(newFetchedKs.params.replication.klass, oldKs.params.replication.klass);
     }
 
     /*
@@ -478,40 +491,44 @@ public class SchemaChangesTest
     }
 
     @Test
-    public void testValidateNullKeyspace()
+    public void testTableMetadataBuilderWithInvalidKeyspace()
     {
-        TableMetadata.Builder builder = TableMetadata.builder(null, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
-        try
+        String[][] keyspaces =
         {
+        { null, "Keyspace name must not be empty" },
+        { "a@b", "Keyspace name must not be empty and must contain alphanumeric or underscore characters only" },
+        { "k".repeat(NAME_LENGTH), String.format("Keyspace name must not be more than %d characters long", NAME_LENGTH) }
+        };
+        for (String[] keyspace : keyspaces)
+        {
+            TableMetadata.Builder builder = TableMetadata.builder(keyspace[0], TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+            thrown.expect(ConfigurationException.class);
+            thrown.expectMessage(String.format("%s.%s: %s", keyspace[0], TABLE1, keyspace[1]));
             builder.build();
-        }
-        catch (ConfigurationException e)
-        {
-            assertTrue(e.getMessage().contains(null + "." + TABLE1 + ": Keyspace name must not be empty"));
         }
     }
 
     @Test
-    public void testValidateCompatibilityIDMismatch() throws Exception
+    public void testValidateCompatibilityIDMismatch()
     {
         TableMetadata.Builder builder = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
 
         TableMetadata table1 = builder.build();
         TableMetadata table2 = table1.unbuild().id(TableId.generate()).build();
         thrown.expect(ConfigurationException.class);
-        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table ID mismatch");
+        thrown.expectMessage(KEYSPACE1 + '.' + TABLE1 + ": Table ID mismatch");
         table1.validateCompatibility(table2);
     }
 
     @Test
-    public void testValidateCompatibilityNameMismatch() throws Exception
+    public void testValidateCompatibilityNameMismatch()
     {
         TableMetadata.Builder builder1 = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
         TableMetadata.Builder builder2 = TableMetadata.builder(KEYSPACE1, TABLE2).addPartitionKeyColumn("partitionKey", BytesType.instance);
         TableMetadata table1 = builder1.build();
         TableMetadata table2 = builder2.build();
         thrown.expect(ConfigurationException.class);
-        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table mismatch");
+        thrown.expectMessage(KEYSPACE1 + '.' + TABLE1 + ": Table mismatch");
         table1.validateCompatibility(table2);
     }
 
