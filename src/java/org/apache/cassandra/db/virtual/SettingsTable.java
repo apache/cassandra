@@ -51,6 +51,7 @@ final class SettingsTable extends AbstractVirtualTable
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
 
     private final Config config;
+    private final boolean useJsonFormat;
 
     SettingsTable(String keyspace)
     {
@@ -67,6 +68,7 @@ final class SettingsTable extends AbstractVirtualTable
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
         this.config = config;
+        this.useJsonFormat = CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON.getBoolean();
     }
 
     @Override
@@ -127,7 +129,7 @@ final class SettingsTable extends AbstractVirtualTable
 
     private String tryConstructJson(Object o)
     {
-        if (CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON.getBoolean())
+        if (useJsonFormat)
         {
             try
             {
