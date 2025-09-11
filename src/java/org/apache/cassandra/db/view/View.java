@@ -149,7 +149,23 @@ public class View
     public boolean matchesViewFilter(DecoratedKey partitionKey, Row baseRow, int nowInSec)
     {
         return getReadQuery().selectsClustering(partitionKey, baseRow.clustering())
+               && primaryKeyColumnsNonNull(baseRow, nowInSec)
             && getSelectStatement().rowFilterForInternalCalls().isSatisfiedBy(baseCfs.metadata(), partitionKey, baseRow, nowInSec);
+    }
+
+    /**
+     * Whether a given base table row contains all non-null primary key columns of a view, if the view has same primary
+     * key columns as base table, this function will return true because primary keys of base table row cannot be null
+     * @param baseRow The base table row
+     * @return if the base row contains all view primary key columns with non-null value
+     */
+    private boolean primaryKeyColumnsNonNull(Row baseRow, int nowInSec)
+    {
+        if (hasSamePrimaryKeyColumnsAsBaseTable())
+            return true;
+        ColumnMetadata baseColumn = baseNonPKColumnsInViewPK.get(0);
+        Cell<?> data = baseRow.getCell(baseColumn);
+        return ViewUtils.isLive(data, nowInSec);
     }
 
     /**

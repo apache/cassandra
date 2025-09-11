@@ -18,16 +18,28 @@
 
 package org.apache.cassandra.db.view;
 
+import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.TableMetadata;
 
 public final class ViewUtils
 {
@@ -101,5 +113,170 @@ public final class ViewUtils
             return Optional.empty();
 
         return Optional.of(viewReplicas.get(baseIdx));
+    }
+
+    /**
+     * Computes the liveness info for a materialized view entry based on the base table row.
+     * 
+     * @param view the materialized view
+     * @param baseRow the base table row
+     * @param nowInSec current time in seconds
+     * @return the computed liveness info for the view entry
+     */
+    public static LivenessInfo computeLivenessInfoForEntry(View view, Row baseRow, int nowInSec)
+    {
+        /**
+         * There 3 cases:
+         *  1. No extra primary key in view and all base columns are selected in MV. all base row's components(livenessInfo,
+         *     deletion, cells) are same as view row. Simply map base components to view row.
+         *  2. There is a base non-key column used in view pk. This base non-key column determines the liveness of view row. view's row level
+         *     info should based on this column.
+         *  3. Most tricky case is no extra primary key in view and some base columns are not selected in MV. We cannot use 1 livenessInfo or
+         *     row deletion to represent the liveness of unselected column properly, see CASSANDRA-11500.
+         *     We could make some simplification: the unselected columns will be used only when it affects view row liveness. eg. if view row
+         *     already exists and not expiring, there is no need to use unselected columns.
+         *     Note: if the view row is removed due to unselected column removal(ttl or cell tombstone), we will have problem keeping view
+         *     row alive with a smaller or equal timestamp than the max unselected column timestamp.
+         *
+         */
+        assert view.baseNonPKColumnsInViewPK.size() <= 1; // This may change, but is currently an enforced limitation
+
+        LivenessInfo baseLiveness = baseRow.primaryKeyLivenessInfo();
+
+        if (view.baseNonPKColumnsInViewPK.isEmpty())
+        {
+            if (view.getDefinition().includeAllColumns)
+                return baseLiveness;
+
+            long timestamp = baseLiveness.timestamp();
+            boolean hasNonExpiringLiveCell = false;
+            Cell<?> biggestExpirationCell = null;
+            for (Cell<?> cell : baseRow.cells())
+            {
+                if (view.getViewColumn(cell.column()) != null)
+                    continue;
+                if (!isLive(cell, nowInSec))
+                    continue;
+                timestamp = Math.max(timestamp, cell.maxTimestamp());
+                if (!cell.isExpiring())
+                    hasNonExpiringLiveCell = true;
+                else
+                {
+                    if (biggestExpirationCell == null)
+                        biggestExpirationCell = cell;
+                    else if (cell.localDeletionTime() > biggestExpirationCell.localDeletionTime())
+                        biggestExpirationCell = cell;
+                }
+            }
+            if (baseLiveness.isLive(nowInSec) && !baseLiveness.isExpiring())
+                return LivenessInfo.create(timestamp, nowInSec);
+            if (hasNonExpiringLiveCell)
+                return LivenessInfo.create(timestamp, nowInSec);
+            if (biggestExpirationCell == null)
+                return baseLiveness;
+            if (biggestExpirationCell.localDeletionTime() > baseLiveness.localExpirationTime()
+                    || !baseLiveness.isLive(nowInSec))
+                return LivenessInfo.withExpirationTime(timestamp,
+                                                       biggestExpirationCell.ttl(),
+                                                       biggestExpirationCell.localDeletionTime());
+            return baseLiveness;
+        }
+
+        Cell<?> cell = baseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
+        assert isLive(cell, nowInSec) : "We shouldn't have got there if the base row had no associated entry";
+
+        return LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime());
+    }
+
+    /**
+     * Checks if a cell is live at the given time.
+     * 
+     * @param cell the cell to check
+     * @param nowInSec current time in seconds
+     * @return true if the cell is live
+     */
+    public static boolean isLive(Cell<?> cell, int nowInSec)
+    {
+        return cell != null && cell.isLive(nowInSec);
+    }
+
+    /**
+     * Gets the value for a primary key column from a base table row.
+     * 
+     * @param column the column metadata for the primary key column
+     * @param row the base table row
+     * @param basePartitionKey the base partition key components
+     * @return the value for the column, or null if the column value is null
+     */
+    public static ByteBuffer getValueForPK(ColumnMetadata column, Row row, ByteBuffer[] basePartitionKey)
+    {
+        switch (column.kind)
+        {
+            case PARTITION_KEY:
+                return basePartitionKey[column.position()];
+            case CLUSTERING:
+                return row.clustering().bufferAt(column.position());
+            default:
+                Cell<?> cell = row.getCell(column);
+                return cell == null ? null : cell.buffer();
+        }
+    }
+
+    /**
+     * Extracts the key components from a decorated key.
+     * 
+     * @param partitionKey the decorated partition key
+     * @param type the partition key type
+     * @return array of key components
+     */
+    public static ByteBuffer[] extractKeyComponents(DecoratedKey partitionKey, AbstractType<?> type)
+    {
+        return type instanceof CompositeType
+             ? ((CompositeType)type).split(partitionKey.getKey())
+             : new ByteBuffer[]{ partitionKey.getKey() };
+    }
+
+    /**
+     * Adds column data from a base table to a view row builder.
+     * 
+     * @param viewRowBuilder the view row builder
+     * @param viewColumn the view column metadata
+     * @param baseTableData the base table column data
+     */
+    public static void addColumnDataToBuilder(Row.Builder viewRowBuilder, ColumnMetadata viewColumn, ColumnData baseTableData)
+    {
+        assert viewColumn.isComplex() == baseTableData.column().isComplex();
+        if (!viewColumn.isComplex())
+        {
+            addCellToBuilder(viewRowBuilder, viewColumn, (Cell<?>)baseTableData);
+            return;
+        }
+
+        ComplexColumnData complexData = (ComplexColumnData)baseTableData;
+        viewRowBuilder.addComplexDeletion(viewColumn, complexData.complexDeletion());
+        for (Cell<?> cell : complexData)
+            addCellToBuilder(viewRowBuilder, viewColumn, cell);
+    }
+
+    /**
+     * Adds a cell from a base table to a view row builder.
+     * 
+     * @param viewRowBuilder the view row builder
+     * @param viewColumn the view column metadata
+     * @param baseTableCell the base table cell
+     */
+    public static void addCellToBuilder(Row.Builder viewRowBuilder, ColumnMetadata viewColumn, Cell<?> baseTableCell)
+    {
+        assert !viewColumn.isPrimaryKeyColumn();
+        viewRowBuilder.addCell(baseTableCell.withUpdatedColumn(viewColumn));
+    }
+
+    public static DecoratedKey makeViewPartitionKey(TableMetadata viewMetadata, ByteBuffer[] currentViewEntryPartitionKey)
+    {
+        ByteBuffer rawKey = viewMetadata.partitionKeyColumns().size() == 1
+                            ? currentViewEntryPartitionKey[0]
+                            : CompositeType.build(ByteBufferAccessor.instance, currentViewEntryPartitionKey);
+
+        return viewMetadata.partitioner.decorateKey(rawKey);
     }
 }

@@ -24,15 +24,12 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 
 /**
  * Creates the updates to apply to a view given the existing rows in the base
@@ -92,7 +89,7 @@ public class ViewUpdateGenerator
         this.baseMetadata = view.getDefinition().baseTableMetadata();
         this.baseEnforceStrictLiveness = baseMetadata.enforceStrictLiveness();
         this.baseDecoratedKey = basePartitionKey;
-        this.basePartitionKey = extractKeyComponents(basePartitionKey, baseMetadata.partitionKeyType);
+        this.basePartitionKey = ViewUtils.extractKeyComponents(basePartitionKey, baseMetadata.partitionKeyType);
 
         this.viewMetadata = Schema.instance.getTableMetadata(view.getDefinition().metadata.id);
 
@@ -100,12 +97,6 @@ public class ViewUpdateGenerator
         this.currentViewEntryBuilder = BTreeRow.sortedBuilder();
     }
 
-    private static ByteBuffer[] extractKeyComponents(DecoratedKey partitionKey, AbstractType<?> type)
-    {
-        return type instanceof CompositeType
-             ? ((CompositeType)type).split(partitionKey.getKey())
-             : new ByteBuffer[]{ partitionKey.getKey() };
-    }
 
     /**
      * Adds to this generator the updates to be made to the view given a base table row
@@ -202,11 +193,11 @@ public class ViewUpdateGenerator
 
         // If the update didn't modified this column, the cells will be the same object so it's worth checking
         if (before == after)
-            return isLive(before) ? UpdateAction.UPDATE_EXISTING : UpdateAction.NONE;
+            return ViewUtils.isLive(before, nowInSec) ? UpdateAction.UPDATE_EXISTING : UpdateAction.NONE;
 
-        if (!isLive(before))
-            return isLive(after) ? UpdateAction.NEW_ENTRY : UpdateAction.NONE;
-        if (!isLive(after))
+        if (!ViewUtils.isLive(before, nowInSec))
+            return ViewUtils.isLive(after, nowInSec) ? UpdateAction.NEW_ENTRY : UpdateAction.NONE;
+        if (!ViewUtils.isLive(after, nowInSec))
         {
             return UpdateAction.DELETE_OLD;
         }
@@ -221,10 +212,6 @@ public class ViewUpdateGenerator
         return view.matchesViewFilter(baseDecoratedKey, baseRow, nowInSec);
     }
 
-    private boolean isLive(Cell<?> cell)
-    {
-        return cell != null && cell.isLive(nowInSec);
-    }
 
     /**
      * Creates a view entry corresponding to the provided base row.
@@ -238,7 +225,7 @@ public class ViewUpdateGenerator
             return;
 
         startNewUpdate(baseRow);
-        currentViewEntryBuilder.addPrimaryKeyLivenessInfo(computeLivenessInfoForEntry(baseRow));
+        currentViewEntryBuilder.addPrimaryKeyLivenessInfo(ViewUtils.computeLivenessInfoForEntry(view, baseRow, nowInSec));
         currentViewEntryBuilder.addRowDeletion(baseRow.deletion());
 
         for (ColumnData data : baseRow)
@@ -249,7 +236,7 @@ public class ViewUpdateGenerator
             if (viewColumn == null || viewColumn.isPrimaryKeyColumn())
                 continue;
 
-            addColumnData(viewColumn, data);
+            ViewUtils.addColumnDataToBuilder(currentViewEntryBuilder, viewColumn, data);
         }
 
         submitUpdate();
@@ -283,7 +270,7 @@ public class ViewUpdateGenerator
         // In theory, it may be the PK liveness and row deletion hasn't been change by the update
         // and we could condition the 2 additions below. In practice though, it's as fast (if not
         // faster) to compute those info than to check if they have changed so we keep it simple.
-        currentViewEntryBuilder.addPrimaryKeyLivenessInfo(computeLivenessInfoForEntry(mergedBaseRow));
+        currentViewEntryBuilder.addPrimaryKeyLivenessInfo(ViewUtils.computeLivenessInfoForEntry(view, mergedBaseRow, nowInSec));
         currentViewEntryBuilder.addRowDeletion(mergedBaseRow.deletion());
 
         addDifferentCells(existingBaseRow, mergedBaseRow);
@@ -330,7 +317,7 @@ public class ViewUpdateGenerator
 
             if (existingData == null)
             {
-                addColumnData(viewColumn, mergedData);
+                ViewUtils.addColumnDataToBuilder(currentViewEntryBuilder, viewColumn, mergedData);
                 continue;
             }
 
@@ -364,13 +351,13 @@ public class ViewUpdateGenerator
                     }
 
                     if (mergedCell != existingCell)
-                        addCell(viewColumn, mergedCell);
+                        ViewUtils.addCellToBuilder(currentViewEntryBuilder, viewColumn, mergedCell);
                 }
             }
             else
             {
                 // Note that we've already eliminated the case where merged == existing
-                addCell(viewColumn, (Cell<?>)mergedData);
+                ViewUtils.addCellToBuilder(currentViewEntryBuilder, viewColumn, (Cell<?>)mergedData);
             }
         }
     }
@@ -432,7 +419,7 @@ public class ViewUpdateGenerator
         for (ColumnMetadata viewColumn : viewMetadata.primaryKeyColumns())
         {
             ColumnMetadata baseColumn = view.getBaseColumn(viewColumn);
-            ByteBuffer value = getValueForPK(baseColumn, baseRow);
+            ByteBuffer value = ViewUtils.getValueForPK(baseColumn, baseRow, basePartitionKey);
             if (viewColumn.isPartitionKey())
                 currentViewEntryPartitionKey[viewColumn.position()] = value;
             else
@@ -442,70 +429,6 @@ public class ViewUpdateGenerator
         currentViewEntryBuilder.newRow(Clustering.make(clusteringValues));
     }
 
-    private LivenessInfo computeLivenessInfoForEntry(Row baseRow)
-    {
-        /**
-         * There 3 cases:
-         *  1. No extra primary key in view and all base columns are selected in MV. all base row's components(livenessInfo,
-         *     deletion, cells) are same as view row. Simply map base components to view row.
-         *  2. There is a base non-key column used in view pk. This base non-key column determines the liveness of view row. view's row level
-         *     info should based on this column.
-         *  3. Most tricky case is no extra primary key in view and some base columns are not selected in MV. We cannot use 1 livenessInfo or
-         *     row deletion to represent the liveness of unselected column properly, see CASSANDRA-11500.
-         *     We could make some simplification: the unselected columns will be used only when it affects view row liveness. eg. if view row
-         *     already exists and not expiring, there is no need to use unselected columns.
-         *     Note: if the view row is removed due to unselected column removal(ttl or cell tombstone), we will have problem keeping view
-         *     row alive with a smaller or equal timestamp than the max unselected column timestamp.
-         *
-         */
-        assert view.baseNonPKColumnsInViewPK.size() <= 1; // This may change, but is currently an enforced limitation
-
-        LivenessInfo baseLiveness = baseRow.primaryKeyLivenessInfo();
-
-        if (view.baseNonPKColumnsInViewPK.isEmpty())
-        {
-            if (view.getDefinition().includeAllColumns)
-                return baseLiveness;
-
-            long timestamp = baseLiveness.timestamp();
-            boolean hasNonExpiringLiveCell = false;
-            Cell<?> biggestExpirationCell = null;
-            for (Cell<?> cell : baseRow.cells())
-            {
-                if (view.getViewColumn(cell.column()) != null)
-                    continue;
-                if (!isLive(cell))
-                    continue;
-                timestamp = Math.max(timestamp, cell.maxTimestamp());
-                if (!cell.isExpiring())
-                    hasNonExpiringLiveCell = true;
-                else
-                {
-                    if (biggestExpirationCell == null)
-                        biggestExpirationCell = cell;
-                    else if (cell.localDeletionTime() > biggestExpirationCell.localDeletionTime())
-                        biggestExpirationCell = cell;
-                }
-            }
-            if (baseLiveness.isLive(nowInSec) && !baseLiveness.isExpiring())
-                return LivenessInfo.create(timestamp, nowInSec);
-            if (hasNonExpiringLiveCell)
-                return LivenessInfo.create(timestamp, nowInSec);
-            if (biggestExpirationCell == null)
-                return baseLiveness;
-            if (biggestExpirationCell.localDeletionTime() > baseLiveness.localExpirationTime()
-                    || !baseLiveness.isLive(nowInSec))
-                return LivenessInfo.withExpirationTime(timestamp,
-                                                       biggestExpirationCell.ttl(),
-                                                       biggestExpirationCell.localDeletionTime());
-            return baseLiveness;
-        }
-
-        Cell<?> cell = baseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
-        assert isLive(cell) : "We shouldn't have got there if the base row had no associated entry";
-
-        return LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime());
-    }
 
     private long computeTimestampForEntryDeletion(Row existingBaseRow, Row mergedBaseRow)
     {
@@ -528,30 +451,10 @@ public class ViewUpdateGenerator
         }
         // has base non-pk column in view pk
         Cell<?> before = existingBaseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
-        assert isLive(before) : "We shouldn't have got there if the base row had no associated entry";
+        assert ViewUtils.isLive(before, nowInSec) : "We shouldn't have got there if the base row had no associated entry";
         return deletion.deletes(before) ? deletion.markedForDeleteAt() : before.timestamp();
     }
 
-    private void addColumnData(ColumnMetadata viewColumn, ColumnData baseTableData)
-    {
-        assert viewColumn.isComplex() == baseTableData.column().isComplex();
-        if (!viewColumn.isComplex())
-        {
-            addCell(viewColumn, (Cell<?>)baseTableData);
-            return;
-        }
-
-        ComplexColumnData complexData = (ComplexColumnData)baseTableData;
-        currentViewEntryBuilder.addComplexDeletion(viewColumn, complexData.complexDeletion());
-        for (Cell<?> cell : complexData)
-            addCell(viewColumn, cell);
-    }
-
-    private void addCell(ColumnMetadata viewColumn, Cell<?> baseTableCell)
-    {
-        assert !viewColumn.isPrimaryKeyColumn();
-        currentViewEntryBuilder.addCell(baseTableCell.withUpdatedColumn(viewColumn));
-    }
 
     /**
      * Finish building the currently updated view entry and add it to the other built
@@ -565,7 +468,7 @@ public class ViewUpdateGenerator
         if (row.isEmpty())
             return;
 
-        DecoratedKey partitionKey = makeCurrentPartitionKey();
+        DecoratedKey partitionKey = ViewUtils.makeViewPartitionKey(viewMetadata, currentViewEntryPartitionKey);
         // We can't really know which columns of the view will be updated nor how many row will be updated for this key
         // so we rely on hopefully sane defaults.
         PartitionUpdate.Builder update = updates.computeIfAbsent(partitionKey,
@@ -576,26 +479,4 @@ public class ViewUpdateGenerator
         update.add(row);
     }
 
-    private DecoratedKey makeCurrentPartitionKey()
-    {
-        ByteBuffer rawKey = viewMetadata.partitionKeyColumns().size() == 1
-                          ? currentViewEntryPartitionKey[0]
-                          : CompositeType.build(ByteBufferAccessor.instance, currentViewEntryPartitionKey);
-
-        return viewMetadata.partitioner.decorateKey(rawKey);
-    }
-
-    private ByteBuffer getValueForPK(ColumnMetadata column, Row row)
-    {
-        switch (column.kind)
-        {
-            case PARTITION_KEY:
-                return basePartitionKey[column.position()];
-            case CLUSTERING:
-                return row.clustering().bufferAt(column.position());
-            default:
-                // This shouldn't NPE as we shouldn't get there if the value can be null (or there is a bug in updateAction())
-                return row.getCell(column).buffer();
-        }
-    }
 }
