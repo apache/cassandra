@@ -28,7 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -109,19 +108,5 @@ class LocalTransfers
     CoordinatedTransfer getActivatedTransfer(ShortMutationId activationId)
     {
         return checkNotNull(coordinatingActivated.get(activationId));
-    }
-
-    public void streamUnreconciledTransfers(InetAddressAndPort to)
-    {
-        for (CoordinatedTransfer transfer : coordinating.values())
-        {
-            CoordinatedTransfer.SingleTransferResult result = transfer.streams.get(to);
-            if (result == null || result.complete())
-                return;
-
-            // How to handle stream failing?
-            logger.debug("Found unreconciled stream to {}: {}", transfer, to);
-            transfer.stream(to).awaitUninterruptibly();
-        };
     }
 }

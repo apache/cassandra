@@ -240,8 +240,7 @@ public class SSTableImporter
 
             if (isTracked)
             {
-                // TODO: Support user-provided CL
-                TrackedBulkTransfer.execute(cfs.keyspace.getName(), newSSTables, ConsistencyLevel.QUORUM);
+                TrackedBulkTransfer.execute(cfs.keyspace.getName(), newSSTables);
             }
             else
                 cfs.getTracker().addSSTables(newSSTables);
@@ -263,13 +262,13 @@ public class SSTableImporter
     }
 
     /**
-     *
+     * TODO: Support user-defined consistency level for import, for import with replicas down
      */
     private static class TrackedBulkTransfer
     {
-        private static void execute(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
+        private static void execute(String keyspace, Set<SSTableReader> sstables)
         {
-            MutationTrackingService.instance.executeTransfers(keyspace, sstables, cl);
+            MutationTrackingService.instance.executeTransfers(keyspace, sstables, ConsistencyLevel.ALL);
         }
     }
 

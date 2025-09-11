@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.replication;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,7 +44,6 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -66,10 +64,11 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 /**
  * A transfer for a single replica set.
- *
- * REVIEW: Right now for simplicity, streaming from coordinator to itself instead of copying files. This has some
- * perks: (1) it allows us to import out-of-range SSTables using the same paths, and (2) it uses the
- * existing lifecycle management to handle crash-safety, so don't need to deal with atomic multi-file copy.
+ * <p>
+ * For simplicity, streaming from coordinator to itself instead of copying files. This has some perks:
+ * (1) it allows us to import out-of-range SSTables using the same paths, and
+ * (2) it uses the existing lifecycle management to handle crash-safety, so don't need to deal with atomic multi-file
+ * copy.
  */
 public class CoordinatedTransfer
 {
@@ -431,20 +430,5 @@ public class CoordinatedTransfer
                ", sstables=" + sstables +
                ", activationId=" + activationId +
                '}';
-    }
-
-    public static final VerbHandler verbHandler = new VerbHandler();
-
-    // move to LocalTransfers?
-    public static class VerbHandler implements IVerbHandler<NoPayload>
-    {
-        @Override
-        public void doVerb(Message<NoPayload> message) throws IOException
-        {
-            LocalTransfers.instance().executor.submit(() -> {
-                MutationTrackingService.instance.streamUnreconciledTransfers(message.from());
-                MessagingService.instance().respond(NoPayload.noPayload, message);
-            }).rethrowIfFailed();
-        }
     }
 }

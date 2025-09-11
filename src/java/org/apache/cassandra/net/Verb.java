@@ -75,7 +75,6 @@ import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.replication.BroadcastLogOffsets;
-import org.apache.cassandra.replication.CoordinatedTransfer;
 import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.replication.PullMutationsRequest;
 import org.apache.cassandra.replication.PushMutationRequest;
@@ -340,8 +339,6 @@ public enum Verb
 
     TRACKED_TRANSFER_ACTIVATE_RSP   (912,   P1, rpcTimeout,     REQUEST_RESPONSE,   () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance),
     TRACKED_TRANSFER_ACTIVATE_REQ   (913,   P1, rpcTimeout,     ANTI_ENTROPY,       () -> TransferActivation.serializer,    () -> TransferActivation.verbHandler, TRACKED_TRANSFER_ACTIVATE_RSP),
-    TRACKED_TRANSFER_STREAM_RSP     (914,   P1, repairTimeout,  REQUEST_RESPONSE,   () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance),
-    TRACKED_TRANSFER_STREAM_REQ     (915,   P1, repairTimeout,  REQUEST_RESPONSE,   () -> NoPayload.serializer,             () -> CoordinatedTransfer.verbHandler, TRACKED_TRANSFER_STREAM_RSP),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),

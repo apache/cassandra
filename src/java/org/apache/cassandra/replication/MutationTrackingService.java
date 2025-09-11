@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,7 +46,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
@@ -61,8 +59,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -73,7 +69,6 @@ import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Interval;
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -230,63 +225,6 @@ public class MutationTrackingService
 
         for (CoordinatedTransfer transfer : transfers)
             transfer.execute();
-    }
-
-    public void fetchUnreconciledTransfers()
-    {
-        logger.info("Fetching any unreconciled transfers...");
-        for (String keyspace : keyspaceShards.keySet())
-            fetchUnreconciledTransfers(Keyspace.open(keyspace).getMetadata());
-    }
-
-    private void fetchUnreconciledTransfers(KeyspaceMetadata keyspace)
-    {
-        ReplicaGroups groups = ClusterMetadata.current().placements.get(keyspace.params.replication).writes;
-        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
-        Message<NoPayload> msg = Message.out(Verb.TRACKED_TRANSFER_STREAM_REQ, NoPayload.noPayload);
-
-        Set<InetAddressAndPort> peers = new HashSet<>();
-
-        groups.forEach((range, forRange) -> {
-            if (!forRange.endpoints().contains(self))
-                return;
-            peers.addAll(forRange.endpoints());
-        });
-        peers.remove(self);
-
-        class OnResponse<V> extends AsyncFuture<Message<V>> implements RequestCallbackWithFailure<V>
-        {
-            @Override
-            public void onResponse(Message<V> msg)
-            {
-                logger.debug("Success {}", msg);
-                trySuccess(msg);
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailure failure)
-            {
-                logger.error("Failure {} from {}", from, failure);
-                trySuccess(null);
-            }
-        }
-
-        // TODO: Parallel?
-        for (InetAddressAndPort peer : peers)
-        {
-            // This is likely to time out, especially on initial startup
-            logger.debug("Fetching unreconciled mutations for {} from {}", keyspace.name, peer);
-            OnResponse<Void> response = new OnResponse<>();
-            MessagingService.instance().sendWithCallback(msg, peer, response);
-            response.awaitUninterruptibly();
-            logger.debug("Fetched unreconciled mutations for {} from {}", keyspace.name, peer);
-        }
-    }
-
-    void streamUnreconciledTransfers(InetAddressAndPort to)
-    {
-        logger.info("Streaming unreconciled mutations to {}", to);
-        LocalTransfers.instance().streamUnreconciledTransfers(to);
     }
 
     public void received(PendingLocalTransfer transfer)

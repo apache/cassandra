@@ -57,7 +57,9 @@ import org.assertj.core.api.Assertions;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
 /**
- * TODO: Document why import with a node down is not currently supported.
+ * For now, tracked import with a replica down is not supported. The intention is to support this scenario by allowing
+ * users to provide a {@link ConsistencyLevel} for tracked import operations, where the import will complete if
+ * sufficient replicas acknowledge the transfer and activate it.
  */
 public class BulkTransfersTest extends TestBaseImpl
 {
@@ -93,7 +95,7 @@ public class BulkTransfersTest extends TestBaseImpl
     }
 
     @Test
-    @Ignore("Import currently requires all replicas up, see docstring on BulkTransfersTest")
+    @Ignore
     public void importReplicaDown() throws Throwable
     {
         Hooks hooks = new Hooks() {

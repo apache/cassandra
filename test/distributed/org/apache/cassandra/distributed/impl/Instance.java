@@ -912,7 +912,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
-        MutationTrackingService.instance.fetchUnreconciledTransfers();
         PaxosState.startAutoRepairs();
         CassandraDaemon.getInstanceForTesting().completeSetup();
     }
