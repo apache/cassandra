@@ -237,8 +237,6 @@ public class MutationTrackingService
     {
         logger.debug("activateLocal {}", activation);
 
-        // TODO: if already activated, do not activate again
-
         PendingLocalTransfer pending = LocalTransfers.instance().getPendingTransfer(activation.planId);
         pending.activate(activation);
 
@@ -446,19 +444,6 @@ public class MutationTrackingService
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
             lookUp(key.getToken()).addSummaryForKey(key.getToken(), includePending, builder);
-
-            /* REVIEW
-            Like we do for data reads, summaries need to include the set of transfers they're aware of, in order to
-            guarantee monotonic reads. Read coordinators need to know whether to read-reconcile and activate a pending
-            transfer.
-
-            I was thinking of doing that by fetching the View (volatile read) and loading all the relevant SSTables'
-            transfer IDs would be one way to do that.
-
-            The alternative is to integrate SSTable import with CoordinatorLog, and ensure that we atomically update
-            the UnreconciledMutations and View, and avoid any tearing.
-            */
-
             return builder.build();
         }
 

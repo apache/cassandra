@@ -179,12 +179,6 @@ public class Tracker
             cur = view;
             if (!permit.apply(cur))
                 return null;
-
-            /*
-            When adding a new SSTable, need to ensure that the CoordinatorLogBoundaries in the added tables is reflected
-            in the read indexes (BulkShard).
-            */
-
             updated = function.apply(cur);
             view = updated;
         }

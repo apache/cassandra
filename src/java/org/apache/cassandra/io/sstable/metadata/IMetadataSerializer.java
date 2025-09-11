@@ -98,6 +98,7 @@ public interface IMetadataSerializer
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException;
 
     /**
+     * Replace mutation tracking metadata.
      */
     public void mutateCoordinatorLogOffsets(Descriptor descriptor, ImmutableCoordinatorLogOffsets logOffsets) throws IOException;
 

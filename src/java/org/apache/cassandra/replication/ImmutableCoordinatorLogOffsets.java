@@ -51,10 +51,6 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         return offsets;
     }
 
-    /* REVIEW:
-    Still thinking about the right way to have this relate to offsets / size, and whether it's required on the Mutable
-    variants of CoordinatorLogOffests.
-    */
     public Collection<? extends ShortMutationId> transfers()
     {
         return transfers;

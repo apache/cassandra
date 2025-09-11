@@ -95,6 +95,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.replication.CoordinatorLogOffsets;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -1383,6 +1384,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
+     * Mutate sstable level with a lock to avoid racing with entire-sstable-streaming and then reload sstable metadata
      */
     public void mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets logOffsets) throws IOException
     {

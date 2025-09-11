@@ -103,7 +103,6 @@ public class TransferActivation
             LocalTransfers.instance().executor.submit(() -> {
                 msg.payload.apply();
                 MessagingService.instance().respond(NoPayload.noPayload, msg);
-                // This could be running as part of a read, so need to mark it like an applied mutation
             }).rethrowIfFailed();
         }
     }
