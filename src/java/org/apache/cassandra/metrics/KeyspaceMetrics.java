@@ -110,6 +110,8 @@ public class KeyspaceMetrics
     public final Timer viewReadTime;
     /** time taken during the local read of a materialized view update */
     public final Timer viewExistingReadTime;
+    /** time taken to rebuild a View key */
+    public final Timer viewRebuildKeyTime;
     /** CAS Prepare metric */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -289,6 +291,7 @@ public class KeyspaceMetrics
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");
         viewReadTime = createKeyspaceTimer("ViewReadTime");
         viewExistingReadTime = createKeyspaceTimer("ViewExistingReadTime");
+        viewRebuildKeyTime = createKeyspaceTimer("ViewRebuildKeyTime");
 
         casPrepare = createLatencyMetrics("CasPrepare");
         casPropose = createLatencyMetrics("CasPropose");

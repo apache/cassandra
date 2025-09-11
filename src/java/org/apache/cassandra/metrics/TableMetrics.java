@@ -183,6 +183,8 @@ public class TableMetrics
     public final TableTimer viewReadTime;
     /** time taken during the local read of a materialized view update */
     public final TableTimer viewExistingReadTime;
+    /** time taken to rebuild a View key */
+    public final TableTimer viewRebuildKeyTime;
     /** Number of delete statements without specifying all primary key columns for MV base table */
     public final Counter viewBaseTableDeleteStatementWithoutFullPrimaryKey;
     /** Number of batch statements used for MV base table */
@@ -1043,12 +1045,15 @@ public class TableMetrics
             viewLockAcquireTime = null;
             viewReadTime = null;
             viewExistingReadTime = null;
+            // viewRebuildKeyTime can only be issue towards a view
+            viewRebuildKeyTime = createTableTimer("ViewRebuildKeyTime", cfs.keyspace.metric.viewRebuildKeyTime);
         }
         else
         {
             viewLockAcquireTime = createTableTimer("ViewLockAcquireTime", cfs.keyspace.metric.viewLockAcquireTime);
             viewReadTime = createTableTimer("ViewReadTime", cfs.keyspace.metric.viewReadTime);
             viewExistingReadTime = createTableTimer("ViewExistingReadTime", cfs.keyspace.metric.viewExistingReadTime);
+            viewRebuildKeyTime = null;
         }
 
         // MV base table metrics used by determine if a base table is qualified to convert to strict_mv_consistency mode

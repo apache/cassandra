@@ -35,9 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
-import org.apache.cassandra.metrics.StorageProxyMetrics;
-import org.apache.cassandra.config.Config.CLEnforcementLevel;
-import org.apache.cassandra.metrics.StorageProxyMetricsManager;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -528,6 +526,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         Guardrails.enforceWriteCL(queryState.getClientState(), keyspace(), options.getConsistency(),
                                   options.getSerialConsistency(), options::setConsistency);
 
+
+        // Only when we allow direct modification of views on MV repair, isView can be true
+        if (DatabaseDescriptor.getRebuildKeyOnMaterializedViewModificationEnabled() && isView())
+            return rebuildMVKey(queryState, options, requestTime);
+
         if (metadata.strictMVEnabled())
         {
             return executeWithStrictMVConsistency(queryState, options, requestTime);
@@ -536,6 +539,20 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)
              : executeWithoutCondition(queryState, options, requestTime);
+    }
+
+    private ResultMessage rebuildMVKey(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
+    throws InvalidRequestException
+    {
+        ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        if (viewCfs == null)
+            throw new InvalidRequestException("Cannot find column family store for " + metadata);
+
+        // record time spent
+        try (TableMetrics.TableTimer.Context c = viewCfs.metric.viewRebuildKeyTime.time())
+        {
+            throw new InvalidRequestException("rebuildMVKey to be implemented");
+        }
     }
 
     private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)

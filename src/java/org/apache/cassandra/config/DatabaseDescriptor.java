@@ -5313,6 +5313,16 @@ public class DatabaseDescriptor
         conf.direct_materialized_view_modification_enabled = enabled;
     }
 
+    public static boolean getRebuildKeyOnMaterializedViewModificationEnabled()
+    {
+        return conf.rebuild_key_on_materialized_view_modification_enabled;
+    }
+
+    public static void setRebuildKeyOnMaterializedViewModificationEnabled(boolean enabled)
+    {
+        conf.rebuild_key_on_materialized_view_modification_enabled = enabled;
+    }
+
 
     public static boolean getPersistPreparedStatementsEnabled()
     {

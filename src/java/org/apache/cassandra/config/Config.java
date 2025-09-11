@@ -646,6 +646,13 @@ public class Config
      */
     public Boolean direct_materialized_view_modification_enabled = false;
 
+    /**
+     * To support the Spark job mentioned above, this config let server decide how to handle "modification" to MV.
+     * In previous versions, we let the Spark job generate the modifications. When this config is set to true, the server
+     * will ignore the actual modification to MV, but try to rebuild the given key within MV from the base table.
+     */
+    public boolean rebuild_key_on_materialized_view_modification_enabled = false;
+
     @Replaces(oldName = "enable_sasi_indexes", converter = Converters.IDENTITY, deprecated = true)
     public boolean sasi_indexes_enabled = false;
 
