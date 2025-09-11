@@ -85,17 +85,7 @@ public class CoordinatedTransfer
     final String keyspace;
     public final Range<Token> range;
 
-    // Map peer to streaming planId if successful stream completed
     final ConcurrentMap<InetAddressAndPort, SingleTransferResult> streams;
-
-    // Acknowledged activations
-    private enum ActivationState
-    {
-        SENT,
-        COMPLETED
-    }
-
-    final ConcurrentMap<InetAddressAndPort, ActivationState> activations = new ConcurrentHashMap<>();
 
     final Collection<SSTableReader> sstables;
 
@@ -147,7 +137,7 @@ public class CoordinatedTransfer
         int responses = 0;
         for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
         {
-            if (entry.getValue().complete())
+            if (entry.getValue().state == SingleTransferResult.State.STREAM_COMPLETE)
                 responses++;
         }
         return responses >= blockFor;
@@ -172,26 +162,27 @@ public class CoordinatedTransfer
         streams.
         */
 
-        logger.debug("maybeActivate {} {}", streams, activations);
+        logger.debug("maybeActivate {}", streams);
 
         // If any activations have already been sent out, send new activations to any received plans that have not yet
         // been activated
-        if (activations.containsValue(ActivationState.COMPLETED))
+        boolean anyActivated = false;
+        Set<InetAddressAndPort> awaitingActivation = new HashSet<>();
+        for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
         {
-            Set<InetAddressAndPort> peers = new HashSet<>();
-            for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
+            InetAddressAndPort peer = entry.getKey();
+            SingleTransferResult result = entry.getValue();
+            if (result.state == SingleTransferResult.State.ACTIVATE_COMPLETE)
             {
-                if (entry.getValue().complete())
-                    peers.add(entry.getKey());
+                anyActivated = true;
             }
-
-            peers.removeAll(activations.keySet());
-
-            if (!peers.isEmpty())
-            {
-                logger.debug("{} Transfer already activated on peers {}, sending activations to {}", logPrefix(), activations, peers);
-                return activateOn(peers);
-            }
+            else if (result.state == SingleTransferResult.State.STREAM_COMPLETE)
+                awaitingActivation.add(peer);
+        }
+        if (anyActivated && !awaitingActivation.isEmpty())
+        {
+            logger.debug("{} Transfer already activated on peers, sending activations to {}", logPrefix(), awaitingActivation);
+            return activateOn(awaitingActivation);
         }
 
         // If no activations have been sent out, check whether we have enough planIds back to meet the required CL
@@ -201,7 +192,8 @@ public class CoordinatedTransfer
             for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streams.entrySet())
             {
                 InetAddressAndPort peer = entry.getKey();
-                if (entry.getValue().activate() && !activations.containsKey(peer))
+                SingleTransferResult result = entry.getValue();
+                if (result.state == SingleTransferResult.State.STREAM_COMPLETE)
                     peers.add(peer);
             }
             logger.debug("{} Transfer meets consistency level {}, sending activations to {}", logPrefix(), cl, peers);
@@ -225,15 +217,13 @@ public class CoordinatedTransfer
 
         // First phase is dryRun to ensure data is present on disk, then second phase does the actual import. This
         // ensures that if something goes wrong (like a topology change during import), we don't have divergence.
-
-        class AllRespond extends AsyncFuture<Void> implements RequestCallbackWithFailure<NoPayload>
+        class DryRun extends AsyncFuture<Void> implements RequestCallbackWithFailure<NoPayload>
         {
-            final ConcurrentHashMap<InetAddressAndPort, InetAddressAndPort> responses = new ConcurrentHashMap<>(peers.size());
+            final Set<InetAddressAndPort> responses = ConcurrentHashMap.newKeySet();
 
-            public AllRespond()
+            public DryRun()
             {
-                for (InetAddressAndPort peer : peers)
-                    responses.put(peer, peer);
+                responses.addAll(peers);
             }
 
             @Override
@@ -253,42 +243,42 @@ public class CoordinatedTransfer
             }
         }
 
-        AllRespond allRespond = new AllRespond();
+        DryRun dryRun = new DryRun();
         for (InetAddressAndPort peer : peers)
         {
             TransferActivation activation = new TransferActivation(this, peer, true);
             Message<TransferActivation> msg = Message.out(Verb.TRACKED_TRANSFER_ACTIVATE_REQ, activation);
             logger.debug("{} Sending {} to peer {}", logPrefix(), activation, peer);
-            MessagingService.instance().sendWithCallback(msg, peer, allRespond);
-            CoordinatedTransfer.this.activations.put(msg.from(), ActivationState.SENT);
+            MessagingService.instance().sendWithCallback(msg, peer, dryRun);
+            SingleTransferResult result = CoordinatedTransfer.this.streams.get(msg.from());
+            if (result != null)
+                result.sentActivation();
         }
-        allRespond.awaitUninterruptibly();
+        dryRun.awaitUninterruptibly();
         logger.debug("{} Dry run complete for {}", logPrefix(), peers);
 
         // Acknowledgement of activation is equivalent to a remote write acknowledgement. The imported SSTables
-        // are now part of the live set, visible to reads
-
-        class Callback extends AsyncFuture<Void> implements RequestCallbackWithFailure<Void>
+        // are now part of the live set, visible to reads.
+        class EachActivate extends AsyncFuture<Void> implements RequestCallbackWithFailure<Void>
         {
-            final ConcurrentHashMap<InetAddressAndPort, InetAddressAndPort> acks = new ConcurrentHashMap<>();
+            final Set<InetAddressAndPort> responses = ConcurrentHashMap.newKeySet();
 
-            private Callback(Collection<InetAddressAndPort> acks)
+            private EachActivate(Collection<InetAddressAndPort> peers)
             {
-                for (InetAddressAndPort ack : acks)
-                    this.acks.put(ack, ack);
+                responses.addAll(peers);
             }
 
             @Override
             public void onResponse(Message<Void> msg)
             {
                 logger.debug("Activation successfully applied on {}", msg.from());
-                ActivationState existing = CoordinatedTransfer.this.activations.put(msg.from(), ActivationState.COMPLETED);
-                // Preconditions.checkState(existing == ActivationState.SENT);
-                logger.debug("Activation prior state {}", existing);
+                SingleTransferResult result = CoordinatedTransfer.this.streams.get(msg.from());
+                if (result != null)
+                    result.completedActivation();
 
                 MutationTrackingService.instance.receivedActivationAck(CoordinatedTransfer.this, msg.from());
-                acks.remove(msg.from());
-                if (acks.isEmpty())
+                responses.remove(msg.from());
+                if (responses.isEmpty())
                     trySuccess(null);
             }
 
@@ -296,57 +286,69 @@ public class CoordinatedTransfer
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 logger.error("Failed activation on {} due to {}", from, failure);
-                // TODO(expected): should fail if we don't meet requested CL, even though individual failures are fine
-                // tryFailure(new RuntimeException(String.format("Failed activation on %s due to %s", from, failure)));
-                acks.remove(from);
-                if (acks.isEmpty())
+                // TODO(expected): should only fail if we don't meet requested CL, individual failures are fine
+                responses.remove(from);
+                if (responses.isEmpty())
                     trySuccess(null);
             }
         }
 
-        Callback callback = new Callback(peers);
+        EachActivate eachActivate = new EachActivate(peers);
         for (InetAddressAndPort peer : peers)
         {
             TransferActivation activation = new TransferActivation(this, peer, false);
             Message<TransferActivation> msg = Message.out(Verb.TRACKED_TRANSFER_ACTIVATE_REQ, activation);
 
             logger.debug("{} Sending {} to peer {}", logPrefix(), activation, peer);
-            MessagingService.instance().sendWithCallback(msg, peer, callback);
+            MessagingService.instance().sendWithCallback(msg, peer, eachActivate);
         }
 
-        return callback;
+        return eachActivate;
     }
 
     static class SingleTransferResult
     {
-        private final boolean complete;
+        enum State
+        {
+            UNKNOWN,
+            STREAM_NOOP,
+            STREAM_COMPLETE,
+            ACTIVATE_START,
+            ACTIVATE_COMPLETE;
+        }
+
+        private volatile State state;
         private final TimeUUID planId;
 
-        private SingleTransferResult(boolean complete, TimeUUID planId)
+        private SingleTransferResult(State state, TimeUUID planId)
         {
-            this.complete = complete;
+            this.state = state;
             this.planId = planId;
         }
 
         private static SingleTransferResult Complete(TimeUUID planId)
         {
-            Preconditions.checkArgument(planId != null);
-            return new SingleTransferResult(true, planId);
+            return new SingleTransferResult(State.STREAM_COMPLETE, planId);
         }
 
         private static SingleTransferResult Noop()
         {
-            return new SingleTransferResult(true, null);
+            return new SingleTransferResult(State.STREAM_NOOP, null);
         }
 
         private static SingleTransferResult Unknown()
         {
-            return new SingleTransferResult(false, null);
+            return new SingleTransferResult(State.UNKNOWN, null);
         }
 
-        public boolean activate()
+        public void sentActivation()
         {
-            return complete && planId != null;
+            state = State.ACTIVATE_START;
+        }
+
+        public void completedActivation()
+        {
+            state = State.ACTIVATE_COMPLETE;
         }
 
         public TimeUUID planId()
@@ -355,21 +357,12 @@ public class CoordinatedTransfer
             return planId;
         }
 
-        public boolean complete()
-        {
-            return complete;
-        }
-
-        public boolean noop()
-        {
-            return complete && planId == null;
-        }
-
         @Override
         public String toString()
         {
             return "SingleTransferResult{" +
-                   (noop() ? "Noop()" : complete() ? String.format("Complete(%s)", planId) : "Unknown()") +
+                   "state=" + state +
+                   ", planId=" + planId +
                    '}';
         }
     }

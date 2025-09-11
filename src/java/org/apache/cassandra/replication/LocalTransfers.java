@@ -20,8 +20,6 @@ package org.apache.cassandra.replication;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -37,67 +35,42 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
  * Stores coordinated and received transfers.
  *
  * TODO: Make changes to pending set durable with SystemKeyspace.savePendingLocalTransfer(transfer)?
- * TODO: GC when
+ * TODO: GC
  */
 class LocalTransfers
 {
     private static final Logger logger = LoggerFactory.getLogger(LocalTransfers.class);
 
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<TimeUUID, CoordinatedTransfer> coordinating = new HashMap<>();
     private final Map<ShortMutationId, CoordinatedTransfer> coordinatingActivated = new HashMap<>();
     private final Map<TimeUUID, PendingLocalTransfer> received = new HashMap<>();
 
     final ExecutorPlus executor = executorFactory().pooled("LocalTrackedTransfers", Integer.MAX_VALUE);
 
-    private static LocalTransfers instance = new LocalTransfers();
+    private static final LocalTransfers instance = new LocalTransfers();
     static LocalTransfers instance()
     {
         return instance;
     }
 
-    void save(CoordinatedTransfer transfer)
+    synchronized void save(CoordinatedTransfer transfer)
     {
-        lock.writeLock().lock();
-        try
-        {
-            CoordinatedTransfer existing = coordinating.put(transfer.transferId, transfer);
-            Preconditions.checkState(existing == null);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        CoordinatedTransfer existing = coordinating.put(transfer.transferId, transfer);
+        Preconditions.checkState(existing == null);
     }
 
-    void activating(CoordinatedTransfer transfer)
+    synchronized void activating(CoordinatedTransfer transfer)
     {
-        lock.writeLock().lock();
-        try
-        {
-            coordinatingActivated.put(transfer.activationId, transfer);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        coordinatingActivated.put(transfer.activationId, transfer);
     }
 
-    void received(PendingLocalTransfer transfer)
+    synchronized void received(PendingLocalTransfer transfer)
     {
         logger.debug("received: {}", transfer);
         Preconditions.checkState(!transfer.sstables.isEmpty());
 
-        lock.writeLock().lock();
-        try
-        {
-            PendingLocalTransfer existing = received.put(transfer.planId, transfer);
-            Preconditions.checkState(existing == null);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        PendingLocalTransfer existing = received.put(transfer.planId, transfer);
+        Preconditions.checkState(existing == null);
     }
 
     PendingLocalTransfer getPendingTransfer(TimeUUID planId)

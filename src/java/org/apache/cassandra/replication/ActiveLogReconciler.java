@@ -198,7 +198,6 @@ public final class ActiveLogReconciler implements Shutdownable
         {
             logger.debug("Sending activation to {}", toHost);
             transfer.activateOn(Collections.singleton(toHost)).addCallback((ok, err) -> {
-                logger.debug("Activation done {}", ok, err);
                 if (err == null)
                     onResponse(null);
             });
