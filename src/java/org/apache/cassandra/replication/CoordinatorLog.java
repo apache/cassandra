@@ -70,6 +70,7 @@ public abstract class CoordinatorLog
 
     protected final UnreconciledMutations unreconciledMutations;
     protected final Offsets.Mutable reconciledOffsets;
+    protected final Offsets.Mutable reconciledPersistedOffsets;
 
     protected final ReadWriteLock lock;
 
@@ -90,8 +91,9 @@ public abstract class CoordinatorLog
         this.participants = participants;
         this.unreconciledMutations = new UnreconciledMutations();
         this.witnessedOffsets = witnessedOffsets;
-        this.persistedOffsets = persistedOffsets;
         this.reconciledOffsets = witnessedOffsets.intersection();
+        this.persistedOffsets = persistedOffsets;
+        this.reconciledPersistedOffsets = persistedOffsets.intersection();
         this.lock = new ReentrantReadWriteLock();
     }
 
@@ -150,6 +152,7 @@ public abstract class CoordinatorLog
     private void updatePersistedReplicatedOffsets(Offsets offsets, int onNodeId)
     {
         persistedOffsets.get(onNodeId).addAll(offsets);
+        reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
     }
 
     @Nullable
@@ -298,14 +301,12 @@ public abstract class CoordinatorLog
         }
     }
 
-    // TODO (expected): wire up durably reconciled offsets
     boolean isDurablyReconciled(CoordinatorLogOffsets<?> logOffsets)
     {
         lock.readLock().lock();
         try
         {
-            // TODO: reconciledOffsets not necessarily durable, update once durability is implemented
-            Offsets.RangeIterator durablyReconciled = reconciledOffsets.rangeIterator();
+            Offsets.RangeIterator durablyReconciled = reconciledPersistedOffsets.rangeIterator();
             Offsets.RangeIterator difference = Offsets.difference(logOffsets.offsets(logId.asLong()).rangeIterator(), durablyReconciled);
             return !difference.tryAdvance();
         }
@@ -478,6 +479,7 @@ public abstract class CoordinatorLog
         try
         {
             persistedOffsets.set(localNodeId, localWitnessed);
+            reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
         }
         finally
         {

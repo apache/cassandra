@@ -304,7 +304,7 @@ public class MutationTrackingService
         // called on flush for L0 SSTables with wide bounds.
         for (Long logId : logOffsets)
         {
-            Shard shard = log2ShardMap.get(new CoordinatorLogId(logId));
+            Shard shard = getShardNullable(new CoordinatorLogId(logId));
             if (shard == null)
                 throw new IllegalStateException("Could not find shard for logId " + logId);
 
