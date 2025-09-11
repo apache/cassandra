@@ -296,13 +296,6 @@ public class BulkTransfersTest extends TestBaseImpl
             // Hack: need to bounce for KeyspaceShards to be created for new table, schema changes not yet supported
             bounce(cluster);
 
-            // In unified reconciliation, we depend on ALR to execute read reconciliation
-            /*
-            cluster.forEach(instance -> instance.runOnInstance(() -> {
-                MutationTrackingService.instance.pauseActiveReconciler();
-            }));
-            */
-
             // Needs to run outside of instance executor because creates schema
             String file = Files.createTempDirectory(MutationTrackingTest.class.getSimpleName()).toString();
 
@@ -332,10 +325,6 @@ public class BulkTransfersTest extends TestBaseImpl
             });
 
             hooks.afterImport(cluster);
-
-            /*
-            cluster.forEach(instance -> instance.runOnInstance(MutationTrackingService.instance::resumeActiveReconciler));
-            */
         }
     }
 

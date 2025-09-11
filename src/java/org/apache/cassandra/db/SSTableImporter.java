@@ -269,7 +269,6 @@ public class SSTableImporter
     {
         private static void execute(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
         {
-            // TODO: This isn't cheap - think about what thread it should happen on
             MutationTrackingService.instance.executeTransfers(keyspace, sstables, cl);
         }
     }
