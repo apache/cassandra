@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DefaultLoader;
@@ -43,6 +44,7 @@ import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JsonUtils;
 import org.slf4j.Logger;
@@ -383,6 +385,29 @@ public class SettingsTableTest extends CQLTester
         catch (Exception e)
         {
             throw new RuntimeException("Failed to serialize seed provider parameters as JSON", e);
+        }
+    }
+
+    @Test
+    public void testComplexSettingsFormatProperty() throws Throwable
+    {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("seeds", "127.0.0.1:7000");
+        config.seed_provider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters);
+        
+        // Test unset property (default JSON format)
+        check("data_file_directories", "[\"/my/data/directory\",\"/another/data/directory\"]");
+        check("seed_provider.parameters", "{\"seeds\":\"127.0.0.1:7000\"}");
+        
+        // Test set property to false (toString format)
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON, "false"))
+        {
+            VirtualKeyspaceRegistry.instance.unregister(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+            table = new SettingsTable(KS_NAME, config);
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+            
+            check("data_file_directories", "[/my/data/directory, /another/data/directory]");
+            check("seed_provider.parameters", "{seeds=127.0.0.1:7000}");
         }
     }
 }
