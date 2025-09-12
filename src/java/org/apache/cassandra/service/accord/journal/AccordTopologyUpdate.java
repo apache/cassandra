@@ -420,7 +420,6 @@ public interface AccordTopologyUpdate
 
         public void read(AccordTopologyUpdate update)
         {
-            Invariants.require(read == null);
             if (Objects.requireNonNull(update.kind()) == Kind.New)
                 read = new TopologyImage(update.epoch(), Kind.Image, update.getUpdate());
             else
