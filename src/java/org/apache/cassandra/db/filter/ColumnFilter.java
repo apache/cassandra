@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.btree.BTree;
 
 /**
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
@@ -64,7 +65,6 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public abstract class ColumnFilter
 {
-
     public static final ColumnFilter NONE = selection(RegularAndStaticColumns.NONE);
 
     public static final Serializer serializer = new Serializer();
@@ -303,6 +303,20 @@ public abstract class ColumnFilter
     public boolean isWildcard()
     {
         return false;
+    }
+
+    /**
+     * Rebinds matching columns into a new filter; ignores any missing but fails if any are a different type
+     */
+    abstract ColumnFilter rebind(TableMetadata newTable);
+
+    public static ColumnFilter rebindVirtual(ColumnFilter filter, TableMetadata newTable)
+    {
+        // review feedback; nothing actually preventing its use with other tables,
+        // but unclear utility/rationale so just some protection against incorrect usage
+        if (!newTable.isVirtual())
+            throw new UnsupportedOperationException("This feature is intended only to be used with virtual keyspaces");
+        return filter.rebind(newTable);
     }
 
     /**
@@ -631,6 +645,12 @@ public abstract class ColumnFilter
         }
 
         @Override
+        ColumnFilter rebind(TableMetadata newTable)
+        {
+            return new WildCardColumnFilter(ColumnFilter.rebind(newTable, fetchedAndQueried));
+        }
+
+        @Override
         protected SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections()
         {
             return null;
@@ -777,6 +797,21 @@ public abstract class ColumnFilter
                 return null;
 
             return new Tester(fetchingStrategy.fetchesAllColumns(column.isStatic()), s.iterator());
+        }
+
+        @Override
+        ColumnFilter rebind(TableMetadata newTable)
+        {
+            RegularAndStaticColumns queried = ColumnFilter.rebind(newTable, this.queried);
+            RegularAndStaticColumns fetched = this.queried == this.fetched ? queried : ColumnFilter.rebind(newTable, this.fetched);
+            SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
+            if (this.subSelections != null)
+            {
+                subSelections = TreeMultimap.create();
+                for (Map.Entry<ColumnIdentifier, ColumnSubselection> e : this.subSelections.entries())
+                    subSelections.put(e.getKey(), e.getValue().rebind(newTable));
+            }
+            return new SelectionColumnFilter(fetchingStrategy, queried, fetched, subSelections);
         }
 
         @Override
@@ -1001,6 +1036,28 @@ public abstract class ColumnFilter
                 size += ColumnSubselection.serializer.serializedSize(subSel, version);
 
             return size;
+        }
+    }
+
+    private static RegularAndStaticColumns rebind(TableMetadata newTable, RegularAndStaticColumns columns)
+    {
+        return new RegularAndStaticColumns(rebind(newTable, columns.statics), rebind(newTable, columns.regulars));
+    }
+
+    private static Columns rebind(TableMetadata newTable, Columns columns)
+    {
+        if (columns.isEmpty())
+            return columns;
+
+        try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
+        {
+            for (ColumnMetadata in : columns)
+            {
+                ColumnMetadata out = newTable.getColumn(in.name);
+                if (out != null)
+                    builder.add(out);
+            }
+            return Columns.from(builder);
         }
     }
 }
