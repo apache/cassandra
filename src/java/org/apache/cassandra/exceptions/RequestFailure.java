@@ -31,6 +31,7 @@ import org.apache.cassandra.tcm.NotCMSException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.exceptions.ExceptionSerializer.nullableRemoteExceptionSerializer;
+import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 
 /**
  * Allow inclusion of a serialized exception in failure response messages
@@ -125,7 +126,7 @@ public class RequestFailure
         if (t instanceof CoordinatorBehindException)
             return COORDINATOR_BEHIND;
 
-        return UNKNOWN;
+        return new RequestFailure(t);
     }
 
     public static RequestFailure forReason(RequestFailureReason reason)

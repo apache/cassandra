@@ -57,6 +57,7 @@ public final class SchemaConstants
     public static final String VIRTUAL_VIEWS = "system_views";
     public static final String VIRTUAL_METRICS = "system_metrics";
     public static final String VIRTUAL_ACCORD_DEBUG = "system_accord_debug";
+    public static final String VIRTUAL_ACCORD_DEBUG_REMOTE = "system_accord_debug_remote";
 
     public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
 
@@ -66,7 +67,7 @@ public final class SchemaConstants
 
     /* virtual table system keyspace names */
     public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(VIRTUAL_SCHEMA, VIRTUAL_VIEWS, VIRTUAL_METRICS);
+        ImmutableSet.of(VIRTUAL_SCHEMA, VIRTUAL_VIEWS, VIRTUAL_METRICS, VIRTUAL_ACCORD_DEBUG, VIRTUAL_ACCORD_DEBUG_REMOTE);
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =

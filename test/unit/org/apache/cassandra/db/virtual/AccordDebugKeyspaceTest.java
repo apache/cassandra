@@ -52,6 +52,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.exceptions.ExceptionSerializer;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -88,53 +90,107 @@ public class AccordDebugKeyspaceTest extends CQLTester
     private static final String QUERY_TXN_BLOCKED_BY =
         String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
 
+    private static final String QUERY_TXN_BLOCKED_BY_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_BLOCKED_BY);
+
     private static final String QUERY_COMMANDS_FOR_KEY =
         String.format("SELECT txn_id, status FROM %s.%s WHERE key=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.COMMANDS_FOR_KEY);
+
+    private static final String QUERY_COMMANDS_FOR_KEY_REMOTE =
+        String.format("SELECT txn_id, status FROM %s.%s WHERE node_id = ? AND key=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.COMMANDS_FOR_KEY);
 
     private static final String QUERY_TXN =
         String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
 
+    private static final String QUERY_TXN_REMOTE =
+        String.format("SELECT txn_id, save_status FROM %s.%s WHERE node_id = ? AND txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN);
+
     private static final String QUERY_TXNS =
         String.format("SELECT save_status FROM %s.%s WHERE command_store_id = ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
+
+    private static final String QUERY_TXNS_REMOTE =
+        String.format("SELECT save_status FROM %s.%s WHERE node_id = ? AND command_store_id = ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN);
 
     private static final String QUERY_TXNS_SEARCH =
         String.format("SELECT save_status FROM %s.%s WHERE command_store_id = ? AND txn_id > ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
 
+    private static final String QUERY_TXNS_SEARCH_REMOTE =
+        String.format("SELECT save_status FROM %s.%s WHERE node_id = ? AND command_store_id = ? AND txn_id > ? LIMIT 5", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN);
+
     private static final String QUERY_JOURNAL =
         String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.JOURNAL);
+
+    private static final String ERASE_JOURNAL_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND command_store_id = ? AND txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.JOURNAL);
+
+    private static final String QUERY_JOURNAL_REMOTE =
+        String.format("SELECT txn_id, save_status FROM %s.%s WHERE node_id = ? AND txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.JOURNAL);
 
     private static final String SET_TRACE =
         String.format("UPDATE %s.%s SET permits = ? WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
 
+    private static final String SET_TRACE_REMOTE =
+        String.format("UPDATE %s.%s SET permits = ? WHERE node_id = ? AND txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACE);
+
     private static final String QUERY_TRACE =
         String.format("SELECT * FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String QUERY_TRACE_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACE);
 
     private static final String UNSET_TRACE1 =
         String.format("DELETE FROM %s.%s WHERE txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
 
+    private static final String UNSET_TRACE1_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACE);
+
     private static final String UNSET_TRACE2 =
         String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String UNSET_TRACE2_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACE);
 
     private static final String QUERY_TRACES =
         String.format("SELECT * FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
 
+    private static final String QUERY_TRACES_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACES);
+
     private static final String ERASE_TRACES1 =
         String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ? AND id_micros < ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String ERASE_TRACES1_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ? AND event_type = ? AND id_micros < ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACES);
 
     private static final String ERASE_TRACES2 =
         String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
 
+    private static final String ERASE_TRACES2_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACES);
+
     private static final String ERASE_TRACES3 =
         String.format("DELETE FROM %s.%s WHERE txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String ERASE_TRACES3_REMOTE =
+        String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACES);
 
     private static final String QUERY_REDUNDANT_BEFORE =
         String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
+    private static final String QUERY_REDUNDANT_BEFORE_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
+
     private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ =
         String.format("SELECT * FROM %s.%s WHERE quorum_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND quorum_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
+
     private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ =
         String.format("SELECT * FROM %s.%s WHERE shard_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
+
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND shard_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
     @BeforeClass
     public static void setUpClass()
@@ -170,43 +226,55 @@ public class AccordDebugKeyspaceTest extends CQLTester
     public void tracing()
     {
         // simple test to confirm basic tracing functionality works, doesn't validate specific behaviours only requesting/querying/erasing
+        String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+        AccordService accord = accord();
+        DatabaseDescriptor.getAccord().fetch_txn = "1s";
+        int nodeId = accord.nodeId().id;
+
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
         {
-            String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
-            AccordService accord = accord();
-            DatabaseDescriptor.getAccord().fetch_txn = "1s";
             TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+            filter.appliesTo(id);
 
             execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"), row(nodeId, id.toString(), "WAIT_PROGRESS", 1));
             execute(SET_TRACE, 0, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"));
             execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"), row(nodeId, id.toString(), "WAIT_PROGRESS", 1));
             execute(UNSET_TRACE1, id.toString());
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"));
             execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"), row(nodeId, id.toString(), "WAIT_PROGRESS", 1));
             execute(UNSET_TRACE2, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"));
             execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
             assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
-            accord.node().coordinate(id, txn).beginAsResult();
+            assertRows(execute(QUERY_TRACE_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS"), row(nodeId, id.toString(), "WAIT_PROGRESS", 1));
             filter.appliesTo(id);
+            accord.node().coordinate(id, txn).beginAsResult();
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
-
             filter.apply.awaitThrowUncheckedOnInterrupt();
             spinUntilSuccess(() -> Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "WAIT_PROGRESS").size()).isGreaterThan(0));
+            spinUntilSuccess(() -> Assertions.assertThat(execute(QUERY_TRACES_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS").size()).isGreaterThan(0));
             execute(ERASE_TRACES1, id.toString(), "FETCH", Long.MAX_VALUE);
             execute(ERASE_TRACES2, id.toString(), "FETCH");
             execute(ERASE_TRACES1, id.toString(), "WAIT_PROGRESS", Long.MAX_VALUE);
             Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "WAIT_PROGRESS").size()).isEqualTo(0);
+            Assertions.assertThat(execute(QUERY_TRACES_REMOTE, nodeId, id.toString(), "WAIT_PROGRESS").size()).isEqualTo(0);
             // just check other variants don't fail
             execute(ERASE_TRACES2, id.toString(), "WAIT_PROGRESS");
             execute(ERASE_TRACES3, id.toString());
+
         }
         finally
         {
@@ -219,6 +287,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         var accord = accord();
+        int nodeId = accord.nodeId().id;
         TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, tableName).id;
         TxnId syncId1 = new TxnId(100, 200, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, accord.nodeId());
         TxnId syncId2 = new TxnId(101, 300, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, accord.nodeId());
@@ -234,6 +303,27 @@ public class AccordDebugKeyspaceTest extends CQLTester
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(1);
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(1);
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_REMOTE, nodeId).size()).isGreaterThan(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE, nodeId, syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE, nodeId, syncId2.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE, nodeId, syncId1.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE, nodeId, syncId2.toString()).size()).isEqualTo(0);
+    }
+
+    @Test
+    public void reportInvalidRequestForUnsupportedRemoteToLocal()
+    {
+        AccordService accord = accord();
+        int nodeId = accord.nodeId().id;
+        TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
+        try
+        {
+            execute(ERASE_JOURNAL_REMOTE, nodeId, 1, id.toString());
+        }
+        catch (ExceptionSerializer.RemoteException t)
+        {
+            Assertions.assertThat(t.originalClass).isEqualTo(InvalidRequestException.class.getName());
+        }
     }
 
     @Test
@@ -241,6 +331,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         AccordService accord = accord();
+        int nodeId = accord.nodeId().id;
         TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
         String keyStr = txn.keys().get(0).toUnseekable().toString();
@@ -249,15 +340,19 @@ public class AccordDebugKeyspaceTest extends CQLTester
         spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                                           row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
         assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
+        assertRows(execute(QUERY_TXN_REMOTE, nodeId, id.toString()), row(id.toString(), "Applied"));
         assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
+        assertRows(execute(QUERY_JOURNAL_REMOTE, nodeId, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
         assertRows(execute(QUERY_COMMANDS_FOR_KEY, keyStr), row(id.toString(), "APPLIED_DURABLE"));
+        assertRows(execute(QUERY_COMMANDS_FOR_KEY_REMOTE, nodeId, keyStr), row(id.toString(), "APPLIED_DURABLE"));
     }
 
     @Test
-    public void manyTxns() throws ExecutionException, InterruptedException
+    public void manyTxns()
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         AccordService accord = accord();
+        int nodeId = accord.nodeId().id;
         List<IAccordService.IAccordResult> await = new ArrayList<>();
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
         for (int i = 0 ; i < 100; ++i)
@@ -281,6 +376,22 @@ public class AccordDebugKeyspaceTest extends CQLTester
                    row("Applied"),
                    row("Applied")
         );
+
+        assertRows(execute(QUERY_TXNS_REMOTE, nodeId, commandStore.id()),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied")
+        );
+
+        assertRows(execute(QUERY_TXNS_SEARCH_REMOTE, nodeId, commandStore.id(), TxnId.NONE.toString()),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied"),
+                   row("Applied")
+        );
     }
 
     @Test
@@ -293,6 +404,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
+            int nodeId = accord.nodeId().id;
             TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
@@ -307,9 +419,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                        row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, id.toString()),
+                       row(nodeId, id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                        row(id.toString(), anyInt(), 0, "", "", any(), SaveStatus.ReadyToExecute.name()));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, id.toString()),
+                       row(nodeId, id.toString(), anyInt(), 0, "", "", any(), SaveStatus.ReadyToExecute.name()));
         }
         finally
         {
@@ -329,6 +445,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
+            int nodeId = accord.nodeId().id;
             TxnId first = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
@@ -343,9 +460,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
                        row(first.toString(), anyInt(), 0, "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, first.toString()),
+                       row(nodeId, first.toString(), anyInt(), 0, "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
                        row(first.toString(), anyInt(), 0, "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, first.toString()),
+                       row(nodeId, first.toString(), anyInt(), 0, "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
 
             filter.reset();
 
@@ -366,6 +487,11 @@ public class AccordDebugKeyspaceTest extends CQLTester
                        row(second.toString(), anyInt(), 1, any(), first.toString(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY + " AND depth < 1", second.toString()),
                        row(second.toString(), anyInt(), 0, any(), "", anyNonNull(), SaveStatus.Stable.name()));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, second.toString()),
+                       row(nodeId, second.toString(), anyInt(), 0, "", "", anyNonNull(), SaveStatus.Stable.name()),
+                       row(nodeId, second.toString(), anyInt(), 1, any(), first.toString(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+            assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE + " AND depth < 1", nodeId, second.toString()),
+                       row(nodeId, second.toString(), anyInt(), 0, any(), "", anyNonNull(), SaveStatus.Stable.name()));
         }
         finally
         {

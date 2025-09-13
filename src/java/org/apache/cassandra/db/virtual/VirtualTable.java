@@ -100,4 +100,6 @@ public interface VirtualTable
     {
         return allowFilteringImplicitly();
     }
+
+    default Sorted sorted() { return Sorted.UNSORTED; }
 }
