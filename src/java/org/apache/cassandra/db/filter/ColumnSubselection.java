@@ -76,6 +76,8 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
 
     protected abstract CellPath comparisonPath();
 
+    protected abstract ColumnSubselection rebind(TableMetadata newTable);
+
     public int compareTo(ColumnSubselection other)
     {
         assert other.column().name.equals(column().name);
@@ -118,6 +120,12 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
             return from;
         }
 
+        @Override
+        protected ColumnSubselection rebind(TableMetadata newTable)
+        {
+            return new Slice(newTable.getColumn(column.name), from, to);
+        }
+
         public int compareInclusionOf(CellPath path)
         {
             Comparator<CellPath> cmp = column.cellPathComparator();
@@ -158,6 +166,12 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
         public CellPath comparisonPath()
         {
             return element;
+        }
+
+        @Override
+        protected ColumnSubselection rebind(TableMetadata newTable)
+        {
+            return new Element(newTable.getColumn(column.name), element);
         }
 
         public int compareInclusionOf(CellPath path)
