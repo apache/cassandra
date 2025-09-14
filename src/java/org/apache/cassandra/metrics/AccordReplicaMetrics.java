@@ -112,8 +112,6 @@ public class AccordReplicaMetrics
 
     public static class Listener implements ReplicaEventListener
     {
-        public static final Listener instance = new Listener();
-
         private AccordReplicaMetrics forTransaction(TxnId txnId)
         {
             if (txnId != null)
