@@ -442,9 +442,9 @@
       <dependency>
         <groupId>com.fasterxml.jackson.dataformat</groupId>
         <artifactId>jackson-dataformat-yaml</artifactId>
-        <!-- CASSANDRA-20848 2.19.x would bring snakeyaml 2.4 which is for now incompatible with rest of the codebase -->
-        <version>2.15.3</version>
+        <version>2.19.2</version>
         <scope>test</scope>
+        <!-- CASSANDRA-20848 2.19.x would bring snakeyaml 2.4 which is for now incompatible with rest of the codebase -->
         <exclusions>
           <exclusion>
             <artifactId>snakeyaml</artifactId>
@@ -514,6 +514,17 @@
         <artifactId>harry-core</artifactId>
         <version>0.0.1</version>
         <scope>test</scope>
+        <!-- harry 0.0.1 uses jackson 2.11.3 which is older than our declared jackson dependency -->
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-databind</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.reflections</groupId>
@@ -532,6 +543,13 @@
         <artifactId>wiremock-jre8</artifactId>
         <version>2.35.0</version>
         <scope>test</scope>
+        <!-- wiremock 2.35.0 uses jackson 2.13.4 which is older than our declared jackson dependency -->
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>com.puppycrawl.tools</groupId>

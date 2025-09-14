@@ -1,4 +1,5 @@
 5.0.6
+ * Upgrade jackson-dataformat-yaml to 2.19.2 and snakeyaml to 2.1 (CASSANDRA-18875)
  * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Sort SSTable TOC entries for determinism (CASSANDRA-20494)
 Merged from 4.1:
@@ -9,7 +10,7 @@ Merged from 4.0:
  * Update commons-lang3 to 3.18.0 (CASSANDRA-20849)
  * Add NativeTransportMaxConcurrentConnectionsPerIp to StorageProxyMBean (CASSANDRA-20642)
  * Make secondary index implementations notified about rows in fully expired SSTables in compaction (CASSANDRA-20829)
- * Upgrade jackson to 2.15.3 and snakeyaml to 2.1 (CASSANDRA-18875)
+
 
 5.0.5
  * Do not source cassandra-env.sh unnecessarily in nodetool and other tooling (CASSANDRA-20745)
