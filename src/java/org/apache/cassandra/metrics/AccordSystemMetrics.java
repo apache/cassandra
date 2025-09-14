@@ -132,6 +132,10 @@ public class AccordSystemMetrics
         }
     }
 
+    public static void touch()
+    {
+    }
+
     private AccordSystemMetrics()
     {
         Invariants.expect(AccordService.isSetup());

@@ -35,7 +35,7 @@ import accord.api.ReplicaEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
-import accord.api.TraceEventType;
+import accord.coordinate.Coordination;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.SafeCommand;
@@ -43,6 +43,7 @@ import accord.local.SafeCommandStore;
 import accord.local.TimeService;
 import accord.messages.ReplyContext;
 import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Status;
@@ -62,7 +63,6 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
@@ -98,6 +98,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
+    private static final ReplicaEventListener replicaEventListener = new AccordReplicaMetrics.Listener();
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
     public static void setOnFailedBarrier(BiConsumer<TxnId, Throwable> newOnFailedBarrier) { onFailedBarrier = newOnFailedBarrier; }
@@ -121,9 +122,9 @@ public class AccordAgent implements Agent, OwnershipEventListener
     }
 
     @Override
-    public @Nullable Tracing trace(TxnId txnId, TraceEventType eventType)
+    public @Nullable Tracing trace(TxnId txnId, Participants<?> participants, Coordination.CoordinationKind eventType)
     {
-        return tracing.trace(txnId, eventType);
+        return tracing.trace(txnId, participants, eventType);
     }
 
     @Override
@@ -225,13 +226,13 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public CoordinatorEventListener coordinatorEvents()
     {
-        return AccordCoordinatorMetrics.Listener.instance;
+        return tracing;
     }
 
     @Override
     public ReplicaEventListener replicaEvents()
     {
-        return AccordReplicaMetrics.Listener.instance;
+        return replicaEventListener;
     }
 
     private static final long ONE_SECOND = SECONDS.toMicros(1L);

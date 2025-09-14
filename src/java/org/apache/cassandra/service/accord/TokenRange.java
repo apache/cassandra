@@ -173,4 +173,21 @@ public class TokenRange extends Range.EndInclusive
                    + TokenKey.noTableSerializer.serializedSize(t.end());
         }
     };
+
+    public static TokenRange parse(String str, IPartitioner partitioner)
+    {
+        TableId tableId;
+        {
+            int split = str.indexOf(':', str.startsWith("tid:") ? 4 : 0);
+            tableId = TableId.fromString(str.substring(0, split));
+            str = str.substring(split + 2, str.length() - 1);
+        }
+
+        String[] bounds = str.split(",");
+        if (bounds.length != 2)
+            throw new IllegalArgumentException("Invalid TokenRange: " + str);
+
+        return new TokenRange(TokenKey.parse(tableId, bounds[0], partitioner), TokenKey.parse(tableId, bounds[1], partitioner));
+    }
+
 }
