@@ -41,6 +41,7 @@ import com.google.common.primitives.Ints;
 import accord.api.ConfigurationService.EpochReady;
 import accord.primitives.Txn;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
@@ -307,6 +308,7 @@ public class AccordService implements IAccordService, Shutdownable
         instance = as;
         
         AccordReplicaMetrics.touch();
+        AccordSystemMetrics.touch();
         AccordViolationHandler.setup();
 
         WatermarkCollector.fetchAndReportWatermarksAsync(as.configService);

@@ -198,8 +198,6 @@ public class AccordCoordinatorMetrics
 
     public static class Listener implements CoordinatorEventListener
     {
-        public static final Listener instance = new Listener();
-
         private AccordCoordinatorMetrics forTransaction(TxnId txnId)
         {
             if (txnId != null)
