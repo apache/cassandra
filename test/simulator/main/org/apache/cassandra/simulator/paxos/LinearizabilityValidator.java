@@ -37,7 +37,7 @@ public class LinearizabilityValidator implements HistoryValidator
     }
 
     @Override
-    public Checker witness(int start, int end)
+    public Checker witness(Object witnessedBy, int start, int end)
     {
         return new Checker()
         {

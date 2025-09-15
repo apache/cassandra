@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
 
 public interface HistoryValidator
 {
-    Checker witness(int start, int end);
+    Checker witness(Object witnessedBy, int start, int end);
 
     void print(@Nullable Integer pk);
 
