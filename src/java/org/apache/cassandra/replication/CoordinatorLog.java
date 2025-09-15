@@ -82,14 +82,15 @@ public abstract class CoordinatorLog
                    CoordinatorLogId logId,
                    Participants participants,
                    Node2OffsetsMap witnessedOffsets,
-                   Node2OffsetsMap persistedOffsets)
+                   Node2OffsetsMap persistedOffsets,
+                   UnreconciledMutations unreconciledMutations)
     {
         this.localNodeId = localNodeId;
         this.keyspace = keyspace;
         this.range = range;
         this.logId = logId;
         this.participants = participants;
-        this.unreconciledMutations = new UnreconciledMutations();
+        this.unreconciledMutations = unreconciledMutations;
         this.witnessedOffsets = witnessedOffsets;
         this.reconciledOffsets = witnessedOffsets.intersection();
         this.persistedOffsets = persistedOffsets;
@@ -99,7 +100,7 @@ public abstract class CoordinatorLog
 
     CoordinatorLog(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
     {
-        this(keyspace, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants));
+        this(keyspace, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants), new UnreconciledMutations());
     }
 
     static CoordinatorLog create(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants)
@@ -108,13 +109,12 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants);
     }
 
-    // TODO (expected): recreate unreconciledMutations using journal
     static CoordinatorLog recreate(
         String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants,
-        Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets)
+        Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
     {
-        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets)
-                                        : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets);
+        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations)
+                                        : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
     }
 
     void updateReplicatedOffsets(Offsets offsets, boolean persisted, int onNodeId)
@@ -332,9 +332,9 @@ public abstract class CoordinatorLog
 
         CoordinatorLogPrimary(
             String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
-            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets)
+            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
         {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets);
+            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
         CoordinatorLogPrimary(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
@@ -406,9 +406,9 @@ public abstract class CoordinatorLog
     {
         CoordinatorLogReplica(
             String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
-            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets)
+            Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
         {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets);
+            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
         CoordinatorLogReplica(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
@@ -504,9 +504,11 @@ public abstract class CoordinatorLog
                 row.getMap("witnessed_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
             Map<Integer, List<Integer>> persistedOffsets =
                 row.getMap("persisted_offsets", Int32Type.instance, ListType.getInstance(Int32Type.instance, false));
+            Node2OffsetsMap witnessed = fromPrimitiveMap(logId, witnessedOffsets);
+            Node2OffsetsMap persisted = fromPrimitiveMap(logId, persistedOffsets);
+            UnreconciledMutations unreconciled = UnreconciledMutations.loadFromJournal(witnessed, localNodeId);
             CoordinatorLog log =
-                CoordinatorLog.recreate(keyspace, range, localNodeId, logId, new Participants(participants),
-                                        fromPrimitiveMap(logId, witnessedOffsets), fromPrimitiveMap(logId, persistedOffsets));
+                CoordinatorLog.recreate(keyspace, range, localNodeId, logId, new Participants(participants), witnessed, persisted, unreconciled);
             logs.add(log);
         }
         return logs;

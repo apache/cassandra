@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,6 +40,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public class CoordinatorLogTest
 {
@@ -67,6 +67,7 @@ public class CoordinatorLogTest
                                                  .addClusteringColumn("ck", UTF8Type.instance)
                                                  .addRegularColumn("value", UTF8Type.instance)
                                                  .build());
+        MutationJournal.instance.start();
     }
 
     private static Token tk(String key)
@@ -89,7 +90,7 @@ public class CoordinatorLogTest
         log.collectOffsetsFor(token, tableId, includePending, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
-            Assert.assertTrue(unreconciled.contains(mid.offset()));
+            assertTrue(unreconciled.contains(mid.offset()));
 
         assertEquals(toOffsets(expectedIds), unreconciled);
         assertEquals(expectedReconciled, reconciled);
@@ -107,13 +108,7 @@ public class CoordinatorLogTest
         List<Mutation> mutations = new ArrayList<>(ids.length);
         for (MutationId id : ids)
         {
-            Mutation mutation =
-                new RowUpdateBuilder(metadata, 0, "key")
-                .clustering("ck")
-                .add("value", "value")
-                .build()
-                .withMutationId(id);
-
+            Mutation mutation = createMutation(id);
             mutations.add(mutation);
             log.startWriting(mutation);
         }
@@ -137,6 +132,16 @@ public class CoordinatorLogTest
         assertUnreconciled(tk, tableId, log, false, reconciled, ids[1], ids[2]);
     }
 
+    private Mutation createMutation(MutationId id)
+    {
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        return new RowUpdateBuilder(metadata, 0, "key")
+            .clustering("ck")
+            .add("value", "value")
+            .build()
+            .withMutationId(id);
+    }
+
     @Test
     public void persistAndLoadPrimaryLogTest()
     {
@@ -154,21 +159,30 @@ public class CoordinatorLogTest
         Range<Token> range = new Range<>(tk("a"), tk("b"));
 
         Offsets.Mutable offsets1 = new Offsets.Mutable(logId);
-        offsets1.add(1, 2, 3);
+        offsets1.add(1, 2, 3, 4);
         Offsets.Mutable offsets2 = new Offsets.Mutable(logId);
-        offsets2.add(2, 3, 4);
+        offsets2.add(2, 3, 4, 5);
         Offsets.Mutable offsets3 = new Offsets.Mutable(logId);
-        offsets3.add(3, 4, 5);
+        offsets3.add(3, 4, 5, 6);
 
         Node2OffsetsMap witnessed = new Node2OffsetsMap();
         witnessed.set(LOCAL_HOST_ID, offsets1);
         witnessed.set(REMOTE_HOST_ID_1, offsets2);
         witnessed.set(REMOTE_HOST_ID_2, offsets3);
 
-        CoordinatorLog log = CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed);
+        UnreconciledMutations unreconciled = new UnreconciledMutations();
+        Mutation mutation1 = createMutation(new MutationId(logId.asLong(), MutationId.sequenceId(1, 0)));
+        Mutation mutation2 = createMutation(new MutationId(logId.asLong(), MutationId.sequenceId(2, 0)));
+        unreconciled.addForTesting(mutation1);
+        unreconciled.addForTesting(mutation2);
+        MutationJournal.instance.write(mutation1.id(), mutation1);
+        MutationJournal.instance.write(mutation2.id(), mutation2);
+
+        CoordinatorLog log =
+            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
-        reconciled.add(3);
+        reconciled.add(3, 4);
         assertEquals(reconciled, log.reconciledOffsets);
 
         validatePersistAndLoadRoundtrip(log);
@@ -196,5 +210,7 @@ public class CoordinatorLogTest
         assertEquals(log.witnessedOffsets, loaded.witnessedOffsets);
         assertEquals(log.persistedOffsets, loaded.persistedOffsets);
         assertEquals(log.reconciledOffsets, loaded.reconciledOffsets);
+
+        assertTrue(log.unreconciledMutations.equalsForTesting(loaded.unreconciledMutations));
     }
 }
