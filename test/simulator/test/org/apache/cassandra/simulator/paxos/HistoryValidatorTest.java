@@ -326,7 +326,7 @@ public class HistoryValidatorTest
     {
         String type = events.length == 1 ? "single" : "multiple";
         logger.info("[Validator={}, Observation=({}, {}, {})] Validating {} {}}", validator.getClass().getSimpleName(), ob.id, ob.start, ob.end, type, events);
-        try (HistoryValidator.Checker check = validator.witness(ob.start, ob.end))
+        try (HistoryValidator.Checker check = validator.witness(ob, ob.start, ob.end))
         {
             for (Event e : events)
                 e.process(ob, check);
@@ -477,7 +477,7 @@ public class HistoryValidatorTest
 
         void process(HistoryValidator validator)
         {
-            try (HistoryValidator.Checker check = validator.witness(start, end))
+            try (HistoryValidator.Checker check = validator.witness("", start, end))
             {
                 for (Operation a : actions)
                     a.check(check);

@@ -35,11 +35,11 @@ public class LoggingHistoryValidator implements HistoryValidator
     }
 
     @Override
-    public Checker witness(int start, int end)
+    public Checker witness(Object witnessedBy, int start, int end)
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Witness(start=").append(start).append(", end=").append(end).append(")\n");
-        Checker sub = delegate.witness(start, end);
+        Checker sub = delegate.witness(witnessedBy, start, end);
         return new Checker()
         {
             @Override
