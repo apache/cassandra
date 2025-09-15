@@ -179,7 +179,6 @@ Uber specific changes:
 <begin>
  * Automated Repair Inside Cassandra [CEP-37] (CASSANDRA-19918)
  * [SO-50809] Add dummy auto_repair column to table and views in system_schema
- * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * [SO-50586] SystemPeersSyncValidator check for active endpoints in gossiper in system peers v2 table only
  * [SO-50486] Add initialized timestamp to the storage service mbean
  * [SO-50556] Include pingless keyspace in paxos cleanup scheduling

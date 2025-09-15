@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Random;
 
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,10 +47,12 @@ public class CDCManagerTest extends CQLTester
     private static final Random random = new Random();
 
     @BeforeClass
-    public static void checkConfig()
+    public static void setUpClass()
     {
-        Assume.assumeTrue(DatabaseDescriptor.isCDCEnabled());
+        DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCommitLogSegmentSize(1);
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(128); // Set CDC total space to 128 MB
+        CQLTester.setUpClass();
     }
 
     @Before
@@ -79,6 +80,7 @@ public class CDCManagerTest extends CQLTester
     public void testScanlog() throws Throwable
     {
         populateData(5, true);
+        CommitLog.instance.sync(true);
         Thread.sleep(1000);
         Assert.assertEquals(1, CDCManager.instance.getActiveIdxCount());
     }
@@ -164,6 +166,7 @@ public class CDCManagerTest extends CQLTester
     public void testCompleted() throws Throwable
     {
         populateData(10, true);
+        CommitLog.instance.sync(true);
 
         ArrayList<File> idxFiles = getCDCIdxFiles();
         File firstIdxFile = idxFiles.get(0);

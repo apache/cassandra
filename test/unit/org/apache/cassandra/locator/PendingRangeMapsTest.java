@@ -146,7 +146,7 @@ public class PendingRangeMapsTest
 
         addPendingRange(pendingRangeMaps, genRange("5", "15"), selfHostAddress);
         addPendingRange(pendingRangeMaps, genRange("15", "25"), selfHostAddress);
-        addPendingRange(pendingRangeMaps, genRange("25", "35"), "127.0.0.1");
+        addPendingRange(pendingRangeMaps, genRange("25", "35"), "127.0.0.10");
         addPendingRange(pendingRangeMaps, genRange("35", "45"), selfHostAddress);
         addPendingRange(pendingRangeMaps, genRange("45", "55"), selfHostAddress);
         addPendingRange(pendingRangeMaps, genRange("45", "65"), selfHostAddress);
