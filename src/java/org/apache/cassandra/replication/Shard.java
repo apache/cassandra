@@ -57,8 +57,8 @@ public class Shard
     final int localNodeId;
     final String keyspace;
     final Range<Token> range;
+    final Participants participants;
 
-    private final Participants participants;
     private final LongSupplier logIdProvider;
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
@@ -86,7 +86,7 @@ public class Shard
             this.logs.put(log.logId.asLong(), log);
             onNewLog.accept(Shard.this, log);
         }
-        this.currentLocalLog = createNewPrimayLog();
+        this.currentLocalLog = createNewPrimaryLog();
     }
 
     Shard(int localNodeId, String keyspace, Range<Token> range, Participants participants, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
@@ -109,7 +109,7 @@ public class Shard
         if (nextId != null) // another thread got to rotate before us
             return nextId;
         CoordinatorLogId oldLogId = currentLocalLog.logId;
-        currentLocalLog = createNewPrimayLog();
+        currentLocalLog = createNewPrimaryLog();
         logger.info("Rotated primary log for {}/{} from {} to {}", keyspace, range, oldLogId, currentLocalLog.logId);
         return nextId();
     }
@@ -237,7 +237,7 @@ public class Shard
         return null != prev ? prev : next;
     }
 
-    private CoordinatorLogPrimary createNewPrimayLog()
+    private CoordinatorLogPrimary createNewPrimaryLog()
     {
         return (CoordinatorLogPrimary) createNewLog(logIdProvider.getAsLong());
     }
