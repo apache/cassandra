@@ -43,7 +43,7 @@ public class StrictSerializabilityValidator implements HistoryValidator
     }
 
     @Override
-    public Checker witness(int start, int end)
+    public Checker witness(Object witnessedBy, int start, int end)
     {
         verifier.begin();
         return new Checker()
@@ -63,7 +63,7 @@ public class StrictSerializabilityValidator implements HistoryValidator
             @Override
             public void close()
             {
-                convertHistoryViolation(() -> verifier.apply("", start, end));
+                convertHistoryViolation(() -> verifier.apply(witnessedBy, start, end));
             }
         };
     }
