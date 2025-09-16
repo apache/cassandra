@@ -269,7 +269,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         };
     }
 
-    private void updateBytesRead()
+    public void updateBytesRead()
     {
         long n = 0;
         for (ISSTableScanner scanner : scanners)

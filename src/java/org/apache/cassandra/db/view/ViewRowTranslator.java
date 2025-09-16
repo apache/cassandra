@@ -38,12 +38,12 @@ public class ViewRowTranslator
     /**
      * Result of translating a base row to a view row for backfill operations.
      */
-    public static class BackfillRowResult
+    public static class ViewRowResult
     {
         public final Row viewRow;
         public final DecoratedKey viewPartitionKey;
         
-        public BackfillRowResult(Row viewRow, DecoratedKey viewPartitionKey)
+        public ViewRowResult(Row viewRow, DecoratedKey viewPartitionKey)
         {
             this.viewRow = viewRow;
             this.viewPartitionKey = viewPartitionKey;
@@ -60,14 +60,14 @@ public class ViewRowTranslator
      * @param nowInSec current time in seconds
      * @return BackfillRowResult containing the view row and partition key, or null if filtered out
      */
-    public static BackfillRowResult translateForBackfill(View view, Row baseRow, DecoratedKey basePartitionKey, int nowInSec)
+    public static ViewRowResult translateForBackfill(View view, Row baseRow, DecoratedKey basePartitionKey, int nowInSec)
     {
         // Check if the base row matches the view filter
         if (!view.matchesViewFilter(basePartitionKey, baseRow, nowInSec))
             return null;
         Row viewRow = translateBaseRowToViewRow(view, baseRow, basePartitionKey, nowInSec);
         DecoratedKey viewPartitionKey = calculateViewPartitionKey(view, baseRow, basePartitionKey);
-        return new BackfillRowResult(viewRow, viewPartitionKey);
+        return new ViewRowResult(viewRow, viewPartitionKey);
     }
 
     /**

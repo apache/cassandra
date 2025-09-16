@@ -2483,6 +2483,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    public Refs<SSTableReader> getSSTableRefsForRanges(Collection<Range<Token>> ranges, Predicate<SSTableReader> predicate, TimeUUID parentId)
+    {
+        Refs<SSTableReader> sstables;
+        Set<SSTableReader> sstablesToProcess = new HashSet<>();
+        try (ColumnFamilyStore.RefViewFragment sstableCandidates = selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+        {
+            for (SSTableReader sstable : sstableCandidates.sstables)
+            {
+                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges) && predicate.apply(sstable))
+                {
+                    sstablesToProcess.add(sstable);
+                }
+            }
+
+            sstables = Refs.tryRef(sstablesToProcess);
+            if (sstables == null)
+            {
+                logger.error("Could not reference sstables for {}", parentId);
+                throw new RuntimeException("Could not reference sstables");
+            }
+        }
+        return sstables;
+    }
+
     public void writeAndAddMemtableRanges(TimeUUID repairSessionID,
                                           Supplier<Collection<Range<PartitionPosition>>> rangesSupplier,
                                           Refs<SSTableReader> placeIntoRefs)

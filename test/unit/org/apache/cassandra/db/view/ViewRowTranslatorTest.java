@@ -90,7 +90,7 @@ public class ViewRowTranslatorTest extends ViewAbstractTest
         int nowInSec = FBUtilities.nowInSeconds();
 
         // Test translateForBackfill
-        ViewRowTranslator.BackfillRowResult result = 
+        ViewRowTranslator.ViewRowResult result =
             ViewRowTranslator.translateForBackfill(view, baseRow, basePartitionKey, nowInSec);
         
         assertNotNull("Translation should succeed", result);
@@ -134,13 +134,13 @@ public class ViewRowTranslatorTest extends ViewAbstractTest
 
         // Test row that matches filter (k2 = 10)
         Row matchingRow = createBaseRowForCompositeKey(baseCfs.metadata(), 100, "test");
-        ViewRowTranslator.BackfillRowResult result1 = 
+        ViewRowTranslator.ViewRowResult result1 =
             ViewRowTranslator.translateForBackfill(view, matchingRow, matchingPartitionKey, nowInSec);
         assertNotNull("Row matching filter should be translated", result1);
 
         // Test row that doesn't match filter (k2 = 20)
         Row nonMatchingRow = createBaseRowForCompositeKey(baseCfs.metadata(), 100, "test");
-        ViewRowTranslator.BackfillRowResult result2 = 
+        ViewRowTranslator.ViewRowResult result2 =
             ViewRowTranslator.translateForBackfill(view, nonMatchingRow, nonMatchingPartitionKey, nowInSec);
         assertNull("Row not matching filter should be filtered out", result2);
     }
@@ -163,7 +163,7 @@ public class ViewRowTranslatorTest extends ViewAbstractTest
 
         // Test row with null v1 (should be filtered out because v1 IS NOT NULL in view)
         Row rowWithNullV1 = createBaseRowWithNullV1(baseCfs.metadata(), "test");
-        ViewRowTranslator.BackfillRowResult result = 
+        ViewRowTranslator.ViewRowResult result =
             ViewRowTranslator.translateForBackfill(view, rowWithNullV1, basePartitionKey, nowInSec);
         assertNull("Row with null required column should be filtered out", result);
     }
@@ -193,7 +193,7 @@ public class ViewRowTranslatorTest extends ViewAbstractTest
         
         int nowInSec = FBUtilities.nowInSeconds();
 
-        ViewRowTranslator.BackfillRowResult result = 
+        ViewRowTranslator.ViewRowResult result =
             ViewRowTranslator.translateForBackfill(view, baseRow, basePartitionKey, nowInSec);
         
         assertNotNull("Translation should succeed for composite keys", result);

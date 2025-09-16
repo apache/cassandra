@@ -114,11 +114,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     @VisibleForTesting
     public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
     {
-        Refs<SSTableReader> sstables;
-
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
-
-        Set<SSTableReader> sstablesToValidate = new HashSet<>();
 
         com.google.common.base.Predicate<SSTableReader> predicate;
         if (prs.isPreview())
@@ -136,25 +132,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             predicate = (s) -> !prs.isIncremental || !s.isRepaired();
         }
 
-        try (ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
-        {
-            for (SSTableReader sstable : sstableCandidates.sstables)
-            {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges) && predicate.apply(sstable))
-                {
-                    sstablesToValidate.add(sstable);
-                }
-            }
-
-            sstables = Refs.tryRef(sstablesToValidate);
-            if (sstables == null)
-            {
-                logger.error("Could not reference sstables for {}", parentId);
-                throw new RuntimeException("Could not reference sstables");
-            }
-        }
-
-        return sstables;
+        return cfs.getSSTableRefsForRanges(ranges, predicate, parentId);
     }
 
     private final ColumnFamilyStore cfs;

@@ -1980,6 +1980,11 @@ public class CompactionManager implements CompactionManagerMBean
         return cfs.isIndex() ? nowInSec : cfs.gcBefore(nowInSec);
     }
 
+    public Future<?> submitViewBackfill(Callable<Object> backfill)
+    {
+        return viewBuildExecutor.submitIfRunning(backfill, "MVBackfill");
+    }
+
     public Future<Long> submitViewBuilder(final ViewBuilderTask task)
     {
         return submitViewBuilder(task, active);
