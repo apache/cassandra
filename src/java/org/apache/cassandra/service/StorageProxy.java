@@ -2195,7 +2195,7 @@ public class StorageProxy implements StorageProxyMBean
 
             try
             {
-                QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), command);
+                QueryAnalyticsService.instance.processLatencyMetric(latency, command);
             }
             catch (Exception e)
             {
@@ -2273,7 +2273,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), command);
+                    QueryAnalyticsService.instance.processLatencyMetric(latency, command);
                 }
                 catch (Exception e)
                 {

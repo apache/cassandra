@@ -37,6 +37,7 @@ import java.util.Map;
 import org.apache.cassandra.config.ParameterizedClass;
 
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
 import org.apache.cassandra.service.QueryAnalyticsDatapoint;
 import java.lang.reflect.Method;
 
@@ -89,7 +90,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         queryAnalyticsService.dataProducer = mockDataProducer;
 
-        when(mockDecoratedKey.toString()).thenReturn("DecoratedKey(-123456789, test-partition)");
+        when(mockDecoratedKey.toCQLString(any(TableMetadata.class))).thenReturn("id = 12345");
         when(mockSinglePartitionReadCommand.partitionKey()).thenReturn(mockDecoratedKey);
 
         tableMetadata = TableMetadata.builder("test_keyspace", "test_table")
@@ -103,7 +104,7 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
         // Verify that the data producer was called with the correct datapoint
         ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
@@ -111,9 +112,8 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         QueryAnalyticsDatapoint capturedDatapoint = datapointCaptor.getValue();
         assertNotNull(capturedDatapoint);
-        assertEquals("metric1", capturedDatapoint.getProperty("metric_name")); // Metric name stored as property
         assertEquals(Long.valueOf(100L), capturedDatapoint.getLatency()); // New field
-        assertEquals("DecoratedKey(-123456789, test-partition)", capturedDatapoint.getPartition()); // Partition key
+        assertEquals("id = 12345", capturedDatapoint.getPartition()); // Partition key
         assertNotNull(capturedDatapoint.getTable());
         assertNotNull(capturedDatapoint.getKeyspace());
         assertNotNull(capturedDatapoint.getTimestamp());
@@ -123,37 +123,36 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        String[] latencies = {"100", "0", "-100", "9223372036854775807", "-9223372036854775808"};
-        for (String latency : latencies) {
-            queryAnalyticsService.processLatencyMetric("metric1", latency, mockSinglePartitionReadCommand);
+        long[] latencies = {100L, 0L, -100L, 9223372036854775807L, -9223372036854775808L};
+        for (long latency : latencies) {
+            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand);
         }
 
         verify(mockDataProducer, times(latencies.length)).produceDatapoint(any());
     }
 
-    public void testProcessLatencyMetricWithEdgeCases() throws IOException
+    public void testProcessLatencyMetricWithEdgeValues() throws IOException
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric("metric1", null, mockSinglePartitionReadCommand);
-        queryAnalyticsService.processLatencyMetric("metric1", "", mockSinglePartitionReadCommand);
-        queryAnalyticsService.processLatencyMetric("metric1", "invalid", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(0L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(-1L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(Long.MAX_VALUE, mockSinglePartitionReadCommand);
 
         verify(mockDataProducer, times(3)).produceDatapoint(any());
     }
 
-    public void testProcessLatencyMetricWithVariousMetricNames() throws IOException
+    public void testProcessLatencyMetricWithVariousLatencyValues() throws IOException
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        String[] metricNames = {null, "", "normal", "metric-with-special-chars!@#$%^&*()",
-                               "a".repeat(1000), "metric-测试"};
+        long[] latencyValues = {100L, 0L, 999999L, 1L, 50L, 200L};
 
-        for (String metricName : metricNames) {
-            queryAnalyticsService.processLatencyMetric(metricName, "100", mockSinglePartitionReadCommand);
+        for (long latency : latencyValues) {
+            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand);
         }
 
-        verify(mockDataProducer, times(metricNames.length)).produceDatapoint(any());
+        verify(mockDataProducer, times(latencyValues.length)).produceDatapoint(any());
     }
 
     public void testProcessLatencyMetricWithErrorConditions() throws IOException
@@ -162,12 +161,12 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         queryAnalyticsService.dataProducer = null;
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
         queryAnalyticsService.dataProducer = mockDataProducer;
         doThrow(new RuntimeException("Test exception")).when(mockDataProducer).produceDatapoint(any());
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
     }
 
     public void testProcessLatencyMetricWithNullConfig() throws IOException
@@ -175,7 +174,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         queryAnalyticsService.config = null;
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
 
         verify(mockDataProducer, times(0)).produceDatapoint(any());
@@ -196,7 +195,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
         when(mockReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
         verify(mockConfig, times(2)).isQueryAnalyticsEnabled();
         verify(mockDataProducer, times(0)).produceDatapoint(any());
@@ -207,18 +206,15 @@ public class QueryAnalyticsServiceTest extends TestCase
         String tableName = "test";
         Long nanoTimeMetric = 567890987L;
         String keyspace = "testspace";
-        String metricName = "test";
         String token = "token";
-        String value = "0";
+        long latency = 0L;
         String hostName = "host-123";
-        String cName = "TODO";
         String DC = "test";
 
         Map<String, Object> properties = new HashMap<>();
-        properties.put("metric_name", metricName);
 
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-        tableName, nanoTimeMetric, keyspace, token, value, DC, hostName, cName, properties);
+        tableName, nanoTimeMetric, keyspace, token, latency, DC, hostName, properties);
 
         assertNotNull(datapoint);
         assertEquals(tableName, datapoint.getTable());
@@ -228,45 +224,43 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertEquals(token, datapoint.getPartition());
         assertEquals(hostName, datapoint.getHost());
         assertEquals(DC, datapoint.getDC());
-        assertEquals(cName, datapoint.getCluster());
-        assertEquals(cName, datapoint.getInstance());
+        // instance and cluster are not set by createDatapoint method
+        assertNull(datapoint.getCluster());
+        assertNull(datapoint.getInstance());
     }
 
     public void testCreateDatapointWithVariousInputs() throws IOException
     {
         Object[][] testCases = {
-            {null, null, null, null, "100", null, null, null, null},
-            {"", 0L, "", "", "100", "", "", "", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", "0", "test", "host-123", "TODO", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", "-100", "test", "host-123", "TODO", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", "9223372036854775807", "test", "host-123", "TODO", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", "-9223372036854775808", "test", "host-123", "TODO", new HashMap<>()}
+            {null, null, null, null, 100L, null, null, null},
+            {"", 0L, "", "", 100L, "", "", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", 0L, "test", "host-123", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", -100L, "test", "host-123", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", 9223372036854775807L, "test", "host-123", new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", -9223372036854775808L, "test", "host-123", new HashMap<>()}
         };
 
         for (Object[] testCase : testCases) {
             QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
                 (String) testCase[0], (Long) testCase[1], (String) testCase[2],
-                (String) testCase[3], (String) testCase[4], (String) testCase[5],
-                (String) testCase[6], (String) testCase[7], (Map<String, Object>) testCase[8]);
+                (String) testCase[3], (Long) testCase[4], (String) testCase[5],
+                (String) testCase[6], (Map<String, Object>) testCase[7]);
 
             assertNotNull(datapoint);
             assertNotNull(datapoint.getProperties());
         }
     }
 
-    public void testCreateDatapointWithInvalidLatency() throws IOException
+    public void testCreateDatapointWithVariousLatencyValues() throws IOException
     {
-        String[] invalidLatencies = {null, "", "invalid", "100.5", "  100  ", "9223372036854775808"};
+        long[] latencyValues = {0L, -1L, Long.MAX_VALUE, Long.MIN_VALUE, 999999L, 1L};
 
-        for (String invalidLatency : invalidLatencies) {
+        for (long latency : latencyValues) {
             QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-                "test", 567890987L, "testspace", "token", invalidLatency, "test", "host-123", "TODO", new HashMap<>());
+                "test", 567890987L, "testspace", "token", latency, "test", "host-123", new HashMap<>());
 
             assertNotNull(datapoint);
-            if (invalidLatency == null || invalidLatency.isEmpty() || invalidLatency.equals("invalid") ||
-                invalidLatency.equals("100.5") || invalidLatency.equals("  100  ") || invalidLatency.equals("9223372036854775808")) {
-                assertEquals(Long.valueOf(0L), datapoint.getLatency());
-            }
+            assertEquals(Long.valueOf(latency), datapoint.getLatency());
         }
     }
 
@@ -314,7 +308,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
         // This should not throw an exception even with no producer
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
         // Verify that no datapoint was produced (since there's no producer)
         verify(mockDataProducer, never()).produceDatapoint(any());
@@ -325,7 +319,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric("metric1", "100", mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
         ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
         verify(mockDataProducer, times(1)).produceDatapoint(datapointCaptor.capture());
@@ -359,7 +353,7 @@ public class QueryAnalyticsServiceTest extends TestCase
     public void testCreateDatapointWithAllNullInputs() throws IOException
     {
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-            null, null, null, null, null, null, null, null, null);
+            null, null, null, null, 0L, null, null, null);
 
         assertNotNull(datapoint);
 
@@ -369,9 +363,9 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertNull(datapoint.getPartition());
         assertNull(datapoint.getHost());
         assertNull(datapoint.getDC());
-        assertEquals("TODO", datapoint.getCluster());
-        assertNull(datapoint.getInstance());
-        assertEquals(Long.valueOf(0L), datapoint.getLatency()); // Should default to 0L
+        assertNull(datapoint.getCluster()); // cluster is not set by createDatapoint method
+        assertNull(datapoint.getInstance()); // instance is not set by createDatapoint method
+        assertEquals(Long.valueOf(0L), datapoint.getLatency()); // Latency was passed as 0L
         assertNotNull(datapoint.getProperties()); // Should create empty map
     }
 

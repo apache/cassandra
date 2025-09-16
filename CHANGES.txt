@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-34269] Productionize QAN MVP: Optimize QAN Schema
  * [SO-51509] Extract reusable view row translation logic to enable both mutation-based and SSTable-based MV backfill approaches
  * [SO-51521] Switcher & Timer: rebuild key on MV modification
  * [SO-51264] Add flag to disable MV backfill when creating MV

@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,11 +36,14 @@ public class QueryAnalyticsService
     @VisibleForTesting
     protected QueryAnalyticsConfig config;
     public static final QueryAnalyticsService instance = new QueryAnalyticsService();
-    private String hostName;
-    private String DC;
     private static final Logger logger = LoggerFactory.getLogger(QueryAnalyticsService.class);
     @VisibleForTesting
     protected  QueryAnalyticsDataProducer dataProducer;
+    
+    @VisibleForTesting
+    private String hostName;
+    @VisibleForTesting
+    private String DC;
 
     public static void setup() throws IOException
     {
@@ -67,7 +71,7 @@ public class QueryAnalyticsService
     {
     }
 
-    public void processLatencyMetric(String metricName, String latency, SinglePartitionReadCommand command)
+    public void processLatencyMetric(long latency, SinglePartitionReadCommand command)
     {
         if (config == null || !config.isQueryAnalyticsEnabled())
         {
@@ -79,25 +83,21 @@ public class QueryAnalyticsService
             return;
         }
 
-        //For backwards compatibility, add the metric name as a property. This will be removed when we switch to v2 schema.
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("metric_name", metricName);
-
-        processLatencyMetric(latency, String.valueOf(command.partitionKey()), command.metadata().keyspace, command.metadata().name, properties);
+        processLatencyMetric(latency, command.partitionKey().toCQLString(command.metadata()), command.metadata().keyspace, command.metadata().name, null);
     }
 
-    private void processLatencyMetric(String latency, String partitionKey, String keyspace, String tableName)
+    private void processLatencyMetric(long latency, String partitionKey, String keyspace, String tableName)
     {
         processLatencyMetric(latency, partitionKey, keyspace, tableName, null);
     }
 
-    private void processLatencyMetric(String latency, String partitionKey, String keyspace, String tableName, Map<String, Object> properties)
+    private void processLatencyMetric(long latency, String partitionKey, String keyspace, String tableName, Map<String, Object> properties)
     {
         try
         {
-            Long nanoTimeMetric = FBUtilities.timestampMicros();
+            Long timestamp = currentTimeMillis();
             QueryAnalyticsDatapoint datapoint = createDatapoint(
-            tableName, nanoTimeMetric, keyspace, partitionKey, latency, DC, hostName, DatabaseDescriptor.getClusterName(), properties);
+            tableName, timestamp, keyspace, partitionKey, latency, DC, hostName, properties);
 
             if (dataProducer != null) {
                 dataProducer.produceDatapoint(datapoint);
@@ -152,31 +152,21 @@ public class QueryAnalyticsService
     }
 
     @VisibleForTesting
-    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, String latency, String DC, String hostName, String clusterName)
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency, String DC, String hostName)
     {
-        return createDatapoint(tableName, timestamp, keyspace, partition, latency, DC, hostName, clusterName, null);
+        return createDatapoint(tableName, timestamp, keyspace, partition, latency, DC, hostName, null);
     }
 
     @VisibleForTesting
-    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, String latency, String DC, String hostName, String clusterName, Map<String, Object> properties)
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency, String DC, String hostName, Map<String, Object> properties)
     {
-        // Convert the latency string to Long
-        Long latencyValue = null;
-        try {
-            latencyValue = Long.valueOf(latency);
-        } catch (NumberFormatException e) {
-            latencyValue = 0L;
-        }
-
         QueryAnalyticsDatapoint.Builder builder = QueryAnalyticsDatapoint.builder()
-            .instance(clusterName)  // instance = cluster for now
-            .cluster("TODO")        // cluster - not currently ingested
             .host(hostName)
             .keyspace(keyspace)
             .table(tableName)
             .partition(partition)
             .timestamp(timestamp)
-            .latency(latencyValue);
+            .latency(latency);
 
         if (DC != null) {
             builder.DC(DC);

@@ -966,7 +966,7 @@ public class Paxos
 
             try
             {
-                QueryAnalyticsService.instance.processLatencyMetric("coordinatorReadLatency", String.valueOf(latency), read);
+                QueryAnalyticsService.instance.processLatencyMetric(latency, read);
             }
             catch (Exception e)
             {
