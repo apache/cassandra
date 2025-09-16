@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
@@ -27,19 +29,15 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
-import static java.util.Map.of;
 
 /**
  * Generates a value which respective {@link ValueValidator} successfuly validates.
  */
 public abstract class ValueGenerator<VALUE>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ValueValidator.class);
+    private static final Logger logger = LoggerFactory.getLogger(ValueGenerator.class);
 
     public static final String GENERATOR_CLASS_NAME_KEY = "generator_class_name";
-
-    private static final ValueGenerator<?> NO_OP_GENERATOR =
-    new NoOpGenerator<>(new CustomGuardrailConfig(of(GENERATOR_CLASS_NAME_KEY, NoOpGenerator.class.getCanonicalName())));
 
     private static final String DEFAULT_VALIDATOR_IMPLEMENTATION_PACKAGE = ValueGenerator.class.getPackage().getName();
 
@@ -51,21 +49,46 @@ public abstract class ValueGenerator<VALUE>
     }
 
     /**
-     * Generates a value of given size.
+     * Generates a value. Generated value will not be validated before returning in any way.
      *
-     * @param size      size of value to be generated
-     * @param validator validator to validate generated value with
-     * @return generated value of given size
+     * @return generated value.
      */
-    public abstract VALUE generate(int size, ValueValidator<VALUE> validator);
+    public VALUE generate()
+    {
+        return generate((NoOpValidator<VALUE>) NoOpValidator.INSTANCE);
+    }
 
     /**
-     * Generates a valid value.
+     * Generate a value.
+     *
+     * @param validator validator possible to use when value is internally generated, to be sure that
+     *                  what was generated is valid.
+     * @return generated value
+     */
+    public VALUE generate(ValueValidator<VALUE> validator)
+    {
+        return generate(validator, Map.of());
+    }
+
+    /**
+     * Generate a value with given runtime options from OPTIONS map.
+     * Generated value will not be validated before returning in any way.
+     *
+     * @return generated value
+     */
+    public VALUE generate(Map<String, Object> options)
+    {
+        return generate((NoOpValidator<VALUE>) NoOpValidator.INSTANCE, options);
+    }
+
+    /**
+     * Generate a value.
      *
      * @param validator validator to validate generated value with
-     * @return generated and valid value
+     * @param options   runtime options to be used upon generation, from CQL OPTIONS, if any.
+     * @return generated value of given size
      */
-    public abstract VALUE generate(ValueValidator<VALUE> validator);
+    public abstract VALUE generate(ValueValidator<VALUE> validator, Map<String, Object> options);
 
     /**
      * @return parameters for this generator
@@ -79,6 +102,17 @@ public abstract class ValueGenerator<VALUE>
      * @throws ConfigurationException in case configuration for this generator is invalid
      */
     public abstract void validateParameters() throws ConfigurationException;
+
+    /**
+     * Tells what keys this generator supports when they are specified in CQL in OPTIONS.
+     * The default implementation returns empty set.
+     *
+     * @return set of keys for OPTIONS in CQL
+     */
+    public Set<String> getSupportedOptionsKeys()
+    {
+        return Set.of();
+    }
 
     /**
      * Returns an instance of a validator according to the parameters in {@code config}.
@@ -100,7 +134,7 @@ public abstract class ValueGenerator<VALUE>
             logger.debug("Configuration for generator for guardrail '{}' does not contain key " +
                          "'generator_class_name' or its value is null or empty string. No-op generator will be used.",
                          name);
-            return (ValueGenerator<VALUE>) NO_OP_GENERATOR;
+            return (ValueGenerator<VALUE>) NoOpGenerator.INSTANCE;
         }
 
         if (!className.contains("."))

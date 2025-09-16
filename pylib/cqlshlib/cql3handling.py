@@ -305,6 +305,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterUserStatement>
                             | <dropUserStatement>
                             | <listUsersStatement>
+                            | <createGeneratedRoleStatement>
                             | <createRoleStatement>
                             | <alterRoleStatement>
                             | <dropRoleStatement>
@@ -1618,6 +1619,10 @@ syntax_rules += r'''
              | <quotedName>
              | <unreservedKeyword> )
              ;
+
+<createGeneratedRoleStatement> ::= "CREATE" "GENERATED" "ROLE"
+                                       ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                                 ;
 
 <createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -54,16 +55,13 @@ public class CassandraPasswordGenerator extends ValueGenerator<String>
     }
 
     @Override
-    public String generate(int size, ValueValidator<String> validator)
+    public String generate(ValueValidator<String> validator, Map<String, Object> options)
     {
-        if (size > configuration.maxLength)
-            throw new ConfigurationException("Unable to generate a password of length " + size);
-
         boolean dictionaryAware = validator instanceof PasswordDictionaryAware;
 
         for (int i = 0; i < maxPasswordGenerationAttempts; i++)
         {
-            String generatedPassword = passwordGenerator.generatePassword(size, characterRules);
+            String generatedPassword = passwordGenerator.generatePassword(configuration.lengthWarn, characterRules);
             if (validator.shouldWarn(generatedPassword, false).isEmpty())
             {
                 if (!dictionaryAware || ((PasswordDictionaryAware<?>) validator).foundInDictionary(generatedPassword).isValid())
@@ -74,12 +72,6 @@ public class CassandraPasswordGenerator extends ValueGenerator<String>
         throw new ConfigurationException("It was not possible to generate a valid password " +
                                          "in " + maxPasswordGenerationAttempts + " attempts. " +
                                          "Check your configuration and try again.");
-    }
-
-    @Override
-    public String generate(ValueValidator<String> validator)
-    {
-        return generate(configuration.lengthWarn, validator);
     }
 
     @Nonnull

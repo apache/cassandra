@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,6 +39,7 @@ import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
@@ -556,8 +557,14 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on passwords for CREATE / ALTER ROLE statements.
      */
-    public static final PasswordGuardrail password =
-    new PasswordGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordValidatorConfig());
+    public static final PasswordPolicyGuardrail passwordPolicy =
+    new PasswordPolicyGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordPolicyConfig());
+
+    /**
+     * Guardrail on name for CREATE ROLE / USER statements.
+     */
+    public static final RoleNamePolicyGuardrail roleNamePolicy =
+    new RoleNamePolicyGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getRoleNamePolicyConfig());
 
     static
     {
@@ -1506,15 +1513,55 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
-    public Map<String, Object> getPasswordValidatorConfig()
+    public String getPasswordPolicy()
     {
-        return password.getConfig();
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(passwordPolicy.getConfig());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize password_policy configuration");
+        }
     }
 
     @Override
-    public void reconfigurePasswordValidator(Map<String, Object> config)
+    public String getRoleNamePolicy()
     {
-        password.reconfigure(config);
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(roleNamePolicy.getConfig());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize role_name_policy configuration");
+        }
+    }
+
+    @Override
+    public void setPasswordPolicy(String value)
+    {
+        try
+        {
+            passwordPolicy.reconfigure(JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {}));
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
+    }
+
+    @Override
+    public void setRoleNamePolicy(String value)
+    {
+        try
+        {
+            roleNamePolicy.reconfigure(JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {}));
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override

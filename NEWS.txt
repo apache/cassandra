@@ -102,10 +102,13 @@ New features
     - Authentication mode is exposed in system_views.clients table, nodetool clientstats and ClientMetrics 
       to help operators identify which authentication modes are being used. nodetool clientstats introduces --verbose flag 
       behind which this information is visible.
-    - CEP-24 - Password validation / generation. When built-in 'password_validator' guardrail is enabled, it will
+    - CEP-24 - Password validation / generation. When built-in 'password_policy' guardrail is enabled, it will
       generate a password of configured password strength policy upon role creation or alteration
       when 'GENERATED PASSWORD' clause is used. Character sets supported are: English, Cyrillic, modern Cyrillic,
       German, Polish and Czech.
+    - CEP-55 - Role name generation and validation. When built-in 'role_name_policy' guardrail is enabled, it will
+      generate a role name automatically, without operators intervention. It is possible to configure
+      this policy for both generation and as well as validation of role names.
     - There is new MBean of name org.apache.cassandra.service.snapshot:type=SnapshotManager which exposes user-facing
       snapshot operations. Snapshot-related methods on StorageServiceMBean are still present and functional
       but marked as deprecated.

@@ -18,41 +18,39 @@
 
 package org.apache.cassandra.distributed.test.guardrails;
 
-import java.util.Map;
+import javax.management.Attribute;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.guardrails.CassandraPasswordGenerator;
-import org.apache.cassandra.db.guardrails.CassandraPasswordValidator;
 import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
-import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.UUIDRoleNameGenerator;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static org.apache.cassandra.db.guardrails.Guardrails.MBEAN_NAME;
 import static org.apache.cassandra.distributed.Cluster.build;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
+import static org.apache.cassandra.utils.JsonUtils.JSON_OBJECT_MAPPER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
-public class GuardrailPasswordTest extends TestBaseImpl
+public class GuardrailsRoleNamePolicyTest extends TestBaseImpl
 {
     @Test
     public void testInvalidConfigurationPreventsNodeFromStart()
     {
         CustomGuardrailConfig config = new CustomGuardrailConfig();
-        config.put("class_name", CassandraPasswordValidator.class.getName());
-        config.put("generator_class_name", CassandraPasswordGenerator.class.getName());
-        config.put("illegal_sequence_length", -1);
+        config.put("generator_class_name", UUIDRoleNameGenerator.class.getName());
+        config.put("min_generated_name_size", 5);
 
         try (Cluster ignored = build(1)
-                               .withConfig(c -> c.with(Feature.NETWORK, Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                 .set("password_validator", config))
+                               .withConfig(c -> c.set("role_name_policy", config))
                                .start())
         {
             fail("should throw ConfigurationException");
@@ -67,29 +65,23 @@ public class GuardrailPasswordTest extends TestBaseImpl
     public void testDisabledReconfiguration() throws Throwable
     {
         CustomGuardrailConfig config = new CustomGuardrailConfig();
-        config.put("class_name", CassandraPasswordValidator.class.getName());
-        config.put("generator_class_name", CassandraPasswordGenerator.class.getName());
+        config.put("generator_class_name", UUIDRoleNameGenerator.class.getName());
 
         try (Cluster cluster = build(1)
-                               .withConfig(c -> c.with(Feature.JMX)
-                                                 .set("password_validator_reconfiguration_enabled", false)
-                                                 .set("password_validator", config))
+                               .withConfig(c -> c.with(JMX)
+                                                 .set("role_name_policy_reconfiguration_enabled", false)
+                                                 .set("role_name_policy", config))
                                .start();
              JMXConnector connector = JMXUtil.getJmxConnector(cluster.get(1).config()))
         {
             MBeanServerConnection mbsc = connector.getMBeanServerConnection();
 
-            config.put("illegal_sequence_length", -1);
-
-            mbsc.invoke(ObjectName.getInstance(Guardrails.MBEAN_NAME),
-                        "reconfigurePasswordValidator",
-                        new Object[]{ config },
-                        new String[]{ Map.class.getName() });
+            mbsc.setAttribute(ObjectName.getInstance(MBEAN_NAME), new Attribute("RoleNamePolicy", JSON_OBJECT_MAPPER.writeValueAsString(config)));
 
             assertFalse(cluster.get(1)
                                .logs()
-                               .watchFor("It is not possible to reconfigure password guardrail because " +
-                                         "property 'password_validator_reconfiguration_enabled' is set to false.")
+                               .watchFor("It is not possible to reconfigure role_name_policy guardrail because " +
+                                         "property 'role_name_policy_reconfiguration_enabled' is set to false.")
                                .getResult()
                                .isEmpty());
         }

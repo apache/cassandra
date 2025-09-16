@@ -1187,6 +1187,9 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_alter_user(self):
         self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
 
+    def test_complete_in_generated(self):
+        self.trycompletions('CREATE GENERATED ', immediate='ROLE ')
+
     def test_complete_in_create_role(self):
         self.trycompletions('CREATE ROLE ', choices=['<rolename>', 'IF'])
         self.trycompletions('CREATE ROLE IF ', immediate='NOT EXISTS ')
@@ -1196,6 +1199,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE ROLE foo WITH ACCESS TO ALL ', immediate='DATACENTERS ')
         self.trycompletions('CREATE ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
         self.trycompletions('CREATE ROLE foo WITH ACCESS FROM ALL ', immediate='CIDRS ')
+        self.trycompletions('CREATE GENERATED ROLE WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER', 'GENERATED'])
 
     def test_complete_in_alter_role(self):
         self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])

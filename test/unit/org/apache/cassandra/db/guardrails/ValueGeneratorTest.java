@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Arrays;
+import java.util.Map;
 import javax.annotation.Nonnull;
 
 import org.junit.Test;
@@ -47,7 +48,9 @@ public class ValueGeneratorTest
         assertNotNull(defaultBooleans);
         assertEquals(10, defaultBooleans.length);
 
-        Boolean[] twentyBooleans = booleanGenerator.generate(20, booleanValidator);
+        config.put("default_size", 20);
+        booleanGenerator = ValueGenerator.getGenerator("boolean generator", config);
+        Boolean[] twentyBooleans = booleanGenerator.generate(booleanValidator, Map.of());
         assertEquals(20, twentyBooleans.length);
         for (int i = 0; i < 20; i++)
             assertEquals(true, twentyBooleans[i]);
@@ -78,19 +81,17 @@ public class ValueGeneratorTest
         }
 
         @Override
-        public Boolean[] generate(int size, ValueValidator<Boolean[]> validator)
-        {
-            Boolean[] booleans = new Boolean[size];
-            Arrays.fill(booleans, expectingTrue);
-            return booleans;
-        }
-
-        @Override
         public Boolean[] generate(ValueValidator<Boolean[]> validator)
         {
             Boolean[] booleans = new Boolean[defaultSize];
             Arrays.fill(booleans, expectingTrue);
             return booleans;
+        }
+
+        @Override
+        public Boolean[] generate(ValueValidator<Boolean[]> validator, Map<String, Object> options)
+        {
+            return generate(validator);
         }
 
         @Nonnull

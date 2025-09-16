@@ -47,6 +47,7 @@ public class CustomGuardrail<VALUE> extends Guardrail
 
     /**
      * @param name                name of the custom guardrail
+     * @param reason              guardrail reason
      * @param configSupplier      configuration supplier of the custom guardrail
      * @param guardWhileSuperuser when true, the guardrail will be executed even the caller is a superuser. If
      *                            false, this guardrail will be called only in case a caller is not a superuser.
@@ -84,7 +85,7 @@ public class CustomGuardrail<VALUE> extends Guardrail
      * @param value value to validate by the validator of this guardrail
      * @param state client's state
      */
-    public void guard(VALUE value, ClientState state)
+    public void validate(VALUE value, ClientState state)
     {
         if (!enabled(state))
             return;
@@ -111,28 +112,37 @@ public class CustomGuardrail<VALUE> extends Guardrail
      */
     public CustomGuardrailConfig getConfig()
     {
-        return getValidator().getParameters();
+        CustomGuardrailConfig config = new CustomGuardrailConfig(getValidator().getParameters());
+        config.put(ValueValidator.VALIDATOR_CLASS_NAME_KEY, getValidator().getClass().getName());
+        config.put(ValueGenerator.GENERATOR_CLASS_NAME_KEY, getGenerator().getClass().getName());
+        return config;
     }
 
-    /**
-     * Generates a value of given size.
-     *
-     * @param size size of value to be generated
-     * @return generated value of given size
-     */
-    public VALUE generate(int size)
+    public VALUE generate(ClientState state)
     {
-        return getGenerator().generate(size, getValidator());
+        return generate(state, Map.of());
     }
 
     /**
      * Generates a valid value.
      *
+     * @param state   client state
+     * @param options options to use upon generation
      * @return generated and valid value
      */
-    public VALUE generate()
+    public VALUE generate(ClientState state, Map<String, Object> options)
     {
-        return getGenerator().generate(getValidator());
+        try
+        {
+            return getGenerator().generate(getValidator(), options);
+        }
+        catch (Throwable t)
+        {
+            fail(t.getMessage(),
+                 t.getMessage(),
+                 state);
+            return null;
+        }
     }
 
     /**
@@ -149,6 +159,7 @@ public class CustomGuardrail<VALUE> extends Guardrail
      */
     void reconfigure(@Nullable Map<String, Object> newConfig)
     {
+
         Map<String, Object> mergedMap = new HashMap<>(getValidator().getParameters());
 
         if (newConfig != null)

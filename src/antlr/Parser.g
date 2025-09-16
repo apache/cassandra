@@ -1453,15 +1453,8 @@ createUserStatement returns [CreateRoleStatement stmt]
         {
            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
-        if (opts.getPassword().isPresent() && opts.isGeneratedPassword())
-        {
-           throw new SyntaxException("Options 'password' and 'generated password' are mutually exclusive");
-        }
-        if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
-        {
-           throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
-        }
-        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), CIDRPermissions.all(), ifNotExists); }
+        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), CIDRPermissions.all(), ifNotExists);
+      }
     ;
 
 /**
@@ -1535,10 +1528,11 @@ listUsersStatement returns [ListRolesStatement stmt]
     ;
 
 /**
- * CREATE ROLE [IF NOT EXISTS] <rolename> [ [WITH] option [ [AND] option ]* ]
+ * CREATE [GENERATED] ROLE [IF NOT EXISTS] <rolename> [ [WITH] option [ [AND] option ]* ]
  *
  * where option can be:
  *  PASSWORD = '<password>'
+ *  GENERATED PASSWORD
  *  SUPERUSER = (true|false)
  *  LOGIN = (true|false)
  *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
@@ -1553,8 +1547,9 @@ createRoleStatement returns [CreateRoleStatement stmt]
         DCPermissions.Builder dcperms = DCPermissions.builder();
         CIDRPermissions.Builder cidrperms = CIDRPermissions.builder();
         boolean ifNotExists = false;
+        boolean isGeneratedName = false;
     }
-    : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
+    : K_CREATE (K_GENERATED { isGeneratedName = true; })? K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? (name=userOrRoleName)?
       ( K_WITH roleOptions[opts, dcperms, cidrperms] )?
       {
         // set defaults if they weren't explictly supplied
@@ -1577,6 +1572,18 @@ createRoleStatement returns [CreateRoleStatement stmt]
         if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
         {
            throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
+        }
+        if (isGeneratedName)
+        {
+           if (name != null)
+           {
+               throw new SyntaxException("Name can not be specified together with GENERATED keyword.");
+           }
+           if (ifNotExists)
+           {
+               throw new SyntaxException("GENERATED keyword for role creation can not be used together with IF NOT EXISTS.");
+           }
+           opts.setOption(IRoleManager.Option.GENERATED_NAME, true);
         }
         $stmt = new CreateRoleStatement(name, opts, dcperms.build(), cidrperms.build(), ifNotExists);
       }
