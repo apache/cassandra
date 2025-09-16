@@ -28,7 +28,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
-import static java.util.Map.of;
 
 /**
  * Validates a value by calling {@link ValueValidator#shouldFail} or {@link ValueValidator#shouldWarn} methods.
@@ -41,10 +40,7 @@ public abstract class ValueValidator<VALUE>
 {
     private static final Logger logger = LoggerFactory.getLogger(ValueValidator.class);
 
-    public static final String CLASS_NAME_KEY = "class_name";
-
-    private static final ValueValidator<?> NO_OP_VALIDATOR =
-    new NoOpValidator<>(new CustomGuardrailConfig(of(CLASS_NAME_KEY, NoOpValidator.class.getCanonicalName())));
+    public static final String VALIDATOR_CLASS_NAME_KEY = "validator_class_name";
 
     private static final String DEFAULT_VALIDATOR_IMPLEMENTATION_PACKAGE = ValueValidator.class.getPackage().getName();
 
@@ -76,7 +72,7 @@ public abstract class ValueValidator<VALUE>
      * Test a value to see if it emits warnings.
      *
      * @param value             value to validate
-     * @param calledBySuperuser client state
+     * @param calledBySuperuser whether this is called by a super-user or not
      * @return if optional is empty, value is valid, otherwise it returns warning violation message
      */
     public abstract Optional<ValidationViolation> shouldWarn(VALUE value, boolean calledBySuperuser);
@@ -116,13 +112,13 @@ public abstract class ValueValidator<VALUE>
      */
     public static <VALUE> ValueValidator<VALUE> getValidator(String name, @Nonnull CustomGuardrailConfig config)
     {
-        String className = config.resolveString(CLASS_NAME_KEY);
+        String className = config.resolveString(VALIDATOR_CLASS_NAME_KEY);
 
         if (className == null || className.isEmpty())
         {
             logger.debug("Configuration for validator for guardrail '{}' does not contain key " +
-                         "'class_name' or its value is null or empty string. No-op validator will be used.", name);
-            return (ValueValidator<VALUE>) NO_OP_VALIDATOR;
+                         "'validator_class_name' or its value is null or empty string. No-op validator will be used.", name);
+            return (ValueValidator<VALUE>) NoOpValidator.INSTANCE;
         }
 
         if (!className.contains("."))

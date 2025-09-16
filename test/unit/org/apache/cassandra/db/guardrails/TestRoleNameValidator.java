@@ -18,38 +18,52 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.util.Map;
 import java.util.Optional;
-
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
- * Validator which does nothing when it validates a value. It never fails nor warns, it
- * has the empty configuration which is valid.
+ * For test purposes, it will warn everything which has a number in it,
+ * and it will fail if it is not alphanumeric.
  */
-public class NoOpValidator<T> extends ValueValidator<T>
+public class TestRoleNameValidator extends ValueValidator<String>
 {
-    private static final CustomGuardrailConfig config = new CustomGuardrailConfig(Map.of(VALIDATOR_CLASS_NAME_KEY, NoOpValidator.class.getCanonicalName()));
-
-    public static final NoOpValidator INSTANCE = new NoOpValidator<>(config);
-
-    public NoOpValidator(CustomGuardrailConfig unused)
+    public TestRoleNameValidator()
     {
-        super(NoOpValidator.config);
+        this(new CustomGuardrailConfig());
+    }
+
+    public TestRoleNameValidator(CustomGuardrailConfig config)
+    {
+        super(config);
     }
 
     @Override
-    public Optional<ValidationViolation> shouldWarn(T value, boolean calledBySuperuser)
+    public Optional<ValidationViolation> shouldWarn(String string, boolean calledBySuperuser)
     {
+        boolean containsNumber = StringUtils.containsAny(string, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0');
+        if (containsNumber)
+            return Optional.of(new ValidationViolation("Role name contains a number."));
+
         return Optional.empty();
     }
 
     @Override
-    public Optional<ValidationViolation> shouldFail(T value, boolean calledBySuperUser)
+    public Optional<ValidationViolation> shouldFail(String string, boolean calledBySuperUser)
     {
+        if (!StringUtils.isAlphanumeric(string))
+            return Optional.of(new ValidationViolation("Role name is not alphanumeric."));
+
         return Optional.empty();
+    }
+
+    @Override
+    public void validateParameters() throws ConfigurationException
+    {
+
     }
 
     @Nonnull
@@ -57,10 +71,5 @@ public class NoOpValidator<T> extends ValueValidator<T>
     public CustomGuardrailConfig getParameters()
     {
         return config;
-    }
-
-    @Override
-    public void validateParameters() throws ConfigurationException
-    {
     }
 }

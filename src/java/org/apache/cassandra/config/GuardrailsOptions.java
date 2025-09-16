@@ -19,6 +19,7 @@
 package org.apache.cassandra.config;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -108,7 +109,8 @@ public class GuardrailsOptions implements GuardrailsConfig
                                  config.sai_sstable_indexes_per_query_fail_threshold,
                                  "sai_sstable_indexes_per_query",
                                  false);
-        validatePasswordValidator(config.password_validator);
+        validatePasswordPolicy(config.password_policy);
+        validateRoleNamePolicy(config.role_name_policy);
     }
 
     @Override
@@ -1038,9 +1040,15 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public CustomGuardrailConfig getPasswordValidatorConfig()
+    public CustomGuardrailConfig getPasswordPolicyConfig()
     {
-        return config.password_validator;
+        return config.password_policy;
+    }
+
+    @Override
+    public CustomGuardrailConfig getRoleNamePolicyConfig()
+    {
+        return config.role_name_policy;
     }
 
     public void setMaximumReplicationFactorThreshold(int warn, int fail)
@@ -1538,8 +1546,13 @@ public class GuardrailsOptions implements GuardrailsConfig
      *
      * @param config configuration to use for generator and validator
      */
-    private static void validatePasswordValidator(CustomGuardrailConfig config)
+    private static void validatePasswordPolicy(CustomGuardrailConfig config)
     {
-        ValueGenerator.getGenerator("password", config).generate(ValueValidator.getValidator("password", config));
+        ValueGenerator.getGenerator("password_policy", config).generate(ValueValidator.getValidator("password_policy", config), Map.of());
+    }
+
+    private static void validateRoleNamePolicy(CustomGuardrailConfig config)
+    {
+        ValueGenerator.getGenerator("role_name_policy", config).generate(ValueValidator.getValidator("role_name_policy", config), Map.of());
     }
 }

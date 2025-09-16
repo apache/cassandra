@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -51,11 +52,16 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.NoOpGenerator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -76,6 +82,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * Responsible for the creation, maintenance and deletion of roles
@@ -164,9 +171,14 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public CassandraRoleManager(Map<String, String> parameters)
     {
-        supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                           ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
-                           : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+        Set<Option> allowedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
+                                     ? EnumSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD, Option.GENERATED_NAME)
+                                     : EnumSet.of(Option.LOGIN, Option.SUPERUSER);
+
+        if (Guardrails.roleNamePolicy.getGenerator() != NoOpGenerator.INSTANCE)
+            allowedOptions.add(Option.OPTIONS);
+
+        supportedOptions = ImmutableSet.copyOf(allowedOptions);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
                            ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
                            : ImmutableSet.<Option>of();
@@ -338,6 +350,20 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                                   escape(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
+    }
+
+    @Override
+    public ResultMessage alterRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        alterRole(performer, role, options);
+        return getResultMessageForRoleCreatedOrAltered(role, options);
+    }
+
+    @Override
+    public ResultMessage createRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        createRole(performer, role, options);
+        return getResultMessageForRoleCreatedOrAltered(role, options);
     }
 
     public void grantRole(AuthenticatedUser performer, RoleResource role, RoleResource grantee)
@@ -826,5 +852,53 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     {
         this.invalidClientDisconnectMaxJitterMillis = duration;
         scheduleDisconnectInvalidRoleTask();
+    }
+
+    private static final ColumnSpecification GENERATED_PASSWORD_METADATA = new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                   "generated_password",
+                                                                                                   new ColumnIdentifier("generated_password", true),
+                                                                                                   UTF8Type.instance);
+
+    private static final ColumnSpecification GENERATED_ROLE_NAME_METADATA = new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                    "generated_role_name",
+                                                                                                    new ColumnIdentifier("generated_role_name", true),
+                                                                                                    UTF8Type.instance);
+
+    protected ResultMessage getResultMessageForRoleCreatedOrAltered(RoleResource role, RoleOptions opts)
+    {
+        if (!opts.isGeneratedPassword() && !opts.isGeneratedName())
+            return null;
+
+        ResultSet resultSet = null;
+
+        if (opts.isGeneratedPassword() && !opts.isGeneratedName())
+        {
+            if (opts.getPassword().isEmpty())
+                return null;
+
+            resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_PASSWORD_METADATA)));
+            resultSet.addColumnValue(bytes(opts.getPassword().get()));
+        }
+        else if (!opts.isGeneratedPassword() && opts.isGeneratedName())
+        {
+            resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_ROLE_NAME_METADATA)));
+            resultSet.addColumnValue(bytes(role.getRoleName()));
+        }
+        else if (opts.isGeneratedName() && opts.isGeneratedPassword())
+        {
+            if (opts.getPassword().isEmpty())
+            {
+                resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_ROLE_NAME_METADATA)));
+                resultSet.addColumnValue(bytes(role.getRoleName()));
+            }
+            else
+            {
+                resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_PASSWORD_METADATA, GENERATED_ROLE_NAME_METADATA)));
+                resultSet.addColumnValue(bytes(opts.getPassword().get()));
+                resultSet.addColumnValue(bytes(role.getRoleName()));
+            }
+        }
+
+        return new ResultMessage.Rows(resultSet);
     }
 }

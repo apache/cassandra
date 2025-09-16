@@ -365,7 +365,7 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
                                                                                 "SimpleStrategyEnabled", "simplestrategy_enabled",
                                                                                 "NonPartitionRestrictedQueryEnabled", "non_partition_restricted_index_query_enabled");
 
-    private static final Set<String> ignored = Set.of("password_validator_config");
+    private static final Set<String> ignored = Set.of("password_policy", "role_name_policy");
 
     /**
      * Set of guardrails which are flags, even though their suffix would suggest they are part of "values" which have warned, ignored, and disallowed sub-categories

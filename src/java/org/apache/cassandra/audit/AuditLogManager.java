@@ -51,7 +51,7 @@ import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.db.guardrails.PasswordGuardrail;
+import org.apache.cassandra.db.guardrails.PasswordPolicyGuardrail;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
@@ -414,9 +414,9 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                     return "Syntax Exception. Obscured for security reasons.";
             }
         }
-        else if (e instanceof PasswordGuardrail.PasswordGuardrailException)
+        else if (e instanceof PasswordPolicyGuardrail.PasswordGuardrailException)
         {
-            return ((PasswordGuardrail.PasswordGuardrailException) e).redactedMessage;
+            return ((PasswordPolicyGuardrail.PasswordGuardrailException) e).redactedMessage;
         }
 
         return PasswordObfuscator.obfuscate(e.getMessage());

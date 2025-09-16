@@ -19,37 +19,29 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Map;
-import java.util.Optional;
-
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
- * Validator which does nothing when it validates a value. It never fails nor warns, it
- * has the empty configuration which is valid.
+ * This will generate a role name which will fail when validated with {@link TestRoleNameValidator}.
  */
-public class NoOpValidator<T> extends ValueValidator<T>
+public class InvalidRoleNameGenerator extends ValueGenerator<String>
 {
-    private static final CustomGuardrailConfig config = new CustomGuardrailConfig(Map.of(VALIDATOR_CLASS_NAME_KEY, NoOpValidator.class.getCanonicalName()));
-
-    public static final NoOpValidator INSTANCE = new NoOpValidator<>(config);
-
-    public NoOpValidator(CustomGuardrailConfig unused)
+    public InvalidRoleNameGenerator()
     {
-        super(NoOpValidator.config);
+        this(new CustomGuardrailConfig());
+    }
+
+    public InvalidRoleNameGenerator(CustomGuardrailConfig config)
+    {
+        super(config);
     }
 
     @Override
-    public Optional<ValidationViolation> shouldWarn(T value, boolean calledBySuperuser)
+    public String generate(ValueValidator<String> validator, Map<String, Object> options)
     {
-        return Optional.empty();
-    }
-
-    @Override
-    public Optional<ValidationViolation> shouldFail(T value, boolean calledBySuperUser)
-    {
-        return Optional.empty();
+        return "non_alpha_numeric";
     }
 
     @Nonnull

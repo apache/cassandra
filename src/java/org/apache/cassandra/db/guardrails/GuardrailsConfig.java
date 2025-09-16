@@ -644,7 +644,12 @@ public interface GuardrailsConfig
     void setNonPartitionRestrictedQueryEnabled(boolean enabled);
 
     /**
-     * @return configuration for password validation guardrail.
+     * @return configuration for password policy guardrail.
      */
-    CustomGuardrailConfig getPasswordValidatorConfig();
+    CustomGuardrailConfig getPasswordPolicyConfig();
+
+    /**
+     * @return configuration for role name policy guardrail.
+     */
+    CustomGuardrailConfig getRoleNamePolicyConfig();
 }

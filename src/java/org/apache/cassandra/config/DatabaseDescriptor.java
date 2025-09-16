@@ -5923,9 +5923,14 @@ public class DatabaseDescriptor
         return conf.triggers_policy;
     }
 
-    public static boolean isPasswordValidatorReconfigurationEnabled()
+    public static boolean isPasswordPolicyReconfigurationEnabled()
     {
-        return conf.password_validator_reconfiguration_enabled;
+        return conf.password_policy_reconfiguration_enabled;
+    }
+
+    public static boolean isRoleNamePolicyReconfigurationEnabled()
+    {
+        return conf.role_name_policy_reconfiguration_enabled;
     }
 
     public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()

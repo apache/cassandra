@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -1127,14 +1126,26 @@ public interface GuardrailsMBean
     void setIntersectFilteringQueryEnabled(boolean value);
 
     /**
-     * @return the configuration of password validator.
+     * @return JSON representation of the configuration of password policy
      */
-    Map<String, Object> getPasswordValidatorConfig();
+    String getPasswordPolicy();
+
+    /**
+     * @return JSON representation of the configuration of role name policy
+     */
+    String getRoleNamePolicy();
 
     /**
      * Reconfigures password validator.
      *
-     * @param config configuration of new password validator
+     * @param value configuration of new password validator
      */
-    void reconfigurePasswordValidator(Map<String, Object> config);
+    void setPasswordPolicy(String value);
+
+    /**
+     * Reconfigures role name validator.
+     *
+     * @param value configuration of new role name validator.
+     */
+    void setRoleNamePolicy(String value);
 }

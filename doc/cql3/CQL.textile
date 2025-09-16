@@ -1329,7 +1329,7 @@ h3(#createRoleStmt). CREATE ROLE
 __Syntax:__
 
 bc(syntax).. 
-<create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
+<create-role-stmt> ::= CREATE (GENERATED)? ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= ("HASHED")? PASSWORD = <string>
            | GENERATED PASSWORD
@@ -1352,6 +1352,8 @@ CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_
 CREATE ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
 CREATE ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
 CREATE ROLE tom WITH LOGIN = true and GENERATED PASSWORD;
+CREATE GENERATED ROLE WITH GENERATED PASSWORD;
+CREATE GENERATED ROLE WITH PASSWORD = 'password_e';
 
 
 By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
@@ -1370,8 +1372,12 @@ Use the @WITH PASSWORD@ clause to set a password for internal authentication, en
 If internal authentication has not been set up or the role does not have @LOGIN@ privileges, the @WITH PASSWORD@ clause is not necessary.
 
 When @WITH GENERATED PASSWORD@ is used, Cassandra provides out-of-the-box CassandraPasswordValidator and CassandraPasswordGenerator
-under "password_validator" configuration property in cassandra.yaml. The usage of this clause will generate a password for a given password strength policy, as configured,
+under "password_policy" configuration property in cassandra.yaml. The usage of this clause will generate a password for a given password strength policy, as configured,
 and such password is returned to a client in CQL shell after query is executed. @GENERATED PASSWORD@ can not be used together with @HASHED PASSWORD@ nor with @PASSWORD@ alone.
+
+When @GENERATED@ is used in front of @ROLE@, it is possible to generate a role name automatically. This is possible if `role_name_policy` is enabled in the configuration.
+The usage of this clause will generate a role name based on given `generator_class_name` in `role_name_policy` section in cassandra.yaml. Generated role name (together with generated password) will
+be returned in CQL response to a caller. Custom implementations of `IRoleManager` are able to specify custom response to return to a caller if default behaviour is not desired.
 
 h4(#createRoleConditional). Creating a role conditionally
 
@@ -1522,7 +1528,6 @@ bc(syntax)..
 <create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= ("HASHED")? PASSWORD = <string>
-           | GENERATED PASSWORD
            | SUPERUSER
            | NOSUPERUSER
 p. 
@@ -1532,7 +1537,6 @@ __Sample:__
 bc(sample). 
 CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
 CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
-CREATE USER tom WITH GENERATED PASSWORD;
 
 @CREATE USER@ is equivalent to @CREATE ROLE@ where the @LOGIN@ option is @true@. So, the following pairs of statements are equivalent:
 
@@ -1561,7 +1565,6 @@ bc(syntax)..
 <alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= ("HASHED")? PASSWORD = <string>
-           | GENERATED PASSWORD
            | SUPERUSER
            | NOSUPERUSER
 p. 
@@ -2729,6 +2732,7 @@ h3. 3.4.8
 
 * Add support for the BETWEEN operator in WHERE clauses (see "CASSANDRA-19604":https://issues.apache.org/jira/browse/CASSANDRA-19604)
 * Add support for GENERATED PASSWORD clause (see "CASSANDRA-17457":https://issues.apache.org/jira/browse/CASSANDRA-17457)
+* Add support for GENERATED ROLE clause (see "CASSANDRA-17457":https://issues.apache.org/jira/browse/CASSANDRA-20902)
 
 h3. 3.4.7
 
