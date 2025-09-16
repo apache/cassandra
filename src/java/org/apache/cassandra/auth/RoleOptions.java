@@ -94,6 +94,11 @@ public class RoleOptions
         return (Boolean) options.getOrDefault(IRoleManager.Option.GENERATED_PASSWORD, Boolean.FALSE);
     }
 
+    public boolean isGeneratedName()
+    {
+        return (Boolean) options.getOrDefault(IRoleManager.Option.GENERATED_NAME, Boolean.FALSE);
+    }
+
     /**
      * Return the string value of the hashed password option.
      * @return hashed password option value

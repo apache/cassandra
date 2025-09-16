@@ -69,7 +69,6 @@ public class CassandraPasswordGeneratorTest
         CassandraPasswordValidator validator = new CassandraPasswordValidator(config);
 
         assertEquals(20, generator.generate(validator).length());
-        assertEquals(30, generator.generate(30, validator).length());
     }
 
     @Test

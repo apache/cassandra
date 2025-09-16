@@ -393,11 +393,17 @@ See also: xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PE
 xref:cassandra:developing/cql/security.adoc#grant-all[`GRANT ALL`] and
 xref:cassandra:developing/cql/security.adoc#revoke-permission[`REVOKE PERMISSION`].
 
-== Password validation
+== Password generation and validation
 
 If you are interested into the application of a certain security policy for password strength for
 user passwords, you are welcome to read about it more in xref:cassandra:managing/operating/password_validation.adoc[here]
 which implements https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=228494146[CEP-24].
+
+== Role name generation and validation
+
+It is possible to automatically generate role names and validate them upon role or user creation. This feature
+was implemented in https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-55+Generated+role+names[CEP-55].
+You can read more about this feature in depth xref:cassandra:managing/operating/role_name_generation.adoc[here].
 
 [[auth-caching]]
 == Caching

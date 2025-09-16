@@ -1003,8 +1003,10 @@ public class Config
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
 
-    public volatile boolean password_validator_reconfiguration_enabled = true;
-    public volatile CustomGuardrailConfig password_validator = new CustomGuardrailConfig();
+    public volatile boolean password_policy_reconfiguration_enabled = true;
+    public volatile boolean role_name_policy_reconfiguration_enabled = true;
+    public volatile CustomGuardrailConfig password_policy = new CustomGuardrailConfig();
+    public volatile CustomGuardrailConfig role_name_policy = new CustomGuardrailConfig();
     public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     /**

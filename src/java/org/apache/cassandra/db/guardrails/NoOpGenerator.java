@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -28,9 +29,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public class NoOpGenerator<VALUE> extends ValueGenerator<VALUE>
 {
-    private static final CustomGuardrailConfig config = new CustomGuardrailConfig();
+    private static final CustomGuardrailConfig config = new CustomGuardrailConfig(Map.of(GENERATOR_CLASS_NAME_KEY, NoOpGenerator.class.getCanonicalName()));
 
-    public static NoOpGenerator INSTANCE = new NoOpGenerator<>(config);
+    public static final NoOpGenerator INSTANCE = new NoOpGenerator<>(config);
 
     public NoOpGenerator(CustomGuardrailConfig unused)
     {
@@ -38,13 +39,7 @@ public class NoOpGenerator<VALUE> extends ValueGenerator<VALUE>
     }
 
     @Override
-    public VALUE generate(int size, ValueValidator<VALUE> validator)
-    {
-        return null;
-    }
-
-    @Override
-    public VALUE generate(ValueValidator<VALUE> validator)
+    public VALUE generate(ValueValidator<VALUE> validator, Map<String, Object> options)
     {
         return null;
     }

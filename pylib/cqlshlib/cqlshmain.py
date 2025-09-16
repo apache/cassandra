@@ -540,7 +540,7 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         ksmeta = self.get_keyspace_meta(ksname)
         if tablename not in ksmeta.tables:
-            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions', 'generated_password']:
+            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions', 'generated_values']:
                 self.get_fake_auth_table_meta(ksname, tablename)
             else:
                 raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
@@ -563,10 +563,11 @@ class Shell(cmd.Cmd):
             table_meta.columns['role'] = ColumnMetadata(table_meta, 'role', cassandra.cqltypes.UTF8Type)
             table_meta.columns['resource'] = ColumnMetadata(table_meta, 'resource', cassandra.cqltypes.UTF8Type)
             table_meta.columns['permission'] = ColumnMetadata(table_meta, 'permission', cassandra.cqltypes.UTF8Type)
-        elif tablename == 'generated_password':
+        elif tablename == 'generated_values':
             ks_meta = KeyspaceMetadata(ksname, True, None, None)
-            table_meta = TableMetadata(ks_meta, 'generated_password')
+            table_meta = TableMetadata(ks_meta, 'generated_values')
             table_meta.columns['generated_password'] = ColumnMetadata(table_meta, 'generated_password', cassandra.cqltypes.UTF8Type)
+            table_meta.columns['generated_role_name'] = ColumnMetadata(table_meta, 'generated_role_name', cassandra.cqltypes.UTF8Type)
         else:
             raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
 
@@ -911,16 +912,18 @@ class Shell(cmd.Cmd):
         if result is None:
             return False, None
 
+        lowered_query = statement.query_string.lower()
+
         if statement.query_string[:6].lower() == 'select':
             self.print_result(result, self.parse_for_select_meta(statement.query_string))
-        elif statement.query_string.lower().startswith("list users") or statement.query_string.lower().startswith("list roles"):
+        elif lowered_query.startswith("list users") or lowered_query.startswith("list roles"):
             self.print_result(result, self.get_table_meta('system_auth', 'roles'))
-        elif statement.query_string.lower().startswith("list"):
+        elif lowered_query.startswith("list"):
             self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
-        elif statement.query_string.lower().startswith("create user") or statement.query_string.lower().startswith("create role"):
-            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
-        elif statement.query_string.lower().startswith("alter user") or statement.query_string.lower().startswith("alter role"):
-            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
+        elif lowered_query.startswith("create role") or lowered_query.startswith("create generated role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_values'))
+        elif lowered_query.startswith("alter role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_values'))
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")

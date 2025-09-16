@@ -393,13 +393,17 @@ public class CassandraPasswordValidatorTest
     public void testMaxLength()
     {
         CustomGuardrailConfig config = new CustomGuardrailConfig();
+        config.put(CassandraPasswordConfiguration.LENGTH_WARN_KEY, 999);
         CassandraPasswordValidator validator = new CassandraPasswordValidator(config);
         CassandraPasswordGenerator generator = new CassandraPasswordGenerator(config);
-        String password = generator.generate(1000, validator);
-        assertEquals(1000, password.length());
+        String password = generator.generate(validator);
+        assertEquals(999, password.length());
 
-        assertThatThrownBy(() -> generator.generate(1001, validator))
+        CustomGuardrailConfig config2 = new CustomGuardrailConfig();
+        config2.put(CassandraPasswordConfiguration.LENGTH_WARN_KEY, 1001);
+        assertThatThrownBy(() -> new CassandraPasswordGenerator(config2))
         .isInstanceOf(ConfigurationException.class)
-        .hasMessageContaining("Unable to generate a password of length " + 1001);
+        .hasMessageContaining(MAX_LENGTH_KEY + " of value " + CassandraPasswordConfiguration.MAX_LENGTH +
+                              " is less or equal to " + LENGTH_WARN_KEY + " of value 1001");
     }
 }

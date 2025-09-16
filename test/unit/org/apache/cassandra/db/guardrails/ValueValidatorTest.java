@@ -28,7 +28,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.String.format;
-import static org.apache.cassandra.db.guardrails.ValueValidator.CLASS_NAME_KEY;
+import static org.apache.cassandra.db.guardrails.ValueValidator.VALIDATOR_CLASS_NAME_KEY;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -60,7 +60,7 @@ public class ValueValidatorTest
     public void testValidatorCreation()
     {
         CustomGuardrailConfig config = new CustomGuardrailConfig();
-        config.put(CLASS_NAME_KEY, BooleanValidator.class.getName());
+        config.put(VALIDATOR_CLASS_NAME_KEY, BooleanValidator.class.getName());
         config.put("expecting_true", FALSE);
 
         ValueValidator<Boolean> booleanValidator = ValueValidator.getValidator("boolean validator", config);
@@ -75,7 +75,7 @@ public class ValueValidatorTest
     public void testValidatorCreationWithInvalidConfiguration()
     {
         CustomGuardrailConfig config = new CustomGuardrailConfig();
-        config.put(CLASS_NAME_KEY, BooleanValidator.class.getName());
+        config.put(VALIDATOR_CLASS_NAME_KEY, BooleanValidator.class.getName());
 
         assertThatThrownBy(() -> ValueValidator.getValidator("boolean validator", config))
         .isInstanceOf(ConfigurationException.class)

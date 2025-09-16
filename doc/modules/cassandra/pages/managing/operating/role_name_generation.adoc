@@ -1,0 +1,122 @@
+= Role name validation and generation
+:navtitle: Role name generation and validation
+:description: Role name generation and validation - How it works, how to configure it, and more.
+:keywords: CEP-55, User, Role, Generation, Validation, Security
+
+CEP-55 is logical continuation of CEP-24. CEP-24 covers generation and validation of passwords while CEP-55  deals with role name generation.
+
+The configuration of role name policy in cassandra.yaml is as follows:
+
+----
+role_name_policy:
+#  # Implementation class of a validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails is prepended.
+#  # By default, there is no validator.
+#  #validator_class_name: YourValidatorOfRoleNames
+#  # Implementation class of related generator which generates values which are valid when
+#  # tested against this validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails is prepended.
+#  # By default, there is no generator.
+#  # There is currently only one generator possible to configure - UUIDRoleNameGenerator
+  generator_class_name: UUIDRoleNameGenerator
+#  # Minimum generated size of a name when name_size option is specified in CQL.
+#  # This can not be less than 10 and more than 32.
+#  #min_generated_name_size: 10
+----
+
+`UUIDRoleNameGenerator` is the only built-in implementation of a generator which generates role names. As
+its name suggests, generated role names will be UUIDs (without hyphens) and their first character will be always a letter.
+
+Once enabled (together with `CassandraRoleManager` as `role_manager`), a user might execute these queries:
+
+The most simple variation is:
+
+----
+CREATE GENERATED ROLE;
+
+ generated_role_name
+----------------------------------
+ a40dcc81c5964a79a5be670d99b18159
+----
+
+Every generation command will return a result resembling a table which will return `generated_role_name` value to a user.
+
+----
+CREATE GENERATED ROLE WITH PASSWORD = 'U9~63o<7M}oM';
+
+ generated_role_name
+----------------------------------
+ f7f1871a41d740b483ac561cbbf1e4a9
+----
+
+When CEP-24 / password generation is enabled, it is possible to combine the generation of a role name together with
+the generation of a password like this:
+
+----
+CREATE GENERATED ROLE WITH GENERATED PASSWORD;
+
+ generated_password | generated_role_name
+--------------------+----------------------------------
+       0zdHJ,]dW[s6 | cbaeea62551d41dbb26a349428ccd741
+----
+
+If we want that role to be able to log in, we would execute:
+
+----
+CREATE GENERATED ROLE WITH GENERATED PASSWORD AND LOGIN = true;
+----
+
+It is also possible to specify custom prefix and suffix of a generated role name like this:
+
+----
+CREATE GENERATED ROLE WITH OPTIONS = {'name_suffix': '_read_only'};
+
+  generated_role_name
+--------------------------------------------
+ b40cc1a568b142e1b5630a9083880aa8_read_only
+----
+
+or prefix version:
+
+----
+CREATE GENERATED ROLE WITH OPTIONS = {'name_prefix': 'department_a_'};
+
+  generated_role_name
+----------------------------------------------------
+ department_a_d7cc48cac819456fa3eb38c59649ec60
+----
+
+Of course, it is also possible to specify both `name_prefix` and `name_suffix` at the same time.
+
+It is also possible to specify length of generated role name via `name_size` parameter:
+
+----
+CREATE GENERATED ROLE WITH OPTIONS = {'name_suffix': '_read_only', 'name_prefix': 'department_a_', 'name_size': 15};
+
+  generated_role_name
+----------------------------------------------------
+ department_a_ac7896b4994d40c_read_only
+----
+
+`min_generated_name_size` parameter in `cassandra.yaml` sets minimum size of name.
+If `name_size` is specified in CQL's OPTIONS, it will be checked against this minimum size and
+fail if smaller than that. The value of `name_size` option can not be less than 10 and more than 32.
+
+There is currently no implementation of `validator_class_name` you might use. However, if you happen to
+put your implementation on a class path of Cassandra and referenced it in `validator_class_name` in `role_name_policy`,
+if somebody creates a role by specifying a role name by hand (or generated), it will be validated against such validator and either a warning will be issued to a caller or it will fail the query altogether, depending based on what logic it implemented. When used together with generator, it will basically validate what it generated to
+comply with its self-imposed policy. That way it will fail if you generate a role name in such a way that it would
+fail role creation if a user happened to specify it manually.
+
+The configuration of `role_name_policy` is configurable in runtime via JMX. You get the actual configuration by
+calling `GuardrailsMBean#getRoleNamePolicy()` which returns JSON representation of such a policy as a string. Similarly,
+you can use `GuardrailsMBean#setRoleNamePolicy(String)` to configure it in runtime.
+
+If you do not want to be able to configure this in runtime, please set `role_name_policy_reconfiguration_enabled`
+in `cassandra.yaml` to `false`.
+
+The fact that you see a "table" returned after generated role name / password is the result of `CassandraRoleManager`
+overriding `createRoleWithResult` and `alterRoleWithResult` methods and populating the response message with
+generated values. If you happen to have a completely custom implementation of `IRoleManager`, e.g. integrating with
+an external service, this is a way how to hook in your own "credentials" to be returned to a user.
+E.g. an `IRoleManager` integrating with some vault-like solution might return there custom credentials-like values for end-user to act on and similar.
