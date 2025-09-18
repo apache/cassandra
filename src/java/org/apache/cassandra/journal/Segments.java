@@ -128,6 +128,28 @@ class Segments<K, V>
                 into.add(segment.asActive());
     }
 
+    void select(long minTimestamp, long maxTimestamp, Collection<Segment<K, V>> into)
+    {
+        // TODO (required): use binary search in the sorted structure!
+        for (Segment<K, V> segment : segments.values())
+            if (segment.descriptor.timestamp >= minTimestamp && segment.descriptor.timestamp <= maxTimestamp)
+                into.add(segment);
+    }
+
+    Segment<K, V>[] select(long[] segmentIds)
+    {
+        @SuppressWarnings({ "unchecked" })
+        Segment<K, V>[] segments = new Segment[segmentIds.length];
+        for (int i = 0; i < segmentIds.length; i++)
+            segments[i] = Invariants.nonNull(this.segments.get(segmentIds[i]));
+        return segments;
+    }
+
+    Segment<K, V> select(long segmentId)
+    {
+        return Invariants.nonNull(this.segments.get(segmentId));
+    }
+
     boolean isSwitched(ActiveSegment<K, V> active)
     {
         for (Segment<K, V> segment : segments.values())
@@ -232,6 +254,7 @@ class Segments<K, V>
     @Override
     public String toString()
     {
+        List<Segment<K, V>> sorted = allSorted(true);
         return sorted.toString();
     }
 

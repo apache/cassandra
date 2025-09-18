@@ -19,6 +19,7 @@ package org.apache.cassandra.journal;
 
 import java.nio.ByteBuffer;
 
+// TODO (desired): rename to SerializedRecordConsumer
 @FunctionalInterface
 public interface RecordConsumer<K>
 {

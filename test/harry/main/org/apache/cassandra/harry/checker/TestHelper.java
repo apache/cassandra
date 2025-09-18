@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.harry.checker;
 
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +44,20 @@ public class TestHelper
         }
         catch (Throwable t)
         {
+            throw new AssertionError(String.format("Caught an exception at seed:%dL", seed), t);
+        }
+    }
+
+    public static void withRandom(long seed, ModelChecker.ThrowingConsumer<EntropySource> rng, Consumer<Throwable> onError)
+    {
+        try
+        {
+            logger.info("Seed: {}", seed);
+            rng.accept(new JdkRandomEntropySource(seed));
+        }
+        catch (Throwable t)
+        {
+            onError.accept(t);
             throw new AssertionError(String.format("Caught an exception at seed:%dL", seed), t);
         }
     }

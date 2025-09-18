@@ -18,33 +18,29 @@
 
 package org.apache.cassandra.journal;
 
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 
 // TODO: make this available in the accord table as an ID
-public class RecordPointer implements Comparable<RecordPointer>
+public class RecordPointer extends CommitLogPosition
 {
-    public final long segment;   // unique segment id
-    public final int position;   // record start position within the segment
-    public final int size;       // full size of the record
+    public final int length;     // full size of the record
     public final long writtenAt; // only set for periodic mode
 
-    public RecordPointer(long segment, int position, int size)
+    public RecordPointer(long segment, int position, int length)
     {
-        this(segment, position, size, 0);
+        this(segment, position, length, 0);
     }
 
-    public RecordPointer(long segment, int position, int size, long writtenAt)
+    public RecordPointer(long segment, int position, int length, long writtenAt)
     {
-        this.segment = segment;
-        this.position = position;
-        this.size = size;
+        super(segment, position);
+        this.length = length;
         this.writtenAt = writtenAt;
     }
 
     public RecordPointer(RecordPointer pointer)
     {
-        this(pointer.segment, pointer.position, pointer.size, pointer.writtenAt);
+        this(pointer.segmentId, pointer.position, pointer.length, pointer.writtenAt);
     }
 
     @Override
@@ -55,26 +51,19 @@ public class RecordPointer implements Comparable<RecordPointer>
         if (!(other instanceof RecordPointer))
             return false;
         RecordPointer that = (RecordPointer) other;
-        return this.segment == that.segment
+        return this.segmentId == that.segmentId
                && this.position == that.position;
     }
 
     @Override
     public int hashCode()
     {
-        return Long.hashCode(segment) + position * 31;
+        return Long.hashCode(segmentId) + position * 31;
     }
 
     @Override
     public String toString()
     {
-        return "(" + segment + ", " + position + ')';
-    }
-
-    @Override
-    public int compareTo(RecordPointer that)
-    {
-        int cmp = Longs.compare(this.segment, that.segment);
-        return cmp != 0 ? cmp : Ints.compare(this.position, that.position);
+        return "(" + segmentId + ", " + position + ')';
     }
 }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.zip.CRC32;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.Crc;
 
@@ -33,10 +34,11 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  * - total count of records in this segment file
  *       used for compaction prioritisation
  */
-final class Metadata
+public final class Metadata
 {
     private int fsyncLimit;
-
+    // Indicates whether a segment needs to be replayed or no.
+    private volatile boolean needsReplay = true;
     private volatile int recordsCount;
     private static final AtomicIntegerFieldUpdater<Metadata> recordsCountUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Metadata.class, "recordsCount");
@@ -62,9 +64,20 @@ final class Metadata
         this.fsyncLimit = fsyncLimit;
     }
 
+    public void needsReplay(boolean needsReplay)
+    {
+        Invariants.require(this.needsReplay && !needsReplay, "needsReplay can only go from true to false. Old value: %s, new value: %s", this.needsReplay, needsReplay);
+        this.needsReplay = needsReplay;
+    }
+
     int fsyncLimit()
     {
         return fsyncLimit;
+    }
+
+    public boolean needsReplay()
+    {
+        return needsReplay;
     }
 
     private void incrementRecordsCount()
@@ -72,7 +85,7 @@ final class Metadata
         recordsCountUpdater.incrementAndGet(this);
     }
 
-    int totalCount()
+    public int totalCount()
     {
         return recordsCount;
     }
@@ -82,8 +95,10 @@ final class Metadata
         CRC32 crc = Crc.crc32();
         out.writeInt(recordsCount);
         out.writeInt(fsyncLimit);
+        out.writeBoolean(needsReplay);
         updateChecksumInt(crc, recordsCount);
         updateChecksumInt(crc, fsyncLimit);
+        updateChecksumInt(crc, needsReplay ? 1 : 0);
         out.writeInt((int) crc.getValue());
     }
 
@@ -92,8 +107,10 @@ final class Metadata
         CRC32 crc = Crc.crc32();
         int recordsCount = in.readInt();
         int fsyncLimit = in.readInt();
+        boolean needsReplay = in.readBoolean();
         updateChecksumInt(crc, recordsCount);
         updateChecksumInt(crc, fsyncLimit);
+        updateChecksumInt(crc, needsReplay ? 1 : 0);
         validateCRC(crc, in.readInt());
         return new Metadata(recordsCount, fsyncLimit);
     }
@@ -156,11 +173,11 @@ final class Metadata
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return "Metadata{" +
-               "fsyncLimit=" + fsyncLimit +
-               ", recordsCount=" + recordsCount +
-               '}';
+                "fsyncLimit=" + fsyncLimit +
+                ", needsReplay=" + needsReplay +
+                ", recordsCount=" + recordsCount +
+                '}';
     }
 }

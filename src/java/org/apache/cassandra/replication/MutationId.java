@@ -46,6 +46,12 @@ public class MutationId extends ShortMutationId
      */
     protected final int timestamp;
 
+    public MutationId(long logId, int offset, int timestamp)
+    {
+        super(logId, offset);
+        this.timestamp = timestamp;
+    }
+
     public MutationId(long logId, long sequenceId)
     {
         super(logId, offset(sequenceId));

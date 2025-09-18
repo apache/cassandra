@@ -825,6 +825,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
+            MutationJournal.instance.replayStaticSegments();
         }
         catch (IOException e)
         {
