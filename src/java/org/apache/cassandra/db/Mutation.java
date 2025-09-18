@@ -201,6 +201,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return key;
     }
 
+    public ImmutableMap<TableId, PartitionUpdate> modifications()
+    {
+        return modifications;
+    }
+
     public ImmutableCollection<PartitionUpdate> getPartitionUpdates()
     {
         return modifications.values();

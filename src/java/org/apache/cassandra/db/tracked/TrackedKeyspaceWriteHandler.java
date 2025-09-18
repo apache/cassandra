@@ -24,7 +24,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -40,10 +39,9 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             group = Keyspace.writeOrder.start();
 
             Tracing.trace("Appending to mutation journal");
-            RecordPointer pointer = MutationJournal.instance.write(mutation.id(), mutation);
+            CommitLogPosition pointer = MutationJournal.instance.write(mutation.id(), mutation);
 
-            // TODO (preferred): update journal to return CommitLogPosition or otherwise remove requirement to allocate second object here
-            return new CassandraWriteContext(group, new CommitLogPosition(pointer.segment, pointer.position));
+            return new CassandraWriteContext(group, pointer);
         }
         catch (Throwable t)
         {

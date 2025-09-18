@@ -343,7 +343,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             && diff.after.route() != null)
             journal.onDurable(pointer, () ->
                                        journalTable.safeNotify(index ->
-                                                               index.update(pointer.segment, key.commandStoreId, key.id, diff.after.route())));
+                                                               index.update(pointer.segmentId, key.commandStoreId, key.id, diff.after.route())));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
     }

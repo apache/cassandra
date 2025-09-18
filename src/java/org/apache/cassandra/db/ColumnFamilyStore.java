@@ -134,6 +134,7 @@ import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -498,9 +499,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         logger.info("Initializing {}.{}", getKeyspaceName(), name);
 
-        Memtable initialMemtable = DatabaseDescriptor.isDaemonInitialized() ?
-                                   createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())) :
-                                   null;
+        Memtable initialMemtable = null;
+        if (DatabaseDescriptor.isDaemonInitialized())
+        {
+            CommitLogPosition commitLogPosition;
+            if (metadata().replicationType().isTracked())
+                commitLogPosition = MutationJournal.instance.getCurrentPosition();
+            else
+                commitLogPosition = CommitLog.instance.getCurrentPosition();
+            initialMemtable = createMemtable(new AtomicReference<>(commitLogPosition));
+        }
         memtableMetricsReleaser = memtableFactory.createMemtableMetricsReleaser(metadata);
 
         data = new Tracker(this, initialMemtable, loadSSTables);
@@ -1147,8 +1155,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null && mainMemtable != null)
             {
+                CommitLogPosition commitLogLowerBound = mainMemtable.getCommitLogLowerBound();
                 commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
-                CommitLog.instance.discardCompletedSegments(metadata.id, mainMemtable.getCommitLogLowerBound(), commitLogUpperBound);
+                TableMetadata metadata = metadata();
+                if (metadata.replicationType().isTracked())
+                    MutationJournal.instance.notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
+                else
+                    CommitLog.instance.discardCompletedSegments(metadata.id, commitLogLowerBound, commitLogUpperBound);
             }
 
             metric.pendingFlushes.dec();
@@ -1215,7 +1228,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
             // we then ensure an atomic decision is made about the upper bound of the continuous range of commit log
             // records owned by this memtable
-            setCommitLogUpperBound(commitLogUpperBound);
+            setCommitLogUpperBound(commitLogUpperBound, metadata().replicationType().isTracked());
 
             // we then issue the barrier; this lets us wait for all operations started prior to the barrier to complete;
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
@@ -1416,7 +1429,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     // atomically set the upper bound for the commit log
-    private static void setCommitLogUpperBound(AtomicReference<CommitLogPosition> commitLogUpperBound)
+    private static void setCommitLogUpperBound(AtomicReference<CommitLogPosition> commitLogUpperBound, boolean useMutationJournal)
     {
         // we attempt to set the holder to the current commit log context. at the same time all writes to the memtables are
         // also maintaining this value, so if somebody sneaks ahead of us somehow (should be rare) we simply retry,
@@ -1424,7 +1437,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         CommitLogPosition lastReplayPosition;
         while (true)
         {
-            lastReplayPosition = new Memtable.LastCommitLogPosition((CommitLog.instance.getCurrentPosition()));
+            CommitLogPosition commitLogPosition;
+            if (useMutationJournal)
+                commitLogPosition = MutationJournal.instance.getCurrentPosition();
+            else
+                commitLogPosition = CommitLog.instance.getCurrentPosition();
+
+            lastReplayPosition = new Memtable.LastCommitLogPosition(commitLogPosition);
             CommitLogPosition currentLast = commitLogUpperBound.get();
             if ((currentLast == null || currentLast.compareTo(lastReplayPosition) <= 0)
                 && commitLogUpperBound.compareAndSet(currentLast, lastReplayPosition))
@@ -3233,7 +3252,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         data.notifyDropped(DatabaseDescriptor.getAutoSnapshotTtl());
 
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        // TODO (required): test mutation tracking + table dropping
+        if (metadata().replicationType().isTracked())
+            MutationJournal.instance.notifyFlushed(metadata.id, new CommitLogPosition(0, 0), MutationJournal.instance.getCurrentPosition());
+        else
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
         compactionStrategyManager.shutdown();
 

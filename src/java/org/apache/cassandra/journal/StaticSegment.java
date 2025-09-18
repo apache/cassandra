@@ -20,6 +20,7 @@ package org.apache.cassandra.journal;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -268,6 +269,13 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     StaticSegment<K, V> asStatic()
     {
         return this;
+    }
+
+    @Override
+    public void persistMetadata()
+    {
+        metadata.persist(descriptor);
+        SyncUtil.trySyncDir(descriptor.directory);
     }
 
     /**
