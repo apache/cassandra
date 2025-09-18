@@ -1104,7 +1104,7 @@ public class Paxos
                         case SUCCESS:
                             if (query.metadata().strictMVEnabled() && !repropose.update.isEmpty())
                             {
-                                getCurrentAndApplyMVMutations(query, repropose.update, inProgress, consistencyForConsensus, requestTime);
+                                resolveCurrentAndApplyMVMutations(query, repropose.update, inProgress, consistencyForConsensus, requestTime);
                             }
                             retry = commitAndPrepare(repropose.agreed(), inProgress.participants, query, isWrite, acceptEarlyReadPermission);
                             break retry;
@@ -1179,11 +1179,11 @@ public class Paxos
         }
     }
 
-    public static void getCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
-                                                      PartitionUpdate update,
-                                                      PaxosPrepare.FoundIncompleteAccepted inProgress,
-                                                      ConsistencyLevel consistencyForConsensus,
-                                                      Dispatcher.RequestTime requestTime)
+    public static void resolveCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
+                                                         PartitionUpdate update,
+                                                         PaxosPrepare.FoundIncompleteAccepted inProgress,
+                                                         ConsistencyLevel consistencyForConsensus,
+                                                         Dispatcher.RequestTime requestTime)
     {
         // process to get current value of base table
         Supplier<Participants> plan = () -> inProgress.participants;

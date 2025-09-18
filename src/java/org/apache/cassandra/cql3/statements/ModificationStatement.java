@@ -398,20 +398,33 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             state.ensurePermission(Permission.EXECUTE, function);
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    /**
+     * Helper method to collect materialized view base table metrics if enabled.
+     * This method encapsulates the common pattern used across multiple statement types.
+     * 
+     * @param metricAction A functional interface that performs the specific metric collection
+     */
+    protected void collectMaterializedViewBasetableMetricIfEnabled(java.util.function.Consumer<ColumnFamilyStore> metricAction)
     {
         if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
             if (cfs != null && cfs.viewManager.hasViews())
             {
-                if (attrs.isTimestampSet())
-                    cfs.metric.viewBaseTableModificationWithTimestamp.inc();
-
-                if (restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation())
-                    cfs.metric.viewBaseTableInRestirctionsUsed.inc();
+                metricAction.accept(cfs);
             }
         }
+    }
+
+    public void validate(ClientState state) throws InvalidRequestException
+    {
+        collectMaterializedViewBasetableMetricIfEnabled(cfs -> {
+            if (attrs.isTimestampSet())
+                cfs.metric.viewBaseTableModificationWithTimestamp.inc();
+
+            if (restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation())
+                cfs.metric.viewBaseTableInRestirctionsUsed.inc();
+        });
 
         if (metadata().strictMVEnabled())
         {

@@ -416,7 +416,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     {
                         // apply MV muatation before commit
                         assert incompleteAccepted != null && !incompleteAccepted.responses.isEmpty();
-                        Paxos.getCurrentAndApplyMVMutations(
+                        Paxos.resolveCurrentAndApplyMVMutations(
                         SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), proposal.update.partitionKey(), proposal.update.lastRow().clustering()),
                         proposal.update, incompleteAccepted, paxosConsistency, Dispatcher.RequestTime.forImmediateExecution());
                     }

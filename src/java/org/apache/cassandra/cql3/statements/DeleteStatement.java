@@ -193,14 +193,12 @@ public class DeleteStatement extends ModificationStatement
                                                        attrs,
                                                        source);
 
-            if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
-            {
-                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
-                if (cfs != null && cfs.viewManager.hasViews() && !restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
+            stmt.collectMaterializedViewBasetableMetricIfEnabled(cfs -> {
+                if (!restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
                 {
                     cfs.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.inc();
                 }
-            }
+            });
 
             if (stmt.metadata().strictMVEnabled())
             {

@@ -235,14 +235,9 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         for (ModificationStatement statement : statements)
         {
-            if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
-            {
-                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(statement.metadata());
-                if (cfs != null && cfs.viewManager.hasViews())
-                {
-                    cfs.metric.viewBaseTableUsedInBatchStatement.inc();
-                }
-            }
+            statement.collectMaterializedViewBasetableMetricIfEnabled(cfs -> {
+                cfs.metric.viewBaseTableUsedInBatchStatement.inc();
+            });
 
             if (statement.metadata().strictMVEnabled())
             {
