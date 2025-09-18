@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.transport;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -42,6 +41,10 @@ public class ServiceLevelIndicatorMetricsCollection
     }
 
     public static void collectMetricsAndLog(Exception ex) {
+        collectMetricsAndLog(ex, null);
+    }
+
+    public static void collectMetricsAndLog(Exception ex, String query) {
         ExceptionCode code = null;
         if (ex instanceof RequestExecutionException)
         {
@@ -153,9 +156,10 @@ public class ServiceLevelIndicatorMetricsCollection
         }
         if (DatabaseDescriptor.getServiceLevelIndicatorErrorLogEnabled())
         {
+            query = PasswordObfuscator.obfuscate(query) == null ? "null" : query;
             NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, ex.getClass().getSimpleName(), 1,
-                             TimeUnit.MINUTES, "Service level indicator exception {}: {}",
-                             code == null ? "unexpected CQL exception" : code.toString(), ex);
+                             TimeUnit.MINUTES, "Service level indicator exception {} while executing {}",
+                             code == null ? "unexpected CQL exception" : code.toString(), query, ex);
         }
     }
 }

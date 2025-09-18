@@ -223,7 +223,8 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
-            ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e);
+            String query = prepared != null ? prepared.rawCQLStatement : null;
+            ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e, query);
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);

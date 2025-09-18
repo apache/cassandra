@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-51787] SLI logs should log the query message
  * [SO-51734] Add SSTable Direct Reading Infrastructure for MV Backfill
  * [SO-51432] BaseRead generator for MV key rebuild
  * [SO-34269] Productionize QAN MVP: Optimize QAN Schema
