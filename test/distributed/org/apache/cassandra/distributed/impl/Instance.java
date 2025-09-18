@@ -840,6 +840,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             NodeId self = ClusterMetadata.current().myNodeId();
             if (self != null)
                 AccordService.localStartup(self);
+            MutationJournal.instance.replayStaticSegments();
         }
         catch (IOException e)
         {

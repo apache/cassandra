@@ -120,7 +120,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
+            // but, if we've truncated the cf in question, then we need to start replay after the truncation
             CommitLogPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.id);
             if (truncatedAt != null)
             {
@@ -322,7 +322,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     {
                         assert !newPUCollector.isEmpty();
 
-                        Keyspace.open(newPUCollector.getKeyspaceName()).apply(newPUCollector.build(), false, true, false);
+                        keyspace.apply(newPUCollector.build(), false, true, false);
                         commitLogReplayer.keyspacesReplayed.add(keyspace);
                     }
                 }
@@ -438,7 +438,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (toReplay.isEmpty())
                 logger.info("All tables will be included in commit log replay.");
             else
-                logger.info("Tables to be replayed: {}", toReplay.asMap().toString());
+                logger.info("Tables to be replayed: {}", toReplay.asMap());
 
             return new CustomReplayFilter(toReplay);
         }

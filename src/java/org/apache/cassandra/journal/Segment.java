@@ -73,10 +73,17 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     abstract ActiveSegment<K, V> asActive();
     abstract StaticSegment<K, V> asStatic();
 
+    public Metadata metadata()
+    {
+        return metadata;
+    }
+
     public long id()
     {
         return descriptor.timestamp;
     }
+
+    public abstract void persistMetadata();
 
     /*
      * Reading entries (by id, by offset, iterate)
@@ -112,7 +119,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     boolean read(RecordPointer pointer, RecordConsumer<K> consumer)
     {
         EntrySerializer.EntryHolder<K> into = new EntrySerializer.EntryHolder<>();
-        if (read(pointer.position, pointer.size, into))
+        if (read(pointer.position, pointer.length, into))
         {
             consumer.accept(descriptor.timestamp, pointer.position, into.key, into.value, descriptor.userVersion);
             return true;

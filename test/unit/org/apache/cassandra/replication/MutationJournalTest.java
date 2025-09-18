@@ -127,19 +127,20 @@ public class MutationJournalTest
         assertMutationsEqual(expected, actual);
     }
 
-    private static void assertMutationEquals(Mutation expected, Mutation actual)
+    public static void assertMutationEquals(Mutation expected, Mutation actual)
     {
-        assertEquals(serialize(expected), serialize(actual));
+        if (!serialize(expected).equals(serialize(actual)))
+            throw new AssertionError(String.format("Expected %s but got %s", expected, actual));
     }
 
-    private static void assertMutationsEqual(List<Mutation> expected, List<Mutation> actual)
+    public static void assertMutationsEqual(List<Mutation> expected, List<Mutation> actual)
     {
         assertEquals(expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++)
             assertMutationEquals(expected.get(i), actual.get(i));
     }
 
-    private static ByteBuffer serialize(Mutation mutation)
+    public static ByteBuffer serialize(Mutation mutation)
     {
         try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
         {

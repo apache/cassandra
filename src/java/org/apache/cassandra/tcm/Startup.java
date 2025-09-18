@@ -53,6 +53,7 @@ import org.apache.cassandra.gms.NewGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -302,6 +303,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
+            MutationJournal.instance.replayStaticSegments();
         }
         catch (IOException e)
         {

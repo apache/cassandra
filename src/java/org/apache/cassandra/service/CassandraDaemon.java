@@ -361,6 +361,7 @@ public class CassandraDaemon
             NodeId self = ClusterMetadata.current().myNodeId();
             if (self != null)
                 AccordService.localStartup(self);
+            MutationJournal.instance.replayStaticSegments();
         }
         catch (IOException e)
         {

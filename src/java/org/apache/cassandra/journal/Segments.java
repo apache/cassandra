@@ -129,6 +129,37 @@ public class Segments<K, V>
                 into.add(segment.asActive());
     }
 
+    void select(long minTimestamp, long maxTimestamp, Collection<Segment<K, V>> into)
+    {
+        List<Segment<K, V>> sorted = allSorted(true);
+        int idx = minTimestamp == 0 ? 0 : findIdxFor(minTimestamp);
+        while (idx < sorted.size())
+        {
+            Segment<K, V> segment = sorted.get(idx++);
+            if (segment.descriptor.timestamp > maxTimestamp)
+                break;
+            into.add(segment);
+        }
+    }
+
+    int findIdxFor(long timestamp)
+    {
+        List<Segment<K, V>> sorted = allSorted(true);
+        int low = 0, mid = sorted.size(), high = mid - 1, res = -1;
+        while (low <= high)
+        {
+            mid = (low + high) >>> 1;
+            res = Long.compare(timestamp, sorted.get(mid).descriptor.timestamp);
+            if (res > 0)
+                low = mid + 1;
+            else if (res == 0)
+                return mid;
+            else
+                high = mid - 1;
+        }
+        throw new IllegalStateException(String.format("Could not find a segment with timestamp %d among %s", timestamp, sorted));
+    }
+
     boolean isSwitched(ActiveSegment<K, V> active)
     {
         for (Segment<K, V> segment : segments.values())
@@ -233,6 +264,7 @@ public class Segments<K, V>
     @Override
     public String toString()
     {
+        List<Segment<K, V>> sorted = allSorted(true);
         return sorted.toString();
     }
 

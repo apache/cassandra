@@ -37,23 +37,25 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  * - total count of records in this segment file
  *       used for compaction prioritisation
  */
-final class Metadata
+public final class Metadata
 {
     private int fsyncLimit;
-
+    // Indicates whether a segment needs to be replayed or no.
+    private volatile boolean needsReplay;
     private volatile int recordsCount;
     private static final AtomicIntegerFieldUpdater<Metadata> recordsCountUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Metadata.class, "recordsCount");
 
     static Metadata empty()
     {
-        return new Metadata(0, 0);
+        return new Metadata(0, 0,  true);
     }
 
-    private Metadata(int recordsCount, int fsyncLimit)
+    private Metadata(int recordsCount, int fsyncLimit, boolean needsReplay)
     {
         this.recordsCount = recordsCount;
         this.fsyncLimit = fsyncLimit;
+        this.needsReplay = needsReplay;
     }
 
     void update()
@@ -66,9 +68,19 @@ final class Metadata
         this.fsyncLimit = fsyncLimit;
     }
 
+    public void clearNeedsReplay()
+    {
+        this.needsReplay = false;
+    }
+
     int fsyncLimit()
     {
         return fsyncLimit;
+    }
+
+    public boolean needsReplay()
+    {
+        return needsReplay;
     }
 
     private void incrementRecordsCount()
@@ -76,7 +88,7 @@ final class Metadata
         recordsCountUpdater.incrementAndGet(this);
     }
 
-    int totalCount()
+    public int totalCount()
     {
         return recordsCount;
     }
@@ -86,8 +98,10 @@ final class Metadata
         CRC32 crc = Crc.crc32();
         out.writeInt(recordsCount);
         out.writeInt(fsyncLimit);
+        out.writeBoolean(needsReplay);
         updateChecksumInt(crc, recordsCount);
         updateChecksumInt(crc, fsyncLimit);
+        updateChecksumInt(crc, needsReplay ? 1 : 0);
         out.writeInt((int) crc.getValue());
     }
 
@@ -96,10 +110,12 @@ final class Metadata
         CRC32 crc = Crc.crc32();
         int recordsCount = in.readInt();
         int fsyncLimit = in.readInt();
+        boolean needsReplay = in.readBoolean();
         updateChecksumInt(crc, recordsCount);
         updateChecksumInt(crc, fsyncLimit);
+        updateChecksumInt(crc, needsReplay ? 1 : 0);
         validateCRC(crc, in.readInt());
-        return new Metadata(recordsCount, fsyncLimit);
+        return new Metadata(recordsCount, fsyncLimit, needsReplay);
     }
 
     void persist(Descriptor descriptor)
@@ -149,7 +165,7 @@ final class Metadata
                 throw e;
         }
 
-        return new Metadata(recordsCount, fsyncLimit);
+        return new Metadata(recordsCount, fsyncLimit, true);
     }
 
     static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport)
@@ -160,11 +176,11 @@ final class Metadata
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return "Metadata{" +
-               "fsyncLimit=" + fsyncLimit +
-               ", recordsCount=" + recordsCount +
-               '}';
+                "fsyncLimit=" + fsyncLimit +
+                ", needsReplay=" + needsReplay +
+                ", recordsCount=" + recordsCount +
+                '}';
     }
 }

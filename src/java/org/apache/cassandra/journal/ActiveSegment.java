@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -100,6 +101,11 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
+    public CommitLogPosition currentPosition()
+    {
+        return new CommitLogPosition(id(), (int) allocateOffset);
+    }
+
     static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
@@ -134,6 +140,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     StaticSegment<K, V> asStatic()
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void persistMetadata()
+    {
+        throw new UnsupportedOperationException("Can not mutate active segment's metadata.");
     }
 
     /**
@@ -427,19 +439,21 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    final class Allocation
+    final class Allocation extends RecordPointer
     {
         private final OpOrder.Group appendOp;
         private final ByteBuffer buffer;
-        private final int start;
-        private final int length;
 
         Allocation(OpOrder.Group appendOp, ByteBuffer buffer, int length)
         {
+            super(descriptor.timestamp, buffer.position(), length);
             this.appendOp = appendOp;
             this.buffer = buffer;
-            this.start = buffer.position();
-            this.length = length;
+        }
+
+        Segment<K, V> segment()
+        {
+            return ActiveSegment.this;
         }
 
         void write(K id, ByteBuffer record)
@@ -448,7 +462,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             {
                 EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
                 metadata.update();
-                index.update(id, start, length);
+                index.update(id, position, length);
             }
             catch (IOException e)
             {
@@ -474,14 +488,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             }
         }
 
-
-        // Variant of write that does not allocate/return a record pointer
         void writeInternal(K id, ByteBuffer record)
         {
             try
             {
                 EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
-                index.update(id, start, length);
+                index.update(id, position, length);
                 metadata.update();
             }
             catch (IOException e)
@@ -498,13 +510,13 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         {
             try (Timer.Context ignored = waitingOnFlush.time())
             {
-                waitForFlush(start);
+                waitForFlush(position);
             }
         }
 
         boolean isFsynced()
         {
-            return fsyncedTo >= start + length;
+            return fsyncedTo >= position + length;
         }
 
         Descriptor descriptor()
@@ -514,12 +526,12 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
 
         int start()
         {
-            return start;
+            return position;
         }
 
         RecordPointer recordPointer()
         {
-            return new RecordPointer(descriptor.timestamp, start, length);
+            return this;
         }
     }
 

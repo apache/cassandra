@@ -33,6 +33,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
@@ -41,6 +42,7 @@ import javax.annotation.Nullable;
 import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
 
+import org.agrona.collections.Long2ObjectHashMap;
 import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,7 +119,7 @@ public class Journal<K, V> implements Shutdownable
     // segment that is ready to be used; allocator thread fills this and blocks until consumed
     private volatile ActiveSegment<K, V> availableSegment = null;
 
-    private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
+    private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>(new Segments<>(new Long2ObjectHashMap<>()));
 
     final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
 
@@ -369,6 +371,32 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
+    public boolean readLast(K id, RecordConsumer<K> consumer)
+    {
+        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+
+        try (OpOrder.Group group = readOrder.start())
+        {
+            for (Segment<K, V> segment : segments.get().allSorted(true))
+            {
+                if (segment.readLast(id, consumer))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public void readLast(K id, long segmentId, DeserializedRecordConsumer<K, V> consumer)
+    {
+        Segment<K, V> segment = segments.get().get(segmentId);
+        try (OpOrder.Group group = readOrder.start())
+        {
+            segment.readLast(id, consumer);
+        }
+    }
+
     public static <K, V> void readAll(K id, RecordConsumer<K> consumer, OpOrder.Group readGroup, Segments<K, V> segments)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
@@ -510,16 +538,16 @@ public class Journal<K, V> implements Shutdownable
 
     public int sizeOfRecord(RecordPointer pointer)
     {
-        Descriptor descriptor = segments.get().descriptor(pointer.segment);
+        Descriptor descriptor = segments.get().descriptor(pointer.segmentId);
         Invariants.nonNull(descriptor);
-        return pointer.size - EntrySerializer.overheadSize(keySupport, descriptor.userVersion);
+        return pointer.length - EntrySerializer.overheadSize(keySupport, descriptor.userVersion);
     }
 
     public boolean read(RecordPointer pointer, RecordConsumer<K> consumer)
     {
         try (OpOrder.Group group = readOrder.start())
         {
-            Segment<K, V> segment = segments.get().get(pointer.segment);
+            Segment<K, V> segment = segments.get().get(pointer.segmentId);
             return segment != null && segment.read(pointer, consumer);
         }
     }
@@ -588,7 +616,6 @@ public class Journal<K, V> implements Shutdownable
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
-
         ActiveSegment<K, V> segment = currentSegment;
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize)))
@@ -843,9 +870,21 @@ public class Journal<K, V> implements Shutdownable
         return oldest;
     }
 
+    public List<Segment<K, V>> getSegments(long lowerBound, long upperBound)
+    {
+        List<Segment<K, V>> res = new ArrayList<>();
+        segments().select(lowerBound, upperBound, res);
+        return res;
+    }
+
     public ActiveSegment<K, V> currentActiveSegment()
     {
         return currentSegment;
+    }
+
+    @Nullable protected Segment<K, V> getSegment(long timestamp)
+    {
+        return segments().get(timestamp);
     }
 
     ActiveSegment<K, V> getActiveSegment(long timestamp)
@@ -889,10 +928,12 @@ public class Journal<K, V> implements Shutdownable
     private class CloseActiveSegmentRunnable implements Runnable
     {
         private final ActiveSegment<K, V> activeSegment;
+        private final Runnable onDone;
 
-        CloseActiveSegmentRunnable(ActiveSegment<K, V> activeSegment)
+        CloseActiveSegmentRunnable(ActiveSegment<K, V> activeSegment, @Nullable Runnable onDone)
         {
             this.activeSegment = activeSegment;
+            this.onDone = onDone;
         }
 
         @Override
@@ -904,10 +945,16 @@ public class Journal<K, V> implements Shutdownable
             activeSegment.persistComponents();
             replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport));
             activeSegment.release(Journal.this);
+            if (onDone != null) onDone.run();
         }
     }
 
-    void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment)
+    protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment)
+    {
+        closeActiveSegmentAndOpenAsStatic(activeSegment, null);
+    }
+
+    protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment, @Nullable Runnable onDone)
     {
         if (activeSegment.isEmpty())
         {
@@ -916,7 +963,7 @@ public class Journal<K, V> implements Shutdownable
             return;
         }
 
-        closer.execute(new CloseActiveSegmentRunnable(activeSegment));
+        closer.execute(new CloseActiveSegmentRunnable(activeSegment, onDone));
     }
 
     @VisibleForTesting
@@ -1019,9 +1066,17 @@ public class Journal<K, V> implements Shutdownable
     /**
      * segment iterator iterates all keys in order.
      */
-    public SegmentKeyIterator segmentKeyIterator(K min, K max, Predicate<Segment<?, ?>> include)
+    public SegmentKeyIterator segmentKeyIterator(K min, K max, Predicate<Segment<K, V>> include)
     {
         return new SegmentKeyIterator(min, max, include);
+    }
+
+    /**
+     * Static segment iterator iterates all keys in selected segments in order.
+     */
+    public SegmentKeyIterator staticSegmentKeyIterator(Predicate<Segment<K, V>> predicate)
+    {
+        return new SegmentKeyIterator(null, null, predicate.and(s -> s.isStatic()));
     }
 
     /**
@@ -1041,6 +1096,17 @@ public class Journal<K, V> implements Shutdownable
         private KeyRefs(int maxSize)
         {
             this.segments = new long[maxSize];
+        }
+
+        public void segments(LongConsumer consumer)
+        {
+            for (int i = 0; i < size; i++)
+                consumer.accept(segments[i]);
+        }
+
+        public long lastSegment()
+        {
+            return segments[segments.length - 1];
         }
 
         public long[] copyOfSegments()
@@ -1088,11 +1154,17 @@ public class Journal<K, V> implements Shutdownable
         private final ReferencedSegments<K, V> segments;
         private final MergeIterator<Head, KeyRefs<K>> iterator;
 
-        public SegmentKeyIterator(K min, K max, Predicate<Segment<?, ?>> include)
+        public SegmentKeyIterator(K min, K max)
+        {
+            this(min, max, s -> true);
+        }
+
+        public SegmentKeyIterator(K min, K max, Predicate<Segment<K, V>> include)
         {
             this.segments = selectAndReference(s -> include.test(s) && !s.isEmpty()
                                                     && (min == null || keySupport.compare(s.index().lastId(), min) >= 0)
                                                     && (max == null || keySupport.compare(s.index().firstId(), max) <= 0));
+
             List<Iterator<Head>> iterators = new ArrayList<>(segments.count());
 
             for (Segment<K, V> segment : segments.allSorted(true))

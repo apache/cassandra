@@ -23,8 +23,11 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.stream.Collectors;
 
+import accord.utils.Invariants;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
+
+import net.nicoulaj.compilecommand.annotations.Inline;
 
 /**
  * Mutable integer interval class, thread-safe.
@@ -33,7 +36,7 @@ import com.google.common.primitives.Longs;
 public class IntegerInterval
 {
     volatile long interval;
-    private static AtomicLongFieldUpdater<IntegerInterval> intervalUpdater =
+    private static final AtomicLongFieldUpdater<IntegerInterval> intervalUpdater =
             AtomicLongFieldUpdater.newUpdater(IntegerInterval.class, "interval");
 
     private IntegerInterval(long interval)
@@ -127,7 +130,7 @@ public class IntegerInterval
      */
     public static class Set
     {
-        static long[] EMPTY = new long[0];
+        static final long[] EMPTY = new long[0];
 
         private volatile long[] ranges = EMPTY;
 
@@ -136,11 +139,15 @@ public class IntegerInterval
          */
         public synchronized void add(int start, int end)
         {
-            assert start <= end;
-            long[] ranges, newRanges;
-            {
-                ranges = this.ranges; // take local copy to avoid risk of it changing in the midst of operation
+            this.ranges = add(this.ranges, start, end);
+        }
 
+        @Inline
+        public static long[] add(long[] ranges, int start, int end)
+        {
+            Invariants.require(start <= end, "Start (%d) should be less than or equal to end (%d)", start, end);
+            long[] newRanges;
+            {
                 // extend ourselves to cover any ranges we overlap
                 // record directly preceding our end may extend past us, so take the max of our end and its
                 int rpos = Arrays.binarySearch(ranges, ((end & 0xFFFFFFFFL) << 32) | 0xFFFFFFFFL); // floor (i.e. greatest <=) of the end position
@@ -175,7 +182,7 @@ public class IntegerInterval
                 for (int i = rpos + 1; i < ranges.length; ++i)
                     newRanges[dest++] = ranges[i];
             }
-            this.ranges = newRanges;
+            return newRanges;
         }
 
         /**
@@ -192,8 +199,13 @@ public class IntegerInterval
          */
         public boolean covers(int start, int end)
         {
-            long[] ranges = this.ranges; // take local copy to avoid risk of it changing in the midst of operation
-            int rpos = Arrays.binarySearch(ranges, ((start & 0xFFFFFFFFL) << 32) | 0xFFFFFFFFL);        // floor (i.e. greatest <=) of the end position
+            return covers(this.ranges, start, end);
+        }
+
+        @Inline
+        public static boolean covers(long[] ranges, int start, int end)
+        {
+            int rpos = Arrays.binarySearch(ranges, ((start & 0xFFFFFFFFL) << 32) | 0xFFFFFFFFL); // floor (i.e. greatest <=) of the end position
             if (rpos < 0)
                 rpos = (-1 - rpos) - 1;
             if (rpos == -1)
@@ -220,7 +232,7 @@ public class IntegerInterval
 
         public Collection<IntegerInterval> intervals()
         {
-            return Lists.transform(Longs.asList(ranges), iv -> new IntegerInterval(iv));
+            return Lists.transform(Longs.asList(ranges), IntegerInterval::new);
         }
 
         @Override
