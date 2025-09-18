@@ -258,7 +258,7 @@ public class AccordInteropExecution implements ReadCoordinator
                              }
 
                              Group group = Group.one(command);
-                             results.add(AsyncExecutor.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
+                             results.add(AsyncChains.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
                                  TxnData result = new TxnData();
                                  // Enforcing limits is redundant since we only have a group of size 1, but checking anyways
                                  // documents the requirement here
@@ -294,7 +294,7 @@ public class AccordInteropExecution implements ReadCoordinator
 
                 // TODO (required): To make migration work we need to validate that the range is all on Accord
 
-                results.add(AsyncExecutor.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
+                results.add(AsyncChains.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
                     TxnData result = new TxnData();
                     try (PartitionIterator iterator = StorageProxy.getRangeSlice(command, consistencyLevel, this, requestTime))
                     {
@@ -396,7 +396,7 @@ public class AccordInteropExecution implements ReadCoordinator
 
     private AsyncChain<Data> executeUnrecoverableRepairUpdate()
     {
-        return AsyncExecutor.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
+        return AsyncChains.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
             UnrecoverableRepairUpdate repairUpdate = (UnrecoverableRepairUpdate)txn.update();
             // TODO (expected): We should send the read in the same message as the commit. This requires refactor ReadData.Kind so that it doesn't specify the ordinal encoding
             // and can be extended similar to MessageType which allows additional types not from Accord to be added

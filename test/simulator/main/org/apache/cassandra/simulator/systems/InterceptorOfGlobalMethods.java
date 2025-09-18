@@ -43,7 +43,7 @@ import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @SuppressWarnings("unused")
-@Shared(scope = SIMULATION, inner = INTERFACES)
+@Shared(scope = SIMULATION, ancestors = INTERFACES)
 public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, Closeable
 {
     Semaphore newSemaphore(int count);

@@ -35,6 +35,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
 import org.apache.cassandra.db.TypeSizes;
@@ -145,10 +146,10 @@ public class AccordInteropReadRepair extends ReadData
     protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Participants<?> execute)
     {
         // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
-        return AsyncExecutor.chain(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
-                                          ReadRepairVerbHandler.instance.applyMutation(mutation);
-                                          return Data.NOOP_DATA;
-                                      });
+        return AsyncChains.chain(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
+            ReadRepairVerbHandler.instance.applyMutation(mutation);
+            return Data.NOOP_DATA;
+        });
     }
 
     @Override

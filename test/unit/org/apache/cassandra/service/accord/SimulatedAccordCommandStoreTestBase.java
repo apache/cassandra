@@ -32,7 +32,6 @@ import com.google.common.collect.Maps;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import accord.api.AsyncExecutor;
 import accord.api.RoutingKey;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
@@ -57,6 +56,7 @@ import accord.topology.Topologies;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
+import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -286,7 +286,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
             assertDeps(success.txnId, success.deps, cloneKeyConflicts, cloneRangeConflicts);
             return success;
         });
-        var delay = preAcceptAsync.flatMap(ignore -> AsyncExecutor.chain(instance.unorderedScheduled, () -> {
+        var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.chain(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.storeService.epoch(), instance.storeService.now(), nodeId);
             return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, false, txn, route, ballot);
         }).beginAsResult());
