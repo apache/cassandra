@@ -18,33 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.Callable;
-import java.util.function.BiConsumer;
-
 import javax.annotation.Nonnull;
 
-import accord.api.AsyncExecutor;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
+import accord.impl.AbstractAsyncExecutor;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 
-public class ImmediateAsyncExecutor implements AsyncExecutor, BiConsumer<Object, Throwable>
+public class ImmediateAsyncExecutor implements AbstractAsyncExecutor
 {
     public static final ImmediateAsyncExecutor INSTANCE = new ImmediateAsyncExecutor();
-
-    @Override
-    public <T> AsyncChain<T> chain(Callable<T> call)
-    {
-        try
-        {
-            return AsyncChains.success(call.call());
-        }
-        catch (Throwable t)
-        {
-            AccordAgent.handleUncaughtException(t);
-            return AsyncChains.failure(t);
-        }
-    }
 
     @Override
     public void execute(@Nonnull Runnable command)
@@ -57,12 +38,5 @@ public class ImmediateAsyncExecutor implements AsyncExecutor, BiConsumer<Object,
         {
             AccordAgent.handleUncaughtException(t);
         }
-    }
-
-    @Override
-    public void accept(Object o, Throwable throwable)
-    {
-        if (throwable != null)
-            AccordAgent.handleUncaughtException(throwable);
     }
 }

@@ -40,8 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.AsyncExecutor;
 import accord.api.RoutingKey;
+import accord.impl.AbstractAsyncExecutor;
 import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SequentialAsyncExecutor;
@@ -95,7 +95,7 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
  * NOTE: We assume that NO BLOCKING TASKS are submitted to this executor AND WAITED ON by another task executing on this executor.
  *  (as we do not immediately schedule additional threads for submitted tasks, but schedule new threads only if necessary when the submitting execution completes)
  */
-public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AsyncExecutor
+public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AbstractAsyncExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
     public interface AccordExecutorFactory

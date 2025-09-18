@@ -1344,6 +1344,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return;
 
         forEach.accept(cur);
+        {
+            Shared overrideShared = cur.getAnnotation(Shared.class);
+            if (overrideShared != null)
+                shared = new SharedParams(overrideShared);
+        }
 
         switch (shared.ancestors)
         {
