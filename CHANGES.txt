@@ -1,5 +1,7 @@
 4.1.11
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
+Merged from 4.0:
+ * update shaded cassandra-driver-core to 3.11.5 (CASSANDRA-20904)
 
 
 4.1.10
