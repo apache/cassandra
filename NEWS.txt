@@ -183,6 +183,8 @@ Upgrading
     may be optional by setting `optional` flag in `client_encryption_options` to `true` and it should be set only
     while in unencrypted or transitional operation. Please consult `client_encryption_options` in cassandra.yaml
     for more information.
+    - system_views.settings virtual table output changed to json for collections, set system property
+    `cassandra.virtual_table_complex_settings_format_json` to false to disable (defaults to true).
 
 
 Deprecation
