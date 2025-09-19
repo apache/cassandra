@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.BiConsumer;
 
-import accord.api.AsyncExecutor;
 import accord.api.Data;
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
