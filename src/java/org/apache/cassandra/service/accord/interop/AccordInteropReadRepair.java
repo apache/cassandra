@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord.interop;
 import java.io.IOException;
 import javax.annotation.Nullable;
 
-import accord.api.AsyncExecutor;
 import accord.api.Data;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
