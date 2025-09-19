@@ -143,11 +143,12 @@ public class AccordSpec
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 100ms";
     public String slow_read = "30ms <= p50*2 <= 100ms";
-    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=3");
-    public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=100");
+    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_join_bootstrap = new StringRetryStrategy("30s*attempt,attempts=5");
+    public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=3");
+    public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=100");
     public StringRetryStrategy retry_journal_index_ready = new StringRetryStrategy("100ms");
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;

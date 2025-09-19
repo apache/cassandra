@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import accord.api.Result;
-import accord.primitives.ProgressToken;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -27,14 +26,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 public class ResultSerializers
 {
     // TODO (desired): this is meant to encode e.g. whether the transaction's condition met or not for clients to later query
-    public static final Result APPLIED = new Result()
-    {
-        @Override
-        public ProgressToken asProgressToken()
-        {
-            return ProgressToken.APPLIED;
-        }
-    };
+    public static final Result APPLIED = new Result(){};
 
     public static final UnversionedSerializer<Result> result = new UnversionedSerializer<>()
     {

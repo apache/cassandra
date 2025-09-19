@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -27,71 +26,80 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
-import accord.topology.Shard;
 import accord.utils.SortedArrays.SortedArrayList;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
-public class AccordMarkStale implements Transformation
+public class AccordMarkHardRemoved implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordMarkStale.class);
-    
-    private final Set<NodeId> ids;
+    private static final Logger logger = LoggerFactory.getLogger(AccordMarkHardRemoved.class);
 
-    public AccordMarkStale(Set<NodeId> ids)
+    private final Set<NodeId> ids;
+    private final boolean force;
+
+    public AccordMarkHardRemoved(Set<NodeId> ids, boolean force)
     {
         this.ids = ids;
+        this.force = force;
     }
 
     @Override
     public Kind kind()
     {
-        return Kind.ACCORD_MARK_STALE;
+        return Kind.ACCORD_MARK_HARD_REMOVED;
     }
 
     @Override
     public Result execute(ClusterMetadata prev)
     {
         for (NodeId id : ids)
-            if (!prev.directory.peerIds().contains(id))
-                return new Rejected(INVALID, String.format("Can not mark node %s stale as it is not present in the directory.", id));
-
-        SortedArrayList<Node.Id> staleIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
-        SortedArrayList<Node.Id> allStaleIds = prev.accordStaleReplicas.stale().with(staleIds);
-
-        for (Node.Id id : staleIds)
-            if (prev.accordStaleReplicas.stale().contains(id))
-                return new Rejected(INVALID, String.format("Can not mark node %s stale as it already is.", id));
-
-        for (KeyspaceMetadata keyspace : prev.schema.getKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES))
         {
-            List<AccordTopology.KeyspaceShard> shards = AccordTopology.KeyspaceShard.forKeyspace(keyspace, prev.placements, prev.directory);
-            
-            for (AccordTopology.KeyspaceShard shard : shards)
+            if (!prev.directory.peerIds().contains(id))
+                continue;
+
+            if (!force)
             {
-                SortedArrayList<Node.Id> intersecting = allStaleIds.intersecting(shard.nodes());
-                if (intersecting.size() > Shard.maxToleratedFailures(shard.nodes().size()))
+                boolean removing = false;
+                for (MultiStepOperation<?> operation : prev.inProgressSequences)
                 {
-                    return new Rejected(INVALID, String.format("Can not mark nodes %s stale as that would leave fewer than a quorum of nodes active for ranges %s in keyspace '%s'.",
-                                                               allStaleIds, shard.ranges(), keyspace.name));
+                    switch (operation.kind())
+                    {
+                        case REPLACE:
+                            removing |= id.equals(((BootstrapAndReplace) operation).finishReplace.replaced);
+                            continue;
+                        case REMOVE:
+                        case LEAVE:
+                            removing |= id.equals(((UnbootstrapAndLeave) operation).finishLeave.nodeId);
+                    }
                 }
+
+                if (!removing)
+                    return new Rejected(INVALID, String.format("Cannot mark node %s hard removed as it is still present in the directory.", id));
             }
         }
 
-        logger.info("Marking " + ids + " stale. They will no longer participate in durability status coordination...");
-        ClusterMetadata.Transformer next = prev.transformer().markStaleReplicas(staleIds);
+        SortedArrayList<Node.Id> hardRemoveIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
+
+        for (Node.Id id : hardRemoveIds)
+            if (prev.accordStaleReplicas.hardRemoved().contains(id))
+                return new Rejected(INVALID, String.format("Cannot mark node %s hard removed as it already is.", id));
+
+        logger.info("Marking " + ids + " hard removed. These nodes should be permanently offline and unable to respond to any messages at any future point.");
+        ClusterMetadata.Transformer next = prev.transformer().markHardRemovedReplicas(hardRemoveIds);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
@@ -106,7 +114,7 @@ public class AccordMarkStale implements Transformation
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccordMarkStale that = (AccordMarkStale) o;
+        AccordMarkHardRemoved that = (AccordMarkHardRemoved) o;
         return Objects.equals(ids, that.ids);
     }
 
@@ -116,28 +124,29 @@ public class AccordMarkStale implements Transformation
         return Objects.hash(ids);
     }
 
-    public static final AsymmetricMetadataSerializer<Transformation, AccordMarkStale> serializer = new AsymmetricMetadataSerializer<>()
+    public static final AsymmetricMetadataSerializer<Transformation, AccordMarkHardRemoved> serializer = new AsymmetricMetadataSerializer<>()
     {
         @Override
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            assert t instanceof AccordMarkStale;
-            AccordMarkStale mark = (AccordMarkStale) t;
+            assert t instanceof AccordMarkHardRemoved;
+            AccordMarkHardRemoved mark = (AccordMarkHardRemoved) t;
             CollectionSerializers.serializeCollection(mark.ids, out, version, NodeId.serializer);
+            out.writeBoolean(mark.force);
         }
 
         @Override
-        public AccordMarkStale deserialize(DataInputPlus in, Version version) throws IOException
+        public AccordMarkHardRemoved deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AccordMarkStale(CollectionSerializers.deserializeSet(in, version, NodeId.serializer));
+            return new AccordMarkHardRemoved(CollectionSerializers.deserializeSet(in, version, NodeId.serializer), in.readBoolean());
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            assert t instanceof AccordMarkStale;
-            AccordMarkStale mark = (AccordMarkStale) t;
-            return CollectionSerializers.serializedCollectionSize(mark.ids, version, NodeId.serializer);
+            assert t instanceof AccordMarkHardRemoved;
+            AccordMarkHardRemoved mark = (AccordMarkHardRemoved) t;
+            return CollectionSerializers.serializedCollectionSize(mark.ids, version, NodeId.serializer) + TypeSizes.BOOL_SIZE;
         }
     };
 }

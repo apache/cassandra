@@ -27,6 +27,7 @@ import accord.local.Node;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.Epoch;
@@ -52,8 +53,8 @@ public class AccordStaleReplicasTest
 
             qt().check(rs -> {
                 Epoch epoch = epochGen.next(rs);
-                Set<Node.Id> nodes = nodesGen.next(rs);
-                AsymmetricMetadataSerializers.testSerde(buffer, AccordStaleReplicas.serializer, new AccordStaleReplicas(nodes, epoch), Version.MIN_ACCORD_VERSION);
+                SortedArrayList<Node.Id> nodes = SortedArrayList.copyUnsorted(nodesGen.next(rs), Node.Id[]::new);
+                AsymmetricMetadataSerializers.testSerde(buffer, AccordStaleReplicas.serializer, new AccordStaleReplicas(nodes, SortedArrayList.ofSorted(), epoch), Version.MIN_ACCORD_VERSION);
             });
         }
     }

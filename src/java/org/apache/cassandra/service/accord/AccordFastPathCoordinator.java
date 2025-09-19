@@ -222,14 +222,14 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         @Override
         public void onAlive(InetAddressAndPort endpoint, EndpointState state)
         {
-            Node.Id node = configService.mappedIdOrNull(endpoint);
+            Node.Id node = configService.endpointMapper().mappedIdOrNull(endpoint);
             if (node != null) onAlive(node);
         }
 
         @Override
         public void onDead(InetAddressAndPort endpoint, EndpointState state)
         {
-            Node.Id node = configService.mappedIdOrNull(endpoint);
+            Node.Id node = configService.endpointMapper().mappedIdOrNull(endpoint);
             if (node != null) onDead(node);
         }
     }
@@ -335,7 +335,7 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
     }
 
     @Override
-    public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
+    public AsyncResult<Void> onTopologyUpdate(Topology topology)
     {
         updatePeers(topology);
         return SUCCESS;

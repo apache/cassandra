@@ -21,12 +21,12 @@ package org.apache.cassandra.tcm.transformations;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordTopology;
@@ -64,10 +64,10 @@ public class AccordMarkRejoining implements Transformation
             if (!prev.directory.peerIds().contains(id))
                 return new Rejected(INVALID, String.format("Can not unmark node %s as it is not present in the directory.", id));
 
-        Set<Node.Id> accordIds = ids.stream().map(AccordTopology::tcmIdToAccord).collect(Collectors.toSet());
+        SortedArrayList<Node.Id> accordIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
 
         for (Node.Id id : accordIds)
-            if (!prev.accordStaleReplicas.contains(id))
+            if (!prev.accordStaleReplicas.stale().contains(id))
                 return new Rejected(INVALID, String.format("Can not unmark node %s as it is not stale.", id));
 
         logger.info("Unmarking " + ids + ". They will now participate in durability status coordination...");

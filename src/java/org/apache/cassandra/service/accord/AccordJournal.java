@@ -50,7 +50,6 @@ import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.EpochSupplier;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
@@ -652,7 +651,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                           if (segments != null && route != null)
                           {
                               for (long segment : segments)
-                                  journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, (Route)route));
+                                  journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, (Route<?>) route));
                           }
                           return null;
                       }).begin((success, fail) -> {
@@ -1069,8 +1068,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case PARTIAL_TXN:
                         Invariants.require(partialTxn != null, "%s", this);
-                        if (partialTxn instanceof ByteBuffer) out.write(((ByteBuffer) partialTxn).duplicate());
-                        else CommandSerializers.partialTxn.serialize((PartialTxn) partialTxn, out, userVersion);
+                        CommandSerializers.partialTxn.serialize(partialTxn, out, userVersion);
                         break;
                     case PARTIAL_DEPS:
                         Invariants.require(partialDeps != null, "%s", this);

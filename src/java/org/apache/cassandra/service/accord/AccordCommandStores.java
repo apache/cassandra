@@ -191,7 +191,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         return Arrays.asList(executors.clone());
     }
 
-    public void waitForQuiescense()
+    public void waitForQuiescence()
     {
         for (AccordExecutor executor : this.executors)
             executor.waitForQuiescence();

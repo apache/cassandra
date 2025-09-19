@@ -63,7 +63,7 @@ import org.apache.cassandra.utils.FastByteOperations;
  * need to sometimes return a port and sometimes not.
  *
  */
-public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable
+public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable, Endpoint
 {
     private static final long serialVersionUID = 0;
     private static final Logger logger = LoggerFactory.getLogger(InetAddressAndPort.class);
@@ -380,6 +380,12 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     static int getDefaultPort()
     {
         return defaultPort;
+    }
+
+    @Override
+    public InetAddressAndPort endpoint()
+    {
+        return this;
     }
 
     public static final class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<InetAddressAndPort>

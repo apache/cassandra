@@ -447,7 +447,15 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 }
             case JOINED:
                 if (StorageService.isReplacingSameAddress())
+                {
+                    if (DatabaseDescriptor.getAccordTransactionsEnabled())
+                    {
+                        // TODO (required): we need to support a mode that changes the NodeId when replacing the same address for accord transaction safety
+                        throw new IllegalStateException("Cannot replace same address when accord transactions are enabled.");
+                    }
+
                     ReplaceSameAddress.streamData(self, metadata, shouldBootstrap, finishJoiningRing);
+                }
 
                 // JOINED appears before BOOTSTRAPPING & BOOT_REPLACE so we can fall
                 // through when we start as REGISTERED/LEFT and complete a full startup

@@ -172,6 +172,10 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
                 trySuccess((V) RetryWithNewProtocolResult.instance);
                 return false;
             }
+            else if (fail instanceof TimeoutException)
+            {
+                report = bookkeeping.newTimeout(txnId, keysOrRanges);
+            }
             else
             {
                 report = bookkeeping.newFailed(txnId, keysOrRanges);

@@ -87,7 +87,7 @@ public class AccordMessageSinkTest
 
         checkRequestReplies(request,
                             new AbstractFetchCoordinator.FetchResponse(null, null, id),
-                            CommitOrReadNack.Insufficient);
+                            CommitOrReadNack.InsufficientAndWaiting);
 
     }
 
@@ -98,7 +98,7 @@ public class AccordMessageSinkTest
         Request request = new ReadTxnData(node, topologies, txnId, topology.ranges(), null, null, txnId.epoch());
         checkRequestReplies(request,
                             new ReadData.ReadOk(null, null, 0),
-                            CommitOrReadNack.Insufficient);
+                            CommitOrReadNack.InsufficientAndWaiting);
     }
 
     private static void checkRequestReplies(Request request, Reply... replies)

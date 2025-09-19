@@ -27,5 +27,9 @@ public interface AccordOperationsMBean
 
     void accordMarkStale(List<String> nodeIds);
 
+    void accordMarkHardRemoved(List<String> nodeIds);
+
+    void accordForceMarkHardRemoved(List<String> nodeIds);
+
     void accordMarkRejoining(List<String> nodeIds);
 }

@@ -197,7 +197,8 @@ public class PaxosBallotTracker
         // Accord uses repair (which updates this low bound) to discover the minimum HLC that was used by Paxos
         // after Paxos stops. This bound will generally be in the past so it's fine to update it in Accord
         // all the time
-        AccordService.instance().ensureMinHlc(lowBound.unixMicros() + 1);
+        if (AccordService.isSetup())
+            AccordService.instance().ensureMinHlc(lowBound.unixMicros() + 1);
     }
 
     public Ballot getHighBound()

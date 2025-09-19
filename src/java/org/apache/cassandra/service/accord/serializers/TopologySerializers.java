@@ -41,8 +41,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
-import org.apache.cassandra.utils.LargeBitSetSerializer;
+import org.apache.cassandra.utils.SimpleBitSetSerializers;
 
+import static accord.topology.Topology.NO_IDS;
 import static accord.utils.SortedArrays.fromSimpleBitSet;
 
 public class TopologySerializers
@@ -112,7 +113,7 @@ public class TopologySerializers
             range.serialize(shard.range, out);
             CollectionSerializers.serializeList(shard.nodes, out, nodeId);
             CollectionSerializers.serializeList(shard.notInFastPath, out, nodeId);
-            CollectionSerializers.serializeList(shard.joining, out, nodeId);
+            out.writeUnsignedVInt32(0); // was joining collection, can now be encoding flag bits
             out.writeUnsignedVInt32(shard.flags().bitset());
         }
 
@@ -122,9 +123,9 @@ public class TopologySerializers
             Range range = ShardSerializer.this.range.deserialize(in);
             SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
             SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
-            SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+            in.readUnsignedVInt32();
             int flags = in.readUnsignedVInt32();
-            return Shard.SerializerSupport.create(range, nodes, notInFastPath, joining, new TinyEnumSet<>(flags));
+            return Shard.SerializerSupport.create(range, nodes, notInFastPath, NO_IDS, new TinyEnumSet<>(flags));
         }
 
         @Override
@@ -133,10 +134,44 @@ public class TopologySerializers
             long size = range.serializedSize(shard.range);
             size += CollectionSerializers.serializedListSize(shard.nodes, nodeId);
             size += CollectionSerializers.serializedListSize(shard.notInFastPath, nodeId);
-            size += CollectionSerializers.serializedListSize(shard.joining, nodeId);
+            size += TypeSizes.sizeofUnsignedVInt(0);
             size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             return size;
         }
+    }
+
+    private static final int HAS_STALE_IDS = 0x1;
+    private static final int HAS_HARD_REMOVED_IDS = 0x2;
+
+    private static void serializeRemovedAndStale(Topology topology, DataOutputPlus out) throws IOException
+    {
+        CollectionSerializers.serializeList(topology.removedIds(), out, TopologySerializers.nodeId);
+        int flags = 0;
+        if (!topology.staleIds().isEmpty())
+            flags |= HAS_STALE_IDS;
+        if (!topology.hardRemovedIds().isEmpty())
+            flags |= HAS_HARD_REMOVED_IDS;
+        out.writeUnsignedVInt32(flags);
+        if (!topology.staleIds().isEmpty())
+            CollectionSerializers.serializeList(topology.staleIds(), out, TopologySerializers.nodeId);
+        if (!topology.hardRemovedIds().isEmpty())
+            CollectionSerializers.serializeList(topology.hardRemovedIds(), out, TopologySerializers.nodeId);
+    }
+
+    private static long serializedSizeOfRemovedAndStale(Topology topology)
+    {
+        long size = CollectionSerializers.serializedListSize(topology.removedIds(), TopologySerializers.nodeId);
+        int flags = 0;
+        if (!topology.staleIds().isEmpty())
+            flags |= HAS_STALE_IDS;
+        if (!topology.hardRemovedIds().isEmpty())
+            flags |= HAS_HARD_REMOVED_IDS;
+        size += TypeSizes.sizeofUnsignedVInt(flags);
+        if (!topology.staleIds().isEmpty())
+            size += CollectionSerializers.serializedListSize(topology.staleIds(), TopologySerializers.nodeId);
+        if (!topology.hardRemovedIds().isEmpty())
+            size += CollectionSerializers.serializedListSize(topology.hardRemovedIds(), TopologySerializers.nodeId);
+        return size;
     }
 
     public static final UnversionedSerializer<Topology> topology = new UnversionedSerializer<>()
@@ -146,8 +181,7 @@ public class TopologySerializers
         {
             out.writeLong(topology.epoch());
             CollectionSerializers.serializeList(topology.shards(), out, shard);
-            CollectionSerializers.serializeCollection(topology.removedIds(), out, TopologySerializers.nodeId);
-            CollectionSerializers.serializeCollection(topology.staleIds(), out, TopologySerializers.nodeId);
+            serializeRemovedAndStale(topology, out);
         }
 
         @Override
@@ -156,8 +190,14 @@ public class TopologySerializers
             long epoch = in.readLong();
             Shard[] shards = ArraySerializers.deserializeArray(in, shard, Shard[]::new);
             SortedArrayList<Node.Id> removedIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
-            SortedArrayList<Node.Id> staleIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
-            return new Topology(epoch, removedIds, staleIds, shards);
+            SortedArrayList<Node.Id> staleIds = NO_IDS, hardRemovedIds = NO_IDS;
+            int flags = in.readUnsignedVInt32();
+            if ((flags & HAS_STALE_IDS) != 0)
+                staleIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            if ((flags & HAS_HARD_REMOVED_IDS) != 0)
+                hardRemovedIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            // we don't currently serialize hardRemoved at the shard level, so we must re-apply here
+            return new Topology(epoch, removedIds, NO_IDS, staleIds, shards).withHardRemoved(hardRemovedIds);
         }
 
         @Override
@@ -166,44 +206,42 @@ public class TopologySerializers
             long size = 0;
             size += TypeSizes.LONG_SIZE; // epoch
             size += CollectionSerializers.serializedListSize(topology.shards(), shard);
-            size += CollectionSerializers.serializedCollectionSize(topology.removedIds(), TopologySerializers.nodeId);
-            size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), TopologySerializers.nodeId);
+            size += serializedSizeOfRemovedAndStale(topology);
             return size;
         }
     };
 
     public static final UnversionedSerializer<Topology> compactTopology = new UnversionedSerializer<>()
     {
+        private final LargeBitSet NO_BITS = new LargeBitSet(0);
+
+        private Object2IntHashMap<TokenRange> ranges(Topology topology)
+        {
+            // need to loop twice; once to collect ranges, and another to save shards
+            Object2IntHashMap<TokenRange> result = new Object2IntHashMap<>(-2);
+            for (Shard shard : topology.shards())
+            {
+                TokenRange range = (TokenRange) shard.range;
+                result.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
+            }
+            int count = 0;
+            for (Map.Entry<TokenRange, Integer> e : result.entrySet())
+                e.setValue(count++);
+            return result;
+        }
+
         @Override
         public void serialize(Topology topology, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(topology.epoch());
-            CollectionSerializers.serializeList(topology.removedIds(), out, TopologySerializers.nodeId);
-            CollectionSerializers.serializeList(topology.staleIds(), out, TopologySerializers.nodeId);
+            serializeRemovedAndStale(topology, out);
 
-            List<Shard> shards = topology.shards();
-
-            // need to loop twice; once to collect ranges, and another to save shards
-            Object2IntHashMap<TokenRange> ranges;
-            {
-                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
-                for (Shard shard : shards)
-                {
-                    TokenRange range = (TokenRange) shard.range;
-                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
-                }
-                int count = 0;
-                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
-                    e.setValue(count++);
-
-                ranges = rangesBuilder;
-            }
-
+            Object2IntHashMap<TokenRange> ranges = ranges(topology);
             CollectionSerializers.serializeCollection(ranges.keySet(), out, TokenRange.noTableSerializer);
 
-            out.writeUnsignedVInt32(shards.size());
+            out.writeUnsignedVInt32(topology.shards().size());
             TableId activeTableId = null;
-            for (Shard shard : shards)
+            for (Shard shard : topology.shards())
             {
                 TokenRange range = (TokenRange) shard.range;
                 if (activeTableId == null || !activeTableId.equals(range.table()))
@@ -221,9 +259,8 @@ public class TopologySerializers
 
                 CollectionSerializers.serializeList(shard.nodes, out, TopologySerializers.nodeId);
                 LargeBitSet notInFastPath = SortedArrays.toLargeBitSet(shard.nodes, shard.notInFastPath);
-                LargeBitSetSerializer.instance.serialize(notInFastPath, out);
-                LargeBitSet joining = SortedArrays.toLargeBitSet(shard.nodes, shard.joining);
-                LargeBitSetSerializer.instance.serialize(joining, out);
+                SimpleBitSetSerializers.large.serialize(notInFastPath, out);
+                SimpleBitSetSerializers.large.serialize(NO_BITS, out);
                 out.writeUnsignedVInt32(shard.flags().bitset());
             }
         }
@@ -232,32 +269,16 @@ public class TopologySerializers
         public long serializedSize(Topology topology)
         {
             long size = TypeSizes.sizeofUnsignedVInt(topology.epoch());
-            size += CollectionSerializers.serializedListSize(topology.removedIds(), TopologySerializers.nodeId);
-            size += CollectionSerializers.serializedListSize(topology.staleIds(), TopologySerializers.nodeId);
-
-            List<Shard> shards = topology.shards();
+            size += serializedSizeOfRemovedAndStale(topology);
 
             // need to loop twice; once to collect ranges, and another to save shards
-            Object2IntHashMap<TokenRange> ranges;
-            {
-                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
-                for (Shard shard : shards)
-                {
-                    TokenRange range = (TokenRange) shard.range;
-                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
-                }
-                int count = 0;
-                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
-                    e.setValue(count++);
-
-                ranges = rangesBuilder;
-            }
+            Object2IntHashMap<TokenRange> ranges = ranges(topology);
 
             size += CollectionSerializers.serializedCollectionSize(ranges.keySet(), TokenRange.noTableSerializer);
 
-            size += TypeSizes.sizeofUnsignedVInt(shards.size());
+            size += TypeSizes.sizeofUnsignedVInt(topology.shards().size());
             TableId activeTableId = null;
-            for (Shard shard : shards)
+            for (Shard shard : topology.shards())
             {
                 TokenRange range = (TokenRange) shard.range;
                 size += TypeSizes.sizeof(true);
@@ -272,9 +293,8 @@ public class TopologySerializers
 
                 size += CollectionSerializers.serializedListSize(shard.nodes, TopologySerializers.nodeId);
                 LargeBitSet notInFastPath = SortedArrays.toLargeBitSet(shard.nodes, shard.notInFastPath);
-                size += LargeBitSetSerializer.instance.serializedSize(notInFastPath);
-                LargeBitSet joining = SortedArrays.toLargeBitSet(shard.nodes, shard.joining);
-                size += LargeBitSetSerializer.instance.serializedSize(joining);
+                size += SimpleBitSetSerializers.large.serializedSize(notInFastPath);
+                size += SimpleBitSetSerializers.large.serializedSize(NO_BITS);
                 size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             }
             return size;
@@ -285,7 +305,14 @@ public class TopologySerializers
         {
             long epoch = in.readUnsignedVInt();
             SortedArrays.SortedArrayList<Node.Id> removedIds = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
-            SortedArrays.SortedArrayList<Node.Id> staleIds = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
+            SortedArrayList<Node.Id> staleIds = NO_IDS, hardRemovedIds = NO_IDS;
+            {
+                int flags = in.readUnsignedVInt32();
+                if ((flags & HAS_STALE_IDS) != 0)
+                    staleIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+                if ((flags & HAS_HARD_REMOVED_IDS) != 0)
+                    hardRemovedIds = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            }
 
             List<TokenRange> ranges = CollectionSerializers.deserializeList(in, TokenRange.noTableSerializer);
 
@@ -301,12 +328,12 @@ public class TopologySerializers
                 TokenRange range = ranges.get(rangeIndex).withTable(activeTableId);
 
                 SortedArrays.SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
-                LargeBitSet notInFastPath = LargeBitSetSerializer.instance.deserialize(in);
-                LargeBitSet joining = LargeBitSetSerializer.instance.deserialize(in);
+                LargeBitSet notInFastPath = SimpleBitSetSerializers.large.deserialize(in);
+                SimpleBitSetSerializers.large.deserialize(in);
                 int flags = in.readUnsignedVInt32();
-                shards[i] = Shard.SerializerSupport.create(range, nodes, fromSimpleBitSet(nodes, notInFastPath, Node.Id[]::new), fromSimpleBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
+                shards[i] = Shard.SerializerSupport.create(range, nodes, fromSimpleBitSet(nodes, notInFastPath, Node.Id[]::new), NO_IDS, new TinyEnumSet<>(flags));
             }
-            return new Topology(epoch, removedIds, staleIds, shards);
+            return new Topology(epoch, removedIds, NO_IDS, staleIds, shards).withHardRemoved(hardRemovedIds);
         }
     };
 }

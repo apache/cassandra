@@ -40,7 +40,7 @@ public class AccordWaitStrategies
     static TimeoutStrategy slowTxnPreaccept, slowSyncPointPreaccept, slowRead;
     static TimeoutStrategy expireTxn, expireSyncPoint, expireDurability, expireEpochWait;
     static TimeoutStrategy fetchTxn, fetchSyncPoint;
-    static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryDurability, retryBootstrap;
+    static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryDurability, retryBootstrap, retryJoinBootstrap;
     static RetryStrategy retryFetchMinEpoch, retryFetchTopology;
 
     public static @Nullable TimeoutStrategy slowRead(@Nullable TxnId txnId)
@@ -98,6 +98,7 @@ public class AccordWaitStrategies
         setRetrySyncPoint(config.retry_syncpoint);
         setRetryDurability(config.retry_durability);
         setRetryBootstrap(config.retry_bootstrap);
+        setRetryJoinBootstrap(config.retry_join_bootstrap);
         setRetryFetchMinEpoch(config.retry_fetch_min_epoch);
         setRetryFetchTopology(config.retry_fetch_topology);
     }
@@ -170,6 +171,11 @@ public class AccordWaitStrategies
     public static void setRetryBootstrap(StringRetryStrategy spec)
     {
         retryBootstrap = spec.retry();
+    }
+
+    public static void setRetryJoinBootstrap(StringRetryStrategy spec)
+    {
+        retryJoinBootstrap = spec.retry();
     }
 
     public static void setRetryFetchMinEpoch(StringRetryStrategy spec)

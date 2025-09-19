@@ -33,8 +33,6 @@ import java.util.function.BiPredicate;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.api.ProtocolModifiers;
 import accord.messages.NoWaitRequest;
@@ -86,8 +84,6 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 
 public class AccordDebugKeyspaceTest extends CQLTester
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordDebugKeyspaceTest.class);
-
     private static final String QUERY_TXN_BLOCKED_BY =
         String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
 
@@ -170,22 +166,22 @@ public class AccordDebugKeyspaceTest extends CQLTester
         String.format("DELETE FROM %s.%s WHERE node_id = ? AND txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.TXN_TRACES);
 
     private static final String QUERY_REDUNDANT_BEFORE =
-        String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
+        String.format("SELECT * FROM %s.%s where table_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
     private static final String QUERY_REDUNDANT_BEFORE_REMOTE =
-        String.format("SELECT * FROM %s.%s WHERE node_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND table_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
-    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ =
-        String.format("SELECT * FROM %s.%s WHERE quorum_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ =
+        String.format("SELECT * FROM %s.%s WHERE table_id = ? AND quorum_applied", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
-    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE =
-        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND quorum_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND table_id = ? AND quorum_applied", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
-    private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ =
-        String.format("SELECT * FROM %s.%s WHERE shard_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ =
+        String.format("SELECT * FROM %s.%s WHERE table_id = ? AND shard_applied", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
-    private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE =
-        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND shard_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE =
+        String.format("SELECT * FROM %s.%s WHERE node_id = ? AND table_id = ? AND shard_applied", SchemaConstants.VIRTUAL_ACCORD_DEBUG_REMOTE, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
     private static final String SET_PATTERN_TRACE =
         String.format("UPDATE %s.%s SET bucket_mode = ?, bucket_seen = ?, bucket_size = ?, chance = ?, if_intersects = ?, if_kind = ?, on_failure = ?, on_new = ?, trace_bucket_mode = ?, trace_bucket_size = ?, trace_bucket_sub_size = ?, trace_events = ? WHERE id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_PATTERN_TRACE);
@@ -424,16 +420,40 @@ public class AccordDebugKeyspaceTest extends CQLTester
             safeStore.commandStore().markShardDurable(safeStore, syncId2, ranges2, HasOutcome.Quorum);
         }));
 
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE).size()).isGreaterThan(0);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(2);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(1);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(1);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(0);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_REMOTE, nodeId).size()).isGreaterThan(0);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE, nodeId, syncId1.toString()).size()).isEqualTo(2);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ_REMOTE, nodeId, syncId2.toString()).size()).isEqualTo(1);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE, nodeId, syncId1.toString()).size()).isEqualTo(1);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ_REMOTE, nodeId, syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE, tableId.toString()).size()).isGreaterThan(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " >= ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " >= ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " >= ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " >= ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " > ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " > ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " > ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " > ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " <= ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " <= ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " <= ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " <= ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " < ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ + " < ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " < ?", tableId.toString(), syncId1.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ + " < ?", tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_REMOTE, nodeId, tableId.toString()).size()).isGreaterThan(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE +  " >= ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE +  " >= ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE +  " >= ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " >= ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " > ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " > ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " > ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " > ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(0);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " <= ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " <= ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " <= ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " <= ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " < ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_INEQ_REMOTE + " < ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " < ?", nodeId, tableId.toString(), syncId1.toString()).size()).isEqualTo(3);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_INEQ_REMOTE + " < ?", nodeId, tableId.toString(), syncId2.toString()).size()).isEqualTo(4);
     }
 
     @Test
@@ -453,7 +473,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     }
 
     @Test
-    public void completedTxn() throws ExecutionException, InterruptedException
+    public void completedTxn()
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         AccordService accord = accord();
@@ -470,9 +490,9 @@ public class AccordDebugKeyspaceTest extends CQLTester
             getBlocking(accord.node().coordinate(id, txn));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                                              row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
-            assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), anyOf("Applied", "Applying")));
-            assertRows(execute(QUERY_TXN_REMOTE, nodeId, id.toString()), row(id.toString(), anyOf("Applied", "Applying")));
+                                              row(id.toString(), anyInt(), 0, "", "", any(), "Applied")));
+            assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
+            assertRows(execute(QUERY_TXN_REMOTE, nodeId, id.toString()), row(id.toString(), "Applied"));
             assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
             assertRows(execute(QUERY_JOURNAL_REMOTE, nodeId, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
             assertRows(execute(QUERY_COMMANDS_FOR_KEY, keyStr), row(id.toString(), "APPLIED_DURABLE"));

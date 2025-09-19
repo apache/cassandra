@@ -43,7 +43,6 @@ import org.slf4j.LoggerFactory;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
 import accord.coordinate.Coordination.CoordinationKind;
-import accord.coordinate.tracking.AbstractTracker;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.primitives.Participants;
@@ -158,9 +157,12 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
 
         void truncateInternal(int eraseBefore)
         {
-            System.arraycopy(events, eraseBefore, events, 0, size - eraseBefore);
-            Arrays.fill(events, size - eraseBefore, size, null);
-            size -= eraseBefore;
+            if (events != null)
+            {
+                System.arraycopy(events, eraseBefore, events, 0, size - eraseBefore);
+                Arrays.fill(events, size - eraseBefore, size, null);
+                size -= eraseBefore;
+            }
         }
 
         public TxnEvent get(int index)
@@ -314,6 +316,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             if (!globalCount.admit())
                 return null;
 
+            incrementSeen();
             return newTrace(kind, null);
         }
 
@@ -673,9 +676,11 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         private synchronized void untrace(TxnId txnId)
         {
             txnIdMap.compute(txnId, (ignore, cur) -> {
-                if (cur == null || cur.owner == this)
-                    return null;
-                return cur;
+                if (cur == null || cur.owner != this)
+                    return cur;
+
+                cur.stopTracing();
+                return cur.eraseEvents(globalCount);
             });
         }
 
@@ -968,29 +973,14 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                     return cur;
 
                 event.trace(null, "Failed Coordination Dump");
+                Coordination.traceStart(event, coordination);
+                SortedListMap<Node.Id, ?> replies = coordination.replies();
+                if (replies != null)
                 {
-                    String description = coordination.describe();
-                    if (description != null)
-                        event.trace(null, "Description: %s", description);
+                    for (int i = 0 ; i < replies.domainSize() ; ++i)
+                        event.trace(null, "from %s: %s", replies.getKey(i), replies.getValue(i));
                 }
-                {
-                    Participants<?> scope = coordination.scope();
-                    if (scope != null)
-                        event.trace(null, "Scope: %s", scope);
-                }
-                {
-                    AbstractTracker<?> tracker = coordination.tracker();
-                    if (tracker != null)
-                        event.trace(null, "Tracker: %s", tracker.summariseTracker());
-                }
-                {
-                    SortedListMap<Node.Id, ?> replies = coordination.replies();
-                    if (replies != null)
-                    {
-                        for (int i = 0 ; i < replies.domainSize() ; ++i)
-                            event.trace(null, "from %s: %s", replies.getKey(i), replies.getValue(i));
-                    }
-                }
+                Coordination.traceStop(event, coordination);
                 return cur;
             });
         }
