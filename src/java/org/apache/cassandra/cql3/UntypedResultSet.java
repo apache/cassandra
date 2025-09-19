@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -50,6 +51,8 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -435,6 +438,35 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             ByteBuffer raw = data.get(column);
             return raw == null ? null : VectorType.getInstance(elementType, dimension).compose(raw);
+        }
+
+        public List<Object> getTuple(String column, AbstractType<?>... elementType)
+        {
+            ByteBuffer raw = data.get(column);
+            if (raw == null)
+                return List.of();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append('(');
+            for (int i = 0; i < elementType.length; i++)
+            {
+                sb.append(elementType[i]);
+                if (i + 1 != elementType.length)
+                    sb.append(", ");
+            }
+            sb.append(')');
+
+            TupleType tupleType = TupleType.getInstance(new TypeParser(sb.toString()));
+            List<ByteBuffer> unpacked = tupleType.unpack(raw);
+
+            List<Object> values = new ArrayList<>();
+            for (int i = 0; i < unpacked.size(); i++)
+            {
+                Object value = elementType[i].compose(unpacked.get(i));
+                values.add(value);
+            }
+
+            return values;
         }
 
         public List<ColumnSpecification> getColumns()

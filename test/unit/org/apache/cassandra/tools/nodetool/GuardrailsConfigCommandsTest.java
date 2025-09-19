@@ -32,9 +32,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.guardrails.GuardrailsMBean;
+import org.apache.cassandra.db.guardrails.GuardrailsProxy;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.GetGuardrailsConfig;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertArrayEquals;
@@ -165,7 +164,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     public void testParsedGuardrailNamesFromMBeanExistInCassandraYaml()
     {
         Set<String> configFieldNames = getConfigFieldNames();
-        Map<String, List<Method>> snakeCaseGuardrailsMap = GetGuardrailsConfig.parseGuardrailNames(GuardrailsMBean.class.getDeclaredMethods(), null);
+        GuardrailsProxy.instance.serverInitialisation();
+        Map<String, List<Method>> snakeCaseGuardrailsMap = GuardrailsProxy.instance.getAllGetters();
 
         for (Map.Entry<String, List<Method>> entry : snakeCaseGuardrailsMap.entrySet())
         {
