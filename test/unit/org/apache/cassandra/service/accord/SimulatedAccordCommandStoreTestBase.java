@@ -288,7 +288,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         });
         var delay = preAcceptAsync.flatMap(ignore -> AsyncChains.chain(instance.unorderedScheduled, () -> {
             Ballot ballot = Ballot.fromValues(instance.storeService.epoch(), instance.storeService.now(), nodeId);
-            return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, false, txn, route, ballot);
+            return new BeginRecovery(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, null, 0, txn, route, ballot);
         }).beginAsResult());
         var recoverAsync = delay.flatMap(br -> instance.processAsync(br, safe -> {
             var reply = br.apply(safe);

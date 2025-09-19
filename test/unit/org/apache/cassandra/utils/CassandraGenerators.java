@@ -51,6 +51,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
@@ -1872,7 +1873,7 @@ public final class CassandraGenerators
     {
         Gen<Set<Node.Id>> staleIdsGen = Generators.set(accordNodeId(), SourceDSL.integers().between(0, 10));
         Gen<Epoch> epochGen = epochs();
-        return rnd -> new AccordStaleReplicas(staleIdsGen.generate(rnd), epochGen.generate(rnd));
+        return rnd -> new AccordStaleReplicas(SortedArrayList.copyUnsorted(staleIdsGen.generate(rnd), Node.Id[]::new), SortedArrayList.ofSorted(), epochGen.generate(rnd));
     }
 
     public static Gen<AccordFastPath> accordFastPath()

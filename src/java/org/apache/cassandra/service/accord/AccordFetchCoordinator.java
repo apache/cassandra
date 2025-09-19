@@ -25,11 +25,15 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Data;
 import accord.api.DataStore;
 import accord.api.Query;
 import accord.api.Read;
 import accord.api.Update;
+import accord.coordinate.tracking.AbstractTracker;
 import accord.impl.AbstractFetchCoordinator;
 import accord.local.CommandStore;
 import accord.local.Node;
@@ -80,6 +84,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize
 
 public class AccordFetchCoordinator extends AbstractFetchCoordinator implements StreamManager.StreamListener
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordFetchCoordinator.class);
     private static final Query noopQuery = (txnId, executeAt, keys, data, read, update) -> null;
 
     public static class StreamData implements Data
@@ -101,7 +106,6 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 {
                     TimeUUID.Serializer.instance.serialize(info.planId, out);
                     out.writeBoolean(info.hasData);
-
                 }
 
                 public SessionInfo deserialize(DataInputPlus in) throws IOException
@@ -215,19 +219,28 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             Invariants.nonNull(future);
             Invariants.require(this.future == null, "future was not null: %s", this.future);
             this.future = future;
+            logger.info("StreamFuture for plan {} received for bootstrap of {} from {}", planId, range, from);
             maybeListen();
         }
 
         private void maybeListen()
         {
+            // TODO (required): if for some reason the stream isn't initiated this hangs
             if (range == null || future == null)
                 return;
 
             Invariants.nonNull(from);
-
             future.addCallback((state, fail) -> {
-                if (fail == null) success(from, Ranges.of(range));
-                else fail(from, Ranges.of(range), fail);
+                if (fail == null)
+                {
+                    logger.info("Reporting success of plan {} for bootstrap of {} from {}", planId, range, from);
+                    success(from, Ranges.of(range));
+                }
+                else
+                {
+                    logger.info("Reporting failure of plan {} for bootstrap of {} from {}", planId, range, from, fail);
+                    fail(from, Ranges.of(range), fail);
+                }
             }, ((AccordCommandStore) commandStore()).taskExecutor());
         }
     }
@@ -302,6 +315,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                 StreamPlan plan = new StreamPlan(StreamOperation.BOOTSTRAP, 1, false,
                                                  null, PreviewKind.NONE).flushBeforeTransfer(true);
 
+                logger.info("StreamPlan {} created for bootstrap of {} to {}", plan.planId(), range, to);
                 RangesAtEndpoint ranges = RangesAtEndpoint.toDummyList(Collections.singleton(range.toKeyspaceRange()));
                 plan.transferRanges(to, table.keyspace, ranges, table.name);
                 StreamResultFuture future = plan.execute();
@@ -383,6 +397,12 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
     }
 
     @Override
+    public AbstractTracker<?> tracker()
+    {
+        return null;
+    }
+
+    @Override
     public void start()
     {
         StreamManager.instance.addListener(this);
@@ -424,10 +444,12 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         streamData.streams.forEach((range, streamInfo) -> {
             if (streamInfo.hasData)
             {
+                logger.info("StreamPlan {} created for bootstrap of {} from {}", streamInfo.planId, range, from);
                 stream(streamInfo.planId).rangeReceived(range, from);
             }
             else
             {
+                logger.info("StreamPlan {} created for bootstrap of {} from {} with no data to stream; succeeding immediately.", streamInfo.planId, range, from);
                 // if there was no data to stream, no connection is initiated, and we aren't notified via the stream
                 // listener, so the stream initiator notifies us and we mark it complete here
                 success(from, Ranges.of(range));

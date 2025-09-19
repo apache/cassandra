@@ -32,7 +32,7 @@ public class LargeBitSetSerializerTest
     public void test()
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
-        qt().forAll(largeBitSetGen()).check(bits -> Serializers.testSerde(output, LargeBitSetSerializer.instance, bits));
+        qt().forAll(largeBitSetGen()).check(bits -> Serializers.testSerde(output, SimpleBitSetSerializers.large, bits));
     }
 
     private static Gen<LargeBitSet> largeBitSetGen()

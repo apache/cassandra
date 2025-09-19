@@ -382,6 +382,7 @@ public class AccordTestUtils
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() {++stamp;}
+            @Override public boolean isReplaying() { return false; }
         };
 
         AccordAgent agent = new AccordAgent();
@@ -397,7 +398,7 @@ public class AccordTestUtils
         holder.add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
         AccordCommandStore result = new AccordCommandStore(0, time, agent, null,
                                                            cs -> new NoOpProgressLog(),
-                                                           cs -> new DefaultLocalListeners(new NoOpRemoteListeners(), new NoOpNotifySink()),
+                                                           cs -> new DefaultLocalListeners(null, new NoOpRemoteListeners(), new NoOpNotifySink()),
                                                            holder, journal, executor);
         result.unsafeUpdateRangesForEpoch();
         return result;
@@ -409,7 +410,7 @@ public class AccordTestUtils
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id, metadata.partitioner);
         Node.Id node = new Id(1);
-        Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
+        Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node)));
         AccordCommandStore store = createAccordCommandStore(node, now, topology);
         store.execute((PreLoadContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
         return store;

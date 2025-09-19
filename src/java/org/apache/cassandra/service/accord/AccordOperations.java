@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -55,7 +56,7 @@ public class AccordOperations implements AccordOperationsMBean
         ClusterMetadata metadata = ClusterMetadata.current();
 
         info.put("EPOCH", Long.toString(metadata.epoch.getEpoch()));
-        String staleReplicas = metadata.accordStaleReplicas.ids().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
+        String staleReplicas = metadata.accordStaleReplicas.stale().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
         info.put("STALE_REPLICAS", staleReplicas);
         return info;
     }
@@ -63,14 +64,44 @@ public class AccordOperations implements AccordOperationsMBean
     @Override
     public void accordMarkStale(List<String> nodeIdStrings)
     {
-        Set<NodeId> nodeIds = nodeIdStrings.stream().map(NodeId::fromString).collect(Collectors.toSet());
-        cms.commit(new AccordMarkStale(nodeIds));
+        accordMarkStale(parse(nodeIdStrings));
+    }
+
+    @Override
+    public void accordMarkHardRemoved(List<String> nodeIdStrings)
+    {
+        accordMarkHardRemoved(parse(nodeIdStrings), false);
+    }
+
+    @Override
+    public void accordForceMarkHardRemoved(List<String> nodeIdStrings)
+    {
+        accordMarkHardRemoved(parse(nodeIdStrings), true);
     }
 
     @Override
     public void accordMarkRejoining(List<String> nodeIdStrings)
     {
-        Set<NodeId> nodeIds = nodeIdStrings.stream().map(NodeId::fromString).collect(Collectors.toSet());
+        accordMarkRejoining(parse(nodeIdStrings));
+    }
+
+    private static Set<NodeId> parse(List<String> nodeIdStrings)
+    {
+        return nodeIdStrings.stream().map(NodeId::fromString).collect(Collectors.toSet());
+    }
+
+    public void accordMarkStale(Set<NodeId> nodeIds)
+    {
+        cms.commit(new AccordMarkStale(nodeIds));
+    }
+
+    public void accordMarkHardRemoved(Set<NodeId> nodeIds, boolean force)
+    {
+        cms.commit(new AccordMarkHardRemoved(nodeIds, force));
+    }
+
+    public void accordMarkRejoining(Set<NodeId> nodeIds)
+    {
         cms.commit(new AccordMarkRejoining(nodeIds));
     }
 }

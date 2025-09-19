@@ -63,7 +63,6 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
-import accord.local.cfk.CommandsForKey;
 import accord.local.durability.DurabilityService;
 import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
@@ -236,17 +235,18 @@ public class AccordService implements IAccordService, Shutdownable
     // TODO (expected): wrap this in an inner class that is statically initialised and final
     //  tests can specify a DelegatingService if they want to override
     private static IAccordService instance;
+    private static IAccordService unsafeInstance;
 
     @VisibleForTesting
     public static void unsafeSetNewAccordService(IAccordService service)
     {
-        instance = service;
+        unsafeInstance = instance = service;
     }
 
     @VisibleForTesting
     public static void unsafeSetNoop()
     {
-        instance = NOOP_SERVICE;
+        unsafeInstance = instance = NOOP_SERVICE;
     }
 
     public static boolean isSetup()
@@ -258,7 +258,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!isSetup()) return ignore -> {};
         AccordService i = (AccordService) instance();
-        return i.configService().watermarkCollector.handler;
+        return i.configService().watermarkCollector().handler;
     }
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
@@ -278,7 +278,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
-            instance = NOOP_SERVICE;
+            unsafeInstance = instance = NOOP_SERVICE;
             return null;
         }
 
@@ -286,8 +286,17 @@ public class AccordService implements IAccordService, Shutdownable
             return (AccordService) instance;
 
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
-        as.startup();
-        replayJournal(as);
+        unsafeInstance = as;
+        as.node.unsafeSetReplaying(true);
+        try
+        {
+            as.startup();
+            replayJournal(as);
+        }
+        finally
+        {
+            as.node.unsafeSetReplaying(false);
+        }
 
         as.finishInitialization();
 
@@ -320,23 +329,15 @@ public class AccordService implements IAccordService, Shutdownable
     {
         logger.info("Starting journal replay.");
         long before = Clock.Global.nanoTime();
-        CommandsForKey.disableLinearizabilityViolationsReporting();
-        try
-        {
-            if (as.journalConfiguration().replayMode() == RESET)
-                AccordKeyspace.truncateCommandsForKey();
+        if (as.journalConfiguration().replayMode() == RESET)
+            AccordKeyspace.truncateCommandsForKey();
 
-            as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
-            as.journal().replay(as.node().commandStores());
-            logger.info("Waiting for command stores to quiesce.");
-            ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
-            as.journal.unsafeSetStarted();
-            as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
-        }
-        finally
-        {
-            CommandsForKey.enableLinearizabilityViolationsReporting();
-        }
+        as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
+        as.journal().replay(as.node().commandStores());
+        logger.info("Waiting for command stores to quiesce.");
+        ((AccordCommandStores)as.node.commandStores()).waitForQuiescence();
+        as.journal.unsafeSetStarted();
+        as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
 
         long after = Clock.Global.nanoTime();
         logger.info("Finished journal replay. {}ms elapsed", NANOSECONDS.toMillis(after - before));
@@ -351,9 +352,14 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static IAccordService instance()
     {
-        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
-            return NOOP_SERVICE;
         IAccordService i = instance;
+        Invariants.require(i != null, "AccordService was not started");
+        return i;
+    }
+
+    public static IAccordService unsafeInstance()
+    {
+        IAccordService i = unsafeInstance;
         Invariants.require(i != null, "AccordService was not started");
         return i;
     }
@@ -379,7 +385,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
         this.configService = new AccordConfigurationService(localId, agent);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
-        this.messageSink = new AccordMessageSink(agent, configService, callbacks);
+        this.messageSink = new AccordMessageSink(agent, configService.endpointMapper(), callbacks);
         this.node = new Node(localId,
                              messageSink,
                              configService,
@@ -390,18 +396,18 @@ public class AccordService implements IAccordService, Shutdownable
                              new DefaultRandom(),
                              scheduler,
                              CompositeTopologySorter.create(SizeOfIntersectionSorter.SUPPLIER,
-                                                            new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getNodeProximity())),
+                                                            new AccordTopologySorter.Supplier(configService.endpointMapper(), DatabaseDescriptor.getNodeProximity())),
                              DefaultRemoteListeners::new,
                              ignore -> callbacks,
                              DefaultProgressLogs::new,
                              DefaultLocalListeners.Factory::new,
                              AccordCommandStores.factory(),
-                             new AccordInteropFactory(configService),
+                             new AccordInteropFactory(configService.endpointMapper()),
                              journal.durableBeforePersister(),
                              journal);
         this.nodeShutdown = toShutdownable(node);
-        this.requestHandler = new AccordVerbHandler<>(node, configService);
-        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
+        this.requestHandler = new AccordVerbHandler<>(node, configService.endpointMapper());
+        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService.endpointMapper());
     }
 
     @Override
@@ -416,34 +422,21 @@ public class AccordService implements IAccordService, Shutdownable
         configService.updateMapping(metadata);
 
         List<TopologyUpdate> images = journal.replayTopologies();
-
-        // Instantiate latest topology from the log, if known
         if (!images.isEmpty())
-            node.commandStores().initializeTopologyUnsafe(images.get(images.size() - 1));
-
-        // Replay local epochs
-        for (TopologyUpdate image : images)
-            configService.reportTopology(image.global);
-
-        // Subscribe to TCM events
-        ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
         {
-            @Override
-            public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+            // Initialise command stores using latest topology from the log;
+            // if there are no local command stores, don't report any topologies and simply fetch the latest known in the cluster
+            // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
+            // epochs having been garbage collected by the other nodes in the cluster
+            TopologyUpdate last = images.get(images.size() - 1);
+            if (!last.commandStores.isEmpty())
             {
-                if (state != State.SHUTDOWN)
-                    configService.maybeReportMetadata(next);
+                node.commandStores().initializeTopologyUnsafe(last);
+
+                // Replay local epochs
+                for (TopologyUpdate image : images)
+                    configService.reportTopology(image.global);
             }
-        });
-
-        Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
-                           "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
-
-        MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
-        for (ClusterMetadata item : preinit.getItems())
-        {
-            if (item.epoch.getEpoch() > Epoch.FIRST.getEpoch())
-                configService.maybeReportMetadata(item);
         }
     }
 
@@ -464,7 +457,32 @@ public class AccordService implements IAccordService, Shutdownable
             TopologyRange remote = fetchTopologies(highestKnown + 1);
 
             if (remote != null) // TODO (required): if remote.min > highestKnown + 1, should we decide if we need to truncate our local topologies? Probably not until startup has finished.
+            {
                 remote.forEach(configService::reportTopology, remote.min, Integer.MAX_VALUE);
+                if (remote.current > highestKnown)
+                    highestKnown = remote.current;
+            }
+
+            // Subscribe to TCM events, and collect any we may have missed to report now
+            ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
+            {
+                @Override
+                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+                {
+                    if (state != State.SHUTDOWN)
+                        configService.maybeReportMetadata(next);
+                }
+            });
+
+            Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
+                               "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
+
+            MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
+            for (ClusterMetadata item : preinit.getItems())
+            {
+                if (item.epoch.getEpoch() > highestKnown)
+                    configService.maybeReportMetadata(item);
+            }
         }
         catch (InterruptedException e)
         {

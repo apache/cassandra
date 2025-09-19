@@ -42,6 +42,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -71,8 +73,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
-import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -128,7 +128,7 @@ public class EpochSyncTest
     @Test
     public void test()
     {
-        stateful().withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
+        stateful().withSeed(1).withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
                 .destroyState(cluster -> {
                     finishPendingWork(cluster);
                     cluster.processAll();
@@ -210,50 +210,32 @@ public class EpochSyncTest
         private int nodeCounter = 0;
         private final ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(NodeVersion.CURRENT_METADATA_VERSION);
 
-        private final IFailureDetector fd = new IFailureDetector()
+        class Mapper implements AccordEndpointMapper
         {
             @Override
-            public boolean isAlive(InetAddressAndPort ep)
+            public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped)
             {
-                return instances.get(nodeId(ep)).status != Status.Removed;
+                return nodeId(endpoint);
             }
 
             @Override
-            public void interpret(InetAddressAndPort ep)
+            public InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped)
             {
-
+                return address(id);
             }
 
             @Override
-            public void report(InetAddressAndPort ep)
+            public Map<Node.Id, Long> removedNodes()
             {
-
+                return Map.of();
             }
 
             @Override
-            public void remove(InetAddressAndPort ep)
+            public NodeStatus nodeStatus(Node.Id id)
             {
-
+                return instances.get(id).status != Status.Removed ? NodeStatus.HEALTHY : NodeStatus.UNKNOWN;
             }
-
-            @Override
-            public void forceConviction(InetAddressAndPort ep)
-            {
-
-            }
-
-            @Override
-            public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
-            {
-
-            }
-
-            @Override
-            public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
-            {
-
-            }
-        };
+        }
 
         public Cluster(RandomSource rs)
         {
@@ -579,7 +561,7 @@ public class EpochSyncTest
 
             ClusterMetadata.Transformer builder = cms.metadata().transformer();
 
-            Instance instance = new Instance(id, token, builder.epoch(), createMessaging(id), fd);
+            Instance instance = new Instance(id, token, builder.epoch(), createMessaging(id), new Mapper());
             instances.put(id, instance);
             tokens.add(token);
 
@@ -675,7 +657,7 @@ public class EpochSyncTest
             private final Epoch epoch;
             private Status status = Status.Init;
 
-            Instance(Node.Id node, long token, Epoch epoch, SimulatedMessageDelivery messagingService, IFailureDetector failureDetector)
+            Instance(Node.Id node, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMapper mapper)
             {
                 this.id = node;
                 this.token = token;
@@ -683,11 +665,11 @@ public class EpochSyncTest
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, time, new DefaultTimeouts(time));
-                config = new AccordConfigurationService(node, new AccordAgent(), messagingService, failureDetector, scheduler);
+                config = new AccordConfigurationService(node, new AccordAgent(), mapper, messagingService, scheduler);
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override
-                    public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
+                    public AsyncResult<Void> onTopologyUpdate(Topology topology)
                     {
                         AsyncResult<Void> metadata = schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult();
                         AsyncResult<Void> coordination = metadata.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult());
@@ -699,7 +681,7 @@ public class EpochSyncTest
                         ready.coordinate.invokeIfSuccess(() -> topology().onEpochSyncComplete(id, topology.epoch()));
                         if (topology().minEpoch() == topology.epoch() && topology().epoch() != topology.epoch())
                             return ready.coordinate;
-                        config.acknowledgeEpoch(ready, startSync);
+                        config.acknowledgeEpoch(ready);
                         return ready.coordinate;
                     }
 

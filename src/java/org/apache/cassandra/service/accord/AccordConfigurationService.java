@@ -34,13 +34,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import accord.api.Agent;
+import accord.api.TopologySorter;
+import accord.coordinate.tracking.NotifyTracker;
+import accord.coordinate.tracking.RequestStatus;
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
-import accord.topology.Shard;
+import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.Invariants;
-import accord.utils.SortedListSet;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.agrona.collections.LongArrayList;
@@ -48,8 +50,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
@@ -68,24 +68,25 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
-// TODO (desired): listen to FailureDetector and rearrange fast path accordingly
 @Simulate(with=MONITORS)
-public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
+public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements AccordSyncPropagator.Listener, Shutdownable
 {
     public static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
+
     private final AccordSyncPropagator syncPropagator;
-    public final WatermarkCollector watermarkCollector;
+    private final WatermarkCollector watermarkCollector;
+    private final AccordEndpointMapper endpointMapper;
 
     private enum State { INITIALIZED, STARTED, SHUTDOWN }
 
     @GuardedBy("this")
     private State state = State.INITIALIZED;
-    private volatile EndpointMapping mapping = EndpointMapping.EMPTY;
 
     public enum SyncStatus { NOT_STARTED, NOTIFYING, COMPLETED }
 
     static class EpochState extends AbstractConfigurationService.AbstractEpochState
     {
+        private NotifyTracker notifyTracker;
         private volatile SyncStatus syncStatus = SyncStatus.NOT_STARTED;
         protected final AsyncResult.Settable<Void> localSyncNotified = AsyncResults.settable();
 
@@ -94,11 +95,29 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             super(epoch);
         }
 
-        void setSyncStatus(SyncStatus status)
+        void ack(Node.Id id)
         {
-            this.syncStatus = status;
-            if (status == SyncStatus.COMPLETED)
-                localSyncNotified.trySuccess(null);
+            if (notifyTracker != null && RequestStatus.Success == notifyTracker.recordSuccess(id))
+                doneNotifying();
+        }
+
+        void nack(Node.Id id)
+        {
+            if (notifyTracker != null && RequestStatus.Success == notifyTracker.recordFailure(id))
+                doneNotifying();
+        }
+
+        void startNotifying()
+        {
+            syncStatus = SyncStatus.NOTIFYING;
+            notifyTracker = new NotifyTracker(new Topologies.Single((TopologySorter) null, topology));
+        }
+
+        void doneNotifying()
+        {
+            syncStatus = SyncStatus.COMPLETED;
+            localSyncNotified.trySuccess(null);
+            notifyTracker = null;
         }
 
         AsyncResult<Topology> received()
@@ -140,17 +159,18 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    public AccordConfigurationService(Node.Id node, Agent agent, MessageDelivery messagingService, IFailureDetector failureDetector, ScheduledExecutorPlus scheduledTasks)
+    public AccordConfigurationService(Node.Id node, Agent agent, AccordEndpointMapper endpointMapper, MessageDelivery messagingService, ScheduledExecutorPlus scheduledTasks)
     {
         super(node, agent);
-        this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, scheduledTasks, this);
+        this.syncPropagator = new AccordSyncPropagator(localId, endpointMapper, messagingService, scheduledTasks, this);
         this.watermarkCollector = new WatermarkCollector();
+        this.endpointMapper = endpointMapper;
         listeners.add(watermarkCollector);
     }
 
     public AccordConfigurationService(Node.Id node, Agent agent)
     {
-        this(node, agent, MessagingService.instance(), FailureDetector.instance, ScheduledExecutors.scheduledTasks);
+        this(node, agent, new EndpointMapping.Updateable(), MessagingService.instance(), ScheduledExecutors.scheduledTasks);
     }
 
     @Override
@@ -166,11 +186,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     {
         Invariants.require(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.STARTED;
-
-        // for all nodes removed, or pending removal, mark them as removed, so we don't wait on their replies
-        Map<Node.Id, Long> removedNodes = mapping.removedNodes();
-        for (Map.Entry<Node.Id, Long> e : removedNodes.entrySet())
-            onNodeRemoved(e.getValue(), currentTopology(), e.getKey());
+        endpointMapper.removedNodes().forEach((removed, removedIn) -> {
+            onNodeRemoved(removedIn, new Node.Id(removed.id));
+        });
     }
 
     @Override
@@ -200,28 +218,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         return isTerminated();
     }
 
-    @Override
-    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
-    {
-        return mapping.mappedIdOrNull(endpoint);
-    }
-
-    @Override
-    public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
-    {
-        return mapping.mappedEndpointOrNull(id);
-    }
-
-    @VisibleForTesting
-    synchronized void updateMapping(EndpointMapping mapping)
-    {
-        if (mapping.epoch() > this.mapping.epoch())
-            this.mapping = mapping;
-    }
-
     public synchronized void updateMapping(ClusterMetadata metadata)
     {
-        updateMapping(AccordTopology.directoryToMapping(metadata.epoch.getEpoch(), metadata.directory));
+        endpointMapper.updateMapping(metadata);
     }
 
     private void reportMetadata(ClusterMetadata metadata)
@@ -234,14 +233,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Topology topology = AccordTopology.createAccordTopology(metadata);
 
         updateMapping(metadata);
-        if (Invariants.isParanoid())
-        {
-            for (Node.Id node : topology.nodes())
-            {
-                if (mapping.mappedEndpointOrNull(node) == null)
-                    throw new IllegalStateException(String.format("Epoch %d has node %s but mapping does not!", topology.epoch(), node));
-            }
-        }
         reportTopology(topology);
         Set<Node.Id> stillLiveNodes = metadata.directory.states.entrySet()
                                                                .stream()
@@ -264,24 +255,14 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         for (Node.Id removedNode : removedNodes)
         {
             if (topology.epoch() >= minEpoch)
-                onNodeRemoved(topology.epoch(), previous, removedNode);
+                onNodeRemoved(topology.epoch(), removedNode);
         }
     }
 
-    private static boolean shareShard(Topology current, Node.Id target, Node.Id self)
-    {
-        for (Shard shard : current.shards())
-        {
-            if (!shard.contains(target)) continue;
-            if (shard.contains(self)) return true;
-        }
-        return false;
-    }
-
-    public void onNodeRemoved(long epoch, Topology current, Node.Id removed)
+    public void onNodeRemoved(long epoch, Node.Id removed)
     {
         syncPropagator.onNodesRemoved(removed);
-        // TODO (now): it seems to be incorrect to mark remote syncs complete if/when node got removed.
+        // TODO (desired): this is test only; make integration cleaner
         for (long oldEpoch : nonCompletedEpochsBefore(epoch))
             receiveRemoteSyncCompletePreListenerNotify(removed, oldEpoch);
 
@@ -358,7 +339,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             fetchTopologyInternal(i);
     }
 
-    private static final Object Success = new Object();
+    private static final Object SUCCESS = new Object();
 
     protected void fetchTopologyInternal(long epoch)
     {
@@ -402,7 +383,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             ClusterMetadata metadata = ClusterMetadata.current();
             if (metadata.epoch.getEpoch() == epoch)
             {
-                onResult.accept(Success, null);
+                onResult.accept(SUCCESS, null);
                 return;
             }
 
@@ -410,7 +391,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             peers.remove(FBUtilities.getBroadcastAddressAndPort());
             if (peers.isEmpty())
             {
-                onResult.accept(Success, null);
+                onResult.accept(SUCCESS, null);
                 return;
             }
 
@@ -420,14 +401,14 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                                if (t != null)
                                {
                                    if (currentEpoch() >= epoch)
-                                       onResult.accept(Success, null);
+                                       onResult.accept(SUCCESS, null);
                                    else
                                        onResult.accept(null, t);
                                }
                                else
                                {
                                    topologyRange.forEach(this::reportTopology, epoch, 1);
-                                   onResult.accept(Success, null);
+                                   onResult.accept(SUCCESS, null);
                                }
                            });
         });
@@ -440,39 +421,33 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public void reportTopology(Topology topology, boolean isLoad, boolean startSync)
+    public void reportTopology(Topology topology)
     {
         long tcmEpoch = ClusterMetadata.current().epoch.getEpoch();
         Invariants.require(topology.epoch() <= tcmEpoch,
                            "Reported topology %s not known to TCM", topology.epoch(), tcmEpoch);
-        super.reportTopology(topology, isLoad, startSync);
+        super.reportTopology(topology);
     }
 
     @Override
-    protected void onReadyToCoordinate(Topology topology, boolean startSync)
+    protected void onReadyToCoordinate(Topology topology)
     {
         long epoch = topology.epoch();
         EpochState epochState = getOrCreateEpochState(epoch);
         synchronized (this)
         {
-            if (!startSync || epochState.syncStatus != SyncStatus.NOT_STARTED)
+            if (epochState.syncStatus != SyncStatus.NOT_STARTED)
                 return;
 
-            epochState.setSyncStatus(SyncStatus.NOTIFYING);
+            if (topology.nodes().contains(localId)) epochState.startNotifying();
+            else epochState.doneNotifying();
         }
 
-        Set<Node.Id> notify = SortedListSet.allOf(topology.nodes());
-        notify.remove(localId);
-        syncPropagator.reportSyncComplete(epoch, notify, localId);
+        syncPropagator.reportCoordinationReady(epoch, topology.nodes(), localId);
     }
 
     @Override
     public synchronized void onEndpointAck(Node.Id id, long epoch)
-    {
-    }
-
-    @Override
-    public void onComplete(long epoch)
     {
         if (epochs.wasTruncated(epoch))
             return;
@@ -480,13 +455,21 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         EpochState epochState = getOrCreateEpochState(epoch);
         synchronized (this)
         {
-            epochState.setSyncStatus(SyncStatus.COMPLETED);
+            epochState.ack(id);
         }
     }
 
     @Override
-    protected synchronized void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
+    public synchronized void onEndpointNack(Node.Id id, long epoch)
     {
+        if (epochs.wasTruncated(epoch))
+            return;
+
+        EpochState epochState = getOrCreateEpochState(epoch);
+        synchronized (this)
+        {
+            epochState.nack(id);
+        }
     }
 
     @Override
@@ -544,6 +527,16 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     {
         State state = this.state;
         Invariants.require(state == State.STARTED, "Expected state to be STARTED but was %s", state);
+    }
+
+    public WatermarkCollector watermarkCollector()
+    {
+        return watermarkCollector;
+    }
+
+    public AccordEndpointMapper endpointMapper()
+    {
+        return endpointMapper;
     }
 
     @VisibleForTesting

@@ -25,7 +25,7 @@ import java.util.Objects;
 import accord.local.Node;
 import com.google.common.collect.ImmutableMap;
 
-import com.google.common.collect.ImmutableSet;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -235,14 +235,14 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
         return lastModified;
     }
 
-    public ImmutableSet<Node.Id> unavailableIds()
+    public SortedArrayList<Node.Id> unavailableIds()
     {
-        ImmutableSet.Builder<Node.Id> builder = ImmutableSet.builder();
-        info.entrySet().stream()
-                .filter(entry -> entry.getValue().status.isUnavailable())
-                .map(Map.Entry::getKey)
-                .forEach(builder::add);
-        return builder.build();
+        // TODO (expected): why don't we save this?
+        Node.Id[] ids = info.entrySet().stream()
+                            .filter(entry -> entry.getValue().status.isUnavailable())
+                            .map(Map.Entry::getKey)
+                            .toArray(Node.Id[]::new);
+        return SortedArrayList.ofUnsorted(ids);
     }
 
     public static final MetadataSerializer<AccordFastPath> serializer = new MetadataSerializer<AccordFastPath>()

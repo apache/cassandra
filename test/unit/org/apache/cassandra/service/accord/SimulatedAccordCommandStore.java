@@ -241,6 +241,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             {
                 ++stamp;
             }
+
+            @Override
+            public boolean isReplaying()
+            {
+                return false;
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -265,7 +271,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                    agent,
                                                    null,
                                                    ignore -> new ProgressLog.NoOpProgressLog(),
-                                                   cs -> new DefaultLocalListeners(new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
+                                                   cs -> new DefaultLocalListeners(null, new RemoteListeners.NoOpRemoteListeners(), new DefaultLocalListeners.NotifySink()
                                                    {
                                                        @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
                                                        @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
@@ -458,7 +464,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         Ballot ballot = Ballot.fromValues(storeService.epoch(), storeService.now(), nodeId);
-        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, false, txn, route, ballot);
+        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, 0, txn, route, ballot);
 
         return Pair.create(txnId, processAsync(br, safe -> {
             var reply = br.apply(safe);

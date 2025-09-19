@@ -81,7 +81,7 @@ public class WatermarkCollector implements ConfigurationService.Listener
         synced = new Long2LongHashMap(-1);
     }
 
-    @Override public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
+    @Override public AsyncResult<Void> onTopologyUpdate(Topology topology)
     {
         return null;
     }
