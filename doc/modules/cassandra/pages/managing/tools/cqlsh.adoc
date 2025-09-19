@@ -145,6 +145,40 @@ include:
 * `SERIAL`
 * `LOCAL_SERIAL`
 
+=== Set and verify consistency in cqlsh
+
+You can view or change the consistency level that `cqlsh` uses for subsequent statements in the current session.
+
+[source,sql]
+----
+CONSISTENCY;
+----
+
+The command above prints the current consistency level. To set it:
+
+[source,sql]
+----
+CONSISTENCY QUORUM;
+----
+
+You can also set the *serial* consistency level used by conditional updates (LWT):
+
+[source,sql]
+----
+CONSISTENCY SERIAL;
+CONSISTENCY LOCAL_SERIAL;
+----
+
+To restore a simple default:
+
+[source,sql]
+----
+CONSISTENCY ONE;
+----
+
+TIP: Choose read/write levels that meet your application goals. As a rule of thumb, pick levels so that reads and writes overlap (for example, QUORUM reads with QUORUM writes) to ensure acknowledged writes are visible to subsequent reads. See “Picking Consistency Levels” in the Architecture → Dynamo docs for more background.
+
+
 === `SERIAL CONSISTENCY`
 
 `Usage`: `SERIAL CONSISTENCY <consistency level>`
