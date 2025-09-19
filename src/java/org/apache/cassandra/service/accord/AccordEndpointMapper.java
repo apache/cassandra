@@ -18,25 +18,28 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Map;
+import javax.annotation.Nullable;
+
 import accord.local.Node;
-import accord.utils.Invariants;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * Maps network addresses to accord ids
  */
 public interface AccordEndpointMapper
 {
-    Node.Id mappedIdOrNull(InetAddressAndPort endpoint);
-    InetAddressAndPort mappedEndpointOrNull(Node.Id id);
+    default @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint) { return mappedIdOrNull(endpoint, null); }
+    @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped);
+    default @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id) { return mappedEndpointOrNull(id, null); }
+    @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped);
 
-    default Node.Id mappedId(InetAddressAndPort endpoint)
-    {
-        return Invariants.nonNull(mappedIdOrNull(endpoint), "Unable to map address %s to a Node.Id", endpoint);
-    }
+    enum NodeStatus { UNKNOWN, UNHEALTHY, HEALTHY }
 
-    default InetAddressAndPort mappedEndpoint(Node.Id id)
-    {
-        return Invariants.nonNull(mappedEndpointOrNull(id), "Unable to map node id %s to a InetAddressAndPort", id);
-    }
+    default boolean isRemoved(Node.Id id) { return removedNodes().containsKey(id); }
+    Map<Node.Id, Long> removedNodes();
+
+    NodeStatus nodeStatus(Node.Id id);
+    default void updateMapping(ClusterMetadata metadata) {}
 }

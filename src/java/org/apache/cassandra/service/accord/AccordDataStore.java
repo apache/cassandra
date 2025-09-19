@@ -26,7 +26,6 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.local.cfk.CommandsForKey;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
@@ -47,7 +46,7 @@ public class AccordDataStore implements DataStore
      */
     public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
     {
-        if (!CommandsForKey.reportLinearizabilityViolations())
+        if (commandStore.node().isReplaying())
             return;
 
         logger.debug("{} awaiting local data durability of {}", commandStore, ranges);

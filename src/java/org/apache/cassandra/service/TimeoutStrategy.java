@@ -85,7 +85,7 @@ public class TimeoutStrategy implements WaitStrategy
     static final Pattern WAIT = Pattern.compile(
                 "\\s*(?<const>0|[0-9]+[mu]?s)" +
                 "|\\s*((p(?<perc>[0-9]+)(\\((?<rw>r|w|rw|wr)\\))?)?|(?<constbase>0|[0-9]+[mu]?s))" +
-                    "\\s*(([*]\\s*(?<mod>[0-9.]+))?\\s*(?<modkind>[*^]\\s*attempts)?)?\\s*");
+                    "\\s*(([*]\\s*(?<mod>[0-9.]+))?\\s*(?<modkind>[*^]\\s*attempts?)?)?\\s*");
     static final Pattern TIME = Pattern.compile(
                 "0|[0-9]+[mu]?s");
 

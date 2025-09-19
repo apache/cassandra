@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
+import accord.local.Node;
 import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
@@ -31,10 +32,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -69,18 +72,34 @@ public class AccordRepair
     private final Ranges ranges;
 
     private final SyncRemote syncRemote;
+    private final List<Node.Id> including;
 
     private final Epoch minEpoch = ClusterMetadata.current().epoch;
 
     private volatile Throwable shouldAbort = null;
     private volatile Thread waiting;
 
-    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints)
+    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints, List<InetAddressAndPort> endpoints)
     {
         this.ctx = ctx;
         this.cfs = cfs;
         this.repairId = repairId;
+        // TODO (desired): support unsafe configuration where we permit less than a quorum,
+        //  but this is challenging to do safely as repair has no concept of participants from earlier epochs
         this.syncRemote = requireAllEndpoints ? All : Quorum;
+        if (endpoints != null)
+        {
+            including = new ArrayList<>(endpoints.size());
+            AccordEndpointMapper mapper = AccordService.instance().configService().endpointMapper();
+            for (InetAddressAndPort ep : endpoints)
+            {
+                Node.Id id = mapper.mappedIdOrNull(ep);
+                if (id == null)
+                    throw new IllegalStateException("Unknown endpoint: " + ep + "; cannot map to Accord Node.Id");
+                including.add(id);
+            }
+        }
+        else including = null;
         this.ranges = AccordTopology.toAccordRanges(keyspace, ranges);
     }
 
@@ -141,6 +160,7 @@ public class AccordRepair
     private Pair<List<accord.primitives.Range>, Long> repairRange(TokenRange range) throws Throwable
     {
         List<accord.primitives.Range> repairedRanges = new ArrayList<>();
+
         if (shouldAbort != null)
             throw shouldAbort;
 
@@ -164,7 +184,7 @@ public class AccordRepair
             long timeoutNanos = getAccordRepairTimeoutNanos();
             long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
                 Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), null, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), including, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 

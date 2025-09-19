@@ -37,6 +37,8 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -62,7 +64,9 @@ public class DropAccordTableTest
 {
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.daemonInitialization();
+        // TODO (required): should this be a no-op service? Probably not! But this is what it was before (only relying on !accord.enabled check in AccordService.instance()...)
+        AccordService.unsafeSetNewAccordService(new IAccordService.NoOpAccordService());
     }
 
     private static final TransactionalMode[] ACCORD_ENABLED_MODES = Stream.of(TransactionalMode.values())

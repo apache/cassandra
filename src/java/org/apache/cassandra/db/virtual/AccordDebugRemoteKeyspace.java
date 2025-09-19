@@ -26,6 +26,6 @@ public class AccordDebugRemoteKeyspace extends RemoteToLocalVirtualKeyspace
 
     public AccordDebugRemoteKeyspace(String name, VirtualKeyspace wrap)
     {
-        super(name, wrap);
+        super(name, wrap, vt -> !vt.name().equals(AccordDebugKeyspace.NODE_OPS));
     }
 }

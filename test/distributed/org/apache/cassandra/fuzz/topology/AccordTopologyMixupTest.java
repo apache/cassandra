@@ -383,14 +383,14 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
             });
         }
         @Override
-        public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
+        public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Runnable fail, Throwable failure)
         {
             if (failure instanceof Exhausted)
             {
                 Exhausted e = (Exhausted) failure;
                 SharedState.debugTxn(self.id, "Bootstrap#" + phase, e.txnId().toString());
             }
-            super.onFailedBootstrap(attempts, phase, ranges, retry, failure);
+            super.onFailedBootstrap(attempts, phase, ranges, retry, fail, failure);
         }
     }
 }

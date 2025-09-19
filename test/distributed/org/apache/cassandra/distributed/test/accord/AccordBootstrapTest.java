@@ -24,76 +24,54 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.api.ConfigurationService.EpochReady;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.topology.TopologyManager;
-import accord.utils.async.AsyncResult;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableFunction;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.streaming.StreamState;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
-import static org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot.ResultStatus.SUCCESS;
-import static org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus.COMPLETED;
 
-public class AccordBootstrapTest extends TestBaseImpl
+public class AccordBootstrapTest extends AccordBootstrapTestBase
 {
-    private static DecoratedKey dk(int key)
-    {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        return partitioner.decorateKey(ByteBufferUtil.bytes(key));
-    }
-
-    private static PartitionKey pk(int key, String keyspace, String table)
-    {
-        TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
-        return new PartitionKey(tid, dk(key));
-    }
-
-    protected IInvokableInstance bootstrapAndJoinNode(Cluster cluster)
+    protected IInvokableInstance failedAndResumeBootstrapAndJoinNode(Cluster cluster)
     {
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
         config.set("accord.shard_durability_target_splits", "1");
         config.set("accord.shard_durability_cycle", "20s");
+        config.set("accord.retry_join_bootstrap", "10s,attempts=1");
+        cluster.forEach(instance -> instance.runOnInstance(() -> StreamListener.listener.failStream = true));
         IInvokableInstance newInstance = cluster.bootstrap(config);
+        newInstance.startup(cluster);
+        spinUntilTrue(() -> cluster.stream().anyMatch(instance -> instance.callOnInstance(() -> StreamListener.listener.hasFailedStream)));
+        newInstance.shutdown(false);
+        cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> StreamListener.listener.failStream = false));
         newInstance.startup(cluster);
         // todo: re-add once we fix write survey/join ring = false mode
 //        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
@@ -103,54 +81,13 @@ public class AccordBootstrapTest extends TestBaseImpl
         return newInstance;
     }
 
-    private static AccordService service()
-    {
-        return (AccordService) AccordService.instance();
-    }
-
-    private static void awaitEpoch(long epoch, Function<EpochReady, AsyncResult<Void>> await)
-    {
-        try
-        {
-            boolean completed = service().epochReady(Epoch.create(epoch), await).await(60, TimeUnit.SECONDS);
-            Assertions.assertThat(completed)
-                      .describedAs("Epoch %s did not become ready within timeout on %s -> %s",
-                                   epoch, FBUtilities.getBroadcastAddressAndPort(),
-                                   service().configService().getEpochSnapshot(epoch))
-                      .isTrue();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void awaitLocalSyncNotification(long epoch)
-    {
-        try
-        {
-            AccordConfigurationService configService = service().configService();
-            boolean completed = configService.unsafeLocalSyncNotified(epoch).await(30, TimeUnit.SECONDS);
-            Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s\n%s",
-                                            epoch, FBUtilities.getBroadcastAddressAndPort(), service().configService().getDebugStr()), completed);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static long maxEpoch(Cluster cluster)
-    {
-        return cluster.stream().mapToLong(node -> node.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch())).max().getAsLong();
-    }
-
     private static class StreamListener implements StreamManager.StreamListener
     {
         private static boolean isRegistered = false;
         private static final StreamListener listener = new StreamListener();
 
         private final List<StreamResultFuture> registered = new ArrayList<>();
+        private boolean failStream, hasFailedStream;
 
         static synchronized void register()
         {
@@ -163,6 +100,34 @@ public class AccordBootstrapTest extends TestBaseImpl
         public synchronized void onRegister(StreamResultFuture result)
         {
             registered.add(result);
+            if (failStream)
+            {
+                result.addEventListener(new StreamEventHandler()
+                      {
+                          @Override
+                          public void handleStreamEvent(StreamEvent event)
+                          {
+                              if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
+                              {
+                                  result.getCoordinator().getAllStreamSessions().forEach(StreamSession::abort);
+                                  hasFailedStream = true;
+                              }
+                          }
+
+                          @Override
+                          public void onSuccess(StreamState result)
+                          {
+
+                          }
+
+                          @Override
+                          public void onFailure(Throwable t)
+                          {
+
+                          }
+                      }
+                  );
+            }
         }
 
         public synchronized void forSession(Consumer<StreamSession> consumer)
@@ -176,13 +141,22 @@ public class AccordBootstrapTest extends TestBaseImpl
     @Test
     public void bootstrapTest() throws Throwable
     {
-        bootstrapTest(Function.identity(), cluster -> {
+        bootstrapTest(cluster -> {
             bootstrapAndJoinNode(cluster);
             awaitMaxEpochReadyToRead(cluster);
         });
     }
 
-    public void bootstrapTest(Function<Cluster.Builder, Cluster.Builder> setup, Consumer<Cluster> bootstrapAndJoinNode) throws Throwable
+    @Test
+    public void resumeBootstrapTest() throws Throwable
+    {
+        bootstrapTest(cluster -> {
+            failedAndResumeBootstrapAndJoinNode(cluster);
+            awaitMaxEpochReadyToRead(cluster);
+        });
+    }
+
+    public void bootstrapTest(Consumer<Cluster> bootstrapAndJoinNode) throws Throwable
     {
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
@@ -286,18 +260,18 @@ public class AccordBootstrapTest extends TestBaseImpl
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(ss.safeToReadAt().isEmpty());
 
-                                Assert.assertEquals(1, ss.bootstrapBeganAt().entrySet().stream()
-                                                                   .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                   .map(entry -> {
-                                                                       Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                       return entry;
-                                                                   }).count());
-                                Assert.assertEquals(1, ss.safeToReadAt().entrySet().stream()
-                                                                   .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                   .map(entry -> {
-                                                                       Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                       return entry;
-                                                                   }).count());
+                                Assert.assertTrue(ss.bootstrapBeganAt().entrySet().stream()
+                                                    .filter(entry -> entry.getValue().contains(partitionKey))
+                                                    .anyMatch(entry -> {
+                                                        Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
+                                                        return true;
+                                                    }));
+                                Assert.assertTrue(ss.safeToReadAt().entrySet().stream()
+                                                    .filter(entry -> entry.getValue().contains(partitionKey))
+                                                    .anyMatch(entry -> {
+                                                        Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
+                                                        return true;
+                                                    }));
                             }
                         }));
                     }
@@ -309,131 +283,4 @@ public class AccordBootstrapTest extends TestBaseImpl
             });
         }
     }
-
-    @Test
-    public void moveTest() throws Throwable
-    {
-        try (Cluster cluster = Cluster.build().withNodes(3)
-                                      .withoutVNodes()
-                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
-                                      .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
-                                      .withConfig(config -> config
-                                                            .set("accord.shard_durability_target_splits", "1")
-                                                            .set("accord.shard_durability_cycle", "20s")
-                                                            .with(NETWORK, GOSSIP))
-                                      .start())
-        {
-            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
-
-            long initialMax = maxEpoch(cluster);
-            long[] tokens = new long[3];
-            for (int i=0; i<3; i++)
-            {
-                tokens[i] = cluster.get(i+1).callOnInstance(() -> Long.valueOf(getOnlyElement(StorageService.instance.getTokens())));
-            }
-
-            awaitMaxEpochReadyToRead(cluster);
-
-            for (int key = 0; key < 100; key++)
-            {
-                String query = "BEGIN TRANSACTION\n" +
-                               "  LET row1 = (SELECT * FROM ks.tbl WHERE k = " + key + " AND c = 0);\n" +
-                               "  SELECT row1.v;\n" +
-                               "  IF row1 IS NULL THEN\n" +
-                               "    INSERT INTO ks.tbl (k, c, v) VALUES (" + key + ", " + key + ", " + key + ");\n" +
-                               "  END IF\n" +
-                               "COMMIT TRANSACTION";
-                AccordTestBase.executeWithRetry(cluster, query);
-            }
-
-            long token = ((tokens[1] - tokens[0]) / 2) + tokens[0];
-            long preMove = maxEpoch(cluster);
-
-            cluster.get(1).runOnInstance(() -> StorageService.instance.move(Long.toString(token)));
-
-            long moveMax = awaitMaxEpochReadyToRead(cluster);
-
-            for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    // validate streaming
-                    List<Range<Token>> ranges = StorageService.instance.getLocalRanges("ks");
-                    TableId tableId = Schema.instance.getTableMetadata("ks", "tbl").id;
-                    for (int key = 0; key < 100; key++)
-                    {
-                        DecoratedKey dk = dk(key);
-                        UntypedResultSet result = QueryProcessor.executeInternal("SELECT * FROM ks.tbl WHERE k=?", key);
-                        if (ranges.stream().anyMatch(range -> range.contains(dk.getToken())))
-                        {
-                            UntypedResultSet.Row row = getOnlyElement(result);
-                            Assert.assertEquals(key, row.getInt("c"));
-                            Assert.assertEquals(key, row.getInt("v"));
-
-                            PartitionKey partitionKey = new PartitionKey(tableId, dk);
-
-                            getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), moveMax, moveMax, safeStore -> {
-                                if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
-                                {
-                                    AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
-                                    Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
-                                    Assert.assertFalse(ss.safeToReadAt().isEmpty());
-
-                                    Assert.assertEquals(1, ss.bootstrapBeganAt().entrySet().stream()
-                                                                       .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                       .map(entry -> {
-                                                                           Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                           return entry;
-                                                                       }).count());
-                                    Assert.assertEquals(1, ss.safeToReadAt().entrySet().stream()
-                                                                       .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                       .map(entry -> {
-                                                                           Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                           return entry;
-                                                                       }).count());
-                                }
-                            }));
-                        }
-                    }
-                });
-            }
-        }
-    }
-
-    private static long awaitMaxEpochReadyToRead(Cluster cluster)
-    {
-        return awaitMaxEpoch(cluster, EpochReady::reads, true);
-    }
-
-    private static long awaitMaxEpochMetadataReady(Cluster cluster)
-    {
-        return awaitMaxEpoch(cluster, EpochReady::metadata, false);
-    }
-
-    private static long awaitMaxEpoch(Cluster cluster, SerializableFunction<EpochReady, AsyncResult<Void>> await, boolean expectReadyToRead)
-    {
-        long maxEpoch = maxEpoch(cluster);
-        for (IInvokableInstance node : cluster)
-        {
-            node.acceptOnInstance(aw -> {
-                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(maxEpoch));
-                Assert.assertEquals(maxEpoch, ClusterMetadata.current().epoch.getEpoch());
-                AccordService service = (AccordService) AccordService.instance();
-                awaitEpoch(maxEpoch, aw);
-                AccordConfigurationService configService = service.configService();
-
-                awaitLocalSyncNotification(maxEpoch);
-                for (long epoch = configService.minEpoch(); epoch <= maxEpoch; epoch++)
-                {
-                    Assert.assertEquals(COMPLETED, configService.getEpochSnapshot(maxEpoch).syncStatus);
-                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).acknowledged);
-                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).received);
-                    if (expectReadyToRead)
-                        Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).reads);
-                }
-            }, node.transfer(await));
-        }
-        return maxEpoch;
-    }
-
 }

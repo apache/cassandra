@@ -20,13 +20,12 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableSet;
-
 import accord.local.Node;
+import accord.utils.SortedArrays.SortedArrayList;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -36,24 +35,28 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CollectionSerializers;
 
+import static accord.topology.Topology.NO_IDS;
+
 @Immutable
 public class AccordStaleReplicas implements MetadataValue<AccordStaleReplicas>
 {
-    public static final AccordStaleReplicas EMPTY = new AccordStaleReplicas(ImmutableSet.of(), Epoch.EMPTY);
+    public static final AccordStaleReplicas EMPTY = new AccordStaleReplicas(NO_IDS, NO_IDS, Epoch.EMPTY);
 
-    private final Set<Node.Id> staleIds;
+    private final SortedArrayList<Node.Id> stale;
+    private final SortedArrayList<Node.Id> hardRemoved;
     private final Epoch lastModified;
 
-    public AccordStaleReplicas(Set<Node.Id> staleIds, Epoch lastModified)
+    public AccordStaleReplicas(SortedArrayList<Node.Id> stale, SortedArrayList<Node.Id> hardRemoved, Epoch lastModified)
     {
-        this.staleIds = staleIds;
+        this.stale = stale;
+        this.hardRemoved = hardRemoved;
         this.lastModified = lastModified;
     }
 
     @Override
     public AccordStaleReplicas withLastModified(Epoch epoch)
     {
-        return new AccordStaleReplicas(staleIds, epoch);
+        return new AccordStaleReplicas(stale, hardRemoved, epoch);
     }
 
     @Override
@@ -62,38 +65,36 @@ public class AccordStaleReplicas implements MetadataValue<AccordStaleReplicas>
         return lastModified;
     }
     
-    public AccordStaleReplicas withNodeIds(Set<Node.Id> ids)
+    public AccordStaleReplicas withStale(SortedArrayList<Node.Id> stale)
     {
-        ImmutableSet.Builder<Node.Id> builder = new ImmutableSet.Builder<>();
-        Set<Node.Id> newIds = builder.addAll(staleIds).addAll(ids).build();
-        return new AccordStaleReplicas(newIds, lastModified);
+        return new AccordStaleReplicas(this.stale.with(stale), hardRemoved, lastModified);
     }
 
-    public AccordStaleReplicas without(Set<Node.Id> ids)
+    public AccordStaleReplicas withHardRemoved(SortedArrayList<Node.Id> hardRemoved)
     {
-        ImmutableSet.Builder<Node.Id> builder = new ImmutableSet.Builder<>();
-
-        for (Node.Id staleId : staleIds)
-            if (!ids.contains(staleId))
-                builder.add(staleId);
-
-        return new AccordStaleReplicas(builder.build(), lastModified);
+        return new AccordStaleReplicas(stale, this.hardRemoved.with(hardRemoved), lastModified);
     }
 
-    public boolean contains(Node.Id nodeId)
+    public AccordStaleReplicas withoutStale(SortedArrayList<Node.Id> withoutStale)
     {
-        return staleIds.contains(nodeId);
+
+        return new AccordStaleReplicas(this.stale.without(withoutStale), hardRemoved, lastModified);
     }
 
-    public Set<Node.Id> ids()
+    public SortedArrayList<Node.Id> stale()
     {
-        return staleIds;
+        return stale;
+    }
+
+    public SortedArrayList<Node.Id> hardRemoved()
+    {
+        return hardRemoved;
     }
 
     @Override
     public String toString()
     {
-        return "AccordStaleReplicas{staleIds=" + staleIds + ", lastModified=" + lastModified + '}';
+        return "AccordStaleReplicas{staleIds=" + stale + ", hardRemoved=" + hardRemoved  + ", lastModified=" + lastModified + '}';
     }
 
     @Override
@@ -102,36 +103,64 @@ public class AccordStaleReplicas implements MetadataValue<AccordStaleReplicas>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordStaleReplicas that = (AccordStaleReplicas) o;
-        return Objects.equals(staleIds, that.staleIds) && Objects.equals(lastModified, that.lastModified);
+        return Objects.equals(stale, that.stale) && Objects.equals(lastModified, that.lastModified);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(staleIds, lastModified);
+        return Objects.hash(stale, lastModified);
     }
 
     public static final MetadataSerializer<AccordStaleReplicas> serializer = new MetadataSerializer<>()
     {
+        private static final int HAS_STALE_IDS = 0x1;
+        private static final int HAS_HARD_REMOVED_IDS = 0x2;
+
         @Override
         public void serialize(AccordStaleReplicas replicas, DataOutputPlus out, Version version) throws IOException
         {
-            CollectionSerializers.serializeCollection(replicas.staleIds, out, TopologySerializers.nodeId);
+            int flags = 0;
+            if (!replicas.stale.isEmpty())
+                flags |= HAS_STALE_IDS;
+            if (!replicas.hardRemoved.isEmpty())
+                flags |= HAS_HARD_REMOVED_IDS;
+            out.writeUnsignedVInt32(flags);
+            if (!replicas.stale.isEmpty())
+                CollectionSerializers.serializeCollection(replicas.stale, out, TopologySerializers.nodeId);
+            if (!replicas.hardRemoved.isEmpty())
+                CollectionSerializers.serializeCollection(replicas.hardRemoved, out, TopologySerializers.nodeId);
             Epoch.serializer.serialize(replicas.lastModified, out, version);
         }
 
         @Override
         public AccordStaleReplicas deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AccordStaleReplicas(CollectionSerializers.deserializeSet(in, TopologySerializers.nodeId),
-                                           Epoch.serializer.deserialize(in, version));
+            int flags = in.readUnsignedVInt32();
+            SortedArrayList<Node.Id> stale = NO_IDS, hardRemoved = NO_IDS;
+            if ((flags & HAS_STALE_IDS) != 0)
+                stale = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            if ((flags & HAS_HARD_REMOVED_IDS) != 0)
+                hardRemoved = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+            Epoch lastModified = Epoch.serializer.deserialize(in, version);
+            return new AccordStaleReplicas(stale, hardRemoved, lastModified);
         }
 
         @Override
         public long serializedSize(AccordStaleReplicas replicas, Version version)
         {
-            return CollectionSerializers.serializedCollectionSize(replicas.staleIds, TopologySerializers.nodeId)
-                   + Epoch.serializer.serializedSize(replicas.lastModified, version);
+            int flags = 0;
+            if (!replicas.stale.isEmpty())
+                flags |= HAS_STALE_IDS;
+            if (!replicas.hardRemoved.isEmpty())
+                flags |= HAS_HARD_REMOVED_IDS;
+            long size = TypeSizes.sizeofUnsignedVInt(flags);
+            if (!replicas.stale.isEmpty())
+                size += CollectionSerializers.serializedCollectionSize(replicas.stale, TopologySerializers.nodeId);
+            if (!replicas.hardRemoved.isEmpty())
+                size += CollectionSerializers.serializedCollectionSize(replicas.hardRemoved, TopologySerializers.nodeId);
+            size += Epoch.serializer.serializedSize(replicas.lastModified, version);
+            return size;
         }
     };
 }

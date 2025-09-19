@@ -62,9 +62,11 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.net.ResponseContext;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -88,6 +90,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryJoinBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
@@ -139,10 +142,48 @@ public class AccordAgent implements Agent, OwnershipEventListener
     }
 
     @Override
-    public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
+    public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Runnable fail, Throwable failure)
     {
-        logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);
-        AccordService.instance().scheduler().once(retry, retryBootstrap.computeWait(attempts, MICROSECONDS), MICROSECONDS);
+        RetryStrategy strategy;
+        String message;
+        SystemKeyspace.BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
+        switch (bootstrapState)
+        {
+            default: throw new UnhandledEnum(bootstrapState);
+            case IN_PROGRESS:
+            case NEEDS_BOOTSTRAP:
+                message = "Failed bootstrap (for joining) at {} for {}{}";
+                strategy = retryJoinBootstrap;
+                break;
+            case COMPLETED:
+            case DECOMMISSIONED:
+                message = "Failed bootstrap at {} for {}{}";
+                strategy = retryBootstrap;
+                break;
+        }
+        long retryDelayMicros = strategy.computeWait(attempts, MICROSECONDS);
+        if (retryDelayMicros < 0)
+        {
+            if (strategy == retryJoinBootstrap)
+            {
+                logger.error(message, phase, ranges, ". Retry strategy giving up. Not yet joined, so failing bootstrap.", failure);
+                fail.run();
+            }
+            else
+            {
+                // TODO (expected): we should be able to resume these without restarting (but for now we just shouldn't configure a retry limit)
+                // failing would prevent the node processing all epochs (as this feeds into the epoch readiness), so we just drop in this case
+                logger.error(message, phase, ranges, ". Retry strategy giving up. To resume you will need to restart.", failure);
+            }
+        }
+        else
+        {
+            logger.error(message, phase, ranges, ". Retrying in " + retryDelayMicros + "us.", failure);
+            AccordService.instance().scheduler().once(() -> {
+                logger.info("Retrying bootstrap of {}", ranges);
+                retry.run();
+            }, retryDelayMicros, MICROSECONDS);
+        }
     }
 
     @Override

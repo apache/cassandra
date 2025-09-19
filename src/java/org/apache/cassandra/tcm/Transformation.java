@@ -38,6 +38,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
@@ -250,6 +251,7 @@ public interface Transformation
         ACCORD_MARK_REJOINING(40, () -> AccordMarkRejoining.serializer),
         PREPARE_DROP_ACCORD_TABLE(41, () -> PrepareDropAccordTable.serializer),
         FINISH_DROP_ACCORD_TABLE(42, () -> FinishDropAccordTable.serializer),
+        ACCORD_MARK_HARD_REMOVED(43, () -> AccordMarkHardRemoved.serializer),
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

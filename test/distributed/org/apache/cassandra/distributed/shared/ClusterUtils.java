@@ -337,11 +337,26 @@ public class ClusterUtils
                                                               I toReplace,
                                                               BiConsumer<I, WithProperties> fn)
     {
-        IInstanceConfig toReplaceConf = toReplace.config();
-        I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true)
-                                                           .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
-        return startHostReplacement(toReplace, inst, fn);
+        return replaceHostAndStart(cluster, toReplace, fn, ignore -> {});
+    }
 
+    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
+                                                              I toReplace,
+                                                              BiConsumer<I, WithProperties> fn,
+                                                              Consumer<IInstanceConfig> configFn)
+    {
+        IInstanceConfig toReplaceConf = toReplace.config();
+        I inst = addInstance(cluster, toReplaceConf, c -> {
+            c.set("auto_bootstrap", true)
+             .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE);
+            configFn.accept(c);
+        });
+        return startHostReplacement(toReplace, inst, fn);
+    }
+
+    public static <I extends IInstance> I startHostReplacement(I toReplace, I inst)
+    {
+        return startHostReplacement(toReplace, inst, (i1, i2) -> {});
     }
 
     /**

@@ -22,16 +22,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import accord.api.TopologySorter;
 import accord.local.Node;
 import accord.topology.ShardSelection;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.SortedList;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -39,6 +37,8 @@ import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Sortable;
+
+import static org.apache.cassandra.service.accord.AccordEndpointMapper.NodeStatus.HEALTHY;
 
 public class AccordTopologySorter implements TopologySorter
 {
@@ -96,54 +96,25 @@ public class AccordTopologySorter implements TopologySorter
     @Override
     public int compare(Node.Id node1, Node.Id node2, ShardSelection shards)
     {
-        return comparator.compare(() -> mapper.mappedEndpoint(node1), () -> mapper.mappedEndpoint(node2));
+        InetAddressAndPort ep1 = mapper.mappedEndpointOrNull(node1);
+        InetAddressAndPort ep2 = mapper.mappedEndpointOrNull(node2);
+        return compare(comparator, ep1, ep2);
     }
 
     @Override
     public boolean isFaulty(Node.Id node)
     {
-        InetAddressAndPort ep = mapper.mappedEndpointOrNull(node);
-        if (ep == null)
-            return true;
-
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
-        if (epState == null)
-            return true;
-
-        if (!epState.isAlive())
-            return true;
-
-        VersionedValue event = epState.getApplicationState(ApplicationState.SEVERITY);
-        if (event == null)
-            return false;
-
-        return Double.parseDouble(event.value) == 0.0;
+        return mapper.nodeStatus(node) != HEALTHY;
     }
 
-    private static class EndpointTuple implements Endpoint
-    {
-        final InetAddressAndPort endpoint;
-
-        private EndpointTuple(InetAddressAndPort endpoint)
-        {
-            this.endpoint = endpoint;
-        }
-
-        @Override
-        public InetAddressAndPort endpoint()
-        {
-            return endpoint;
-        }
-    }
-
-    private static class SortableEndpoints extends ArrayList<EndpointTuple> implements Sortable<EndpointTuple, SortableEndpoints>
+    private static class SortableEndpoints extends ArrayList<InetAddressAndPort> implements Sortable<InetAddressAndPort, SortableEndpoints>
     {
         public SortableEndpoints(int initialCapacity)
         {
             super(initialCapacity);
         }
 
-        public SortableEndpoints sorted(Comparator<? super EndpointTuple> comparator)
+        public SortableEndpoints sorted(Comparator<? super InetAddressAndPort> comparator)
         {
             sort(comparator);
             return this;
@@ -152,8 +123,19 @@ public class AccordTopologySorter implements TopologySorter
         static SortableEndpoints from(Set<Node.Id> nodes, AccordEndpointMapper mapper)
         {
             SortableEndpoints result = new SortableEndpoints(nodes.size());
-            nodes.forEach(id -> result.add(new EndpointTuple(mapper.mappedEndpoint(id))));
+            nodes.forEach(id -> {
+                InetAddressAndPort ep = mapper.mappedEndpointOrNull(id);
+                if (ep != null)
+                    result.add(ep);
+            });
             return result;
         }
+    }
+
+    private static int compare(Comparator<? super InetAddressAndPort> comparator, @Nullable InetAddressAndPort ep1, @Nullable InetAddressAndPort ep2)
+    {
+        if (ep1 == null || ep2 == null)
+            return ep1 == ep2 ? 0 : ep1 == null ? 1 : -1;
+        return comparator.compare(ep1, ep2);
     }
 }

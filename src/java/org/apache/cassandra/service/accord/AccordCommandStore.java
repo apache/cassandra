@@ -474,7 +474,7 @@ public class AccordCommandStore extends CommandStore
     @Override
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
     {
-        if (!CommandsForKey.reportLinearizabilityViolations())
+        if (node().isReplaying())
             return;
 
         long reportId = nextDurabilityLoggingId.incrementAndGet();

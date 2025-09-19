@@ -645,7 +645,7 @@ public class CommandsForKeySerializerTest
                   null,
                   null,
                   ignore -> new ProgressLog.NoOpProgressLog(),
-                  ignore -> new DefaultLocalListeners(new DefaultRemoteListeners((a, b, c, d, e)->{}), DefaultLocalListeners.DefaultNotifySink.INSTANCE),
+                  ignore -> new DefaultLocalListeners(null, new DefaultRemoteListeners((a, b, c, d, e)->{}), DefaultLocalListeners.DefaultNotifySink.INSTANCE),
                   new EpochUpdateHolder());
         }
 
@@ -711,6 +711,7 @@ public class CommandsForKeySerializerTest
             @Override public TopologyManager topology() { return null; }
             @Override public long currentStamp() { return 0; }
             @Override public void updateStamp() { throw new UnsupportedOperationException(); }
+            @Override public boolean isReplaying() { return false; }
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
         }; }

@@ -163,7 +163,7 @@ public class AccordMessageSink implements MessageSink
         this.callbacks = callbacks;
     }
 
-    public AccordMessageSink(AccordAgent agent, AccordConfigurationService endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(AccordAgent agent, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
     {
         this(agent, MessagingService.instance(), endpointMapper, callbacks);
     }
@@ -174,7 +174,9 @@ public class AccordMessageSink implements MessageSink
         Verb verb = VerbMapping.getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to, message);
+        if (endpoint == null)
+            return;
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         messaging.send(message, endpoint);
     }
@@ -213,7 +215,13 @@ public class AccordMessageSink implements MessageSink
         }
 
         Message<Request> message = Message.out(verb, request, expiresAtNanos);
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to, message);
+        if (endpoint == null)
+        {
+            executor.execute(() -> callback.onFailure(to, null));
+            return null;
+        }
+
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         Cancellable cancellable = callbacks.registerAt(message.id(), executor, callback, to, nowNanos, slowAtNanos, expiresAtNanos, NANOSECONDS);
         messaging.send(message, endpoint);
@@ -221,26 +229,31 @@ public class AccordMessageSink implements MessageSink
     }
 
     @Override
-    public void reply(Node.Id replyingToNode, ReplyContext replyContext, Reply reply)
+    public void reply(Node.Id replyingTo, ReplyContext replyContext, Reply reply)
     {
         ResponseContext respondTo = (ResponseContext) replyContext;
-        Message<?> responseMsg = Message.responseWith(reply, respondTo);
+        Message<?> message = Message.responseWith(reply, respondTo);
         if (!reply.isFinal())
-            responseMsg = responseMsg.withFlag(MessageFlag.NOT_FINAL);
+            message = message.withFlag(MessageFlag.NOT_FINAL);
         checkReplyType(reply, respondTo);
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.trace("Replying {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
-        messaging.send(responseMsg, endpoint);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(replyingTo, message);
+        if (endpoint == null)
+            return;
+
+        logger.trace("Replying {} {} to {}", message.verb(), message.payload, endpoint);
+        messaging.send(message, endpoint);
     }
 
     @Override
-    public void replyWithUnknownFailure(Node.Id replyingToNode, ReplyContext replyContext, Throwable failure)
+    public void replyWithUnknownFailure(Node.Id replyingTo, ReplyContext replyContext, Throwable failure)
     {
         ResponseContext respondTo = (ResponseContext) replyContext;
-        Message<?> responseMsg = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
-        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.trace("Replying with failure {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
-        messaging.send(responseMsg, endpoint);
+        Message<?> message = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(replyingTo, message);
+        if (endpoint == null)
+            return;
+        logger.trace("Replying with failure {} {} to {}", message.verb(), message.payload, endpoint);
+        messaging.send(message, endpoint);
     }
 
     private static void checkReplyType(Reply reply, ResponseContext respondTo)

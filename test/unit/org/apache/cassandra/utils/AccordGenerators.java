@@ -740,13 +740,11 @@ public class AccordGenerators
         Gen<TinyEnumSet<Shard.Flag>> shardFlagsGen = shardFlagsGen();
         return rs -> {
             SortedArrayList<Node.Id> nodes = nodesGen.next(rs);
-            int maxFailures = Shard.maxToleratedFailures(nodes.size());
             int slowQuorumSize = Shard.slowQuorumSize(nodes.size());
             Set<Node.Id> fastPathElectorate = new TreeSet<>(select(nodes, nodes.size() == slowQuorumSize ? slowQuorumSize : rs.nextInt(slowQuorumSize, nodes.size())).next(rs));
             List<Node.Id> nonFastPath = new ArrayList<>(Sets.difference(new HashSet<>(nodes), fastPathElectorate));
             nonFastPath.sort(Comparator.naturalOrder());
-            Set<Node.Id> joining = new TreeSet<>(select(nonFastPath, nonFastPath.size() == 0 ? 0 : rs.nextInt(0, nonFastPath.size())).next(rs));
-            return Shard.create(range, nodes, fastPathElectorate, joining, shardFlagsGen.next(rs));
+            return Shard.create(range, nodes, fastPathElectorate, shardFlagsGen.next(rs));
         };
     }
 
@@ -770,13 +768,19 @@ public class AccordGenerators
         return rs -> {
             long epoch = epochGen.nextLong(rs);
             Ranges ranges = rangesGen.next(rs);
-            if (ranges.isEmpty()) return new Topology(epoch, new Shard[0]);
+            if (ranges.isEmpty())
+                return new Topology(epoch, new Shard[0]);
 
             List<Shard> shards = new ArrayList<>(ranges.size());
             for (Range range : ranges)
                 shards.add(shardGen(range).next(rs));
+
             //TODO (coverage): staleNodes
-            return new Topology(epoch, shards.toArray(Shard[]::new));
+            Topology topology = new Topology(epoch, shards.toArray(Shard[]::new));
+            SortedArrayList<Node.Id> nodes = topology.nodes();
+            int hardRemovedCount = Math.min(rs.nextBoolean() ? 0 : rs.nextInt(0, 3), nodes.size());
+            SortedArrayList<Node.Id> hardRemoved = SortedArrayList.copyUnsorted(select(nodes, hardRemovedCount).next(rs), Node.Id[]::new);
+            return topology.withHardRemoved(hardRemoved);
         };
     }
 
