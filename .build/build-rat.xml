@@ -72,6 +72,7 @@
                  <exclude name="test/data/jmxdump/cassandra-*-jmx.yaml"/>
                  <!-- Documentation files -->
                  <exclude name=".github/pull_request_template.md"/>
+                 <exclude name=".github/workflows/code-check.yaml"/>
                  <exclude NAME="doc/modules/**/*"/>
                  <exclude NAME="src/java/**/*.md"/>
                  <exclude NAME="**/README*"/>
