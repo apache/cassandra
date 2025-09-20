@@ -105,35 +105,43 @@ public class TOCComponent
         {
             FileUtils.write(tocFile, new ArrayList<>(componentNames), CREATE, TRUNCATE_EXISTING, SYNC);
         }
-        catch (RuntimeException e)
+        catch (RuntimeException ex)
         {
-            throw new FSWriteError(e, tocFile);
+            throw new RuntimeException("Exception occurred while writing to " + tocFile,
+                                       ex.getCause() != null ? ex.getCause() : ex);
         }
     }
 
+    /**
+     * Loads existing TOC file or creates a new one.
+     *
+     * @param descriptor descriptor to load TOC for
+     * @return set of loaded or discovered components
+     * @throws IOError when loading of a component is erroneous
+     * @throws FSWriteError when creating of a new TOC file is erroneous
+     */
     public static Set<Component> loadOrCreate(Descriptor descriptor)
     {
         try
         {
-            try
-            {
-                return TOCComponent.loadTOC(descriptor);
-            }
-            catch (FileNotFoundException | NoSuchFileException e)
-            {
-                Set<Component> components = descriptor.discoverComponents();
-                if (components.isEmpty())
-                    return components; // sstable doesn't exist yet
-
-                components.add(Components.TOC);
-                TOCComponent.updateTOC(descriptor, components);
-                return components;
-            }
+            return TOCComponent.loadTOC(descriptor);
         }
-        catch (IOException e)
+        catch (FileNotFoundException | NoSuchFileException e)
         {
-            throw new IOError(e);
+            // if TOC is missing, we might create a new one
         }
+        catch (IOException ex)
+        {
+            throw new IOError(ex);
+        }
+
+        Set<Component> components = descriptor.discoverComponents();
+        if (components.isEmpty())
+            return components; // sstable doesn't exist yet
+
+        components.add(Components.TOC);
+        TOCComponent.updateTOC(descriptor, components);
+        return components;
     }
 
     /**
