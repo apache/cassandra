@@ -12,6 +12,10 @@
  * Stop repair scheduler if two major versions are detected (CASSANDRA-20048)
  * Optimize audit logic for batch operations especially when audit is not enabled for DML (CASSANDRA-20885)
  * Implement nodetool history (CASSANDRA-20851)
+5.0.6
+ * Throw RTE instead of FSError when RTE is thrown from FileUtis.write in TOCComponent (CASSANDRA-20917)
+ * Upgrade jackson-dataformat-yaml to 2.19.2 and snakeyaml to 2.1 (CASSANDRA-18875)
+ * Represent complex settings as JSON on system_views.settings table (CASSANDRA-20827)
  * Expose StorageService.dropPreparedStatements via JMX (CASSANDRA-20870)
  * Expose Metric for Prepared Statement Cache Size (in bytes) (CASSANDRA-20864)
  * Add support for BEGIN TRANSACTION to allow mutations that touch multiple partitions (CASSANDRA-20857)
