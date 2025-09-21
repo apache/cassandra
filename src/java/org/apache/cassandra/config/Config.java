@@ -331,8 +331,10 @@ public class Config
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
-    public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2; // at least 20% of disk must be unused to run incremental repair
-
+    // at least 20% of disk must be unused to run repair
+    // if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason) then set the ratio to 0.0
+    @Replaces(oldName = "incremental_repair_disk_headroom_reject_ratio")
+    public volatile double repair_disk_headroom_reject_ratio = 0.2;
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */

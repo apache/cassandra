@@ -1,4 +1,8 @@
 4.1.6
+ * Improved observability in AutoRepair to report both expected vs. actual repair bytes and expected vs. actual keyspaces (CASSANDRA-20581)
+ * Stop repair scheduler if two major versions are detected (CASSANDRA-20048)
+ * AutoRepair: Safeguard Full repair against disk protection(CASSANDRA-20045)
+ * Stop AutoRepair monitoring thread upon Cassandra shutdown (CASSANDRA-20623)
  * Fix race condition in auto-repair scheduler (CASSANDRA-20265)
  * Implement minimum repair task duration setting for auto-repair scheduler (CASSANDRA-20160)
  * Implement preview_repaired auto-repair type (CASSANDRA-20046)

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -102,6 +103,8 @@ public class AutoRepair
     public boolean isSetupDone = false;
     public static AutoRepair instance = new AutoRepair();
 
+    public volatile boolean isShutDown = false;
+
     private AutoRepair()
     {
         // Private constructor to prevent instantiation
@@ -120,14 +123,15 @@ public class AutoRepair
             repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
             repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
             repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
+            AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
             {
                 repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
                 repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
-                repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
+                repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType, config));
             }
 
-            AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
             AutoRepairUtils.setup();
 
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
@@ -162,6 +166,11 @@ public class AutoRepair
             logger.debug("Auto-repair is disabled for repair type {}", repairType);
             return;
         }
+        if (!config.isMixedMajorVersionRepairEnabled() && AutoRepairUtils.hasMultipleLiveMajorVersions())
+        {
+            logger.info("Auto-repair is disabled when nodes in the cluster have different major versions");
+            return;
+        }
         AutoRepairService.instance.checkCanRun(repairType);
         AutoRepairState repairState = repairStates.get(repairType);
         try
@@ -189,6 +198,8 @@ public class AutoRepair
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
                 repairState.recordTurn(turn);
+                repairState.setBytesAlreadyRepaired(0L);
+                repairState.setKeyspaceRepairPlansAlreadyRepaired(0);
                 // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
                 // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
                 // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
@@ -223,23 +234,30 @@ public class AutoRepair
                 }
 
                 // Separate out the keyspaces and tables to repair based on their priority, with each repair plan representing a uniquely occuring priority.
-                List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc);
+                List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc, primaryRangeOnly);
+                repairState.updateRepairScheduleStatistics(repairPlans);
 
                 // calculate the repair assignments for each priority:keyspace.
                 Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = config.getTokenRangeSplitterInstance(repairType).getRepairAssignments(primaryRangeOnly, repairPlans);
 
+                int keyspaceRepairAssignmentsAlreadyRepaired = 0;
                 while (repairAssignmentsIterator.hasNext())
                 {
                     KeyspaceRepairAssignments repairAssignments = repairAssignmentsIterator.next();
                     List<RepairAssignment> assignments = repairAssignments.getRepairAssignments();
                     if (assignments.isEmpty())
                     {
+                        keyspaceRepairAssignmentsAlreadyRepaired++;
                         logger.info("Skipping repairs for priorityBucket={} for keyspace={} since it yielded no assignments", repairAssignments.getPriority(), repairAssignments.getKeyspaceName());
                         continue;
                     }
 
-                    logger.info("Submitting repairs for priorityBucket={} for keyspace={} with assignmentCount={}", repairAssignments.getPriority(), repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments().size());
+                    logger.info("Submitting repairs for priorityBucket={} for keyspace={} with assignmentCount={} and keyspaceRepairAssignmentsAlreadyRepaired={}/{}",
+                                repairAssignments.getPriority(), repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments().size(),
+                                keyspaceRepairAssignmentsAlreadyRepaired, repairState.getTotalKeyspaceRepairPlansToRepair());
                     repairKeyspace(repairType, primaryRangeOnly, repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments(), collectedRepairStats);
+                    keyspaceRepairAssignmentsAlreadyRepaired++;
+                    repairState.setKeyspaceRepairPlansAlreadyRepaired(keyspaceRepairAssignmentsAlreadyRepaired);
                 }
 
                 cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
@@ -269,6 +287,7 @@ public class AutoRepair
         long tableStartTime = timeFunc.get();
         int totalProcessedAssignments = 0;
         Set<Range<Token>> ranges = new HashSet<>();
+        long bytesAlreadyRepaired = repairState.getBytesAlreadyRepaired();
         for (RepairAssignment curRepairAssignment : repairAssignments)
         {
             try
@@ -372,7 +391,10 @@ public class AutoRepair
                     }
                     ranges.clear();
                 }
-                logger.info("Repair completed for {} tables {}, range {}", keyspaceName, curRepairAssignment.getTableNames(), curRepairAssignment.getTokenRange());
+                bytesAlreadyRepaired += curRepairAssignment.getEstimatedBytes();
+                repairState.setBytesAlreadyRepaired(bytesAlreadyRepaired);
+                logger.info("Repair completed for {} tables {}, range {}, bytesAlreadyRepaired {}/{}",
+                        keyspaceName, curRepairAssignment.getTableNames(), curRepairAssignment.getTokenRange(), bytesAlreadyRepaired, repairState.getTotalBytesToRepair());
             }
             catch (Exception e)
             {
@@ -484,8 +506,8 @@ public class AutoRepair
                         TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
         }
         repairState.setLastRepairTime(timeFunc.get());
-
         repairState.setRepairInProgress(false);
+
         AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
     }
 
@@ -565,5 +587,36 @@ public class AutoRepair
                 condition.signalAll();
             }
         }
+    }
+
+    public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
+    {
+        if (!isSetupDone)
+        {
+            // By default, executors within AutoRepair are not initialized as the feature is opt-in.
+            // If the AutoRepair has not been set up, then there is no need to worry about shutting it down
+            return;
+        }
+        if (isShutDown)
+        {
+            throw new IllegalStateException("AutoRepair has already been shut down");
+        }
+        isShutDown = true;
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        {
+            repairRunnableExecutors.get(repairType).shutdown();
+            repairExecutors.get(repairType).shutdown();
+        }
+        logger.info("Paused AutoRepair");
+    }
+
+    public Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> getRepairExecutors()
+    {
+        return repairExecutors;
+    }
+
+    public Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> getRepairRunnableExecutors()
+    {
+        return repairRunnableExecutors;
     }
 }

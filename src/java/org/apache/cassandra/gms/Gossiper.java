@@ -154,7 +154,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /* live member set */
     @VisibleForTesting
-    final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
+    public final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();

@@ -1871,10 +1871,14 @@ drop_compact_storage_enabled: false
 # the given value.  Defaults to disabled.
 # reject_repair_compaction_threshold: 1024
 
-# At least 20% of disk must be unused to run incremental repair. It is useful to avoid disks filling up during
-# incremental repair as anti-compaction during incremental repair may contribute to additional space temporarily.
+# At least 20% of disk must be unused to run repair. It is useful to avoid disks filling up during
+# repair as anti-compaction during repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
 # then set the ratio to 0.0
+# repair_disk_headroom_reject_ratio: 0.2;
+
+# This is the deprecated config which was used to safeguard incremental repairs. Use repair_disk_headroom_reject_ratio
+# instead as it safeguards against all repairs.
 # incremental_repair_disk_headroom_reject_ratio: 0.2;
 
 # Configuration for Auto Repair Scheduler.
@@ -1966,6 +1970,9 @@ drop_compact_storage_enabled: false
 #   # The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
 #   # for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
 #   history_clear_delete_hosts_buffer_interval: 2h
+#   # By default repair is disabled if there are mixed major versions detected - which would happen
+#   # if a major version upgrade is being performed on the cluster, but a user can enable it using this flag
+#   mixed_major_version_repair_enabled: false
 #   # NOTE: Each of the below settings can be overridden per repair type under repair_type_overrides
 #   global_settings:
 #     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired

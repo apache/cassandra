@@ -34,15 +34,15 @@ public class AutoRepairStateFactoryTest
     @Test
     public void testGetRepairState()
     {
-        AutoRepairState state = RepairType.getAutoRepairState(RepairType.FULL);
+        AutoRepairState state = RepairType.getAutoRepairState(RepairType.FULL, new AutoRepairConfig());
 
         assertTrue(state instanceof FullRepairState);
 
-        state = RepairType.getAutoRepairState(RepairType.INCREMENTAL);
+        state = RepairType.getAutoRepairState(RepairType.INCREMENTAL, new AutoRepairConfig());
 
         assertTrue(state instanceof IncrementalRepairState);
 
-        state = RepairType.getAutoRepairState(RepairType.PREVIEW_REPAIRED);
+        state = RepairType.getAutoRepairState(RepairType.PREVIEW_REPAIRED, new AutoRepairConfig());
 
         assertTrue(state instanceof PreviewRepairedState);
     }
@@ -54,7 +54,7 @@ public class AutoRepairStateFactoryTest
         {
             try
             {
-                AutoRepairState state = RepairType.getAutoRepairState(repairType);
+                AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
                 assertNotNull(state);
             } catch (IllegalArgumentException e)
             {

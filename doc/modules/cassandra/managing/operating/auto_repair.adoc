@@ -167,6 +167,10 @@ is time to schedule repairs.
 | history_clear_delete_hosts_buffer_interval | 2h | The scheduler needs to adjust its order when nodes leave the ring.
 Deleted hosts are tracked in metadata for a specified duration to ensure they are indeed removed before adjustments
 are made to the schedule.
+| mixed_major_version_repair_enabled | false | Enable/Disable running repairs on the cluster when there are mixed
+major versions detected, which usually occurs when the cluster is being upgraded. Repairs between nodes of
+different major versions is not something that is tested, so this may lead to data compatibility issues.
+It is strongly discouraged to set this to true without doing extensive testing beforehand.
 |===
 
 
@@ -318,9 +322,9 @@ When enabling auto_repair, it is advisable to configure the top level `reject_re
 configuration in cassandra.yaml as a backpressure mechanism to reject new repairs on instances that have many
 pending compactions.
 
-==== Tune `incremental_repair_disk_headroom_reject_ratio`
+==== Tune `repair_disk_headroom_reject_ratio`
 
-By default, incremental repairs will be rejected if less than 20% of disk is available.  If one wishes to be
+By default, repairs will be rejected if less than 20% of disk is available.  If one wishes to be
 conservative this top level configuration could be increased to a larger value to prevent filling your data directories.
 
 == Table configuration

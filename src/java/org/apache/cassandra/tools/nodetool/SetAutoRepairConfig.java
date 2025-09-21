@@ -51,7 +51,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
                   "|materialized_view_repair_enabled|repair_max_retries" +
                   "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
-                  "|repair_by_keyspace|token_range_splitter.<property>]",
+                  "|repair_by_keyspace|mixed_major_version_repair_enabled|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -91,6 +91,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 return;
             case "min_repair_task_duration":
                 probe.setAutoRepairMinRepairTaskDuration(paramVal);
+                return;
+            case "mixed_major_version_repair_enabled":
+                probe.setMixedMajorVersionRepairEnabled(Boolean.parseBoolean(paramVal));
                 return;
             default:
                 // proceed to options that require --repair-type option
