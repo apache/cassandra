@@ -1,4 +1,5 @@
 5.1
+ * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
  * Improved observability in AutoRepair to report both expected vs. actual repair bytes and expected vs. actual keyspaces (CASSANDRA-20581)
  * Execution of CreateTriggerStatement should not rely on external state (CASSANDRA-20287)
  * Support LIKE expressions in filtering queries (CASSANDRA-17198)
