@@ -45,7 +45,6 @@ import org.apache.cassandra.service.StorageService;
 import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.any;
-import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
@@ -66,7 +65,7 @@ public final class KeyspaceMetadata implements SchemaElement
                                                 keyspaceName));
         if (keyspaceName.length() > SchemaConstants.NAME_LENGTH)
             throw exceptionBuilder.apply(format("Keyspace name must not be more than %d characters long (got %d characters for \"%s\")",
-                                                TABLE_NAME_LENGTH, keyspaceName.length(), keyspaceName));
+                                                SchemaConstants.NAME_LENGTH, keyspaceName.length(), keyspaceName));
     }
 
     public enum Kind

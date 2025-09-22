@@ -1,4 +1,5 @@
 4.0.19
+ * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
  * update shaded cassandra-driver-core to 3.11.5 (CASSANDRA-20904)
  * Prevent too long table names not fitting file names (CASSANDRA-20389)
  * Fix IndexOutOfBoundsException in sstablemetadata tool when a range tombstone is a max clustering value (CASSANDRA-20855)
