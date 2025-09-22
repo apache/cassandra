@@ -177,6 +177,8 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-51809] Ensure auto-repair orphaned node cleanup happens regardless of when the node last ran repair
+ * [SO-40690] Use LWTs for all auto_repair_history_v2 mutations
  * Automated Repair Inside Cassandra [CEP-37] (CASSANDRA-19918)
  * [SO-50809] Add dummy auto_repair column to table and views in system_schema
  * [SO-50586] SystemPeersSyncValidator check for active endpoints in gossiper in system peers v2 table only

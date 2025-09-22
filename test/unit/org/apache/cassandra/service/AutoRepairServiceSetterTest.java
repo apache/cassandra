@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
@@ -137,6 +138,9 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester
         QueryProcessor.executeInternal(String.format(
         "TRUNCATE %s.%s",
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (host_id, repair_type) VALUES (%s, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, Gossiper.instance.getHostId(InetAddressAndPort.getLocalHost()), repairTypeStr));
     }
 
     @Test
