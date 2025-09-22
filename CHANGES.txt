@@ -323,6 +323,9 @@ Merged from 4.1:
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
  * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
+4.0.19
+ * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
+ * update shaded cassandra-driver-core to 3.11.5 (CASSANDRA-20904)
  * Prevent too long table names not fitting file names (CASSANDRA-20389)
  * Update Jackson to 2.19.2 (CASSANDRA-20848)
  * Update commons-lang3 to 3.18.0 (CASSANDRA-20849)
