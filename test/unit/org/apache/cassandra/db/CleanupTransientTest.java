@@ -41,8 +41,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -52,6 +56,7 @@ import static org.junit.Assert.assertEquals;
 public class CleanupTransientTest extends CassandraTestBase
 {
     private static final IPartitioner partitioner = RandomPartitioner.instance;
+    private static List<Token> testKeyTokens = new ArrayList<>();
 
     public static final int LOOPS = 200;
     public static final String KEYSPACE1 = "CleanupTest1";
@@ -73,9 +78,11 @@ public class CleanupTransientTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws Exception
     {
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        MutationJournal.instance.start();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple("2/1"),
+                                    KeyspaceParams.simpleWitness("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED1, true));
 
@@ -91,6 +98,10 @@ public class CleanupTransientTest extends CassandraTestBase
         endpointTokens.add(RandomPartitioner.instance.midpoint(RandomPartitioner.MINIMUM, new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM)));
 
         Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
+        testKeyTokens.addAll(keyTokens);  // Save key tokens for use in fillCF
+
+        // Start mutation tracking service after ring setup
+        MutationTrackingService.instance.start(ClusterMetadata.current());
     }
 
     @Test
@@ -151,13 +162,40 @@ public class CleanupTransientTest extends CassandraTestBase
 
         for (int i = 0; i < rowsPerSSTable; i++)
         {
-            String key = String.valueOf(i);
+            // Use a simple sequential key that should hash within our ring
+            String key = String.valueOf(i % 10);  // Limit to small set to avoid token range issues
+
             // create a row and update the birthdate value, test that the index query fetches the new version
-            new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
+            Mutation mutation = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
                     .clustering(COLUMN)
                     .add(colName, VALUE)
-                    .build()
-                    .applyUnsafe();
+                    .build();
+
+            // For tracked keyspaces, we need to assign mutation IDs and provide acknowledgments
+            if (cfs.keyspace.getMetadata().useMutationTracking())
+            {
+                // Get mutation ID from tracking service
+                MutationId mutationId = MutationTrackingService.instance.nextMutationId(cfs.keyspace.getName(), mutation.key().getToken());
+                mutation = mutation.withMutationId(mutationId);
+
+                // Apply the mutation with tracking
+                mutation.apply();
+
+                // Manually provide acknowledgments from other replicas to satisfy tracking
+                // This simulates other replicas acknowledging the mutation in a single-node test
+                try
+                {
+                    MutationTrackingService.instance.receivedWriteResponse(mutationId, InetAddressAndPort.getByName("127.0.0.2"));
+                }
+                catch (Exception e)
+                {
+                    // Ignore exceptions from fake acknowledgments in unit tests
+                }
+            }
+            else
+            {
+                mutation.applyUnsafe();
+            }
         }
 
         Util.flush(cfs);

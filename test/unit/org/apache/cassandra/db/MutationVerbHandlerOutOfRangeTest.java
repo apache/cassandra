@@ -79,6 +79,7 @@ public class MutationVerbHandlerOutOfRangeTest
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();
+        org.apache.cassandra.config.DatabaseDescriptor.setMutationTrackingEnabled(true);
     }
 
     @Before
