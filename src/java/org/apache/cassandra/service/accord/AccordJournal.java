@@ -128,6 +128,22 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
+    // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
+    public static final ValueSerializer<JournalKey, Object> VALUE_SERIALIZER = new ValueSerializer<JournalKey, Object>()
+    {
+        @Override
+        public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+    };
+
     @VisibleForTesting
     protected final Journal<JournalKey, Object> journal;
     @VisibleForTesting
@@ -147,24 +163,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, File directory, ColumnFamilyStore cfs)
     {
         Version userVersion = Version.fromVersion(params.userVersion());
-        this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
-                                     // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
-                                     new ValueSerializer<>()
-                                     {
-                                         @Override
-                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
+        this.journal = Journal.builder("AccordJournal", directory, params, JournalKey.SUPPORT, cfs.readOrdering)
+                              .segmentCompactor(compactor(cfs, userVersion))
+                              .valueSerializer(VALUE_SERIALIZER)
+                              .build();
 
-                                         @Override
-                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-                                     },
-                                     compactor(cfs, userVersion),
-                                     cfs.readOrdering);
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, userVersion);
         this.params = params;
     }

@@ -24,8 +24,10 @@ import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,7 +37,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
-import java.util.zip.CRC32;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,7 +64,6 @@ import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
@@ -83,10 +83,12 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * A generic append-only journal with some special features:
- * <p><ul>
+ * <p>
+ * <ul>
  * <li>Records can be looked up by key
  * <li>Invalidated records get purged during segment compaction
- * </ul><p>
+ * </ul>
+ * </p>
  *
  * Type parameters:
  * @param <V> the type of records stored in the journal
@@ -104,6 +106,7 @@ public class Journal<K, V> implements Shutdownable
 
     final KeySupport<K> keySupport;
     final ValueSerializer<K, V> valueSerializer;
+    final KeyStats.Factory<K> keyStatsFactory;
 
     final Metrics<K, V> metrics;
 
@@ -176,6 +179,7 @@ public class Journal<K, V> implements Shutdownable
             this.onFlush = onFlush;
         }
 
+        @Override
         public void run()
         {
             onFlush.run();
@@ -212,11 +216,62 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    public static class Builder<K, V>
+    {
+        private final String name;
+        private final File directory;
+        private final Params params;
+        private final KeySupport<K> keySupport;
+        private final OpOrder readOrder;
+
+        private ValueSerializer<K, V> valueSerializer = ValueSerializer.none();
+        private KeyStats.Factory<K> keyStatsFactory = KeyStats.Factory.noop();
+        private SegmentCompactor<K, V> segmentCompactor = SegmentCompactor.noop();
+
+        public Builder(String name, File directory, Params params, KeySupport<K> keySupport, OpOrder readOrder)
+        {
+            this.name = name;
+            this.directory = directory;
+            this.params = params;
+            this.keySupport = keySupport;
+            this.readOrder = readOrder;
+        }
+
+        public Journal<K, V> build()
+        {
+            return new Journal<>(name, directory, params, keySupport, valueSerializer, keyStatsFactory, segmentCompactor, readOrder);
+        }
+
+        public Builder<K, V> valueSerializer(ValueSerializer<K, V> valueSerializer)
+        {
+            this.valueSerializer = valueSerializer;
+            return this;
+        }
+
+        public Builder<K, V> keyStatsFactory(KeyStats.Factory<K> keyStatsFactory)
+        {
+            this.keyStatsFactory = keyStatsFactory;
+            return this;
+        }
+
+        public Builder<K, V> segmentCompactor(SegmentCompactor<K, V> segmentCompactor)
+        {
+            this.segmentCompactor = segmentCompactor;
+            return this;
+        }
+    }
+
+    public static <K, V> Builder<K, V> builder(String name, File directory, Params params, KeySupport<K> keySupport, OpOrder readOrder)
+    {
+        return new Builder<>(name, directory, params, keySupport, readOrder);
+    }
+
     public Journal(String name,
                    File directory,
                    Params params,
                    KeySupport<K> keySupport,
                    ValueSerializer<K, V> valueSerializer,
+                   KeyStats.Factory<K> keyStatsFactory,
                    SegmentCompactor<K, V> segmentCompactor,
                    OpOrder readOrder)
     {
@@ -226,6 +281,7 @@ public class Journal<K, V> implements Shutdownable
 
         this.keySupport = keySupport;
         this.valueSerializer = valueSerializer;
+        this.keyStatsFactory = keyStatsFactory;
         this.readOrder = readOrder;
 
         this.metrics = new Metrics<>(name);
@@ -258,7 +314,7 @@ public class Journal<K, V> implements Shutdownable
                           : descriptors.get(descriptors.size() - 1).timestamp;
         nextSegmentId.set(replayLimit = Math.max(currentTimeMillis(), maxTimestamp + 1));
 
-        segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
+        segments.set(Segments.of(StaticSegment.open(descriptors, keySupport, keyStatsFactory)));
         closer = executorFactory().sequential(name + "-closer");
         releaser = executorFactory().sequential(name + "-releaser");
         allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
@@ -290,12 +346,6 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    @VisibleForTesting
-    public void runCompactorForTesting()
-    {
-        compactor.run();
-    }
-
     public Compactor<K, V> compactor()
     {
         return compactor;
@@ -316,6 +366,7 @@ public class Journal<K, V> implements Shutdownable
         return state.get() == State.TERMINATED;
     }
 
+    @Override
     public void shutdown()
     {
         try
@@ -660,13 +711,6 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    // TODO (require): Find a better way to test unwritten allocations and/or corruption
-    @VisibleForTesting
-    public void unsafeConsumeBytesForTesting(int entrySize, Consumer<ByteBuffer> corrupt)
-    {
-        allocate(entrySize).consumeBufferUnsafe(corrupt);
-    }
-
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
         ActiveSegment<K, V> segment = currentSegment;
@@ -847,7 +891,7 @@ public class Journal<K, V> implements Shutdownable
     private ActiveSegment<K, V> createSegment()
     {
         Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion());
-        return ActiveSegment.create(descriptor, params, keySupport);
+        return ActiveSegment.create(descriptor, params, keySupport, keyStatsFactory);
     }
 
     private void closeAllSegments()
@@ -864,7 +908,7 @@ public class Journal<K, V> implements Shutdownable
     }
 
     @SuppressWarnings("unused")
-    public ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K,V>> selector)
+    ReferencedSegments<K, V> selectAndReference(Predicate<Segment<K,V>> selector)
     {
         while (true)
         {
@@ -899,6 +943,11 @@ public class Journal<K, V> implements Shutdownable
     private void removeEmptySegment(ActiveSegment<K, V> activeSegment)
     {
         swapSegments(current -> current.withoutEmptySegment(activeSegment));
+    }
+
+    private void removeStaticSegments(Collection<StaticSegment<K, V>> staticSegments)
+    {
+        swapSegments(current -> current.withoutStaticSegments(staticSegments));
     }
 
     private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
@@ -1002,7 +1051,7 @@ public class Journal<K, V> implements Shutdownable
             activeSegment.updateWrittenTo();
             activeSegment.fsync();
             activeSegment.persistComponents();
-            replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport));
+            replaceCompletedSegment(activeSegment, StaticSegment.open(activeSegment.descriptor, keySupport, keyStatsFactory));
             activeSegment.release(Journal.this);
             if (onDone != null) onDone.run();
         }
@@ -1025,27 +1074,16 @@ public class Journal<K, V> implements Shutdownable
         closer.execute(new CloseActiveSegmentRunnable(activeSegment, onDone));
     }
 
-    @VisibleForTesting
-    public void closeCurrentSegmentForTestingIfNonEmpty()
+    public int dropStaticSegments(Predicate<StaticSegment<K, V>> dropIf)
     {
-        ActiveSegment<K, V> segment = currentSegment;
-        if (segment.isEmpty())
-            return;
-        advanceSegment(segment);
-        while (!segments().isSwitched(segment))
-        {
-            LockSupport.parkNanos(1000);
-        }
-    }
-
-    /*
-     * Static helper methods used by journal components
-     */
-
-    static void validateCRC(CRC32 crc, int readCRC) throws Crc.InvalidCrc
-    {
-        if (readCRC != (int) crc.getValue())
-            throw new Crc.InvalidCrc(readCRC, (int) crc.getValue());
+        Set<StaticSegment<K, V>> toDrop = new HashSet<>();
+        segments().selectStatic(dropIf, toDrop);
+        if (toDrop.isEmpty())
+            return 0;
+        removeStaticSegments(toDrop);
+        for (StaticSegment<K, V> segment : toDrop)
+            segment.discard(this);
+        return toDrop.size();
     }
 
     /*
@@ -1097,24 +1135,6 @@ public class Journal<K, V> implements Shutdownable
         return format("%s. %d bytes required for next journal segment but only %d bytes available. " +
                       "Check %s to see if not enough free space is the reason for this error.",
                       message, segmentSize, availableDiskSpace, directory);
-    }
-
-    @VisibleForTesting
-    public void truncateForTesting()
-    {
-        ActiveSegment<?, ?> discarding = currentSegment;
-        if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
-        {
-            closeCurrentSegmentForTestingIfNonEmpty();
-            //TODO (desired): wait for the ActiveSegment to get released, else can see weird race conditions;
-            // this thread will see the static segmenet and will release it (which will delete the file),
-            // and the sync thread will then try to release and will fail as the file no longer exists...
-            while (discarding.selfRef().globalCount() > 0) {}
-        }
-
-        Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
-        for (Segment<K, V> segment : statics.all())
-            ((StaticSegment) segment).discard(this);
     }
 
     public interface Writer
@@ -1342,5 +1362,67 @@ public class Journal<K, V> implements Shutdownable
         NORMAL,
         SHUTDOWN,
         TERMINATED
+    }
+
+    /*
+     * Test helpers
+     */
+
+    @VisibleForTesting
+    public void unsafeConsumeBytesForTesting(int entrySize, Consumer<ByteBuffer> corrupt)
+    {
+        // TODO (require): Find a better way to test unwritten allocations and/or corruption
+        allocate(entrySize).consumeBufferUnsafe(corrupt);
+    }
+
+    @VisibleForTesting
+    public void truncateForTesting()
+    {
+        ActiveSegment<?, ?> discarding = currentSegment;
+        if (!discarding.isEmpty()) // if there is no data in the segment then ignore it
+        {
+            closeCurrentSegmentForTestingIfNonEmpty();
+            //TODO (desired): wait for the ActiveSegment to get released, else can see weird race conditions;
+            // this thread will see the static segmenet and will release it (which will delete the file),
+            // and the sync thread will then try to release and will fail as the file no longer exists...
+            while (discarding.selfRef().globalCount() > 0) {}
+        }
+
+        Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
+        for (Segment<K, V> segment : statics.all())
+            ((StaticSegment) segment).discard(this);
+    }
+
+    @VisibleForTesting
+    public void runCompactorForTesting()
+    {
+        compactor.run();
+    }
+
+    @VisibleForTesting
+    public void closeCurrentSegmentForTestingIfNonEmpty()
+    {
+        ActiveSegment<K, V> segment = currentSegment;
+        if (segment.isEmpty())
+            return;
+        advanceSegment(segment);
+        while (!segments().isSwitched(segment))
+        {
+            LockSupport.parkNanos(1000);
+        }
+    }
+
+    @VisibleForTesting
+    public void clearNeedsReplayForTesting()
+    {
+        Set<StaticSegment<K, V>> toReset = new HashSet<>();
+        segments().selectStatic(toReset);
+        toReset.forEach(s -> s.metadata().clearNeedsReplay());
+    }
+
+    @VisibleForTesting
+    public int countStaticSegmentsForTesting()
+    {
+        return segments.get().count(Segment::isStatic);
     }
 }

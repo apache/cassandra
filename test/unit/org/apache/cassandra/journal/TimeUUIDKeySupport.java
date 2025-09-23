@@ -19,13 +19,12 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.apache.cassandra.utils.FBUtilities.updateChecksumLong;
 
 class TimeUUIDKeySupport implements KeySupport<TimeUUID>
 {
@@ -76,10 +75,10 @@ class TimeUUIDKeySupport implements KeySupport<TimeUUID>
     }
 
     @Override
-    public void updateChecksum(Checksum crc, TimeUUID key, int userVersion)
+    public void updateChecksum(CRC32 crc, TimeUUID key, int userVersion)
     {
-        updateChecksumLong(crc, key.uuidTimestamp());
-        updateChecksumLong(crc, key.lsb());
+        Crc.updateWithLong(crc, key.uuidTimestamp());
+        Crc.updateWithLong(crc, key.lsb());
     }
 
     @Override

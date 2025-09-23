@@ -1187,6 +1187,7 @@ public class FBUtilities
         checksum.update((v >>> 0) & 0xFF);
     }
 
+    // TODO: migrate users to Crc class
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);
@@ -1195,6 +1196,7 @@ public class FBUtilities
         checksum.update((v >>> 0) & 0xFF);
     }
 
+    // TODO: migrate users to Crc class
     public static void updateChecksumLong(Checksum checksum, long v)
     {
         updateChecksumInt(checksum, (int) (v >>> 32));

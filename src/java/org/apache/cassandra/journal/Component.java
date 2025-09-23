@@ -25,15 +25,17 @@ import org.apache.cassandra.io.util.File;
 
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 
-enum Component
+public enum Component
 {
-    DATA           ("data"),
-    INDEX          ("indx"),
-    METADATA       ("meta");
+    DATA     ("data"),
+    INDEX    ("indx"),
+    METADATA ("meta"),
+    KEYSTATS ("keys");
     //OFFSET_MAP     (".offs"),
     //INVLALIDATIONS (".invl");
 
     public static final List<Component> VALUES = ofSorted(values());
+
     final String extension;
 
     Component(String extension)

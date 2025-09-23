@@ -83,6 +83,26 @@ public class Crc
         buffer.position(savePosition);
     }
 
+    public static void updateWithInt(CRC32 crc, int v)
+    {
+        crc.update((v >>> 24) & 0xFF);
+        crc.update((v >>> 16) & 0xFF);
+        crc.update((v >>> 8) & 0xFF);
+        crc.update((v >>> 0) & 0xFF);
+    }
+
+    public static void updateWithLong(CRC32 crc, long v)
+    {
+        updateWithInt(crc, (int) (v >>> 32));
+        updateWithInt(crc, (int) (v & 0xFFFFFFFFL));
+    }
+
+    public static void validate(CRC32 crc, int expectedCRC) throws InvalidCrc
+    {
+        if (expectedCRC != (int) crc.getValue())
+            throw new InvalidCrc(expectedCRC, (int) crc.getValue());
+    }
+
     private static final int CRC24_INIT = 0x875060;
     /**
      * Polynomial chosen from https://users.ece.cmu.edu/~koopman/crc/index.html, by Philip Koopman

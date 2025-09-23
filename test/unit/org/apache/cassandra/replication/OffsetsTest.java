@@ -861,9 +861,51 @@ public class OffsetsTest
         }
     }
 
+    @Test
     public void asListFromListRoundTripTest()
     {
         for (Offsets.Mutable offsets : new Offsets.Mutable[] { offsets(), offsets(1, 2), offsets(1, 3, 7, 9) })
             assertOffsetsEqual(offsets, Offsets.fromList(LOG_ID, offsets.asList()));
+    }
+
+    @Test
+    public void testContainsRange()
+    {
+        {
+            Offsets.Mutable offsets = offsets();
+            assertFalse(offsets.containsRange(0, 1));
+        }
+
+        {
+            Offsets.Mutable offsets = offsets(2, 4);
+
+            assertTrue(offsets.containsRange(2, 4));
+            assertTrue(offsets.containsRange(3, 4));
+            assertTrue(offsets.containsRange(2, 3));
+
+            assertFalse(offsets.containsRange(1, 1));
+            assertFalse(offsets.containsRange(1, 2));
+            assertFalse(offsets.containsRange(1, 3));
+            assertFalse(offsets.containsRange(1, 4));
+
+            assertFalse(offsets.containsRange(2, 5));
+            assertFalse(offsets.containsRange(3, 5));
+            assertFalse(offsets.containsRange(4, 5));
+            assertFalse(offsets.containsRange(5, 5));
+        }
+
+        {
+            Offsets.Mutable offsets = offsets(2, 4, 6, 8);
+
+            assertTrue(offsets.containsRange(2, 4));
+            assertTrue(offsets.containsRange(6, 8));
+
+            assertFalse(offsets.containsRange(0, 2));
+            assertFalse(offsets.containsRange(3, 5));
+            assertFalse(offsets.containsRange(4, 6));
+            assertFalse(offsets.containsRange(5, 7));
+            assertFalse(offsets.containsRange(7, 9));
+            assertFalse(offsets.containsRange(9, 9));
+        }
     }
 }

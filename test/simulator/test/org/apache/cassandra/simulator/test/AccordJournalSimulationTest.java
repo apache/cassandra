@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.jimfs.Jimfs;
@@ -76,16 +76,12 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
                      AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
                      spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
-
-                     State.journal = new Journal<>("AccordJournal",
-                                                   new File("/journal"),
-                                                   spec,
-                                                   new IdentityKeySerializer(),
-                                                   new IdentityValueSerializer(),
-                                                   SegmentCompactor.noop(),
-                                                   new OpOrder());
+                     State.journal = Journal.<String, String>builder("AccordJournal", new File("/journal"), spec, new IdentityKeySerializer(), new OpOrder())
+                                            .valueSerializer(new IdentityValueSerializer())
+                                            .segmentCompactor(SegmentCompactor.noop())
+                                            .build();
                  }),
-                 () -> check());
+                 AccordJournalSimulationTest::check);
     }
 
     public static void check()
@@ -240,7 +236,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         }
 
         @Override
-        public void updateChecksum(Checksum crc, String key, int userVersion)
+        public void updateChecksum(CRC32 crc, String key, int userVersion)
         {
             crc.update(key.getBytes());
         }

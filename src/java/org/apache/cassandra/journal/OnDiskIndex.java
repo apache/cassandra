@@ -37,7 +37,6 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-import static org.apache.cassandra.journal.Journal.validateCRC;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumLong;
 
@@ -138,11 +137,11 @@ final class OnDiskIndex<K> extends Index<K>
         {
             int entryCount = in.readInt();
             updateChecksumInt(crc, entryCount);
-            validateCRC(crc, in.readInt());
+            Crc.validate(crc, in.readInt());
 
             Crc.updateCrc32(crc, buffer, FILE_PREFIX_SIZE, FILE_PREFIX_SIZE + entryCount * ENTRY_SIZE);
             in.skipBytesFully(entryCount * ENTRY_SIZE);
-            validateCRC(crc, in.readInt());
+            Crc.validate(crc, in.readInt());
 
             if (in.available() != 0)
                 throw new IOException("Trailing data encountered in segment index " + descriptor.fileFor(Component.INDEX));

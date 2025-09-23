@@ -24,13 +24,13 @@ public class JournalReadError extends FSReadError
 {
     public final Descriptor descriptor;
 
-    JournalReadError(Descriptor descriptor, File file, Throwable throwable)
+    public JournalReadError(Descriptor descriptor, File file, Throwable throwable)
     {
         super(throwable, file);
         this.descriptor = descriptor;
     }
 
-    JournalReadError(Descriptor descriptor, Component component, Throwable throwable)
+    public JournalReadError(Descriptor descriptor, Component component, Throwable throwable)
     {
         super(throwable, descriptor.fileFor(component));
         this.descriptor = descriptor;

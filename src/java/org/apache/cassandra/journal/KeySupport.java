@@ -20,7 +20,7 @@ package org.apache.cassandra.journal;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -43,7 +43,7 @@ public interface KeySupport<K> extends Comparator<K>
     K deserialize(ByteBuffer buffer, int position, int userVersion);
     K deserialize(ByteBuffer buffer, int userVersion);
 
-    void updateChecksum(Checksum crc, K key, int userVersion);
+    void updateChecksum(CRC32 crc, K key, int userVersion);
 
     int compareWithKeyAt(K key, ByteBuffer buffer, int position, int userVersion);
 }

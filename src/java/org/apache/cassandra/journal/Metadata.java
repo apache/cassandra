@@ -29,7 +29,6 @@ import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.utils.Crc;
 
-import static org.apache.cassandra.journal.Journal.validateCRC;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 /**
@@ -114,7 +113,7 @@ public final class Metadata
         updateChecksumInt(crc, recordsCount);
         updateChecksumInt(crc, fsyncLimit);
         updateChecksumInt(crc, needsReplay ? 1 : 0);
-        validateCRC(crc, in.readInt());
+        Crc.validate(crc, in.readInt());
         return new Metadata(recordsCount, fsyncLimit, needsReplay);
     }
 

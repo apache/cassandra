@@ -24,6 +24,27 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ValueSerializer<K, V>
 {
+    ValueSerializer<?, ?> NONE = new ValueSerializer<>()
+    {
+        @Override
+        public void serialize(Object key, Object value, DataOutputPlus out, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object deserialize(Object key, DataInputPlus in, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+    };
+
+    static <K, V> ValueSerializer<K, V> none()
+    {
+        //noinspection unchecked
+        return (ValueSerializer<K, V>) NONE;
+    }
+
     void serialize(K key, V value, DataOutputPlus out, int userVersion) throws IOException;
 
     /**

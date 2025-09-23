@@ -57,7 +57,8 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID, ByteBuffer> segment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> segment =
+            ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE, KeyStats.Factory.noop());
 
         segment.allocate(record1.remaining()).write(id1, record1);
         segment.allocate(record2.remaining()).write(id2, record2);
@@ -104,7 +105,8 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> activeSegment =
+            ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE, KeyStats.Factory.noop());
 
         activeSegment.allocate(record1.remaining()).write(id1, record1);
         activeSegment.allocate(record2.remaining()).write(id2, record2);
@@ -113,7 +115,8 @@ public class SegmentTest
 
         activeSegment.close(null);
 
-        StaticSegment<TimeUUID, ByteBuffer> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE);
+        StaticSegment<TimeUUID, ByteBuffer> staticSegment =
+            StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE, KeyStats.Factory.noop());
 
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
@@ -153,7 +156,8 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> activeSegment =
+            ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE, KeyStats.Factory.noop());
 
         activeSegment.allocate(record1.remaining()).write(id1, record1);
         activeSegment.allocate(record2.remaining()).write(id2, record2);

@@ -25,7 +25,6 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.reads.ReadCoordinator;
@@ -36,15 +35,13 @@ import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.jctools.maps.NonBlockingHashMap;
 
-import org.apache.cassandra.transport.Dispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.function.Consumer;
 
 /**
  * Since the read reconciliations don't use 2 way callbacks, maps of active reads and reconciliations
@@ -69,8 +66,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         ReadCommand command,
         ConsistencyLevel consistencyLevel,
         int[] summaryNodes,
-        Dispatcher.RequestTime requestTime,
-        Consumer<PartialTrackedRead> partialReadConsumer)
+        Dispatcher.RequestTime requestTime)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
@@ -100,7 +96,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
         // TODO: confirm all summaryNodes are present in the replica plan
         AsyncPromise<TrackedDataResponse> promise = new AsyncPromise<>();
-        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, partialReadConsumer, promise);
+        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, promise);
         return promise;
     }
 
@@ -111,7 +107,6 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         ReplicaPlan.AbstractForRead<?, ?> replicaPlan,
         int[] summaryNodes,
         Dispatcher.RequestTime requestTime,
-        Consumer<PartialTrackedRead> partialReadConsumer,
         AsyncPromise<TrackedDataResponse> promise)
     {
         PartialTrackedRead read = null;
@@ -137,7 +132,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
 
         Coordinator coordinator =
-                new Coordinator(readId, promise, command.columnFilter(), read, replicaPlan.consistencyLevel(), requestTime);
+                new Coordinator(readId, promise, read, replicaPlan.consistencyLevel(), requestTime);
         coordinators.put(readId, coordinator);
 
         // TODO (expected): reconsider the approach to tracked mutation metrics
@@ -187,7 +182,6 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
     {
         private final TrackedRead.Id readId;
         private final AsyncPromise<TrackedDataResponse> promise;
-        private final ColumnFilter selection;
         private final PartialTrackedRead read;
         private final ConsistencyLevel consistencyLevel;
         private final Dispatcher.RequestTime requestTime;
@@ -195,14 +189,12 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         Coordinator(
                 TrackedRead.Id readId,
                 AsyncPromise<TrackedDataResponse> promise,
-                ColumnFilter selection,
                 PartialTrackedRead read,
                 ConsistencyLevel consistencyLevel,
                 Dispatcher.RequestTime requestTime)
         {
             this.readId = readId;
             this.promise = promise;
-            this.selection = selection;
             this.read = Preconditions.checkNotNull(read);
             this.consistencyLevel = consistencyLevel;
             this.requestTime = requestTime;
@@ -246,7 +238,6 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
 
                 if (followUp != null)
                 {
-                    ReadCommand command = read.command();
                     followUp.addCallback((newResponse, error) -> {
                         if (error != null)
                         {

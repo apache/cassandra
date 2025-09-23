@@ -28,11 +28,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Crc;
 
-import static org.apache.cassandra.journal.Journal.validateCRC;
-
 /**
  * Entry format:
- *
  *   [Total Size (4 bytes)]
  *   [Header (variable size)]
  *   [Header CRC (4 bytes)]
@@ -96,10 +93,10 @@ public final class EntrySerializer
             CRC32 crc = Crc.crc32();
             int headerSize = EntrySerializer.headerSize(keySupport, userVersion);
             int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
-            validateCRC(crc, headerCrc);
+            Crc.validate(crc, headerCrc);
 
             int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
-            validateCRC(crc, recordCrc);
+            Crc.validate(crc, recordCrc);
         }
 
         readValidated(into, from, start, keySupport, userVersion);
@@ -143,7 +140,7 @@ public final class EntrySerializer
                 int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
                 try
                 {
-                    validateCRC(crc, headerCrc);
+                    Crc.validate(crc, headerCrc);
                 }
                 catch (IOException e)
                 {
@@ -153,7 +150,7 @@ public final class EntrySerializer
                 int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
                 try
                 {
-                    validateCRC(crc, recordCrc);
+                    Crc.validate(crc, recordCrc);
                 }
                 catch (IOException e)
                 {

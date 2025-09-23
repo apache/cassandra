@@ -64,6 +64,7 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     }
 
     abstract Index<K> index();
+    public abstract KeyStats<K> keyStats();
 
     abstract boolean isActive();
     abstract boolean isFlushed(long position);
@@ -91,6 +92,9 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
 
     boolean readLast(K id, RecordConsumer<K> consumer)
     {
+        if (!keyStats().mayContain(id))
+            return false;
+
         long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1)
             return false;
@@ -109,6 +113,9 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
 
     boolean readLast(K id, EntrySerializer.EntryHolder<K> into)
     {
+        if (!keyStats().mayContain(id))
+            return false;
+
         long offsetAndSize = index().lookUpLast(id);
         if (offsetAndSize == -1 || !read(Index.readOffset(offsetAndSize), Index.readSize(offsetAndSize), into))
             return false;
@@ -129,6 +136,9 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
 
     void readAll(K id, EntrySerializer.EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
+        if (!keyStats().mayContain(id))
+            return;
+
         long[] all = index().lookUpAll(id);
         int prevOffset = Integer.MAX_VALUE;
         for (int i = 0; i < all.length; i++)

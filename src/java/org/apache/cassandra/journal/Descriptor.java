@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.util.File;
 
 import static java.lang.String.format;
@@ -90,7 +92,8 @@ public final class Descriptor implements Comparable<Descriptor>
         this.userVersion = userVersion;
     }
 
-    static Descriptor create(File directory, long timestamp, int userVersion)
+    @VisibleForTesting
+    public static Descriptor create(File directory, long timestamp, int userVersion)
     {
         return new Descriptor(directory, timestamp, 1, CURRENT_JOURNAL_VERSION, userVersion);
     }
@@ -114,12 +117,12 @@ public final class Descriptor implements Comparable<Descriptor>
         return fromName(file.parent(), file.name());
     }
 
-    File fileFor(Component component)
+    public File fileFor(Component component)
     {
         return new File(directory, formatFileName(component));
     }
 
-    File tmpFileFor(Component component)
+    public File tmpFileFor(Component component)
     {
         return new File(directory, formatFileName(component) + '.' + TMP_SUFFIX);
     }
