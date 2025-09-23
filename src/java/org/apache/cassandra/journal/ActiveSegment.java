@@ -79,12 +79,19 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     private final Ref<Segment<K, V>> selfRef;
 
     final InMemoryIndex<K> index;
+    final KeyStats.Active<K> keyStats;
 
     private ActiveSegment(
-        Descriptor descriptor, Params params, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+        Descriptor descriptor,
+        Params params,
+        InMemoryIndex<K> index,
+        Metadata metadata,
+        KeyStats.Active<K> keyStats,
+        KeySupport<K> keySupport)
     {
         super(descriptor, metadata, keySupport);
         this.index = index;
+        this.keyStats = keyStats;
         try
         {
             channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
@@ -98,22 +105,28 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
-    public CommitLogPosition currentPosition()
-    {
-        return new CommitLogPosition(id(), (int) allocateOffset);
-    }
-
-    static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
+    static <K, V> ActiveSegment<K, V> create(
+        Descriptor descriptor, Params params, KeySupport<K> keySupport, KeyStats.Factory<K> keyStatsFactory)
     {
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
         Metadata metadata = Metadata.empty();
-        return new ActiveSegment<>(descriptor, params, index, metadata, keySupport);
+        return new ActiveSegment<>(descriptor, params, index, metadata, keyStatsFactory.create(), keySupport);
     }
 
     @Override
     public InMemoryIndex<K> index()
     {
         return index;
+    }
+
+    public KeyStats.Active<K> keyStats()
+    {
+        return keyStats;
+    }
+
+    public CommitLogPosition currentPosition()
+    {
+        return new CommitLogPosition(id(), (int) allocateOffset);
     }
 
     boolean isEmpty()
@@ -225,6 +238,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     {
         index.persist(descriptor);
         metadata.persist(descriptor);
+        keyStats.persist(descriptor);
         SyncUtil.trySyncDir(descriptor.directory);
     }
 
@@ -236,6 +250,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         descriptor.fileFor(Component.DATA).deleteIfExists();
         descriptor.fileFor(Component.INDEX).deleteIfExists();
         descriptor.fileFor(Component.METADATA).deleteIfExists();
+        descriptor.fileFor(Component.KEYSTATS).deleteIfExists();
     }
 
     @Override
@@ -290,6 +305,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         }
     }
 
+    @Override
     public boolean isFlushed(long position)
     {
         return writtenTo >= position;
@@ -465,18 +481,14 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             this.buffer = buffer;
         }
 
-        Segment<K, V> segment()
-        {
-            return ActiveSegment.this;
-        }
-
         void write(K id, ByteBuffer record)
         {
             try
             {
                 EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
-                metadata.update();
                 index.update(id, position, length);
+                keyStats.update(id);
+                metadata.update();
             }
             catch (IOException e)
             {
@@ -508,6 +520,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             {
                 EntrySerializer.write(id, record, keySupport, buffer, descriptor.userVersion);
                 index.update(id, position, length);
+                keyStats.update(id);
                 metadata.update();
             }
             catch (IOException e)

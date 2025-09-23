@@ -78,7 +78,6 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
-import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
@@ -134,23 +133,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, File directory, ColumnFamilyStore cfs)
     {
         Version userVersion = Version.fromVersion(params.userVersion());
-        this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
-                                     // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
-                                     new ValueSerializer<>()
-                                     {
-                                         @Override
-                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-
-                                         @Override
-                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-                                     },
-                                     compactor(cfs, userVersion));
+        this.journal =
+            Journal.builder("AccordJournal", directory, params, JournalKey.SUPPORT)
+                   .segmentCompactor(compactor(cfs, userVersion))
+                   .build();
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, userVersion);
         this.params = params;
     }

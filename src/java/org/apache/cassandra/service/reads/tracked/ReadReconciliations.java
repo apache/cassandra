@@ -263,19 +263,19 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
 
         /**
          * Remote summaries minus data node summary offsets
-         * 
+         * <p>
          * This calculation combines BOTH reconciled and unreconciled mutations reported by other nodes, and
          * then subtracts mutations reported locally for correctness
-         *
+         * <p>
          * If we subtracted reconciled ids from the unreconciled ids, we could violate read monotonicity in this scenario:
          * 1. Read starts locally and doesn't see mutation M.
          * 2. During reconciliation, mutation M arrives and is marked reconciled, other replicas report mutation M as reconciled
          * 3. If we filtered out reconciled mutations, this read wouldn't augment with M
          * 4. A concurrent read could see M in its initial data
          * 5. This read returns without M
-         * 
+         * <p>
          * Instead, we include all mutations and rely on token range filtering during actual mutation
-         * retrieval (in PartialTrackedRead.augment) to ensure we only augment with mutations 
+         * retrieval (in PartialTrackedRead.augment()) to ensure we only augment with mutations
          * relevant to this read's range/key
          */
         private Log2OffsetsMap.Mutable augmentingOffsets()

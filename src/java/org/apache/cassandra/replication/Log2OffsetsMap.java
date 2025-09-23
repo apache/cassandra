@@ -56,10 +56,15 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
         return count;
     }
 
+    public boolean contains(ShortMutationId id)
+    {
+        Offsets offsets = asMap().get(id.logId());
+        return offsets != null &&  offsets.contains(id.offset());
+    }
+
     @Override
     public String toString()
     {
-
         StringBuilder builder = new StringBuilder("Log2OffsetsMap{");
         boolean isFirst = true;
         for (Map.Entry<Long, T> entry : asMap().entrySet())
@@ -110,10 +115,11 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
             return create(new CoordinatorLogId(logId));
         }
 
-        public void add(ShortMutationId id)
+        public AbstractMutable<T> add(ShortMutationId id)
         {
             T offsets = offsetMap.computeIfAbsent(id.logId(), this::create);
             offsets.add(id.offset());
+            return this;
         }
 
         public void add(Offsets offsets)

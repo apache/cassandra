@@ -52,16 +52,19 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     private final Ref<Segment<K, V>> selfRef;
 
     private final OnDiskIndex<K> index;
+    private final KeyStats.Static<K> keyStats;
 
     private StaticSegment(Descriptor descriptor,
                           FileChannel channel,
                           MappedByteBuffer buffer,
                           OnDiskIndex<K> index,
                           Metadata metadata,
+                          KeyStats.Static<K> keyStats,
                           KeySupport<K> keySupport)
     {
         super(descriptor, metadata, keySupport);
         this.index = index;
+        this.keyStats = keyStats;
 
         this.channel = channel;
         this.fsyncLimit = metadata.fsyncLimit();
@@ -76,12 +79,12 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      * @param descriptors descriptors of the segments to load
      * @return list of the loaded segments
      */
-    static <K, V> List<Segment<K, V>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport)
+    static <K, V> List<Segment<K, V>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport, KeyStats.Factory<K> keyStatsFactory)
     {
         List<Segment<K, V>> segments = new ArrayList<>(descriptors.size());
         for (Descriptor descriptor : descriptors)
         {
-            StaticSegment<K, V> segment = open(descriptor, keySupport);
+            StaticSegment<K, V> segment = open(descriptor, keySupport, keyStatsFactory);
             segments.add(segment);
         }
 
@@ -95,7 +98,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      * @return the loaded segment
      */
     @SuppressWarnings({ "resource", "RedundantSuppression" })
-    static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport)
+    static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport, KeyStats.Factory<K> keyStatsFactory)
     {
         if (!Component.DATA.existsFor(descriptor))
             throw new IllegalArgumentException("Data file for segment " + descriptor + " doesn't exist");
@@ -135,9 +138,31 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         if (index == null)
             index = OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit());
 
+        KeyStats.Static<K> keyStats = null;
+
+        if (Component.KEYSTATS.existsFor(descriptor))
+        {
+            try
+            {
+                keyStats = keyStatsFactory.load(descriptor);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Could not load keystats component for {}; rebuilding",  descriptor, t);
+                Component.KEYSTATS.markCorrupted(descriptor);
+            }
+        }
+
+        if (keyStats == null)
+        {
+            KeyStats.Active<K> active = keyStatsFactory.rebuild(descriptor, keySupport, metadata.fsyncLimit());
+            active.persist(descriptor);
+            keyStats = keyStatsFactory.load(descriptor);
+        }
+
         try
         {
-            return internalOpen(descriptor, index, metadata, keySupport);
+            return internalOpen(descriptor, index, metadata, keyStats, keySupport);
         }
         catch (IOException e)
         {
@@ -146,13 +171,13 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     }
 
     private static <K, V> StaticSegment<K, V> internalOpen(
-        Descriptor descriptor, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+        Descriptor descriptor, OnDiskIndex<K> index, Metadata metadata, KeyStats.Static<K> keyStats, KeySupport<K> keySupport)
     throws IOException
     {
         File file = descriptor.fileFor(Component.DATA);
         FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
         MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        return new StaticSegment<>(descriptor, channel, buffer, index, metadata, keySupport);
+        return new StaticSegment<>(descriptor, channel, buffer, index, metadata, keyStats, keySupport);
     }
 
     public void close(Journal<K, V> journal)
@@ -240,6 +265,12 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     OnDiskIndex<K> index()
     {
         return index;
+    }
+
+    @Override
+    public KeyStats.Static<K> keyStats()
+    {
+        return keyStats;
     }
 
     public int entryCount()
@@ -402,7 +433,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         }
     }
 
-    static <K> SequentialReader<K> sequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    public static <K> SequentialReader<K> sequentialReader(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
     {
         return new SequentialReader<>(descriptor, keySupport, fsyncedLimit);
     }
@@ -415,7 +446,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      * strictly, throwing {@link JournalReadError}. Errors encountered in unsynced portions
      * of segments are treated as segment EOF.
      */
-    static final class SequentialReader<K> extends Reader<K>
+    public static final class SequentialReader<K> extends Reader<K>
     {
         private final int fsyncedLimit; // exclusive
 

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.jimfs.Jimfs;
@@ -47,7 +47,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordPointer;
-import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -75,14 +74,12 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                      AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
                      spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
 
-                     State.journal = new Journal<>("AccordJournal",
-                                                   new File("/journal"),
-                                                   spec,
-                                                   new IdentityKeySerializer(),
-                                                   new IdentityValueSerializer(),
-                                                   SegmentCompactor.noop());
+                     State.journal =
+                         Journal.<String, String>builder("AccordJournal", new File("/journal"), spec, new IdentityKeySerializer())
+                                .valueSerializer(new IdentityValueSerializer())
+                                .build();
                  }),
-                 () -> check());
+                 AccordJournalSimulationTest::check);
     }
 
     public static void check()
@@ -237,7 +234,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         }
 
         @Override
-        public void updateChecksum(Checksum crc, String key, int userVersion)
+        public void updateChecksum(CRC32 crc, String key, int userVersion)
         {
             crc.update(key.getBytes());
         }

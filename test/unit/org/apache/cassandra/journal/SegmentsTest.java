@@ -35,7 +35,7 @@ public class SegmentsTest
     @Test
     public void testSelect()
     {
-        withRandom(0l, rng -> {
+        withRandom(0L, rng -> {
             // Create mock segments with different timestamps
             java.io.File file = File.createTempFile("segments", "test");
             List<Segment<String, String>> segmentList = new ArrayList<>();
@@ -108,6 +108,13 @@ public class SegmentsTest
         }
 
         @Override Index<K> index() { throw new UnsupportedOperationException(); }
+
+        @Override
+        public KeyStats<K> keyStats()
+        {
+            return KeyStats.noop();
+        }
+
         @Override boolean isFlushed(long position) { throw new UnsupportedOperationException(); }
         @Override public void persistMetadata() { throw new UnsupportedOperationException(); }
         @Override boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)  { throw new UnsupportedOperationException(); }

@@ -87,7 +87,7 @@ public class MutationTrackingService
 
     /**
      * Split ranges into this many shards.
-     *
+     * <p>
      * TODO (expected): ability to rebalance / change this constant
      */
     private static final int SHARD_MULTIPLIER = 8;
@@ -547,7 +547,6 @@ public class MutationTrackingService
         return false;
     }
 
-
     private static ConcurrentHashMap<String, KeyspaceShards> applyUpdatedMetadata(Map<String, KeyspaceShards> keyspaceShardsMap, @Nullable ClusterMetadata prev, ClusterMetadata next, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         Preconditions.checkNotNull(next);
@@ -617,6 +616,23 @@ public class MutationTrackingService
         {
             shardLock.readLock().unlock();
         }
+    }
+
+    private void truncateMutationJournal()
+    {
+        Log2OffsetsMap.Mutable reconciledOffsets = new Log2OffsetsMap.Mutable();
+        collectDurablyReconciledOffsets(reconciledOffsets);
+        MutationJournal.instance.dropReconciledSegments(reconciledOffsets);
+    }
+
+    /**
+     * Collect every log's durably reconciled offsets. Every mutation covered
+     * by these offsets can be compacted away by the journal, assuming that all
+     * relevant memtables had been flushed to disk.
+     */
+    private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    {
+        forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
     }
 
     public static class KeyspaceShards
@@ -847,6 +863,11 @@ public class MutationTrackingService
             });
         }
 
+        void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+        {
+            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
+        }
+
         void forEachShard(Consumer<Shard> consumer)
         {
             for (Shard shard : shards.values())
@@ -980,7 +1001,14 @@ public class MutationTrackingService
         @Override
         public void run()
         {
+            run(true);
+        }
+
+        private void run(boolean dropSegments)
+        {
             MutationTrackingService.instance.forEachKeyspace(this::run);
+            if (dropSegments)
+                MutationTrackingService.instance.truncateMutationJournal();
         }
 
         private void run(KeyspaceShards shards)
@@ -998,6 +1026,12 @@ public class MutationTrackingService
     public void persistLogStateForTesting()
     {
         offsetsPersister.run();
+    }
+
+    @VisibleForTesting
+    public void persistLogStateForTesting(boolean dropSegments)
+    {
+        offsetsPersister.run(dropSegments);
     }
 
     @VisibleForTesting

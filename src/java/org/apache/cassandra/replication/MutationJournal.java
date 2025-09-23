@@ -24,19 +24,16 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.journal.*;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.utils.Invariants;
+import org.agrona.collections.Long2LongHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -47,11 +44,15 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.journal.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.Semaphore;
+import org.jctools.maps.NonBlockingHashMapLong;
 
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
@@ -59,7 +60,6 @@ import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 public class MutationJournal
 {
     public static final MutationJournal instance = new MutationJournal();
-    private static final Logger log = LoggerFactory.getLogger(MutationJournal.class);
 
     private final Journal<ShortMutationId, Mutation> journal;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
@@ -98,17 +98,25 @@ public class MutationJournal
     @VisibleForTesting
     MutationJournal(File directory, Params params)
     {
-        journal = new Journal<>("MutationJournal", directory, params, MutationIdSupport.INSTANCE, MutationSerializer.INSTANCE, SegmentCompactor.noop()) {
-            @Override
-            protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<ShortMutationId, Mutation> activeSegment, Runnable onDone)
-            {
-                super.closeActiveSegmentAndOpenAsStatic(activeSegment,
-                                                        () -> {
-                                                            maybeCleanupStaticSegment(Invariants.nonNull(getSegment(activeSegment.id())));
-                                                            if (onDone != null) onDone.run();
-                                                        });
-            }
-        };
+        journal =
+            new Journal<>("MutationJournal",
+                          directory,
+                          params,
+                          MutationIdSupport.INSTANCE,
+                          MutationSerializer.INSTANCE,
+                          OffsetRangesFactory.INSTANCE,
+                          SegmentCompactor.noop())
+                          {
+                              // TODO (expected): a cleaner way to override it; pass a Callbacks object with sanctioned callbacks?
+                              @Override
+                              protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<ShortMutationId, Mutation> activeSegment, Runnable onDone)
+                              {
+                                  super.closeActiveSegmentAndOpenAsStatic(activeSegment, () -> {
+                                      maybeCleanupStaticSegment(Invariants.nonNull(getSegment(activeSegment.id())));
+                                      if (onDone != null) onDone.run();
+                                  });
+                              }
+                          };
         segmentStateTrackers = new NonBlockingHashMapLong<>();
     }
 
@@ -171,7 +179,12 @@ public class MutationJournal
     {
         for (Segment<ShortMutationId, Mutation> segment : journal.getSegments(lowerBound.segmentId, upperBound.segmentId))
         {
-            Invariants.nonNull(segmentStateTrackers.get(segment.id())).markClean(tableId, lowerBound, upperBound);
+            SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
+            // upper flush bound can be first position in an empty active segment
+            if (tracker == null)
+                continue;
+
+            segmentStateTrackers.get(segment.id()).markClean(tableId, lowerBound, upperBound);
 
             // We can only safely mark static segments as non-replayable. Active segment can still be written to,
             // so we only persist this metadata on flush.
@@ -291,16 +304,12 @@ public class MutationJournal
                 // TODO: respect SystemKeyspace.getTruncatedPosition(cfs.metadata.id);
                 replayParallelism.acquireThrowUncheckedOnInterrupt(1);
                 Stage.MUTATION.submit(() -> journal.readLast(key, lastSegment, replayOne))
-                              .addCallback(new BiConsumer<Object, Throwable>()
-                {
-                    @Override
-                    public void accept(Object o, Throwable fail)
-                    {
-                        if (fail != null && !journal.handleError("Could not replay mutation " + key, fail))
-                            abort.set(true);
-                        replayParallelism.release(1);
-                    }
-                });
+                              .addCallback((BiConsumer<Object, Throwable>) (o, fail) ->
+                              {
+                                  if (fail != null && !journal.handleError("Could not replay mutation " + key, fail))
+                                      abort.set(true);
+                                  replayParallelism.release(1);
+                              });
             }
 
             // Wait for all mutations to be applied before returning
@@ -309,9 +318,12 @@ public class MutationJournal
     }
 
     @VisibleForTesting
-    public void closeCurrentSegmentForTestingIfNonEmpty()
+    public int dropReconciledSegments(Log2OffsetsMap<?> reconciledOffsets)
     {
-        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        return journal.dropStaticSegments((segment) -> {
+            StaticOffsetRanges ranges = (StaticOffsetRanges) segment.keyStats();
+            return ranges.isFullyCovered(reconciledOffsets) && !segment.metadata().needsReplay();
+        });
     }
 
     public void readAll(RecordConsumer<ShortMutationId> consumer)
@@ -429,10 +441,10 @@ public class MutationJournal
         }
 
         @Override
-        public void updateChecksum(Checksum crc, ShortMutationId id, int userVersion)
+        public void updateChecksum(CRC32 crc, ShortMutationId id, int userVersion)
         {
-            FBUtilities.updateChecksumLong(crc, id.logId());
-            FBUtilities.updateChecksumInt(crc, id.offset());
+            Crc.updateWithLong(crc, id.logId());
+            Crc.updateWithInt(crc, id.offset());
         }
 
         @Override
@@ -453,6 +465,7 @@ public class MutationJournal
     public static class MutationSerializer implements ValueSerializer<ShortMutationId, Mutation>
     {
         public static MutationSerializer INSTANCE = new MutationSerializer();
+
         @Override
         public void serialize(ShortMutationId id, Mutation mutation, DataOutputPlus out, int userVersion) throws IOException
         {
@@ -466,5 +479,271 @@ public class MutationJournal
             Invariants.require(id.hostId != Integer.MIN_VALUE);
             return Mutation.serializer.deserialize(in, userVersion);
         }
+    }
+
+    /*
+     * KeyStats component to track per log min and max offset in a segment
+     */
+
+    static abstract class OffsetRanges implements KeyStats<ShortMutationId>
+    {
+        @Override
+        public abstract boolean mayContain(ShortMutationId id);
+
+        protected static boolean mayContain(long range, ShortMutationId id)
+        {
+            return id.offset() >= minOffset(range) && id.offset() <= maxOffset(range);
+        }
+
+        protected static int minOffset(long range)
+        {
+            return (int) (range >>> 32);
+        }
+
+        protected static int maxOffset(long range)
+        {
+            return (int) range;
+        }
+
+        protected static long range(int minOffset, int maxOffset)
+        {
+            return ((long) minOffset << 32) | (maxOffset & 0xFFFFFFFFL);
+        }
+
+        abstract Map<Long, Long> asMap();
+
+        @Override
+        public String toString()
+        {
+            StringBuilder builder = new StringBuilder(getClass().getSimpleName());
+            builder.append('{');
+            for (Map.Entry<Long, Long> entry : asMap().entrySet())
+            {
+                CoordinatorLogId logId = new CoordinatorLogId(entry.getKey());
+                long range = entry.getValue();
+                int min = minOffset(range);
+                int max = maxOffset(range);
+                builder.append(logId)
+                       .append("->")
+                       .append('[')
+                       .append(min)
+                       .append(", ")
+                       .append(max)
+                       .append(']')
+                       .append(',');
+            }
+            return builder.append('}').toString();
+        }
+    }
+
+    // TODO (consider): an off-heap version
+    static class ActiveOffsetRanges extends OffsetRanges implements KeyStats.Active<ShortMutationId>
+    {
+        private final NonBlockingHashMapLong<Long> ranges;
+
+        ActiveOffsetRanges()
+        {
+            ranges = new NonBlockingHashMapLong<>();
+        }
+
+        @Override
+        protected Map<Long, Long> asMap()
+        {
+            return ranges;
+        }
+
+        @Override
+        public boolean mayContain(ShortMutationId id)
+        {
+            Long range = ranges.get(id.logId());
+            return range != null && mayContain(range, id);
+        }
+
+        @Override
+        @SuppressWarnings("WrapperTypeMayBePrimitive")
+        public void update(ShortMutationId id)
+        {
+            Long prev, next;
+            do
+            {
+                prev = ranges.get(id.logId());
+                int min = prev == null ? id.offset() : Math.min(minOffset(prev), id.offset());
+                int max = prev == null ? id.offset() : Math.max(maxOffset(prev), id.offset());
+                next = range(min, max);
+            }
+            while (!compareAndSet(id.logId(), prev, next));
+        }
+
+        // NonBlockingHashMapLong doesn't expose putIfMatch() directly, so we need to have this logic
+        private boolean compareAndSet(long logId, Long prevValue, Long nextValue)
+        {
+            return prevValue == null
+                 ? ranges.putIfAbsent(logId, nextValue) == null
+                 : ranges.replace(logId, prevValue, nextValue);
+        }
+
+        @Override
+        public void persist(Descriptor descriptor)
+        {
+            File tmpFile = descriptor.tmpFileFor(Component.KEYSTATS);
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(tmpFile))
+            {
+                write(out);
+
+                out.flush();
+                out.sync();
+            }
+            catch (IOException e)
+            {
+                throw new JournalWriteError(descriptor, tmpFile, e);
+            }
+            tmpFile.move(descriptor.fileFor(Component.KEYSTATS));
+        }
+
+        private void write(DataOutputPlus out) throws IOException
+        {
+            CRC32 crc = Crc.crc32();
+            int count = ranges.size();
+            out.writeInt(count);
+            Crc.updateWithInt(crc, count);
+            out.writeInt((int) crc.getValue());
+            for (Map.Entry<Long, Long> entry : ranges.entrySet())
+            {
+                long logId = entry.getKey();
+                long range = entry.getValue();
+                out.writeLong(logId);
+                out.writeLong(range);
+                Crc.updateWithLong(crc, logId);
+                Crc.updateWithLong(crc, range);
+            }
+            out.writeInt((int) crc.getValue());
+        }
+    }
+
+    static class StaticOffsetRanges extends OffsetRanges implements KeyStats.Static<ShortMutationId>
+    {
+        private static final long NO_VALUE = Long.MIN_VALUE;
+
+        private final Long2LongHashMap ranges;
+
+        StaticOffsetRanges(Long2LongHashMap ranges)
+        {
+            this.ranges = ranges;
+        }
+
+        @Override
+        protected Map<Long, Long> asMap()
+        {
+            return ranges;
+        }
+
+        @Override
+        public boolean mayContain(ShortMutationId id)
+        {
+            long range = ranges.get(id.logId());
+            return range != NO_VALUE && mayContain(range, id);
+        }
+
+        static StaticOffsetRanges read(DataInputPlus in) throws IOException
+        {
+            CRC32 crc = Crc.crc32();
+            int count = in.readInt();
+            Crc.updateWithInt(crc, count);
+            Crc.validate(crc, in.readInt());
+            Long2LongHashMap ranges = new Long2LongHashMap(count, 0.65f, NO_VALUE, false);
+            for (int i = 0; i < count; i++)
+            {
+                long logId = in.readLong();
+                long range = in.readLong();
+                Crc.updateWithLong(crc, logId);
+                Crc.updateWithLong(crc, range);
+                ranges.put(logId, range);
+            }
+            Crc.validate(crc, in.readInt());
+            return new StaticOffsetRanges(ranges);
+        }
+
+        /**
+         * @return whether all keys in the segment are fully covered by the specified (durably reconciled) offsets map
+         */
+        boolean isFullyCovered(Log2OffsetsMap<?> durablyReconciled)
+        {
+            Long2ObjectHashMap<Offsets> reconciledMap = ((Log2OffsetsMap<Offsets>) durablyReconciled).asMap();
+            for (Long2LongHashMap.EntryIterator iter = ranges.entrySet().iterator(); iter.hasNext();)
+            {
+                iter.next();
+
+                long logId = iter.getLongKey();
+                long range = iter.getLongValue();
+                int min = minOffset(range);
+                int max = maxOffset(range);
+
+                Offsets offsets = reconciledMap.get(logId);
+                if (offsets == null)
+                    return false;
+                if (!offsets.containsRange(min, max))
+                    return false;
+            }
+            return true;
+        }
+    }
+
+    static final class OffsetRangesFactory implements KeyStats.Factory<ShortMutationId>
+    {
+        static final OffsetRangesFactory INSTANCE = new OffsetRangesFactory();
+
+        @Override
+        public ActiveOffsetRanges create()
+        {
+            return new ActiveOffsetRanges();
+        }
+
+        @Override
+        public StaticOffsetRanges load(Descriptor descriptor)
+        {
+            File file = descriptor.fileFor(Component.KEYSTATS);
+            try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+            {
+                return StaticOffsetRanges.read(in);
+            }
+            catch (IOException e)
+            {
+                throw new JournalReadError(descriptor, file, e);
+            }
+        }
+
+        @Override
+        public ActiveOffsetRanges rebuild(Descriptor descriptor, KeySupport<ShortMutationId> keySupport, int fsyncedLimit)
+        {
+            ActiveOffsetRanges active = create();
+            try (StaticSegment.SequentialReader<ShortMutationId> reader = StaticSegment.sequentialReader(descriptor, keySupport, fsyncedLimit))
+            {
+                while (reader.advance())
+                    active.update(reader.key());
+            }
+            return active;
+        }
+    }
+
+    /*
+     * Test helpers
+     */
+
+    @VisibleForTesting
+    public void closeCurrentSegmentForTestingIfNonEmpty()
+    {
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+    }
+
+    @VisibleForTesting
+    void clearNeedsReplayForTesting()
+    {
+        journal.clearNeedsReplayForTesting();
+    }
+
+    @VisibleForTesting
+    public int countStaticSegmentsForTesting()
+    {
+        return journal.countStaticSegmentsForTesting();
     }
 }

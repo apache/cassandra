@@ -71,7 +71,7 @@ public class CoordinatorLogId implements Serializable
     @VisibleForTesting
     public static long asLong(int hostId, int hostLogId)
     {
-        return ((long) hostId << 32) | hostLogId;
+        return ((long) hostId << 32) | (hostLogId & 0xFFFFFFFFL);
     }
 
     static int hostId(long coordinatorLogId)

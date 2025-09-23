@@ -276,6 +276,11 @@ public class Shard
         return new BroadcastLogOffsets(keyspace, range, offsets, durable);
     }
 
+    void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    {
+        logs.values().forEach(log -> log.collectDurablyReconciledOffsets(into));
+    }
+
     private CoordinatorLog getOrCreate(Mutation mutation)
     {
         return getOrCreate(mutation.id());

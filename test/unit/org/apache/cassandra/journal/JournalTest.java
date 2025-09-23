@@ -52,7 +52,9 @@ public class JournalTest
         directory.deleteRecursiveOnExit();
 
         Journal<TimeUUID, Long> journal =
-            new Journal<>("TestJournal", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
+            Journal.<TimeUUID, Long>builder("TestJournal", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE)
+                   .valueSerializer(LongSerializer.INSTANCE)
+                   .build();
 
         journal.start();
 
@@ -73,7 +75,10 @@ public class JournalTest
 
         journal.shutdown();
 
-        journal = new Journal<>("TestJournal", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
+        journal =
+            Journal.<TimeUUID, Long>builder("TestJournal", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE)
+                   .valueSerializer(LongSerializer.INSTANCE)
+                   .build();
         journal.start();
 
         assertEquals(1L, (long) journal.readLast(id1));
@@ -91,7 +96,9 @@ public class JournalTest
         directory.deleteRecursiveOnExit();
 
         Journal<TimeUUID, Long> journal =
-            new Journal<>("TestJournalReadAll", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop());
+            Journal.<TimeUUID, Long>builder("TestJournalReadAll", directory, TestParams.ACCORD, TimeUUIDKeySupport.INSTANCE)
+                   .valueSerializer(LongSerializer.INSTANCE)
+                   .build();
 
         journal.start();
 
@@ -126,11 +133,6 @@ public class JournalTest
     static class LongSerializer implements ValueSerializer<TimeUUID, Long>
     {
         static final LongSerializer INSTANCE = new LongSerializer();
-
-        public int serializedSize(TimeUUID key, Long value, int userVersion)
-        {
-            return Long.BYTES;
-        }
 
         public void serialize(TimeUUID key, Long value, DataOutputPlus out, int userVersion) throws IOException
         {
