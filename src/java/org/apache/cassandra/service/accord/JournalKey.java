@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 
 import accord.local.Node.Id;
 import accord.primitives.Timestamp;
@@ -177,7 +177,7 @@ public final class JournalKey
         }
 
         @Override
-        public void updateChecksum(Checksum crc, JournalKey key, int userVersion)
+        public void updateChecksum(CRC32 crc, JournalKey key, int userVersion)
         {
             byte[] out = AccordJournal.keyCRCBytes.get();
             serialize(key, out);

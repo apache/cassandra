@@ -37,6 +37,6 @@ public class DumpUtil
 
     public static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport)
     {
-        return StaticSegment.open(descriptor, keySupport);
+        return StaticSegment.open(descriptor, keySupport, KeyStats.Factory.noop());
     }
 }

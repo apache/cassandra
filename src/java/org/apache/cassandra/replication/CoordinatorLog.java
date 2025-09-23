@@ -401,6 +401,11 @@ public abstract class CoordinatorLog
         }
     }
 
+    void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    {
+        into.add(reconciledPersistedOffsets);
+    }
+
     boolean isDurablyReconciled(CoordinatorLogOffsets<?> logOffsets)
     {
         lock.readLock().lock();

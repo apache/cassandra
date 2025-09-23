@@ -67,8 +67,24 @@ class Segments<K, V>
     Segments<K, V> withoutEmptySegment(ActiveSegment<K, V> activeSegment)
     {
         Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
-        Segment<K, V> oldValue = segments.remove(activeSegment.descriptor.timestamp);
+        Segment<K, V> oldValue = newSegments.remove(activeSegment.descriptor.timestamp);
+        Invariants.nonNull(oldValue);
         Invariants.require(oldValue.asActive().isEmpty());
+        return new Segments<>(newSegments);
+    }
+
+    Segments<K, V> withoutStaticSegments(Collection<StaticSegment<K, V>> removeSegments)
+    {
+        if (removeSegments.isEmpty())
+            return this;
+
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        for (StaticSegment<K, V> segment : removeSegments)
+        {
+            Segment<K, V> oldValue = newSegments.remove(segment.descriptor.timestamp);
+            if (oldValue != null)
+                Invariants.require(oldValue.isStatic());
+        }
         return new Segments<>(newSegments);
     }
 
@@ -192,6 +208,13 @@ class Segments<K, V>
                 into.add(segment.asStatic());
     }
 
+    void selectStatic(Predicate<StaticSegment<K, V>> filter, Collection<StaticSegment<K, V>> into)
+    {
+        for (Segment<K, V> segment : segments.values())
+            if (segment.isStatic() && filter.test(segment.asStatic()))
+                into.add(segment.asStatic());
+    }
+
     /**
      * Select segments that could potentially have an entry with the specified ids and
      * attempt to grab references to them all.
@@ -234,6 +257,15 @@ class Segments<K, V>
             selectedSegments = emptyMap();
 
         return new Segments<>(selectedSegments);
+    }
+
+    int count(Predicate<Segment<K, V>> filter)
+    {
+        int count = 0;
+        for (Segment<K, V> segment : segments.values())
+            if (filter.test(segment))
+                count++;
+        return count;
     }
 
     static class ReferencedSegments<K, V> extends Segments<K, V> implements AutoCloseable

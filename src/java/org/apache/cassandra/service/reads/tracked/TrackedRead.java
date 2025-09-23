@@ -36,7 +36,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -280,7 +279,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
                 AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer);
+                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime);
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -451,7 +450,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             AsyncPromise<TrackedDataResponse> promise =
                 MutationTrackingService.instance
                                        .localReads()
-                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null);
+                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime);
             promise.addCallback((response, error) -> {
                 if (error != null)
                 {
@@ -514,11 +513,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
             ReadReconciliations.instance.handleSummaryRequest((SummaryRequest) message.payload);
-        }
-
-        public TrackedSummaryResponse makeResponse(MutationSummary summary)
-        {
-            return new TrackedSummaryResponse(readId, summary, dataNode, summaryNodes);
         }
 
         public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()

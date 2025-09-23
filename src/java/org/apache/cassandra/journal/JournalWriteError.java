@@ -24,13 +24,13 @@ public class JournalWriteError extends FSWriteError
 {
     public final Descriptor descriptor;
 
-    JournalWriteError(Descriptor descriptor, File file, Throwable throwable)
+    public JournalWriteError(Descriptor descriptor, File file, Throwable throwable)
     {
         super(throwable, file);
         this.descriptor = descriptor;
     }
 
-    JournalWriteError(Descriptor descriptor, Component component, Throwable throwable)
+    public JournalWriteError(Descriptor descriptor, Component component, Throwable throwable)
     {
         super(throwable, descriptor.fileFor(component));
         this.descriptor = descriptor;

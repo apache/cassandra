@@ -186,12 +186,29 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     {
         if (size == 0)
             return false;
-
         int pos = Arrays.binarySearch(bounds, 0, size, offset);
         if (pos >= 0) return true; // matches one of the bounds
+        return (-pos - 1) % 2 != 0;
+    }
 
-        pos = -pos - 1;
-        return (pos - 1) % 2 == 0; // offset falls within bounds of an existing range if the bound to the left is an open one
+    /**
+     * @return whether the entire [minOffset, maxOffset] range is contained in these Offsets
+     */
+    public boolean containsRange(int minOffset, int maxOffset)
+    {
+        if (size == 0)
+            return false;
+
+        // find the range the min offset falls under
+        int pos = Arrays.binarySearch(bounds, 0, size, minOffset);
+        if (pos < 0 && (-pos - 1) % 2 == 0) // min offset is outside any existing range
+            return false;
+
+        int end = pos >= 0
+                ? (pos % 2 == 0 ? pos + 1 : pos)
+                : -pos - 1;
+
+        return maxOffset <= bounds[end];
     }
 
     public void digest(Digest digest)
