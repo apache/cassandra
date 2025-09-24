@@ -151,10 +151,7 @@ public final class Guardrails implements GuardrailsMBean
                  null,
                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesWarned(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesIgnored(),
-                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesDisallowed()
-                          .stream()
-                          .filter(prop -> !"replication".equals(prop))
-                          .collect(java.util.stream.Collectors.toSet()),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesDisallowed(),
                  "Keyspace Properties");
 
     /**
