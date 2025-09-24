@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.concurrent.CompletableFuture;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1127,6 +1128,49 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             }
         }
 
+    }
+
+    @Override
+    public Map<String, String> echoAllNodes()
+    {
+        Map<String, String> results = new HashMap<>();
+        Set<InetAddressAndPort> liveMembers = getLiveMembers();
+
+        for (InetAddressAndPort endpoint : liveMembers)
+        {
+            if (endpoint.equals(getBroadcastAddressAndPort()))
+            {
+                results.put(endpoint.toString(), "SELF");
+                continue;
+            }
+
+            try
+            {
+                Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
+
+                // Use CompletableFuture to handle async response
+                CompletableFuture<String> future = new CompletableFuture<>();
+
+                RequestCallback echoHandler = msg -> {
+                    future.complete("ALIVE");
+                }
+
+                MessagingService.instance().sendWithCallback(echoMessage, endpoint, echoHandler);
+
+                // Wait for response with timeout
+                String result = future.get(5, TimeUnit.SECONDS);
+                results.put(endpoint.toString(), result);
+            }
+            catch (TimeoutException e)
+            {
+                results.put(endpoint.toString(), "TIMEOUT");
+            }
+            catch (java.lang.Exception e)
+            {
+                results.put(endpoint.toString(), "ERROR: " + e.getMessage());
+            }
+        }
+        return results;
     }
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)

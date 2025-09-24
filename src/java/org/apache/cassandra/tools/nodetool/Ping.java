@@ -26,18 +26,37 @@ import picocli.CommandLine.Parameters;
 @Command(name = "ping", description = "Sends message to all live nodes in gossip")
 public class Ping extends AbstractCommand
 {
-    @Parameters(description = "Add parameters", arity = "0..1")
-    private String optionalParam;
-
     @Option(names = {"-v", "--verbose"}, description = "Enable verbose output")
     private boolean verbose = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        // Add logic here
-        if (verbose)
-            probe.output().out.println("Verbose mode enabled");
+        try
+        {
+            probe.output().out.println("Sending ECHO_REQ to all live nodes...");
+
+            Map<String, String> results = probe.getGossProxy().echoAllNodes();
+
+            if (verbose)
+            {
+                for (Map.Entry<String, String> entry : results.entrySet())
+                {
+                    probe.output().out.printf("Node %s: %s%n", entry.getKey(), entry.getValue());
+                }
+            }
+
+            long aliveCount = results.values().stream()
+                                     .filter(status -> "ALIVE".equals(status) || "SELF".equals(status))
+                                     .count();
+
+            probe.output().out.printf("Echo responses: %d/%d nodes responded%n",
+                                      aliveCount, results.size());
+        }
+        catch (java.lang.Exception e)
+        {
+            probe.output().out.println("Failed to send echo requests: " + e.getMessage());
+        }
 
         // Call probe methods to interact with Cassandra
         probe.output().out.println("Command executed successfully");
