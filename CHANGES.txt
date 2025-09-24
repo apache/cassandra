@@ -1,6 +1,7 @@
 4.1.11
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
 Merged from 4.0:
+ * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
  * update shaded cassandra-driver-core to 3.11.5 (CASSANDRA-20904)
 
 
