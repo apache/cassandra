@@ -54,7 +54,6 @@ import org.apache.cassandra.schema.Views.ViewsDiff;
 import static com.google.common.collect.Iterables.any;
 import static java.lang.String.format;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
@@ -78,7 +77,7 @@ public final class KeyspaceMetadata implements SchemaElement
                                                 keyspaceName));
         if (keyspaceName.length() > SchemaConstants.NAME_LENGTH)
             throw exceptionBuilder.apply(format("Keyspace name must not be more than %d characters long (got %d characters for \"%s\")",
-                                                TABLE_NAME_LENGTH, keyspaceName.length(), keyspaceName));
+                                                SchemaConstants.NAME_LENGTH, keyspaceName.length(), keyspaceName));
     }
 
     public enum Kind
