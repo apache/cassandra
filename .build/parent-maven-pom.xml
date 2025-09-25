@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.12.13</bytebuddy.version>
     <byteman.version>4.0.20</byteman.version>
-    <netty.version>4.1.119.Final</netty.version>
+    <netty.version>4.1.125.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
