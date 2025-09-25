@@ -43,7 +43,7 @@ public interface GossiperMBean
     public boolean getLooseEmptyEnabled();
 
     public void setLooseEmptyEnabled(boolean enabled);
-
-    /** Sends ECHO_REQ messages to all live nodes in the cluster */
-    public Map<String, String> echoAllNodes();
+    
+    /** Sends ECHO_REQ messages to all live nodes with timing information */
+    public Map<String, Map<String, Object>> echoAllNodesWithTiming();
 }

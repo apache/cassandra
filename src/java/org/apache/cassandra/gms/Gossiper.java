@@ -1130,49 +1130,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     }
 
-    @Override
-    public Map<String, String> echoAllNodes()
-    {
-        Map<String, String> results = new HashMap<>();
-        Set<InetAddressAndPort> liveMembers = getLiveMembers();
-
-        for (InetAddressAndPort endpoint : liveMembers)
-        {
-            if (endpoint.equals(getBroadcastAddressAndPort()))
-            {
-                results.put(endpoint.toString(), "SELF");
-                continue;
-            }
-
-            try
-            {
-                Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
-
-                // Use CompletableFuture to handle async response
-                CompletableFuture<String> future = new CompletableFuture<>();
-
-                RequestCallback echoHandler = msg -> {
-                    future.complete("ALIVE");
-                }
-
-                MessagingService.instance().sendWithCallback(echoMessage, endpoint, echoHandler);
-
-                // Wait for response with timeout
-                String result = future.get(5, TimeUnit.SECONDS);
-                results.put(endpoint.toString(), result);
-            }
-            catch (TimeoutException e)
-            {
-                results.put(endpoint.toString(), "TIMEOUT");
-            }
-            catch (java.lang.Exception e)
-            {
-                results.put(endpoint.toString(), "ERROR: " + e.getMessage());
-            }
-        }
-        return results;
-    }
-
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
         localState.markDead();
@@ -2112,6 +2069,74 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         logger.info("Setting loose definition of empty to {}", enabled);
         EndpointState.LOOSE_DEF_OF_EMPTY_ENABLED = enabled;
+    }
+
+    @Override
+    public Map<String, Map<String, Object>> echoAllNodesWithTiming()
+    {
+        Map<String, Map<String, Object>> results = new HashMap<>();
+        Set<InetAddressAndPort> liveMembers = getLiveMembers();
+        
+        for (InetAddressAndPort endpoint : liveMembers)
+        {
+            Map<String, Object> nodeResult = new HashMap<>();
+            
+            // Skip self - no need to echo to ourselves
+            if (endpoint.equals(getBroadcastAddressAndPort()))
+            {
+                nodeResult.put("status", "SELF");
+                nodeResult.put("responseTimeMs", 0);
+                nodeResult.put("timestamp", System.currentTimeMillis());
+                results.put(endpoint.toString(), nodeResult);
+                continue;
+            }
+            
+            long startTime = System.nanoTime();
+            long timestamp = System.currentTimeMillis();
+            
+            try
+            {
+                // Create ECHO_REQ message with no payload
+                Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
+                
+                // Async response handling
+                CompletableFuture<String> future = new CompletableFuture<>();
+                
+                RequestCallback echoHandler = msg -> {
+                    future.complete("ALIVE");
+                };
+                
+                // Send message with callback
+                MessagingService.instance().sendWithCallback(echoMessage, endpoint, echoHandler);
+                
+                // Wait for response with 5-second timeout
+                String status = future.get(5, TimeUnit.SECONDS);
+                long responseTimeMs = (System.nanoTime() - startTime) / 1_000_000;
+                
+                nodeResult.put("status", status);
+                nodeResult.put("responseTimeMs", responseTimeMs);
+                nodeResult.put("timestamp", timestamp);
+            }
+            catch (TimeoutException e)
+            {
+                long responseTimeMs = (System.nanoTime() - startTime) / 1_000_000;
+                nodeResult.put("status", "TIMEOUT");
+                nodeResult.put("responseTimeMs", responseTimeMs);
+                nodeResult.put("timestamp", timestamp);
+            }
+            catch (Exception e)
+            {
+                long responseTimeMs = (System.nanoTime() - startTime) / 1_000_000;
+                nodeResult.put("status", "ERROR");
+                nodeResult.put("error", e.getMessage());
+                nodeResult.put("responseTimeMs", responseTimeMs);
+                nodeResult.put("timestamp", timestamp);
+            }
+            
+            results.put(endpoint.toString(), nodeResult);
+        }
+        
+        return results;
     }
 
     public void unsafeSetEnabled()
