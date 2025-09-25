@@ -87,7 +87,7 @@ public class IncomingMutationLogStreamMessage extends MutationLogStreamMessage
                     mutation.apply();
                 }
 
-                MutationTrackingService.instance.recordFullyReconciledOffsets(header.reconciled);
+                MutationTrackingService.instance().recordFullyReconciledOffsets(header.reconciled);
 
                 return new IncomingMutationLogStreamMessage(header, session);
             }

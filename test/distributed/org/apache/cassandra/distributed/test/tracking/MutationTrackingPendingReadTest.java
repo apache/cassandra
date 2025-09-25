@@ -88,7 +88,7 @@ public class MutationTrackingPendingReadTest
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", true)
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -121,7 +121,7 @@ public class MutationTrackingPendingReadTest
                 Assert.assertEquals(1, secondIds.offsetCount());
 
                 // create a mutation
-                MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, dk.getToken());
+                MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, dk.getToken());
                 SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(id, keyspaceName, dk);
                 PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
                 tableBuilder.row(bytes(1)).add("v", 1);
@@ -144,7 +144,7 @@ public class MutationTrackingPendingReadTest
                     initialSummary = command.createMutationSummary(false);
                     ReadExecutionController controller = command.executionController(false);
 
-                    MutationTrackingService.instance.startWriting(mutation);
+                    MutationTrackingService.instance().startWriting(mutation);
 
                     read = command.beginTrackedRead(controller);
                     // Create another summary once initial data has been read fully. We do this to catch
@@ -204,7 +204,7 @@ public class MutationTrackingPendingReadTest
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", true)
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -229,12 +229,12 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
-//                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance.startReading(command))
+//                try (ListeningPendingRead pendingRead = (ListeningPendingRead) MutationTrackingService.instance().startReading(command))
 //                {
 //                    Assert.assertTrue(pendingRead.mutationIds().isEmpty());
 //
 //                    // create and apply a mutation
-//                    MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, dk.getToken());
+//                    MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, dk.getToken());
 //                    SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(id, keyspaceName, dk);
 //                    PartitionUpdate.SimpleBuilder tableBuilder = builder.update(metadata);
 //                    tableBuilder.row(bytes(1)).add("v", 1);

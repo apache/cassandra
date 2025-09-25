@@ -57,9 +57,9 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
             // Get initial write-time discovery counts on all nodes
-            long initialNode1Count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
-            long initialNode2Count = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
-            long initialNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
+            long initialNode1Count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
+            long initialNode2Count = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
+            long initialNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
 
             // Perform writes with QUORUM - each write goes to at least 2 replicas
             int numWrites = 10;
@@ -75,18 +75,18 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                       .atMost(Duration.ofSeconds(5))
                       .pollInterval(Duration.ofMillis(100))
                       .until(() -> {
-                          long node1Delta = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount()) - initialNode1Count;
-                          long node2Delta = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount()) - initialNode2Count;
-                          long node3Delta = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount()) - initialNode3Count;
+                          long node1Delta = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount()) - initialNode1Count;
+                          long node2Delta = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount()) - initialNode2Count;
+                          long node3Delta = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount()) - initialNode3Count;
                           long totalDiscovered = node1Delta + node2Delta + node3Delta;
 
                           return node1Delta > 0 && node2Delta > 0 && node3Delta > 0 && totalDiscovered >= (long) numWrites * 3;
                       });
 
             // Verify final counts
-            long afterNode1Count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
-            long afterNode2Count = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
-            long afterNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.getCount());
+            long afterNode1Count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
+            long afterNode2Count = cluster.get(2).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
+            long afterNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.getCount());
 
             long node1Delta = afterNode1Count - initialNode1Count;
             long node2Delta = afterNode2Count - initialNode2Count;
@@ -124,7 +124,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
             // Record initial broadcast metrics on receiving node 3 since we are next going to block this node to from receiving mutations
-            long initialNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.getCount());
+            long initialNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.getCount());
 
             // Block node 3 from receiving mutation writes (but allow broadcast messages)
             cluster.filters().verbs(Verb.MUTATION_REQ.id).to(3).drop();
@@ -146,7 +146,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
 
             // Broadcast offsets from node 1 to other nodes
             // This tells node 3 about mutations it's missing
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
 
             // Wait for broadcasts to propagate to node 3
             long[] previousCount = {0};
@@ -154,7 +154,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                     .atMost(Duration.ofSeconds(5))
                     .pollInterval(Duration.ofMillis(100))
                     .until(() -> {
-                        long currentCount = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.getCount());
+                        long currentCount = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.getCount());
                         boolean hasDiscoveredOffsets = currentCount > initialNode3Count;
                         boolean isStable = hasDiscoveredOffsets && currentCount == previousCount[0];
                         previousCount[0] = currentCount;
@@ -162,10 +162,10 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                     });
 
             // Get the count after first broadcast
-            long afterFirstBroadcast = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.getCount());
+            long afterFirstBroadcast = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.getCount());
 
             // Broadcast the same offsets again (duplicate) - should NOT increment metric
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
 
             // Wait for duplicate broadcast to propagate, then verify metric stayed the same
             // We poll to ensure the broadcast had time to arrive, then check it didn't increment
@@ -174,7 +174,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                       .atMost(Duration.ofSeconds(2))
                       .pollInterval(Duration.ofMillis(100))
                       .until(() -> {
-                          long count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.getCount());
+                          long count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.getCount());
                           return count == afterFirstBroadcast; // Should remain at the same value (duplicate doesn't increment)
                       });
 
@@ -203,7 +203,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                 .isEqualTo(numWrites);
 
             // Check metrics after reconciliation - if reconciliation worked, broadcasts happened
-            long afterNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.getCount());
+            long afterNode3Count = cluster.get(3).callOnInstance(() -> MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.getCount());
             long node3Delta = afterNode3Count - initialNode3Count;
 
             // Node 3 was blocked before and now must have applied broadcast offsets
@@ -226,7 +226,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
             // Get initial metric value from coordinator node
-            long initialSize = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.readSummarySize.getCount());
+            long initialSize = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().readSummarySize.getCount());
 
             // Insert test data
             int numWrites = 10;
@@ -247,7 +247,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             // Verify metric incremented by at least twice the number of reads as
             // each read creates TWO summaries: initial (before read) + secondary (after read)
             // This is to detect concurrent writes during read execution for proper reconciliation
-            long afterSize = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.readSummarySize.getCount());
+            long afterSize = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().readSummarySize.getCount());
 
             long delta = afterSize - initialSize;
             assertThat(delta)
@@ -269,7 +269,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
             // Get initial unreconciled count (should be 0)
-            long initialCount = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.unreconciledMutationCount.getValue());
+            long initialCount = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().unreconciledMutationCount.getValue());
             assertThat(initialCount)
                 .as("Initial unreconciled count should be 0")
                 .isEqualTo(0L);
@@ -286,7 +286,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             }
 
             // Node 1 should now have unreconciled mutations (since node 3 didn't get them)
-            long afterWrites = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.unreconciledMutationCount.getValue());
+            long afterWrites = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().unreconciledMutationCount.getValue());
             assertThat(afterWrites)
                 .as("Expected %d unreconciled mutations (node 3 blocked)", numWrites)
                 .isEqualTo((long) numWrites);
@@ -306,12 +306,12 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
                       .atMost(Duration.ofSeconds(5))
                       .pollInterval(Duration.ofMillis(100))
                       .until(() -> {
-                          long count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.unreconciledMutationCount.getValue());
+                          long count = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().unreconciledMutationCount.getValue());
                           return count == 0;
                       });
 
             // Verify reconciliation actually happened
-            long afterReconcile = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.unreconciledMutationCount.getValue());
+            long afterReconcile = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().unreconciledMutationCount.getValue());
             assertThat(afterReconcile)
                 .as("Unreconciled count should be 0 after reconciliation")
                 .isEqualTo(0L);
@@ -331,7 +331,7 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
             cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
 
             // Get initial disk space - would be 2 * 1024 * 1024 as 2 segements are allocated by default
-            long initialSpace = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.journalDiskSpaceUsed.getValue());
+            long initialSpace = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().journalDiskSpaceUsed.getValue());
 
             // Write enough data to fill 1MiB segment and force new segment creation
             int numWrites = 200;
@@ -343,11 +343,11 @@ public class MutationTrackingMetricsTest extends TestBaseImpl
 
                 // Close segment every 20 writes to create multiple segments
                 if (i % 20 == 0 && i > 0)
-                    cluster.get(1).runOnInstance(() -> MutationJournal.instance.closeCurrentSegmentForTestingIfNonEmpty());
+                    cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
             }
 
             // Verify disk space increased
-            long afterWrites = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance.journalDiskSpaceUsed.getValue());
+            long afterWrites = cluster.get(1).callOnInstance(() -> MutationTrackingMetrics.instance().journalDiskSpaceUsed.getValue());
 
             assertThat(afterWrites)
                 .as("Disk space should increase after writes: before=%d", initialSpace)

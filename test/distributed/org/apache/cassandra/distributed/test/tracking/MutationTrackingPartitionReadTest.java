@@ -49,7 +49,6 @@ public class MutationTrackingPartitionReadTest extends TestBaseImpl
         cluster = Cluster.build()
                          .withNodes(REPLICAS)
                          .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
-                                                             .set("mutation_tracking_enabled", true)
                                                              .set("hinted_handoff_enabled", false))
                          .start();
     }

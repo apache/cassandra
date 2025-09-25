@@ -76,7 +76,6 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
                                                             .set("paxos_variant", "v2_without_linearizable_reads"))
                                       .start())
         {
@@ -137,7 +136,7 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
             {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
 
                 logger.info("Node 1 mutation summary: {} coordinator logs", summary.size());
 
@@ -164,7 +163,7 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
                 {
                     TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                     DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, true);
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, true);
 
                     logger.info("Node {} mutation summary size: {}", nodeId, summary.size());
                     // All nodes should eventually have the mutation
@@ -194,7 +193,6 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
                                                             .set("transient_replication_enabled", "true")
                                                             .set("paxos_variant", "v2_without_linearizable_reads"))
                                       .start())
@@ -259,7 +257,7 @@ public class MutationTrackingCommitAndPrepareTest extends TestBaseImpl
                 int nodeId = i;
                 cluster.get(nodeId).runOnInstance(() ->
                 {
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
                         Util.dk(1),
                         ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id,
                         true);

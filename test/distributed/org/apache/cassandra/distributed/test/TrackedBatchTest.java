@@ -44,8 +44,7 @@ public class TrackedBatchTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true"))
+                                                            .with(Feature.GOSSIP))
                                       .start())
         {
             // Create tracked keyspace
@@ -89,8 +88,7 @@ public class TrackedBatchTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true"))
+                                                            .with(Feature.GOSSIP))
                                       .start())
         {
             // Create tracked keyspace

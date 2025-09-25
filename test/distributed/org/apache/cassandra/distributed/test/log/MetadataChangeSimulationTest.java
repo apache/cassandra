@@ -87,7 +87,6 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
     }
 
     @Test

@@ -112,7 +112,7 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
             {
                 int[] count = new int[1];
 
-                MutationJournal.instance.snapshot().readAll((segment, position, key, buffer, version) -> {
+                MutationJournal.instance().snapshot().readAll((segment, position, key, buffer, version) -> {
                     count[0]++;
                 });
 

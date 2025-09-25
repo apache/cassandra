@@ -398,7 +398,7 @@ public class CompactionTask extends AbstractCompactionTask
         ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
         for (SSTableReader sstable : sstables)
             builder.addAll(sstable.getCoordinatorLogOffsets());
-        builder.purgeTransfers(MutationTrackingService.instance::isDurablyReconciled);
+        builder.purgeTransfers(id -> MutationTrackingService.instance().isDurablyReconciled(id));
         return builder.build();
     }
 

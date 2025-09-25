@@ -254,7 +254,7 @@ public abstract class PartialTrackedRead
      */
     void augment(ShortMutationId mutationId)
     {
-        Mutation mutation = MutationJournal.instance.read(mutationId);
+        Mutation mutation = MutationJournal.instance().read(mutationId);
         if (mutation == null)
         {
             logger.error("Could not augment read with mutation not present in journal {}", mutationId);

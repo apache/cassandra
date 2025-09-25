@@ -777,7 +777,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
 
         CommitLog.instance.start();
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         SnapshotManager.instance.start(false);
         SnapshotManager.instance.clearExpiredSnapshots();
@@ -825,7 +825,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
-            MutationJournal.instance.replayStaticSegments();
+
+            if ((Boolean) config.get("mutation_tracking.enabled"))
+                MutationJournal.instance().replayStaticSegments();
         }
         catch (IOException e)
         {
@@ -1037,8 +1039,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             });
 
             // The periodic tasks in MTS might hit the CommitLog, so make sure those shut down first...
-            error = parallelRun(error, executor, MutationTrackingService.instance::shutdownBlocking);
-            error = parallelRun(error, executor, MutationJournal.instance::shutdownBlocking);
+            error = parallelRun(error, executor, MutationTrackingService::shutdown);
+            error = parallelRun(error, executor, MutationJournal::shutdown);
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)

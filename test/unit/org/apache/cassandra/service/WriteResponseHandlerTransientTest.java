@@ -89,8 +89,7 @@ public class WriteResponseHandlerTransientTest
     public static void setupClass() throws Throwable
     {
         SchemaLoader.loadSchema();
-        MutationJournal.instance.start();
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
+        MutationJournal.start();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 

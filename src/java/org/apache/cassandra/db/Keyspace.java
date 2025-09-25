@@ -614,6 +614,7 @@ public class Keyspace
      */
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
+        MutationTrackingService.ensureEnabled();
         Preconditions.checkState(MigrationRouter.isFullyTracked(mutation) && !mutation.id().isNone());
         ClusterMetadata cm = ClusterMetadata.current();
 
@@ -623,7 +624,7 @@ public class Keyspace
         boolean started;
         try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
         {
-            started = MutationTrackingService.instance.startWriting(mutation);
+            started = MutationTrackingService.instance().startWriting(mutation);
 
             if (started)
             {
@@ -673,7 +674,7 @@ public class Keyspace
         }
 
         if (started)
-            MutationTrackingService.instance.finishWriting(mutation);
+            MutationTrackingService.instance().finishWriting(mutation);
 
 
         if (future != null)

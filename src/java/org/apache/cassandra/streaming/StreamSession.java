@@ -510,12 +510,12 @@ public class StreamSession
 
     private LogTransferTask createLogTransferTask()
     {
-        ReconciledLogSnapshot reconciled = MutationTrackingService.instance.snapshotReconciledLogs();
+        ReconciledLogSnapshot reconciled = MutationTrackingService.instance().snapshotReconciledLogs();
 
         // TODO: consider tradeoffs of eagerly reading the index of each segment and filtering out the ones that
         //  only contain fully reconciled ids vs just filtering out fully reconciled when reading out of the
         //  snapshot for streaming
-        MutationJournal.Snapshot snapshot = MutationJournal.instance.snapshot();
+        MutationJournal.Snapshot snapshot = MutationJournal.instance().snapshot();
         try
         {
             // TODO: grab references to all current segments and the relevant reconciled sets
@@ -761,9 +761,11 @@ public class StreamSession
                 sessionFailed();
                 break;
             case MUTATION_LOG_STREAM:
+                MutationTrackingService.ensureEnabled();
                 receiveMutationLog((IncomingMutationLogStreamMessage) message);
                 break;
             case MUTATION_LOG_RECEIVED:
+                MutationTrackingService.ensureEnabled();
                 mutationLogReceived((MutationLogReceivedMessage) message);
                 break;
             default:

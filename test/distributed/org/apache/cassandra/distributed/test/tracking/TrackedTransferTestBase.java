@@ -82,7 +82,6 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
 
     protected static final Consumer<IInstanceConfig> CONFIG = cfg -> cfg.with(Feature.NETWORK)
                                                                      .with(Feature.GOSSIP)
-                                                                     .set("mutation_tracking_enabled", true)
                                                                      .set("write_request_timeout", "1000ms")
                                                                      .set("autocompaction_on_startup_enabled", false)
                                                                      .set("repair_request_timeout", "2s")
@@ -222,7 +221,7 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
                 MutationSummary summary;
                 try
                 {
-                    summary = MutationTrackingService.instance.createSummaryForKey(key, tableId, false);
+                    summary = MutationTrackingService.instance().createSummaryForKey(key, tableId, false);
                 }
                 catch (UnknownShardException e)
                 {
@@ -394,8 +393,8 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
         // Activation ID  must be persisted and broadcast across all peers in the cluster for any to mark as persisted + reconciled
         cluster.forEach(i -> {
             i.runOnInstance(() -> {
-                MutationTrackingService.instance.persistLogStateForTesting();
-                MutationTrackingService.instance.broadcastOffsetsForTesting();
+                MutationTrackingService.instance().persistLogStateForTesting();
+                MutationTrackingService.instance().broadcastOffsetsForTesting();
             });
         });
 

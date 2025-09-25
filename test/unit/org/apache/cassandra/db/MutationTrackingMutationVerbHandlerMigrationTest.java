@@ -75,7 +75,7 @@ public class MutationTrackingMutationVerbHandlerMigrationTest
     public static void init() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         TableMetadata trackedTable = TableMetadata.builder(TRACKED_KEYSPACE, TABLE)
                                                   .addPartitionKeyColumn("pk", Int32Type.instance)
@@ -103,7 +103,6 @@ public class MutationTrackingMutationVerbHandlerMigrationTest
 
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
     }
 
     @Before

@@ -43,3 +43,5 @@ user_defined_functions_enabled: true
 scripted_user_defined_functions_enabled: false
 accord:
     journal_directory: build/test/cassandra/accord_journal
+mutation_tracking:
+  journal_directory: build/test/cassandra/mutation_journal

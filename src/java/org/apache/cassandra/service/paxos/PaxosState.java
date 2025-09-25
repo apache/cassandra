@@ -737,8 +737,8 @@ public class PaxosState implements PaxosOperationLock
                 {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(mutation.getKeyspaceName());
                     if (ksm != null && ksm.params.replicationType.isTracked()
-                        && MutationTrackingService.instance.startWriting(mutation))
-                        MutationTrackingService.instance.finishWriting(mutation);
+                        && MutationTrackingService.instance().startWriting(mutation))
+                        MutationTrackingService.instance().finishWriting(mutation);
                 }
             }
 

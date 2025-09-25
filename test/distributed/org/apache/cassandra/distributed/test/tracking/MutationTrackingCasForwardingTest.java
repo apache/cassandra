@@ -84,7 +84,6 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(4)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
                                                             .set("transient_replication_enabled", "true")
                                                             .set("paxos_variant", paxosVariant))
                                       .start())
@@ -183,7 +182,7 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
                 if (replicaNode != blockedReplicaNode) {
                     final int nodeNum = replicaNode;
                     cluster.get(nodeNum).runOnInstance(() -> {
-                        MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(
+                        MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
                             Util.dk(1), 
                             ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, 
                             true);
@@ -198,7 +197,7 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
 
             // The blocked replica node should not have the mutation yet due to filtering
             cluster.get(blockedReplicaNode).runOnInstance(() -> {
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
                     Util.dk(1), 
                     ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, 
                     true);
@@ -229,7 +228,7 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
             // Now the blocked replica node should have the mutation propagated via mutation tracking
             // Note: When using replica coordinator, propagation behavior may differ
             cluster.get(blockedReplicaNode).runOnInstance(() -> {
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
                     Util.dk(1), 
                     ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, 
                     true);
@@ -249,7 +248,7 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
                 final int nodeNum = replicaNodes[i];
                 final int arrayIndex = i;
                 cluster.get(nodeNum).runOnInstance(() -> {
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(
                         Util.dk(1), 
                         ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, 
                         true);

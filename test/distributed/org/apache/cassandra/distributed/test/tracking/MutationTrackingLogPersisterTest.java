@@ -46,8 +46,7 @@ public class MutationTrackingLogPersisterTest extends FuzzTestBase
     {
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                              .with(Feature.GOSSIP)
-                                                              .set("mutation_tracking_enabled", "true"))
+                                                              .with(Feature.GOSSIP))
                                         .start())
         {
             int tables = 3;
@@ -81,16 +80,16 @@ public class MutationTrackingLogPersisterTest extends FuzzTestBase
                             history.insert(pk);
 
                     if (++counter % 10 == 0)
-                        cluster.get(1).runOnInstance(() -> MutationJournal.instance.closeCurrentSegmentForTestingIfNonEmpty());
+                        cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
                 }
 
                 cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
-                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance.persistLogStateForTesting()));
-                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting()));
-                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance.persistLogStateForTesting()));
+                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
+                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting()));
+                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
 
                 cluster.forEach(i -> i.runOnInstance(() -> {
-                    int staticSegments = MutationJournal.instance.countStaticSegmentsForTesting();
+                    int staticSegments = MutationJournal.instance().countStaticSegmentsForTesting();
                     Assert.assertEquals("Expected no static segments after log persister runs", 0, staticSegments);
                 }));
             });

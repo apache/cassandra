@@ -187,7 +187,7 @@ public abstract class CoordinatedTransfer
                 logger.debug("{} Activation successfully applied on {}", logPrefix(), msg.from());
                 streamResults.computeIfPresent(msg.payload.syncPair, (peer, result) -> result.committed());
 
-                MutationTrackingService.instance.receivedActivationResponse(CoordinatedTransfer.this, msg.from());
+                MutationTrackingService.instance().receivedActivationResponse(CoordinatedTransfer.this, msg.from());
 
                 if (responses.decrementAndGet() == 0)
                 {

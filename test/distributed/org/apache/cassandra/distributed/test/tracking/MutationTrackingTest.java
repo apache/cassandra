@@ -70,9 +70,7 @@ public class MutationTrackingTest extends TestBaseImpl
     public void testBasicWritePath() throws Throwable
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true"))
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
                                       .start())
         {
 
@@ -94,7 +92,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
                 assertEquals(1, summaryIds.offsetCount());
@@ -117,9 +115,7 @@ public class MutationTrackingTest extends TestBaseImpl
     private void testWitnessPaxosReads(String paxosVariant) throws Throwable
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
                                                             .set("transient_replication_enabled", "true")
                                                             .set("paxos_variant", paxosVariant))
                                       .start())
@@ -142,13 +138,13 @@ public class MutationTrackingTest extends TestBaseImpl
             // Two nodes should know about the mutation
             for (int i = 1; i <= 2; i++)
                 cluster.get(i).runOnInstance(() -> {
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
                     assertEquals(1, summary.size());
                 });
 
             // Filter should stop the witness from getting the mutation so we can test pushing the mutation summary to the witness
             cluster.get(3).runOnInstance(() -> {
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
                 assertEquals(0, summary.size());
             });
 
@@ -180,7 +176,7 @@ public class MutationTrackingTest extends TestBaseImpl
 
             // The read at SERIAL should propagate the mutation to the witness
             cluster.get(3).runOnInstance(() -> {
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(Util.dk(1), ColumnFamilyStore.getIfExists(keyspaceName, "tbl").metadata.id, true);
                 assertEquals(1, summary.size());
             });
         }
@@ -203,10 +199,8 @@ public class MutationTrackingTest extends TestBaseImpl
     private void testWitnessBatchWrites(boolean logged) throws Throwable
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("transient_replication_enabled", "true"))
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
+                                                                          .set("transient_replication_enabled", "true"))
                                       .start())
         {
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
@@ -239,7 +233,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
 
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
@@ -292,11 +286,9 @@ public class MutationTrackingTest extends TestBaseImpl
     {
         String paxosVariantFinal = paxosVariant == null ? "v1" : paxosVariant;
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("transient_replication_enabled", "true")
-                                                            .set("paxos_variant", paxosVariantFinal))
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
+                                                                          .set("transient_replication_enabled", "true")
+                                                                          .set("paxos_variant", paxosVariantFinal))
                                       .start())
         {
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
@@ -328,7 +320,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
 
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
@@ -358,9 +350,8 @@ public class MutationTrackingTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
@@ -394,9 +385,8 @@ public class MutationTrackingTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             String keyspaceName = KEYSPACE;
@@ -411,7 +401,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.filters().verbs(Verb.MUTATION_REQ.id).to(3).drop();
 
             // pause reconciler temporarily
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.pauseActiveReconciler());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseActiveReconciler());
 
             // issue a write - should fail on node 3
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
@@ -422,21 +412,21 @@ public class MutationTrackingTest extends TestBaseImpl
             {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Assert.assertEquals(1, summary.get(logId).unreconciled.offsetCount());
                 Assert.assertEquals(0, summary.get(logId).reconciled.offsetCount());
             });
 
             // resume the reconciler
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.resumeActiveReconciler());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().resumeActiveReconciler());
             Thread.sleep(1000); // wait for reconiciler to do its job
 
             cluster.get(1).runOnInstance(() ->
             {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Assert.assertEquals(0, summary.get(logId).unreconciled.offsetCount());
                 Assert.assertEquals(1, summary.get(logId).reconciled.offsetCount());

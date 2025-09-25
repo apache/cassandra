@@ -75,7 +75,6 @@ public class CleanupTransientTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws Exception
     {
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 2;
@@ -89,7 +88,7 @@ public class CleanupTransientTest extends CassandraTestBase
         endpointTokens.add(RandomPartitioner.instance.midpoint(RandomPartitioner.MINIMUM, new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM)));
 
         Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simpleWitness("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -160,7 +159,7 @@ public class CleanupTransientTest extends CassandraTestBase
                                     .clustering(COLUMN)
                                     .add(colName, VALUE)
                                     .build();
-            mutation.withMutationId(MutationTrackingService.instance.nextMutationId(cfs.metadata().keyspace, mutation.key().getToken()))
+            mutation.withMutationId(MutationTrackingService.instance().nextMutationId(cfs.metadata().keyspace, mutation.key().getToken()))
                     .applyUnsafe();
         }
 

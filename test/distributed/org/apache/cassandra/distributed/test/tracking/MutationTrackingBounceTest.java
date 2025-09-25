@@ -74,7 +74,7 @@ public class MutationTrackingBounceTest extends FuzzTestBase
                             history.insert(pk);
 
                     if (++counter % 10 == 0)
-                        cluster.get(1).runOnInstance(() -> MutationJournal.instance.closeCurrentSegmentForTestingIfNonEmpty());
+                        cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
                 }
 
                 ClusterUtils.stopUnchecked(cluster.get(1));

@@ -135,7 +135,7 @@ public class ActivationRequest
 
     public void apply()
     {
-        MutationTrackingService.instance.activateLocal(this);
+        MutationTrackingService.instance().activateLocal(this);
     }
 
     public static final Serializer serializer = new Serializer();

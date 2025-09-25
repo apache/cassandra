@@ -43,7 +43,7 @@ public class MutationJournalTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        MutationJournalTable table = new MutationJournalTable(KS_NAME);
+        MutationTrackingTables.MutationJournalTable table = new MutationTrackingTables.MutationJournalTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
     }
 
@@ -57,7 +57,7 @@ public class MutationJournalTableTest extends CQLTester
     public void testSelectAll() throws Throwable
     {
         // Start the mutation journal
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         // Write data to trigger journal writes
         for (int i = 0; i < 100; i++)

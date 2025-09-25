@@ -113,9 +113,8 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             String keyspaceName = "basic_reconciliation_test";
@@ -191,9 +190,8 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             String keyspaceName = "basic_reconciliation_test";
@@ -268,9 +266,8 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             String keyspaceName = "basic_reconciliation_test";
@@ -344,9 +341,8 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .start())
         {
             String keyspaceName = "basic_reconciliation_test";
