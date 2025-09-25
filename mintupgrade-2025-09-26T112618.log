@@ -1,0 +1,206 @@
+
+Running check 'Phase 1: Preparation'
+=================
+APT Repositories:
+=================
+Repos:
+  No active apt repos in: /etc/apt/sources.list
+  No active apt repos in: /etc/apt/sources.list.d/awesometic-ppa-focal.list
+  Active apt repos in: /etc/apt/sources.list.d/brave-browser-release.list
+    1: deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main
+  No active apt repos in: /etc/apt/sources.list.d/cassandra.sources.list
+  Active apt repos in: /etc/apt/sources.list.d/docker.list
+    1: deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu focal stable
+  No active apt repos in: /etc/apt/sources.list.d/element-io.list
+  No active apt repos in: /etc/apt/sources.list.d/ernstp-mesarc-focal.list
+  No active apt repos in: /etc/apt/sources.list.d/git-core-ppa.list
+  No active apt repos in: /etc/apt/sources.list.d/github-cli.list
+  No active apt repos in: /etc/apt/sources.list.d/google-cloud-sdk.list
+  Active apt repos in: /etc/apt/sources.list.d/microsoft-edge.list
+    1: deb [arch=amd64] https://packages.microsoft.com/repos/edge/ stable main
+  Active apt repos in: /etc/apt/sources.list.d/microsoft-prod.list
+    1: deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main
+  Active apt repos in: /etc/apt/sources.list.d/official-package-repositories.list
+    1: deb https://tux.rainside.sk/mint/packages virginia main upstream import backport
+    2: deb http://tux.rainside.sk/ubuntu jammy main restricted universe multiverse
+    3: deb http://tux.rainside.sk/ubuntu jammy-updates main restricted universe multiverse
+    4: deb http://tux.rainside.sk/ubuntu jammy-backports main restricted universe multiverse
+    5: deb http://security.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse
+  Active apt repos in: /etc/apt/sources.list.d/signal-xenial.list
+    1: deb [arch=amd64 signed-by=/usr/share/keyrings/signal-desktop-keyring.gpg] https://updates.signal.org/desktop/apt xenial main
+  No active apt repos in: /etc/apt/sources.list.d/skype-stable.list
+  Active apt repos in: /etc/apt/sources.list.d/slack.list
+    1: deb https://packagecloud.io/slacktechnologies/slack/debian/ jessie main
+  No active apt repos in: /etc/apt/sources.list.d/steam-beta.list
+  Active apt repos in: /etc/apt/sources.list.d/steam-stable.list
+    1: deb [arch=amd64,i386 signed-by=/usr/share/keyrings/steam.gpg] https://repo.steampowered.com/steam/ stable steam
+    2: deb-src [arch=amd64,i386 signed-by=/usr/share/keyrings/steam.gpg] https://repo.steampowered.com/steam/ stable steam
+  Active apt repos in: /etc/apt/sources.list.d/tarsnap.list
+    1: deb [signed-by=/usr/share/keyrings/tarsnap-archive-keyring.gpg] http://pkg.tarsnap.com/deb/victoria ./
+  No active apt repos in: /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa-jammy.list
+  No active apt repos in: /etc/apt/sources.list.d/virtualbox.list
+  Active apt repos in: /etc/apt/sources.list.d/azure-cli.sources
+    1: deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ jammy main
+  Active apt repos in: /etc/apt/sources.list.d/protonvpn-stable.sources
+    1: deb https://repo.protonvpn.com/debian stable main
+=================
+
+Running check 'Linux Mint version'
+Check succeeded:  Linux Mint version
+
+Running check 'Power source'
+Check succeeded:  Power source
+
+Running check 'APT cache'
+rm -rf /var/lib/apt/lists/*
+DEBIAN_PRIORITY=critical apt-get update
+Get:1 http://tux.rainside.sk/ubuntu jammy InRelease [270 kB]
+Get:2 http://tux.rainside.sk/ubuntu jammy-updates InRelease [128 kB]
+Get:3 http://tux.rainside.sk/ubuntu jammy-backports InRelease [127 kB]
+Ign:4 https://tux.rainside.sk/mint/packages virginia InRelease
+Get:5 https://brave-browser-apt-release.s3.brave.com stable InRelease [7 547 B]
+Get:6 https://tux.rainside.sk/mint/packages virginia Release [24,1 kB]
+Get:7 https://tux.rainside.sk/mint/packages virginia Release.gpg [833 B]
+Get:8 https://download.docker.com/linux/ubuntu focal InRelease [57,7 kB]
+Get:9 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+Get:10 https://updates.signal.org/desktop/apt xenial InRelease [5 955 B]
+Get:11 https://repo.steampowered.com/steam stable InRelease [3 622 B]
+Get:12 https://repo.protonvpn.com/debian stable InRelease [2 967 B]
+Get:13 http://tux.rainside.sk/ubuntu jammy/main i386 Packages [1 040 kB]
+Get:14 http://tux.rainside.sk/ubuntu jammy/main amd64 Packages [1 395 kB]
+Ign:15 http://pkg.tarsnap.com/deb/victoria ./ InRelease
+Get:16 https://packages.microsoft.com/repos/azure-cli jammy InRelease [3 596 B]
+Get:17 https://brave-browser-apt-release.s3.brave.com stable/main amd64 Packages [24,1 kB]
+Get:18 https://brave-browser-apt-release.s3.brave.com stable/main amd64 Contents (deb) [1 139 B]
+Get:19 http://tux.rainside.sk/ubuntu jammy/main Translation-en [510 kB]
+Get:20 http://pkg.tarsnap.com/deb/victoria ./ Release [444 B]
+Get:21 https://packages.microsoft.com/repos/edge stable InRelease [3 590 B]
+Get:22 http://tux.rainside.sk/ubuntu jammy/main amd64 DEP-11 Metadata [423 kB]
+Get:23 https://tux.rainside.sk/mint/packages virginia/main amd64 Packages [18,5 kB]
+Get:24 https://tux.rainside.sk/mint/packages virginia/main i386 Packages [17,9 kB]
+Get:25 https://tux.rainside.sk/mint/packages virginia/main amd64 Contents (deb) [829 kB]
+Get:26 https://packages.microsoft.com/ubuntu/22.04/prod jammy InRelease [3 632 B]
+Get:27 https://download.docker.com/linux/ubuntu focal/stable amd64 Packages [59,9 kB]
+Get:28 http://pkg.tarsnap.com/deb/victoria ./ Release.gpg [833 B]
+Get:29 https://tux.rainside.sk/mint/packages virginia/main i386 Contents (deb) [829 kB]
+Get:30 https://download.docker.com/linux/ubuntu focal/stable amd64 Contents (deb) [1 407 B]
+Get:31 http://tux.rainside.sk/ubuntu jammy i386 Contents (deb) [36,9 MB]
+Get:32 https://tux.rainside.sk/mint/packages virginia/upstream i386 Packages [14,6 kB]
+Get:33 https://tux.rainside.sk/mint/packages virginia/upstream amd64 Packages [48,8 kB]
+Get:34 https://tux.rainside.sk/mint/packages virginia/upstream amd64 Contents (deb) [77,2 kB]
+Get:35 https://tux.rainside.sk/mint/packages virginia/upstream i386 Contents (deb) [55,6 kB]
+Get:36 https://tux.rainside.sk/mint/packages virginia/import amd64 Packages [8 305 B]
+Get:37 https://updates.signal.org/desktop/apt xenial/main amd64 Packages [81,5 kB]
+Get:38 https://tux.rainside.sk/mint/packages virginia/import i386 Packages [3 678 B]
+Get:39 https://repo.steampowered.com/steam stable/steam Sources [589 B]
+Get:40 https://repo.steampowered.com/steam stable/steam i386 Packages [919 B]
+Get:41 https://tux.rainside.sk/mint/packages virginia/import i386 Contents (deb) [2 599 B]
+Get:42 https://tux.rainside.sk/mint/packages virginia/import amd64 Contents (deb) [8 808 B]
+Get:43 https://updates.signal.org/desktop/apt xenial/main amd64 Contents (deb) [1 616 B]
+Get:44 https://repo.protonvpn.com/debian stable/main amd64 Packages [7 560 B]
+Get:45 https://tux.rainside.sk/mint/packages virginia/backport amd64 Packages [54,9 kB]
+Get:46 https://repo.steampowered.com/steam stable/steam amd64 Packages [1 203 B]
+Get:47 https://tux.rainside.sk/mint/packages virginia/backport i386 Packages [8 307 B]
+Get:48 https://tux.rainside.sk/mint/packages virginia/backport i386 Contents (deb) [25,8 kB]
+Get:49 https://repo.protonvpn.com/debian stable/main all Packages [190 kB]
+Get:50 https://tux.rainside.sk/mint/packages virginia/backport amd64 Contents (deb) [80,2 kB]
+Get:52 http://security.ubuntu.com/ubuntu jammy-security/main i386 Packages [705 kB]
+Get:51 https://packagecloud.io/slacktechnologies/slack/debian jessie InRelease [29,1 kB]
+Get:53 https://packages.microsoft.com/repos/azure-cli jammy/main all Packages [1 093 B]
+Get:54 https://packages.microsoft.com/repos/azure-cli jammy/main amd64 Packages [2 640 B]
+Get:55 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [2 688 kB]
+Get:56 https://packages.microsoft.com/repos/edge stable/main amd64 Packages [23,6 kB]
+Get:57 http://tux.rainside.sk/ubuntu jammy amd64 Contents (deb) [46,9 MB]
+Get:58 http://security.ubuntu.com/ubuntu jammy-security/main Translation-en [394 kB]
+Get:59 http://pkg.tarsnap.com/deb/victoria ./ Packages [1 646 B]
+Get:60 http://security.ubuntu.com/ubuntu jammy-security/main amd64 DEP-11 Metadata [54,5 kB]
+Get:61 http://security.ubuntu.com/ubuntu jammy-security i386 Contents (deb) [102 MB]
+Get:63 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main all Packages [1 331 B]
+Get:64 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main armhf Packages [21,1 kB]
+Get:65 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main arm64 Packages [84,6 kB]
+Get:66 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main amd64 Packages [255 kB]
+Get:62 https://packagecloud.io/slacktechnologies/slack/debian jessie/main amd64 Packages [4 758 B]
+Get:67 http://security.ubuntu.com/ubuntu jammy-security amd64 Contents (deb) [231 MB]
+Get:68 http://tux.rainside.sk/ubuntu jammy/main amd64 c-n-f Metadata [30,3 kB]
+Get:69 http://tux.rainside.sk/ubuntu jammy/restricted amd64 Packages [129 kB]
+Get:70 http://tux.rainside.sk/ubuntu jammy/restricted i386 Packages [30,4 kB]
+Get:71 http://tux.rainside.sk/ubuntu jammy/restricted Translation-en [18,6 kB]
+Get:72 http://tux.rainside.sk/ubuntu jammy/restricted amd64 c-n-f Metadata [488 B]
+Get:73 http://tux.rainside.sk/ubuntu jammy/universe amd64 Packages [14,1 MB]
+Get:74 http://tux.rainside.sk/ubuntu jammy/universe i386 Packages [7 474 kB]
+Get:75 http://security.ubuntu.com/ubuntu jammy-security/main amd64 c-n-f Metadata [13,9 kB]
+Get:76 http://security.ubuntu.com/ubuntu jammy-security/restricted i386 Packages [43,9 kB]
+Get:77 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [4 413 kB]
+Get:78 http://security.ubuntu.com/ubuntu jammy-security/restricted Translation-en [818 kB]
+Get:79 http://tux.rainside.sk/ubuntu jammy/universe Translation-en [5 652 kB]
+Get:80 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 DEP-11 Metadata [208 B]
+Get:81 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 c-n-f Metadata [648 B]
+Get:82 http://security.ubuntu.com/ubuntu jammy-security/universe i386 Packages [674 kB]
+Get:83 http://tux.rainside.sk/ubuntu jammy/universe amd64 DEP-11 Metadata [3 559 kB]
+Get:84 http://tux.rainside.sk/ubuntu jammy/universe amd64 c-n-f Metadata [286 kB]
+Get:85 http://tux.rainside.sk/ubuntu jammy/multiverse i386 Packages [112 kB]
+Get:86 http://tux.rainside.sk/ubuntu jammy/multiverse amd64 Packages [217 kB]
+Get:87 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [997 kB]
+Get:88 http://tux.rainside.sk/ubuntu jammy/multiverse Translation-en [112 kB]
+Get:89 http://tux.rainside.sk/ubuntu jammy/multiverse amd64 DEP-11 Metadata [42,1 kB]
+Get:90 http://security.ubuntu.com/ubuntu jammy-security/universe Translation-en [218 kB]
+Get:91 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 DEP-11 Metadata [125 kB]
+Get:92 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 c-n-f Metadata [22,1 kB]
+Get:93 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 Packages [56,9 kB]
+Get:94 http://tux.rainside.sk/ubuntu jammy/multiverse amd64 c-n-f Metadata [8 372 B]
+Get:95 http://tux.rainside.sk/ubuntu jammy-updates/main i386 Packages [883 kB]
+Get:96 http://security.ubuntu.com/ubuntu jammy-security/multiverse i386 Packages [6 596 B]
+Get:97 http://security.ubuntu.com/ubuntu jammy-security/multiverse Translation-en [11,9 kB]
+Get:98 http://tux.rainside.sk/ubuntu jammy-updates/main amd64 Packages [2 940 kB]
+Get:99 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 DEP-11 Metadata [208 B]
+Get:100 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 c-n-f Metadata [520 B]
+Get:101 http://tux.rainside.sk/ubuntu jammy-updates/main Translation-en [459 kB]
+Get:102 http://tux.rainside.sk/ubuntu jammy-updates/main amd64 DEP-11 Metadata [112 kB]
+Get:103 http://tux.rainside.sk/ubuntu jammy-updates amd64 Contents (deb) [237 MB]
+Get:104 http://tux.rainside.sk/ubuntu jammy-updates i386 Contents (deb) [105 MB]
+Get:105 http://tux.rainside.sk/ubuntu jammy-updates/main amd64 c-n-f Metadata [19,0 kB]
+Get:106 http://tux.rainside.sk/ubuntu jammy-updates/restricted i386 Packages [48,0 kB]
+Get:107 http://tux.rainside.sk/ubuntu jammy-updates/restricted amd64 Packages [4 562 kB]
+Get:108 http://tux.rainside.sk/ubuntu jammy-updates/restricted Translation-en [841 kB]
+Get:109 http://tux.rainside.sk/ubuntu jammy-updates/restricted amd64 DEP-11 Metadata [212 B]
+Get:110 http://tux.rainside.sk/ubuntu jammy-updates/restricted amd64 c-n-f Metadata [672 B]
+Get:111 http://tux.rainside.sk/ubuntu jammy-updates/universe amd64 Packages [1 228 kB]
+Get:112 http://tux.rainside.sk/ubuntu jammy-updates/universe i386 Packages [782 kB]
+Get:113 http://tux.rainside.sk/ubuntu jammy-updates/universe Translation-en [305 kB]
+Get:114 http://tux.rainside.sk/ubuntu jammy-updates/universe amd64 DEP-11 Metadata [359 kB]
+Get:115 http://tux.rainside.sk/ubuntu jammy-updates/universe amd64 c-n-f Metadata [29,5 kB]
+Get:116 http://tux.rainside.sk/ubuntu jammy-updates/multiverse amd64 Packages [57,6 kB]
+Get:117 http://tux.rainside.sk/ubuntu jammy-updates/multiverse i386 Packages [8 444 B]
+Get:118 http://tux.rainside.sk/ubuntu jammy-updates/multiverse Translation-en [13,2 kB]
+Get:119 http://tux.rainside.sk/ubuntu jammy-updates/multiverse amd64 DEP-11 Metadata [940 B]
+Get:120 http://tux.rainside.sk/ubuntu jammy-updates/multiverse amd64 c-n-f Metadata [600 B]
+Get:121 http://tux.rainside.sk/ubuntu jammy-backports/main i386 Packages [60,6 kB]
+Get:122 http://tux.rainside.sk/ubuntu jammy-backports/main amd64 Packages [68,8 kB]
+Get:123 http://tux.rainside.sk/ubuntu jammy-backports/main Translation-en [11,4 kB]
+Get:124 http://tux.rainside.sk/ubuntu jammy-backports/main amd64 DEP-11 Metadata [7 084 B]
+Get:125 http://tux.rainside.sk/ubuntu jammy-backports amd64 Contents (deb) [772 kB]
+Get:126 http://tux.rainside.sk/ubuntu jammy-backports i386 Contents (deb) [762 kB]
+Get:127 http://tux.rainside.sk/ubuntu jammy-backports/main amd64 c-n-f Metadata [392 B]
+Get:128 http://tux.rainside.sk/ubuntu jammy-backports/restricted amd64 DEP-11 Metadata [212 B]
+Get:129 http://tux.rainside.sk/ubuntu jammy-backports/restricted amd64 c-n-f Metadata [116 B]
+Get:130 http://tux.rainside.sk/ubuntu jammy-backports/universe amd64 Packages [30,0 kB]
+Get:131 http://tux.rainside.sk/ubuntu jammy-backports/universe i386 Packages [18,7 kB]
+Get:132 http://tux.rainside.sk/ubuntu jammy-backports/universe Translation-en [16,6 kB]
+Get:133 http://tux.rainside.sk/ubuntu jammy-backports/universe amd64 DEP-11 Metadata [26,0 kB]
+Get:134 http://tux.rainside.sk/ubuntu jammy-backports/universe amd64 c-n-f Metadata [672 B]
+Get:135 http://tux.rainside.sk/ubuntu jammy-backports/multiverse amd64 DEP-11 Metadata [212 B]
+Get:136 http://tux.rainside.sk/ubuntu jammy-backports/multiverse amd64 c-n-f Metadata [116 B]
+Fetched 823 MB in 60s (13,7 MB/s)
+Reading package lists...
+Check succeeded:  APT cache
+
+Running check 'System snapshots'
+Check succeeded:  System snapshots
+
+Running check 'Held packages'
+Check succeeded:  Held packages
+
+Running check 'Package repositories'
+
+Running check 'Package repositories'
+mintupgrade-inhibit-power: no process found
