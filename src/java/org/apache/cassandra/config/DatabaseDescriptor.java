@@ -2227,6 +2227,10 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must be specified", false);
             FileUtils.createDirectory(conf.commitlog_directory);
 
+            if (conf.mutation_tracking.journal_directory == null)
+                throw new ConfigurationException("mutation_tracking.journal_directory must be specified", false);
+            FileUtils.createDirectory(conf.mutation_tracking.journal_directory);
+
             if (conf.accord.journal_directory == null)
                 throw new ConfigurationException("accord.journal_directory must be specified", false);
             FileUtils.createDirectory(conf.accord.journal_directory);

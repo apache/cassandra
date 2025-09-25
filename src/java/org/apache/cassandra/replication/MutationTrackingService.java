@@ -126,7 +126,7 @@ public class MutationTrackingService
     {
         if (!isEnabled())
             return;
-        instance().start(metadata);
+        instance().startInternal(metadata);
     }
 
     public static void shutdown() throws InterruptedException
