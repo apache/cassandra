@@ -73,6 +73,10 @@ write_tombstone_warn_threshold: 1000
 min_tracked_partition_size: 1MiB
 min_tracked_partition_tombstone_count: 500
 
+mutation_tracking:
+  enabled: true
+  journal_directory: build/test/cassandra/mutation_journal
+
 accord:
     enabled: true
     journal_directory: build/test/cassandra/accord_journal

@@ -64,7 +64,7 @@ public class TrackedHostReplacementTest extends TestBaseImpl
         cluster.stream()
                .filter(node -> !node.isShutdown())
                .forEach(node -> node.runOnInstance(() -> {
-                   MutationTrackingService.instance.pauseOffsetBroadcast(pause);
+                   MutationTrackingService.instance().pauseOffsetBroadcast(pause);
                }));
     }
 
@@ -334,7 +334,7 @@ public class TrackedHostReplacementTest extends TestBaseImpl
     {
         cluster.stream().filter(node -> !node.isShutdown()).forEach( node -> {
             node.runOnInstance(() -> {
-                MutationJournal.instance.advanceSegment();
+                MutationJournal.instance().advanceSegment();
             });
         });
     }

@@ -147,7 +147,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             if (commit.mutation.id().isNone())
             {
                 Token token = commit.partitionKey().getToken();
-                MutationId mutationId = MutationTrackingService.instance.nextMutationId(commit.metadata().keyspace, token);
+                MutationId mutationId = MutationTrackingService.instance().nextMutationId(commit.metadata().keyspace, token);
                 Mutation mutationWithId = commit.makeMutation(mutationId);
                 commitToUse = new Commit.Agreed(commit.ballot, mutationWithId);
             }
@@ -354,7 +354,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         if (remoteReplicas != null)
         {
             checkState(!remoteReplicas.isEmpty());
-            MutationTrackingService.instance.sentWriteRequest(commit.makeMutation(), remoteReplicas);
+            MutationTrackingService.instance().sentWriteRequest(commit.makeMutation(), remoteReplicas);
         }
 
         if (executeOnSelf)
@@ -404,7 +404,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
         // Track failed response for tracked keyspaces
         if (isTracked())
-            MutationTrackingService.instance.retryFailedWrite(commit.mutation.id(), from, reason);
+            MutationTrackingService.instance().retryFailedWrite(commit.mutation.id(), from, reason);
 
         response(false, from);
         Replica replica = replicas.lookup(from);
@@ -423,7 +423,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         // Track successful response for tracked keyspaces 
         // (Local mutations are witnessed from Keyspace.applyInternalTracked)
         if (isTracked())
-            MutationTrackingService.instance.receivedWriteResponse(commit.mutation.id(), response.from());
+            MutationTrackingService.instance().receivedWriteResponse(commit.mutation.id(), response.from());
 
         response(true, response.from());
     }
@@ -462,9 +462,9 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         if (isTracked())
         {
             if (response != null)
-                MutationTrackingService.instance.receivedWriteResponse(commit.mutation.id(), from);
+                MutationTrackingService.instance().receivedWriteResponse(commit.mutation.id(), from);
             else
-                MutationTrackingService.instance.retryFailedWrite(commit.mutation.id(), from, RequestFailure.UNKNOWN);
+                MutationTrackingService.instance().retryFailedWrite(commit.mutation.id(), from, RequestFailure.UNKNOWN);
         }
 
         response(response != null, from);

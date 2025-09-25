@@ -68,7 +68,7 @@ public class SyncTasks extends AbstractCollection<SyncTask>
      */
     static SyncTasks tracked(Keyspace keyspace, List<SyncTask> tasks)
     {
-        return MutationTrackingService.instance.alignToShardBoundaries(keyspace, tasks);
+        return MutationTrackingService.instance().alignToShardBoundaries(keyspace, tasks);
     }
 
     public void add(Shard shard, SyncTask task)

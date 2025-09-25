@@ -229,7 +229,7 @@ public abstract class CoordinatorLog
         });
 
         // Record metric for newly witnessed offsets only
-        MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.inc(newlyWitnessedCount[0]);
+        MutationTrackingMetrics.instance().broadcastOffsetsDiscovered.inc(newlyWitnessedCount[0]);
     }
 
     private void updatePersistedReplicatedOffsets(Offsets offsets, int onNodeId)
@@ -327,7 +327,7 @@ public abstract class CoordinatorLog
                 return;
 
             // Track write-time discovery of newly-witnessed offset
-            MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.inc();
+            MutationTrackingMetrics.instance().writeTimeOffsetsDiscovered.inc();
 
             unreconciledMutations.finishWriting(mutation);
             maybeMoveOffset(offset);

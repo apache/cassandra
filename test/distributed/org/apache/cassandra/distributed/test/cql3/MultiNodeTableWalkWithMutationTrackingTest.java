@@ -94,7 +94,6 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
     protected void clusterConfig(IInstanceConfig c)
     {
         super.clusterConfig(c);
-        c.set("mutation_tracking_enabled", true);
         IGNORED_ISSUES.remove(AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES);
     }
 

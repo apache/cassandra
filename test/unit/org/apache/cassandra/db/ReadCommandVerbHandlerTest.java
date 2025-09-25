@@ -73,7 +73,7 @@ public class ReadCommandVerbHandlerTest
     public static void init() throws Throwable
     {
         ServerTestUtils.prepareServerNoRegister();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);

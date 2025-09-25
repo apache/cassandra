@@ -96,7 +96,7 @@ public class CoordinatorLogOffsetsLifecycleTest
     private static Mutation createMutation(TableMetadata tableMetadata, int k, int v)
     {
         DecoratedKey key = tableMetadata.partitioner.decorateKey(ByteBufferUtil.bytes(k));
-        MutationId mutationId = MutationTrackingService.instance.nextMutationId(tableMetadata.keyspace, key.getToken());
+        MutationId mutationId = MutationTrackingService.instance().nextMutationId(tableMetadata.keyspace, key.getToken());
         SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(mutationId, tableMetadata.keyspace, key);
         PartitionUpdate.SimpleBuilder partition = builder.update(tableMetadata);
         partition.row().add("v", v);
@@ -185,7 +185,7 @@ public class CoordinatorLogOffsetsLifecycleTest
 
         // flush 1
         {
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().persistLogStateForTesting();
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             View view = cfs.getTracker().getView();
@@ -219,7 +219,7 @@ public class CoordinatorLogOffsetsLifecycleTest
 
         // flush 2
         {
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().persistLogStateForTesting();
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             View view = cfs.getTracker().getView();

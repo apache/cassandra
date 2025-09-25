@@ -357,7 +357,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE && reconcile)
         {
             Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
-            if (MutationTrackingService.instance.isDurablyReconciled(coordinatorLogOffsets))
+            if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
             {
                 repairedAt = Clock.Global.currentTimeMillis();
                 logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);

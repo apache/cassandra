@@ -134,7 +134,7 @@ public abstract class CommitLogStressTest
         }
 
         SchemaLoader.loadSchema();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
 
         CommitLog.instance.stopUnsafe(true);

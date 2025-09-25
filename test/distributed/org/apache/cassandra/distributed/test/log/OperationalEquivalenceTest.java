@@ -62,7 +62,6 @@ public class OperationalEquivalenceTest extends CMSTestBase
     static
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
     }
 
     @Test

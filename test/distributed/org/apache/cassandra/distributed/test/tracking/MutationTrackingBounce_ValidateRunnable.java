@@ -44,7 +44,7 @@ public class MutationTrackingBounce_ValidateRunnable implements IIsolatedExecuto
     public void run()
     {
         AtomicInteger counter = new AtomicInteger();
-        MutationJournal.instance.replay(new DeserializedRecordConsumer<>(MutationJournal.MutationSerializer.INSTANCE)
+        MutationJournal.instance().replay(new DeserializedRecordConsumer<>(MutationJournal.MutationSerializer.INSTANCE)
         {
             Set<ShortMutationId> seen = new HashSet<>();
             @Override
@@ -55,7 +55,7 @@ public class MutationTrackingBounce_ValidateRunnable implements IIsolatedExecuto
 
                 for (PartitionUpdate partitionUpdate : mutation.getPartitionUpdates())
                 {
-                    if (!MutationTrackingService.instance.createSummaryForKey(partitionUpdate.partitionKey(), partitionUpdate.metadata().id, false)
+                    if (!MutationTrackingService.instance().createSummaryForKey(partitionUpdate.partitionKey(), partitionUpdate.metadata().id, false)
                                                          .contains(key))
                     {
                         throw new AssertionError(String.format("Mutation %s should have been witnessed (%s)", mutation, key));

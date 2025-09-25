@@ -93,7 +93,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.recreateCMS();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ClusterMetadataTestHelper.register(broadcastAddress);
         ServerTestUtils.markCMS();

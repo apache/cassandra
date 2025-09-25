@@ -76,7 +76,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
     public static void init() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();

@@ -50,12 +50,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.zip.CRC32;
 
+import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
 // TODO (required): handle table truncations
 public class MutationJournal
 {
-    public static final MutationJournal instance = new MutationJournal();
+    private static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
 
     private final Journal<ShortMutationId, Mutation> journal;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
@@ -93,7 +94,31 @@ public class MutationJournal
 
     private MutationJournal()
     {
-        this(new File(DatabaseDescriptor.getCommitLogLocation()), new JournalParams());
+        this(new File(DatabaseDescriptor.getMutationTrackingJournalDirectory()), new JournalParams());
+    }
+
+    public static void start()
+    {
+        if (instance == null)
+            return;
+
+        instance.startInternal();
+    }
+
+    public static void shutdown()
+    {
+        if (instance == null)
+            return;
+
+        instance.shutdownBlocking();
+    }
+
+    public static MutationJournal instance()
+    {
+        if (instance == null)
+            throw new IllegalStateException(DISABLED_MESSAGE);
+
+        return instance;
     }
 
     @VisibleForTesting
@@ -142,12 +167,12 @@ public class MutationJournal
         }
     }
 
-    public void start()
+    void startInternal()
     {
         journal.start();
     }
 
-    public void shutdownBlocking()
+    void shutdownBlocking()
     {
         journal.shutdown();
     }

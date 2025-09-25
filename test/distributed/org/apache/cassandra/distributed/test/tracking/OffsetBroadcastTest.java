@@ -44,9 +44,7 @@ public class OffsetBroadcastTest extends TestBaseImpl
     public void testBroadcastOffsets() throws Throwable
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true"))
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
                                       .start())
         {
 
@@ -61,14 +59,14 @@ public class OffsetBroadcastTest extends TestBaseImpl
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
 
             for (int i = 1; i <= cluster.size(); ++i)
-                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
 
             for (int i = 1; i <= cluster.size(); ++i)
             {
                 cluster.get(i).runOnInstance(() -> {
                     TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                     DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                     MutationSummary.CoordinatorSummary coordinatorSummary = summary.get(getOnlyLogId(summary));
                     Assert.assertEquals(1, coordinatorSummary.reconciled.offsetCount());
                     Assert.assertEquals(0, coordinatorSummary.unreconciled.offsetCount());

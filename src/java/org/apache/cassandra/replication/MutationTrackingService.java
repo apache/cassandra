@@ -45,8 +45,9 @@ import com.google.common.collect.Iterables;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -97,7 +98,59 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
-    private static final ScheduledExecutorPlus executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+    public static final String DISABLED_MESSAGE = "Mutation tracking is not enabled. (See mutation_tracking.enabled in cassandra.yaml)";
+
+    private static final MutationTrackingService instance;
+    private static final ScheduledExecutorPlus executor;
+
+    static
+    {
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+        {
+            instance = new MutationTrackingService();
+            executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+        }
+        else
+        {
+            instance = null;
+            executor = null;
+        }
+    }
+
+    /**
+     * Callers of this method should have validated that mutation tracking is enabled
+     */
+    public static MutationTrackingService instance()
+    {
+        if (instance == null)
+            throw new IllegalStateException(DISABLED_MESSAGE);
+        return instance;
+    }
+
+    public static boolean isEnabled()
+    {
+        return DatabaseDescriptor.getMutationTrackingEnabled();
+    }
+
+    public static void ensureEnabled()
+    {
+        if (!DatabaseDescriptor.getMutationTrackingEnabled())
+            throw new IllegalStateException(DISABLED_MESSAGE);
+    }
+
+    public static void start(ClusterMetadata metadata)
+    {
+        if (!isEnabled())
+            return;
+        instance().startInternal(metadata);
+    }
+
+    public static void shutdown() throws InterruptedException
+    {
+        if (!isEnabled())
+            return;
+        instance().shutdownBlocking();
+    }
 
     /**
      * Split ranges into this many shards.
@@ -110,7 +163,6 @@ public class MutationTrackingService
     private static final int SHARD_MULTIPLIER = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
-    public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
     private ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
@@ -154,7 +206,7 @@ public class MutationTrackingService
         };
     }
 
-    public synchronized void start(ClusterMetadata metadata)
+    private synchronized void startInternal(ClusterMetadata metadata)
     {
         if (started)
             return;
@@ -204,7 +256,7 @@ public class MutationTrackingService
         return builder.build();
     }
 
-    public void registerTCMListener()
+    public void registerMetadataListener()
     {
         ClusterMetadataService.instance().log().addListener(tcmListener);
     }
@@ -214,7 +266,7 @@ public class MutationTrackingService
         return started;
     }
 
-    public void shutdownBlocking() throws InterruptedException
+    private void shutdownBlocking() throws InterruptedException
     {
         ClusterMetadataService.instance().log().removeListener(tcmListener);
         activeReconciler.shutdownBlocking();
@@ -488,7 +540,7 @@ public class MutationTrackingService
         try
         {
             MutationSummary summary = getOrCreateShards(tableId).createSummaryForKey(key, tableId, includePending);
-            MutationTrackingMetrics.instance.readSummarySize.update(summary.size());
+            MutationTrackingMetrics.instance().readSummarySize.update(summary.size());
             return summary;
         }
         finally
@@ -503,7 +555,7 @@ public class MutationTrackingService
         try
         {
             MutationSummary summary = getOrCreateShards(tableId).createSummaryForRange(range, tableId, includePending);
-            MutationTrackingMetrics.instance.readSummarySize.update(summary.size());
+            MutationTrackingMetrics.instance().readSummarySize.update(summary.size());
             return summary;
         }
         finally
@@ -834,7 +886,7 @@ public class MutationTrackingService
     {
         Log2OffsetsMap.Mutable reconciledOffsets = new Log2OffsetsMap.Mutable();
         collectDurablyReconciledOffsets(reconciledOffsets);
-        MutationJournal.instance.dropReconciledSegments(reconciledOffsets);
+        MutationJournal.instance().dropReconciledSegments(reconciledOffsets);
     }
 
     /**
@@ -1258,7 +1310,7 @@ public class MutationTrackingService
 
         public void run(boolean durable)
         {
-            MutationTrackingService.instance.forEachKeyspace(ks -> run(ks, durable));
+            MutationTrackingService.instance().forEachKeyspace(ks -> run(ks, durable));
         }
 
         private void run(KeyspaceShards shards, boolean durable)
@@ -1301,9 +1353,9 @@ public class MutationTrackingService
 
         private void run(boolean dropSegments)
         {
-            MutationTrackingService.instance.forEachKeyspace(this::run);
+            MutationTrackingService.instance().forEachKeyspace(this::run);
             if (dropSegments)
-                MutationTrackingService.instance.truncateMutationJournal();
+                MutationTrackingService.instance().truncateMutationJournal();
         }
 
         private void run(KeyspaceShards shards)

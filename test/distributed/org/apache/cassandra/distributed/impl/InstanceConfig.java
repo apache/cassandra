@@ -33,6 +33,7 @@ import com.vdurmont.semver4j.Semver;
 
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.MutationTrackingSpec;
 import org.apache.cassandra.config.OptionaldPositiveInt;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -43,6 +44,7 @@ import org.apache.cassandra.locator.NetworkTopologyProximity;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_MUTATION_TRACKING_ENABLED;
 
 public class InstanceConfig implements IInstanceConfig
 {
@@ -78,6 +80,7 @@ public class InstanceConfig implements IInstanceConfig
                            String hints_directory,
                            String cdc_raw_directory,
                            AccordSpec accord,
+                           MutationTrackingSpec mutationTracking,
                            Collection<String> initial_token,
                            int storage_port,
                            int native_transport_port,
@@ -104,6 +107,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("accord.command_store_shard_count", accord.command_store_shard_count.toString())
                 .set("accord.expire_txn", accord.expire_txn)
                 .set("accord.enable_virtual_debug_only_keyspace", "true")
+                .set("mutation_tracking.enabled", mutationTracking.enabled)
+                .set("mutation_tracking.journal_directory", mutationTracking.journal_directory)
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
@@ -332,6 +337,9 @@ public class InstanceConfig implements IInstanceConfig
         accordSpec.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
         accordSpec.queue_shard_count = new OptionaldPositiveInt(2);
         accordSpec.command_store_shard_count = new OptionaldPositiveInt(4);
+        MutationTrackingSpec mutationTrackingSpec = new MutationTrackingSpec();
+        mutationTrackingSpec.enabled = DTEST_MUTATION_TRACKING_ENABLED.getBoolean();
+        mutationTrackingSpec.journal_directory = String.format("%s/node%d/mutation_journal", root, nodeNum);
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),
@@ -346,6 +354,7 @@ public class InstanceConfig implements IInstanceConfig
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
                                   accordSpec,
+                                  mutationTrackingSpec,
                                   tokens,
                                   provisionStrategy.storagePort(nodeNum),
                                   provisionStrategy.nativeTransportPort(nodeNum),

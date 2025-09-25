@@ -66,10 +66,11 @@ public final class PullMutationsRequest
         @Override
         public void doVerb(Message<PullMutationsRequest> message)
         {
+            MutationTrackingService.ensureEnabled();
             InetAddressAndPort forHost = message.from();
             Offsets offsets = message.payload.offsets;
             logger.trace("Received pull mutations request from {} for {}", forHost, offsets);
-            MutationTrackingService.instance.requestMissingMutations(offsets, forHost);
+            MutationTrackingService.instance().requestMissingMutations(offsets, forHost);
         }
     };
 

@@ -21,17 +21,27 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 
 public class MutationTrackingMetrics
 {
     public static final String TYPE_NAME = "MutationTracking";
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
-    public static final MutationTrackingMetrics instance = new MutationTrackingMetrics();
+    private static final MutationTrackingMetrics instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationTrackingMetrics() : null;
+
+    public static MutationTrackingMetrics instance()
+    {
+        if (instance == null)
+            throw new IllegalStateException(DISABLED_MESSAGE);
+        return instance;
+    }
 
     public final Counter broadcastOffsetsDiscovered; // Newly-witnessed offsets discovered via broadcast
     public final Counter writeTimeOffsetsDiscovered; // Newly-witnessed offsets discovered at write time
@@ -47,11 +57,11 @@ public class MutationTrackingMetrics
         readSummarySize = Metrics.histogram(factory.createMetricName("ReadSummarySize"), true);
         unreconciledMutationCount = Metrics.register(
                 factory.createMetricName("UnreconciledMutationCount"),
-                () -> MutationTrackingService.instance.getUnreconciledMutationCount()
+                () -> MutationTrackingService.instance().getUnreconciledMutationCount()
         );
         journalDiskSpaceUsed = Metrics.register(
                 factory.createMetricName("JournalDiskSpaceUsed"),
-                () -> MutationJournal.instance.getDiskSpaceUsed()
+                () -> MutationJournal.instance().getDiskSpaceUsed()
         );
     }
 }

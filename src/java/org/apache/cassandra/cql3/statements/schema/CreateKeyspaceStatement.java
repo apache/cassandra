@@ -27,6 +27,7 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -39,11 +40,14 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
+
+import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 
 public final class CreateKeyspaceStatement extends AlterSchemaStatement
 {
@@ -75,14 +79,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
-        attrs.validate();
-
-        if (!attrs.hasOption(Option.REPLICATION))
-            throw ire("Missing mandatory option '%s'", Option.REPLICATION);
-
-        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
-            Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
-
         Keyspaces schema = metadata.schema.getKeyspaces();
         if (schema.containsKeyspace(keyspaceName))
         {
@@ -146,10 +142,38 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     {
         super.validate(state);
 
+        attrs.validate();
+
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
 
         Guardrails.keyspaceProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+
+        if (!attrs.hasOption(Option.REPLICATION))
+            throw ire("Missing mandatory option '%s'", Option.REPLICATION);
+
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+            Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
+
+        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        if (keyspace != null)
+        {
+            if (ifNotExists)
+                return;
+
+            throw new AlreadyExistsException(keyspaceName);
+        }
+
+        KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+
+        if (keyspaceMetadata.params.replicationType.isTracked())
+        {
+            if (SchemaConstants.isSystemKeyspace(keyspaceName))
+                throw ire("Mutation tracking is not supported on system keyspaces");
+
+            if (!DatabaseDescriptor.getMutationTrackingEnabled())
+                throw ire(DISABLED_MESSAGE);
+        }
     }
 
     public static final class Raw extends CQLStatement.Raw

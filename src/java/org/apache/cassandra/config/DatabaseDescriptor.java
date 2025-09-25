@@ -773,6 +773,11 @@ public class DatabaseDescriptor
         if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
             logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
 
+        if (conf.mutation_tracking.enabled && conf.mutation_tracking.journal_directory == null)
+        {
+            conf.mutation_tracking.journal_directory = storagedirFor("mutation_journal");
+        }
+
         if (conf.accord.journal_directory == null)
         {
             conf.accord.journal_directory = storagedirFor("accord_journal");
@@ -2314,6 +2319,13 @@ public class DatabaseDescriptor
             if (conf.commitlog_directory == null)
                 throw new ConfigurationException("commitlog_directory must be specified", false);
             FileUtils.createDirectory(conf.commitlog_directory);
+
+            if (conf.mutation_tracking.enabled)
+            {
+                if (conf.mutation_tracking.journal_directory == null)
+                    throw new ConfigurationException("mutation_tracking.journal_directory must be specified", false);
+                FileUtils.createDirectory(conf.mutation_tracking.journal_directory);
+            }
 
             if (conf.accord.journal_directory == null)
                 throw new ConfigurationException("accord.journal_directory must be specified", false);
@@ -6039,16 +6051,12 @@ public class DatabaseDescriptor
 
     public static boolean getMutationTrackingEnabled()
     {
-        return conf.mutation_tracking_enabled;
+        return conf.mutation_tracking.enabled;
     }
 
-    public static void setMutationTrackingEnabled(boolean enabled)
+    public static String getMutationTrackingJournalDirectory()
     {
-        if (enabled != conf.mutation_tracking_enabled)
-        {
-            logger.info("Setting mutation_tracking_enabled to {}", enabled);
-            conf.mutation_tracking_enabled = enabled;
-        }
+        return conf.mutation_tracking.journal_directory;
     }
 
     public static OptionalDouble getSeverityDuringDecommission()

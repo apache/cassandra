@@ -695,7 +695,7 @@ public class Config
 
     public boolean dynamic_data_masking_enabled = false;
 
-    public boolean mutation_tracking_enabled = false;
+    public MutationTrackingSpec mutation_tracking = new MutationTrackingSpec();
 
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.

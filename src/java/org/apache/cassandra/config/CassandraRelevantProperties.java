@@ -239,6 +239,7 @@ public enum CassandraRelevantProperties
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
     /** In_JVM dtest property indicating that the test should use "latest" configuration */
     DTEST_JVM_DTESTS_USE_LATEST("jvm_dtests.latest"),
+    DTEST_MUTATION_TRACKING_ENABLED("jvm_dtest.mutation_tracking.enabled", "true"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.

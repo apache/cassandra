@@ -94,7 +94,7 @@ public class BootStrapperTest
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition("BootStrapperTest");
         RangeStreamer.ALIVE_PREDICATE = Predicates.alwaysTrue();
         ServerTestUtils.markCMS();

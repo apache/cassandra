@@ -64,7 +64,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition("PaxosStateTest");
         metadata = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1").metadata.get();
         metadata.withSwapped(metadata.params.unbuild().gcGraceSeconds(3600).build());

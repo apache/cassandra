@@ -650,35 +650,37 @@ public final class SystemKeyspace
 
     private static Tables tables()
     {
-        return Tables.of(BuiltIndexes,
-                         Batches,
-                         Paxos,
-                         PaxosRepairHistoryTable,
-                         Local,
-                         PeersV2,
-                         LegacyPeers,
-                         PeerEventsV2,
-                         LegacyPeerEvents,
-                         CompactionHistory,
-                         LegacySSTableActivity,
-                         SSTableActivity,
-                         LegacySizeEstimates,
-                         TableEstimates,
-                         AvailableRangesV2,
-                         LegacyAvailableRanges,
-                         TransferredRangesV2,
-                         LegacyTransferredRanges,
-                         ViewBuildsInProgress,
-                         BuiltViews,
-                         PreparedStatements,
-                         Repairs,
-                         TopPartitions,
-                         LocalMetadataLog,
-                         Snapshots,
-                         ConsensusMigrationState,
-                         HostLogId,
-                         Shards,
-                         CoordinatorLogs);
+        Tables.Builder builder = Tables.builder().add(BuiltIndexes,
+                                                      Batches,
+                                                      Paxos,
+                                                      PaxosRepairHistoryTable,
+                                                      Local,
+                                                      PeersV2,
+                                                      LegacyPeers,
+                                                      PeerEventsV2,
+                                                      LegacyPeerEvents,
+                                                      CompactionHistory,
+                                                      LegacySSTableActivity,
+                                                      SSTableActivity,
+                                                      LegacySizeEstimates,
+                                                      TableEstimates,
+                                                      AvailableRangesV2,
+                                                      LegacyAvailableRanges,
+                                                      TransferredRangesV2,
+                                                      LegacyTransferredRanges,
+                                                      ViewBuildsInProgress,
+                                                      BuiltViews,
+                                                      PreparedStatements,
+                                                      Repairs,
+                                                      TopPartitions,
+                                                      LocalMetadataLog,
+                                                      Snapshots,
+                                                      ConsensusMigrationState);
+
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+            builder.add(HostLogId, Shards, CoordinatorLogs);
+
+        return builder.build();
     }
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;

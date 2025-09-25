@@ -272,7 +272,7 @@ public class CassandraDaemon
 
         Keyspace.setInitialized();
         CommitLog.instance.start();
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         SnapshotManager.instance.start(false);
         SnapshotManager.instance.clearExpiredSnapshots();
@@ -361,7 +361,9 @@ public class CassandraDaemon
             NodeId self = ClusterMetadata.current().myNodeId();
             if (self != null)
                 AccordService.localStartup(self);
-            MutationJournal.instance.replayStaticSegments();
+
+            if (DatabaseDescriptor.getMutationTrackingEnabled())
+                MutationJournal.instance().replayStaticSegments();
         }
         catch (IOException e)
         {

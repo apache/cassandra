@@ -75,7 +75,7 @@ public class StorageServiceTest extends TestBaseImpl
                                                               SimpleLocationProvider.LOCATION,
                                                               NodeVersion.CURRENT));
         CommitLog.instance.start();
-        MutationJournal.instance.start();
+        MutationJournal.start();
     }
 
     @Before

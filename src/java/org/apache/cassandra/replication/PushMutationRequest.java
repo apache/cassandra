@@ -64,7 +64,7 @@ public interface PushMutationRequest
         public long serializedSize(int version)
         {
             // TODO (expected): handle mismatched (messaging) versions
-            int size = MutationJournal.instance.sizeOfRecord(pointer);
+            int size = MutationJournal.instance().sizeOfRecord(pointer);
             Preconditions.checkState(size > 0, "Couldn't read mutation %s size from the mutation journal", id);
             return size;
         }
@@ -72,7 +72,7 @@ public interface PushMutationRequest
         @Override
         public void serialize(DataOutputPlus out, int version) throws IOException
         {
-            boolean read = MutationJournal.instance.read(pointer, (segment, position, key, buffer, userVersion) ->
+            boolean read = MutationJournal.instance().read(pointer, (segment, position, key, buffer, userVersion) ->
             {
                 try
                 {
@@ -168,6 +168,7 @@ public interface PushMutationRequest
         @Override
         public void doVerb(Message<Materialized> message)
         {
+            MutationTrackingService.ensureEnabled();
             if (approxTime.now() > message.expiresAtNanos())
             {
                 Tracing.trace("Discarding mutation from {} (timed out)", message.from());

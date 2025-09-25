@@ -48,7 +48,7 @@ public class MutationTrackingShardsTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        MutationTrackingShardsTable table = new MutationTrackingShardsTable(KS_NAME);
+        MutationTrackingTables.MutationTrackingShardsTable table = new MutationTrackingTables.MutationTrackingShardsTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
     }
 
@@ -56,8 +56,8 @@ public class MutationTrackingShardsTableTest extends CQLTester
     public void setUp()
     {
         // Start required services for mutation tracking
-        MutationJournal.instance.start();
-        MutationTrackingService.instance.start(ClusterMetadata.current());
+        MutationJournal.start();
+        MutationTrackingService.start(ClusterMetadata.current());
 
         // Create a tracked keyspace
         schemaChange("CREATE KEYSPACE IF NOT EXISTS tracked_ks WITH replication = " +
@@ -73,7 +73,7 @@ public class MutationTrackingShardsTableTest extends CQLTester
     public void tearDown() throws InterruptedException
     {
         // Shutdown the service to prevent test hanging
-        MutationTrackingService.instance.shutdownBlocking();
+        MutationTrackingService.shutdown();
     }
 
     @Test

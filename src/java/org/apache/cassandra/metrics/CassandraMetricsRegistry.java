@@ -49,6 +49,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.db.virtual.model.CounterMetricRow;
@@ -113,59 +114,62 @@ public class CassandraMetricsRegistry extends MetricRegistry
         // For example, if a new metric group is added, the appropriate tests will fail, because of the missing
         // group in this collection, which in turn guarantees that all metric groups are registered and exposed
         // for virtual tables.
-        metricGroups = ImmutableSet.<String>builder()
-                                   .add(AbstractMetrics.TYPE)
-                                   .add(AccordCoordinatorMetrics.ACCORD_COORDINATOR)
-                                   .add(AccordCacheMetrics.ACCORD_CACHE)
-                                   .add(AccordReplicaMetrics.ACCORD_REPLICA)
-                                   .add(AccordExecutorMetrics.ACCORD_EXECUTOR)
-                                   .add(AccordSystemMetrics.ACCORD_SYSTEM)
-                                   .add(BatchMetrics.TYPE_NAME)
-                                   .add(BufferPoolMetrics.TYPE_NAME)
-                                   .add(CIDRAuthorizerMetrics.TYPE_NAME)
-                                   .add(CQLMetrics.TYPE_NAME)
-                                   .add(CacheMetrics.TYPE_NAME)
-                                   .add(ChunkCacheMetrics.TYPE_NAME)
-                                   .add(ClientMessageSizeMetrics.TYPE)
-                                   .add(ClientMetrics.TYPE_NAME)
-                                   .add(ClientRequestMetrics.TYPE_NAME)
-                                   .add(ClientRequestSizeMetrics.TYPE)
-                                   .add(CommitLogMetrics.TYPE_NAME)
-                                   .add(CompactionMetrics.TYPE_NAME)
-                                   .add(DenylistMetrics.TYPE_NAME)
-                                   .add(DroppedMessageMetrics.TYPE)
-                                   .add(HintedHandoffMetrics.TYPE_NAME)
-                                   .add(HintsServiceMetrics.TYPE_NAME)
-                                   .add(org.apache.cassandra.index.accord.IndexMetrics.TYPE)
-                                   .add(InternodeInboundMetrics.TYPE_NAME)
-                                   .add(InternodeOutboundMetrics.TYPE_NAME)
-                                   .add(org.apache.cassandra.journal.Metrics.TYPE_NAME)
-                                   .add(KeyspaceMetrics.TYPE_NAME)
-                                   .add(MemtablePool.TYPE_NAME)
-                                   .add(MessagingMetrics.TYPE_NAME)
-                                   .add(MutationTrackingMetrics.TYPE_NAME)
-                                   .add(MutualTlsMetrics.TYPE_NAME)
-                                   .add(PaxosMetrics.TYPE_NAME)
-                                   .add(ReadRepairMetrics.TYPE_NAME)
-                                   .add(RepairMetrics.TYPE_NAME)
-                                   .add(RowIndexEntry.TYPE_NAME)
-                                   .add(StorageMetrics.TYPE_NAME)
-                                   .add(StreamingMetrics.TYPE_NAME)
-                                   .add(TCMMetrics.TYPE_NAME)
-                                   .add(TableMetrics.ALIAS_TYPE_NAME)
-                                   .add(TableMetrics.TYPE_NAME)
-                                   .add(TableMetrics.INDEX_TYPE_NAME)
-                                   .add(TableMetrics.INDEX_ALIAS_TYPE_NAME)
-                                   .add(ThreadPoolMetrics.TYPE_NAME)
-                                   .add(TrieMemtableMetricsView.TYPE_NAME)
-                                   .add(UnweightedCacheMetrics.TYPE_NAME)
-                                   .add(AutoRepairMetrics.TYPE_NAME)
-                                   .build();
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        builder = ImmutableSet.<String>builder()
+                              .add(AbstractMetrics.TYPE)
+                              .add(AccordCoordinatorMetrics.ACCORD_COORDINATOR)
+                              .add(AccordCacheMetrics.ACCORD_CACHE)
+                              .add(AccordReplicaMetrics.ACCORD_REPLICA)
+                              .add(AccordExecutorMetrics.ACCORD_EXECUTOR)
+                              .add(AccordSystemMetrics.ACCORD_SYSTEM)
+                              .add(BatchMetrics.TYPE_NAME)
+                              .add(BufferPoolMetrics.TYPE_NAME)
+                              .add(CIDRAuthorizerMetrics.TYPE_NAME)
+                              .add(CQLMetrics.TYPE_NAME)
+                              .add(CacheMetrics.TYPE_NAME)
+                              .add(ChunkCacheMetrics.TYPE_NAME)
+                              .add(ClientMessageSizeMetrics.TYPE)
+                              .add(ClientMetrics.TYPE_NAME)
+                              .add(ClientRequestMetrics.TYPE_NAME)
+                              .add(ClientRequestSizeMetrics.TYPE)
+                              .add(CommitLogMetrics.TYPE_NAME)
+                              .add(CompactionMetrics.TYPE_NAME)
+                              .add(DenylistMetrics.TYPE_NAME)
+                              .add(DroppedMessageMetrics.TYPE)
+                              .add(HintedHandoffMetrics.TYPE_NAME)
+                              .add(HintsServiceMetrics.TYPE_NAME)
+                              .add(org.apache.cassandra.index.accord.IndexMetrics.TYPE)
+                              .add(InternodeInboundMetrics.TYPE_NAME)
+                              .add(InternodeOutboundMetrics.TYPE_NAME)
+                              .add(org.apache.cassandra.journal.Metrics.TYPE_NAME)
+                              .add(KeyspaceMetrics.TYPE_NAME)
+                              .add(MemtablePool.TYPE_NAME)
+                              .add(MessagingMetrics.TYPE_NAME)
+                              .add(MutationTrackingMetrics.TYPE_NAME)
+                              .add(MutualTlsMetrics.TYPE_NAME)
+                              .add(PaxosMetrics.TYPE_NAME)
+                              .add(ReadRepairMetrics.TYPE_NAME)
+                              .add(RepairMetrics.TYPE_NAME)
+                              .add(RowIndexEntry.TYPE_NAME)
+                              .add(StorageMetrics.TYPE_NAME)
+                              .add(StreamingMetrics.TYPE_NAME)
+                              .add(TCMMetrics.TYPE_NAME)
+                              .add(TableMetrics.ALIAS_TYPE_NAME)
+                              .add(TableMetrics.TYPE_NAME)
+                              .add(TableMetrics.INDEX_TYPE_NAME)
+                              .add(TableMetrics.INDEX_ALIAS_TYPE_NAME)
+                              .add(ThreadPoolMetrics.TYPE_NAME)
+                              .add(TrieMemtableMetricsView.TYPE_NAME)
+                              .add(UnweightedCacheMetrics.TYPE_NAME)
+                              .add(AutoRepairMetrics.TYPE_NAME);
+
+        if (DatabaseDescriptor.isDaemonInitialized() && DatabaseDescriptor.getMutationTrackingEnabled())
+            builder.add(MutationTrackingMetrics.TYPE_NAME);
+
+        metricGroups = builder.build();
     }
 
-    private CassandraMetricsRegistry()
-    {
-    }
+    private CassandraMetricsRegistry() {}
 
     @SuppressWarnings("rawtypes")
     public static String getValueAsString(Metric metric)

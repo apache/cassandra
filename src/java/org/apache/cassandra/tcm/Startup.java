@@ -161,14 +161,16 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withDefaultListeners();
         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                       wrapProcessor,
                                                                       ClusterMetadataService::state,
                                                                       logSpec));
         ClusterMetadataService.instance().log().ready();
-        MutationTrackingService.instance.registerTCMListener();
+
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+            MutationTrackingService.instance().registerMetadataListener();
 
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();
@@ -290,7 +292,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                            .withInitialState(emptyFromSystemTables)
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .withDefaultListeners();
 
@@ -300,12 +302,17 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       logSpec));
 
         ClusterMetadataService.instance().log().ready();
-        MutationTrackingService.instance.registerTCMListener();
+
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+            MutationTrackingService.instance().registerMetadataListener();
+
         initMessaging.run();
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
-            MutationJournal.instance.replayStaticSegments();
+
+            if (DatabaseDescriptor.getMutationTrackingEnabled())
+                MutationJournal.instance().replayStaticSegments();
         }
         catch (IOException e)
         {
@@ -400,7 +407,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (_metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withPreviousState(prev)
                                            .withInitialState(metadata)
                                            .withStorage(LogStorage.SystemKeyspace)
@@ -413,7 +420,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       logSpec));
 
         ClusterMetadataService.instance().log().ready();
-        MutationTrackingService.instance.registerTCMListener();
+
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+            MutationTrackingService.instance().registerMetadataListener();
+
         initMessaging.run();
         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
         ClusterMetadataService.instance().triggerSnapshot();

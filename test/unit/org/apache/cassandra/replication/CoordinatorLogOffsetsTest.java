@@ -246,7 +246,7 @@ public class CoordinatorLogOffsetsTest
     public void reconciledBounds() throws InterruptedException, ExecutionException {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         String ks = "ks";
         String tbl = "tbl";
@@ -274,7 +274,7 @@ public class CoordinatorLogOffsetsTest
         ClusterMetadataTestHelper.commit(new AlterSchema(SchemaTransformations.addTable(tableMetadata, false)));
 
         CommitLog.instance.start();
-        MutationTrackingService.instance.start(metadata);
+        MutationTrackingService.start(metadata);
 
         // Eventually, will also run perturbations before checking isReconciled (like log truncation, durability, etc.)
         // to ensure that we don't prune data required to check what's been reconciled
@@ -282,45 +282,45 @@ public class CoordinatorLogOffsetsTest
         // Applied at all replicas
         {
             Mutation mutation = MutationTrackingUtils.createMutation(tableMetadata, 1, 1);
-            MutationTrackingService.instance.startWriting(mutation);
+            MutationTrackingService.instance().startWriting(mutation);
 
-            MutationTrackingService.instance.finishWriting(mutation);
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().finishWriting(mutation);
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr3);
+            MutationTrackingService.instance().persistLogStateForTesting();
 
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
             Range<Token> range = getShardRange(mutation);
             List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
-            MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr2);
-            MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr3);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr2);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr3);
 
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isTrue();
+            Assertions.assertThat(MutationTrackingService.instance().isDurablyReconciled(logOffsets)).isTrue();
         }
 
         // Applied locally but not on remote replicas
         {
             Mutation mutation = MutationTrackingUtils.createMutation(tableMetadata, 2, 2);
-            MutationTrackingService.instance.startWriting(mutation);
-            MutationTrackingService.instance.finishWriting(mutation);
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().startWriting(mutation);
+            MutationTrackingService.instance().finishWriting(mutation);
+            MutationTrackingService.instance().persistLogStateForTesting();
 
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isFalse();
+            Assertions.assertThat(MutationTrackingService.instance().isDurablyReconciled(logOffsets)).isFalse();
         }
 
         // Applied on remote replicas but not locally
         {
             Mutation mutation = MutationTrackingUtils.createMutation(tableMetadata, 3, 3);
-            MutationTrackingService.instance.startWriting(mutation);
+            MutationTrackingService.instance().startWriting(mutation);
 
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr3);
+            MutationTrackingService.instance().persistLogStateForTesting();
 
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
@@ -328,21 +328,21 @@ public class CoordinatorLogOffsetsTest
 
             Range<Token> range = getShardRange(mutation);
             List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
-            MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr2);
-            MutationTrackingService.instance.updateReplicatedOffsets(ks, range, offsets, true, addr3);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr2);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr3);
 
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isFalse();
+            Assertions.assertThat(MutationTrackingService.instance().isDurablyReconciled(logOffsets)).isFalse();
         }
 
         // If no replicas are aware of a log, it should be considered unreconciled out of caution
         {
             Mutation mutation = MutationTrackingUtils.createMutation(tableMetadata, 4, 4);
-            MutationTrackingService.instance.startWriting(mutation);
+            MutationTrackingService.instance().startWriting(mutation);
 
-            MutationTrackingService.instance.finishWriting(mutation);
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
-            MutationTrackingService.instance.persistLogStateForTesting();
+            MutationTrackingService.instance().finishWriting(mutation);
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance().receivedWriteResponse(mutation.id(), addr3);
+            MutationTrackingService.instance().persistLogStateForTesting();
 
             MutationId fakeMutationId = new MutationId(CoordinatorLogId.asLong(111, 222), MutationId.sequenceId(333, 444));
             Assertions.assertThat(metadata.directory.version(new NodeId(fakeMutationId.hostId()))).isNull();
@@ -352,19 +352,19 @@ public class CoordinatorLogOffsetsTest
 
             ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
             logOffsetsBuilder.add(fakeMutationId);
-            Assertions.assertThatThrownBy(() -> MutationTrackingService.instance.isDurablyReconciled(logOffsetsBuilder.build()))
+            Assertions.assertThatThrownBy(() -> MutationTrackingService.instance().isDurablyReconciled(logOffsetsBuilder.build()))
                     .hasSameClassAs(new IllegalStateException())
                     .hasMessageMatching("Could not find shard for logId \\d+");
         }
 
-        MutationTrackingService.instance.shutdownBlocking();
+        MutationTrackingService.shutdown();
         CommitLog.instance.stopUnsafe(true);
     }
 
     private Range<Token> getShardRange(Mutation mutation)
     {
         Map<String, Range<Token>> ksRanges = new HashMap<>();
-        MutationTrackingService.instance.forEachKeyspace(shards -> {
+        MutationTrackingService.instance().forEachKeyspace(shards -> {
             Shard shard = shards.lookUp(mutation);
             ksRanges.put(shard.keyspace, shard.range);
         });

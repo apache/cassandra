@@ -524,7 +524,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             CommitLogPosition commitLogPosition;
             if (metadata().replicationType().isTracked())
-                commitLogPosition = MutationJournal.instance.getCurrentPosition();
+                commitLogPosition = MutationJournal.instance().getCurrentPosition();
             else
                 commitLogPosition = CommitLog.instance.getCurrentPosition();
             initialMemtable = createMemtable(new AtomicReference<>(commitLogPosition));
@@ -1196,7 +1196,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
                 TableMetadata metadata = metadata();
 
-                MutationJournal.instance.notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
+                if (metadata().replicationType().isTracked())
+                    MutationJournal.instance().notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
+
                 CommitLog.instance.discardCompletedSegments(metadata.id, commitLogLowerBound, commitLogUpperBound);
             }
 
@@ -1475,7 +1477,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             CommitLogPosition commitLogPosition;
             if (useMutationJournal)
-                commitLogPosition = MutationJournal.instance.getCurrentPosition();
+                commitLogPosition = MutationJournal.instance().getCurrentPosition();
             else
                 commitLogPosition = CommitLog.instance.getCurrentPosition();
 
@@ -3397,7 +3399,7 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
 
         // TODO (required): test mutation tracking + table dropping
         if (metadata().replicationType().isTracked())
-            MutationJournal.instance.notifyFlushed(metadata.id, new CommitLogPosition(0, 0), MutationJournal.instance.getCurrentPosition());
+            MutationJournal.instance().notifyFlushed(metadata.id, new CommitLogPosition(0, 0), MutationJournal.instance().getCurrentPosition());
         else
             CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
