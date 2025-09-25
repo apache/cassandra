@@ -141,14 +141,17 @@ public class CoordinatorLogOffsetsLifecycleTest
     {
         String ks = nextKeyspaceName();
         String tbl = "tbl";
-        TableMetadata tableMetadata = TableMetadata.builder(ks, tbl)
-                                                   .addPartitionKeyColumn("k", Int32Type.instance)
-                                                   .addRegularColumn("v", Int32Type.instance)
-                                                   .build();
+        TableParams tableParams =
+            TableParams.builder()
+                       .memtable(MemtableParams.get(memtableConfig))
+                       .build();
 
-        TableParams tableParams = tableMetadata.params;
-        tableParams = tableParams.unbuild().memtable(MemtableParams.get(memtableConfig)).build();
-        tableMetadata = tableMetadata.withSwapped(tableParams);
+        TableMetadata tableMetadata =
+            TableMetadata.builder(ks, tbl)
+                         .addPartitionKeyColumn("k", Int32Type.instance)
+                         .addRegularColumn("v", Int32Type.instance)
+                         .params(tableParams)
+                         .build();
 
         SchemaLoader.createKeyspace(ks, KeyspaceParams.simple(1, ReplicationType.tracked), tableMetadata);
 
@@ -183,6 +186,7 @@ public class CoordinatorLogOffsetsLifecycleTest
 
         // flush 1
         {
+            MutationTrackingService.instance.persistLogStateForTesting();
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             View view = cfs.getTracker().getView();
@@ -216,6 +220,7 @@ public class CoordinatorLogOffsetsLifecycleTest
 
         // flush 2
         {
+            MutationTrackingService.instance.persistLogStateForTesting();
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             View view = cfs.getTracker().getView();

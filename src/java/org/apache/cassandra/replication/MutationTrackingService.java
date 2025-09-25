@@ -556,6 +556,12 @@ public class MutationTrackingService
     }
 
     @VisibleForTesting
+    public void persistLogStateForTesting()
+    {
+        offsetsPersister.run();
+    }
+
+    @VisibleForTesting
     public void broadcastOffsetsForTesting()
     {
         offsetsBroadcaster.run(false);
