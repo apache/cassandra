@@ -58,7 +58,7 @@ public class MutationTrackingTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true"))
+                                                            .set("mutation_tracking.enabled", "true"))
                                       .start())
         {
 
@@ -80,7 +80,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
                 Assert.assertEquals(1, summaryIds.offsetCount());
@@ -94,7 +94,7 @@ public class MutationTrackingTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -130,7 +130,7 @@ public class MutationTrackingTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -146,7 +146,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.filters().verbs(Verb.MUTATION_REQ.id).to(3).drop();
 
             // pause reconciler temporarily
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.pauseActiveReconciler());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseActiveReconciler());
 
             // issue a write - should fail on node 3
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
@@ -157,21 +157,21 @@ public class MutationTrackingTest extends TestBaseImpl
             {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Assert.assertEquals(1, summary.get(logId).unreconciled.offsetCount());
                 Assert.assertEquals(0, summary.get(logId).reconciled.offsetCount());
             });
 
             // resume the reconciler
-            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.resumeActiveReconciler());
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().resumeActiveReconciler());
             Thread.sleep(1000); // wait for reconiciler to do its job
 
             cluster.get(1).runOnInstance(() ->
             {
                 TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
                 DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Assert.assertEquals(0, summary.get(logId).unreconciled.offsetCount());
                 Assert.assertEquals(1, summary.get(logId).reconciled.offsetCount());

@@ -280,7 +280,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
                 AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer);
+                    MutationTrackingService.instance().localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer);
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -449,7 +449,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         {
             Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(message.createdAtNanos());
             AsyncPromise<TrackedDataResponse> promise =
-                MutationTrackingService.instance
+                MutationTrackingService.instance()
                                        .localReads()
                                        .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null);
             promise.addCallback((response, error) -> {
@@ -563,6 +563,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         protected void performRead(Message<Request> message, ClusterMetadata metadata)
         {
+            MutationTrackingService.ensureEnabled();
             message.payload.executeLocally(message, metadata);
         }
 

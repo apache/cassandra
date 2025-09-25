@@ -155,7 +155,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withDefaultListeners();
         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                       wrapProcessor,
@@ -269,7 +269,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                            .withInitialState(emptyFromSystemTables)
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .withDefaultListeners();
 
@@ -377,7 +377,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .afterReplay(Startup::scrubDataDirectories,
                                                         (_metadata) -> StorageService.instance.registerMBeans(),
-                                                        MutationTrackingService.instance::start)
+                                                        MutationTrackingService::start)
                                            .withPreviousState(prev)
                                            .withInitialState(metadata)
                                            .withStorage(LogStorage.SystemKeyspace)

@@ -101,7 +101,7 @@ public class TrackedWriteRequest
         if (logger.isTraceEnabled())
             logger.trace("Local tracked request {} {}", mutation, plan);
         writeMetrics.localRequests.mark();
-        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+        MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
         TrackedWriteResponseHandler handler =
             TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime), id);
@@ -203,7 +203,7 @@ public class TrackedWriteRequest
         }
 
         if (remoteReplicas != null)
-            MutationTrackingService.instance.sentWriteRequest(mutation, remoteReplicas);
+            MutationTrackingService.instance().sentWriteRequest(mutation, remoteReplicas);
     }
 
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)

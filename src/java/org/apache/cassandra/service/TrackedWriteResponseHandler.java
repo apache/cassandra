@@ -49,14 +49,14 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     {
         // Local mutations are witnessed from Keyspace.applyInternalTracked
         if (msg != null)
-            MutationTrackingService.instance.receivedWriteResponse(mutationId, msg.from());
+            MutationTrackingService.instance().receivedWriteResponse(mutationId, msg.from());
         wrapped.onResponse(msg);
     }
 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        MutationTrackingService.instance.retryFailedWrite(mutationId, from, failure);
+        MutationTrackingService.instance().retryFailedWrite(mutationId, from, failure);
         wrapped.onFailure(from, failure);
     }
 

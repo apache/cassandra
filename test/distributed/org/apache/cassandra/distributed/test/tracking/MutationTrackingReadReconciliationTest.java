@@ -114,7 +114,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -192,7 +192,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -269,7 +269,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
@@ -345,7 +345,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("mutation_tracking.enabled", "true")
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {

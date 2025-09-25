@@ -3923,7 +3923,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             SnapshotManager.instance.shutdownAndWait(1L, MINUTES);
             HintsService.instance.shutdownBlocking();
-            MutationTrackingService.instance.shutdownBlocking();
+            MutationTrackingService.shutdown();
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();

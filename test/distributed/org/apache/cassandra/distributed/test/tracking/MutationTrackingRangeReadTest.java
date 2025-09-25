@@ -44,7 +44,7 @@ public class MutationTrackingRangeReadTest extends TestBaseImpl
     {
         cluster = Cluster.build()
                          .withNodes(REPLICAS)
-                         .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP).set("mutation_tracking_enabled", "true"))
+                         .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP).set("mutation_tracking.enabled", "true"))
                          .start();
     }
 

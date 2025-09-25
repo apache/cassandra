@@ -63,9 +63,10 @@ public class BroadcastLogOffsets
     }
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
+        MutationTrackingService.ensureEnabled();
         BroadcastLogOffsets replicatedOffsets = message.payload;
         logger.trace("Received replicated offsets {} from {}", replicatedOffsets, message.from());
-        MutationTrackingService.instance.updateReplicatedOffsets(replicatedOffsets.keyspace,
+        MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.keyspace,
                                                                  replicatedOffsets.range,
                                                                  replicatedOffsets.replicatedOffsets,
                                                                  replicatedOffsets.durable,

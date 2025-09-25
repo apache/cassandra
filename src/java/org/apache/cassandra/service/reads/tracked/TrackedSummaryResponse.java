@@ -23,6 +23,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 
 import java.io.IOException;
 
@@ -48,6 +49,7 @@ public class TrackedSummaryResponse
 
     public static final IVerbHandler<TrackedSummaryResponse> verbHandler = message ->
     {
+        MutationTrackingService.ensureEnabled();
         TrackedSummaryResponse response = message.payload;
         if (logger.isTraceEnabled())
             logger.trace("Received summary {} from {}, for {}", response.summary, message.from(), response.readId);

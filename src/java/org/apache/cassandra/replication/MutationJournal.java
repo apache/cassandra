@@ -46,13 +46,13 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class MutationJournal
 {
-    public static final MutationJournal instance = new MutationJournal();
+    public static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
 
     private final Journal<ShortMutationId, Mutation> journal;
 
     private MutationJournal()
     {
-        this(new File(DatabaseDescriptor.getCommitLogLocation()), new JournalParams());
+        this(new File(DatabaseDescriptor.getMutationTrackingJournalDirectory()), new JournalParams());
     }
 
     @VisibleForTesting

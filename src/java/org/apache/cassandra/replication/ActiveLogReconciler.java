@@ -134,13 +134,13 @@ public final class ActiveLogReconciler implements Shutdownable
         @Override
         public void onResponse(Message<NoPayload> msg)
         {
-            MutationTrackingService.instance.receivedWriteResponse(mutationId, toHost);
+            MutationTrackingService.instance().receivedWriteResponse(mutationId, toHost);
         }
 
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
         {
-            MutationTrackingService.instance.retryFailedWrite(mutationId, toHost, failureReason);
+            MutationTrackingService.instance().retryFailedWrite(mutationId, toHost, failureReason);
         }
 
         void send()

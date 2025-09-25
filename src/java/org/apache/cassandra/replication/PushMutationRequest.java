@@ -141,6 +141,7 @@ public interface PushMutationRequest
         @Override
         public void doVerb(Message<Materialized> message)
         {
+            MutationTrackingService.ensureEnabled();
             if (approxTime.now() > message.expiresAtNanos())
             {
                 Tracing.trace("Discarding mutation from {} (timed out)", message.from());

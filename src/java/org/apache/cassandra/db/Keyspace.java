@@ -399,7 +399,7 @@ public class Keyspace
 
     public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return getMetadata().useMutationTracking()
+        return getMetadata().useMutationTracking() && MutationTrackingService.isEnabled()
              ? applyInternalTracked(mutation, new AsyncPromise<>())
              : applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
     }
@@ -608,6 +608,7 @@ public class Keyspace
      */
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
+        MutationTrackingService.ensureEnabled();
         Preconditions.checkState(getMetadata().useMutationTracking() && !mutation.id().isNone());
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
@@ -616,7 +617,7 @@ public class Keyspace
         boolean started;
         try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
         {
-            started = MutationTrackingService.instance.startWriting(mutation);
+            started = MutationTrackingService.instance().startWriting(mutation);
 
             if (started)
             {
@@ -635,7 +636,7 @@ public class Keyspace
         }
 
         if (started)
-            MutationTrackingService.instance.finishWriting(mutation);
+            MutationTrackingService.instance().finishWriting(mutation);
 
 
         if (future != null)

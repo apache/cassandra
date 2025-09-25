@@ -105,7 +105,7 @@ public class ForwardedWrite
             String keyspaceName = mutation.getKeyspaceName();
             Token token = mutation.key().getToken();
 
-            MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+            MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
             LeaderCallback handler = new LeaderCallback(id, ackTo);
             applyLocallyAndForwardToReplicas(mutation.withMutationId(id), recipients, handler, ackTo);
@@ -276,6 +276,7 @@ public class ForwardedWrite
 
     public static final IVerbHandler<MutationRequest> verbHandler = incoming ->
     {
+        MutationTrackingService.ensureEnabled();
         if (approxTime.now() > incoming.expiresAtNanos())
         {
             Tracing.trace("Discarding mutation from {} (timed out)", incoming.from());
@@ -317,7 +318,7 @@ public class ForwardedWrite
         {
             // Local mutations are witnessed from Keyspace.applyInternalTracked
             if (msg != null)
-                MutationTrackingService.instance.receivedWriteResponse(id, msg.from());
+                MutationTrackingService.instance().receivedWriteResponse(id, msg.from());
 
             // Local write needs to be ack'd to coordinator
             if (msg == null && ackTo != null)

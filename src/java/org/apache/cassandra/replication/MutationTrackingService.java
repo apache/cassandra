@@ -40,6 +40,7 @@ import com.google.common.base.Preconditions;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
@@ -79,7 +80,61 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
-    private static final ScheduledExecutorPlus executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+
+    private static final MutationTrackingService instance;
+    private static final ScheduledExecutorPlus executor;
+
+    static
+    {
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+        {
+            instance = new MutationTrackingService();
+            executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+        }
+        else
+        {
+            instance = null;
+            executor = null;
+        }
+    }
+
+    /**
+     * Callers of this method should have validated that mutation tracking is enabled
+     * @return
+     */
+    public static MutationTrackingService instance()
+    {
+        if (instance == null)
+            throw new IllegalStateException("Mutation tracking is not enabled");
+        return instance;
+    }
+
+    public static boolean isEnabled()
+    {
+        return DatabaseDescriptor.getMutationTrackingEnabled();
+    }
+
+    public static void ensureEnabled()
+    {
+        if (!DatabaseDescriptor.getMutationTrackingEnabled())
+        {
+            throw new IllegalStateException("Mutation tracking is not enabled");
+        }
+    }
+
+    public static void start(ClusterMetadata metadata)
+    {
+        if (!isEnabled())
+            return;
+        instance().start(metadata);
+    }
+
+    public static void shutdown() throws InterruptedException
+    {
+        if (!isEnabled())
+            return;
+        instance().shutdownBlocking();
+    }
 
     /**
      * Split ranges into this many shards.
@@ -89,7 +144,6 @@ public class MutationTrackingService
     private static final int SHARD_MULTIPLIER = 8;
 
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
-    public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
     private final ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
@@ -107,7 +161,7 @@ public class MutationTrackingService
     private MutationTrackingService() {}
 
     // TODO (expected): implement a TCM ChangeListener
-    public synchronized void start(ClusterMetadata metadata)
+    private synchronized void startInternal(ClusterMetadata metadata)
     {
         if (started)
             return;
@@ -133,7 +187,7 @@ public class MutationTrackingService
         return started;
     }
 
-    public void shutdownBlocking() throws InterruptedException
+    private void shutdownBlocking() throws InterruptedException
     {
         // TODO: FIXME
         activeReconciler.shutdownBlocking();
