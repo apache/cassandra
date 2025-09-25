@@ -838,7 +838,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
                              // Enable mutation tracking and transient replication for tracked modes
                              if (builder.replicationConfig.isTracked())
-                                 config.set("mutation_tracking_enabled", "true");
+                                 config.set("mutation_tracking.enabled", true);
                              if (builder.replicationConfig.withWitnesses())
                                  config.set("transient_replication_enabled", "true");
 

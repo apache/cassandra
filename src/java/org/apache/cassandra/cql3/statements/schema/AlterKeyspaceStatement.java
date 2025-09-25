@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -51,6 +52,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_TRANSIENT_CHANGES;
+import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 
 public final class AlterKeyspaceStatement extends AlterSchemaStatement
 {
@@ -69,6 +71,35 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
+    @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        if (null == keyspace)
+        {
+            if (!ifExists)
+                throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+            return;
+        }
+
+        KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
+
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+            Guardrails.simpleStrategyEnabled.ensureEnabled(state);
+
+        if (newKeyspace.params.replicationType.isTracked() && !keyspace.params.replicationType.isTracked())
+        {
+            if (SchemaConstants.isSystemKeyspace(keyspaceName))
+                throw ire("Mutation tracking is not supported on system keyspaces");
+
+            if (!DatabaseDescriptor.getMutationTrackingEnabled())
+                throw ire(DISABLED_MESSAGE);
+        }
+    }
+
+    @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
@@ -83,9 +114,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         }
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
-
-        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
-            Guardrails.simpleStrategyEnabled.ensureEnabled(state);
 
         if (keyspace.params.replication.isMeta() && !keyspace.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
             throw ire("Can not alter a keyspace to use MetaReplicationStrategy");

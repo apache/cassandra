@@ -62,7 +62,7 @@ public class RepairedDataVerifierTest
     public static void init()
     {
         SchemaLoader.loadSchema();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         DatabaseDescriptor.reportUnconfirmedRepairedDataMismatches(true);
     }

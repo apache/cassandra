@@ -64,9 +64,8 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
         // TODO: disable background reconciliation so we can test that writes are reconciling immediately
         try (Cluster cluster = Cluster.build(NODES)
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("write_request_timeout", "1000ms"))
+                                                                          .with(Feature.GOSSIP)
+                                                                          .set("write_request_timeout", "1000ms"))
                                       .withNodeIdTopology(topology)
                                       .start())
         {
@@ -97,7 +96,7 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
                     Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
                     Range<Token> fullRange = new Range<>(token, token);
                     TableId tableId = Schema.instance.getTableMetadata(keyspaceName, tableName).id;
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForRange(fullRange, tableId, true);
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForRange(fullRange, tableId, true);
                     return summary.reconciledIds();
                 });
 
@@ -105,7 +104,7 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
                     Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
                     Range<Token> fullRange = new Range<>(token, token);
                     TableId tableId = Schema.instance.getTableMetadata(keyspaceName, tableName).id;
-                    MutationSummary summary = MutationTrackingService.instance.createSummaryForRange(fullRange, tableId, true);
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForRange(fullRange, tableId, true);
                     return summary.unreconciledIds();
                 });
 

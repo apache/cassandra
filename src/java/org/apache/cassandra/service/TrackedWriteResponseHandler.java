@@ -56,7 +56,7 @@ public class TrackedWriteResponseHandler<T> extends AbstractWriteResponseHandler
         {
             if (logger.isTraceEnabled())
                 logger.trace("Received write response for mutation {} from {}", mutationId, msg.from());
-            MutationTrackingService.instance.receivedWriteResponse(mutationId, msg.from());
+            MutationTrackingService.instance().receivedWriteResponse(mutationId, msg.from());
         }
         wrapped.onResponse(msg);
     }
@@ -66,7 +66,7 @@ public class TrackedWriteResponseHandler<T> extends AbstractWriteResponseHandler
     {
         if (logger.isTraceEnabled())
             logger.trace("Write failed for mutation {} from {}: {}", mutationId, from, failure);
-        MutationTrackingService.instance.retryFailedWrite(mutationId, from, failure);
+        MutationTrackingService.instance().retryFailedWrite(mutationId, from, failure);
         wrapped.onFailure(from, failure);
     }
 

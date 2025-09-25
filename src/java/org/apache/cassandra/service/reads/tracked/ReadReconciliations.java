@@ -222,7 +222,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
                 if (logId.hostId() != LOCAL_NODE)
                     continue;
 
-                MutationTrackingService.instance.collectRemotelyMissingMutations(ourOffsets, remoteNodes, missingOffsets);
+                MutationTrackingService.instance().collectRemotelyMissingMutations(ourOffsets, remoteNodes, missingOffsets);
                 // we don't listen to or block on delivery of these mutations, intentionally
                 missingOffsets.forEach(ReadReconciliations::push);
                 missingOffsets.clear();
@@ -239,7 +239,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         boolean acceptRemoteSummary(MutationSummary summary, int remoteNode)
         {
             Log2OffsetsMap.Mutable missingMutations = new Log2OffsetsMap.Mutable();
-            MutationTrackingService.instance.collectLocallyMissingMutations(summary, missingMutations);
+            MutationTrackingService.instance().collectLocallyMissingMutations(summary, missingMutations);
 
             // don't request what's already been requested for other remote summaries
             // TODO (consider): rely entirely on IncomingMutations deduplication instead
@@ -363,7 +363,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         private boolean complete()
         {
             if (isDataNode())
-                MutationTrackingService.instance.localReads().acknowledgeReconcile(id, augmentingOffsets());
+                MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());
             else
                 MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_ACK, new ReadReconcileAck(id)), host(dataNode));
 
@@ -392,7 +392,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
 
         Offsets.Mutable toPull = new Offsets.Mutable(offsets.logId());
         for (ShortMutationId id : offsets)
-            if (MutationTrackingService.instance.registerMutationCallback(id, callback))
+            if (MutationTrackingService.instance().registerMutationCallback(id, callback))
                 toPull.add(id.offset());
 
         if (!toPull.isEmpty())

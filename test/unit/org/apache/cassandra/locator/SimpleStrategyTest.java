@@ -82,7 +82,6 @@ public class SimpleStrategyTest extends CassandraTestBase
     @Before
     public void defineSchema()
     {
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));

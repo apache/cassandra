@@ -26,6 +26,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.replication.MutationTrackingService;
 
 /**
  * Notifies the reconcile coordinator (data node) that this node has received
@@ -50,6 +51,7 @@ public class ReadReconcileAck
 
     public static final IVerbHandler<ReadReconcileAck> verbHandler = message ->
     {
+        MutationTrackingService.ensureEnabled();
         ReadReconcileAck notify = message.payload;
         logger.trace("Received reconcile ack from {}, for {}", message.from(), notify.readId);
         ReadReconciliations.instance.acceptSyncAck(message.from(), notify.readId);

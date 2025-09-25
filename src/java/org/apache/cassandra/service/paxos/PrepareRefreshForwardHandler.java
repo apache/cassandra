@@ -90,7 +90,7 @@ public class PrepareRefreshForwardHandler implements IVerbHandler<PrepareRefresh
             }
 
             Token token = request.commit.partitionKey().getToken();
-            MutationId mutationId = MutationTrackingService.instance.nextMutationId(ksName, token);
+            MutationId mutationId = MutationTrackingService.instance().nextMutationId(ksName, token);
 
             Mutation mutationWithId = request.commit.makeMutation(mutationId);
             Committed commitWithId = new Commit.Committed(request.commit.ballot, mutationWithId);

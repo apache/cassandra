@@ -95,7 +95,6 @@ public class BootstrapTransientTest extends CassandraTestBase
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
-        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         address02 = InetAddressAndPort.getByName("127.0.0.2");
         address03 = InetAddressAndPort.getByName("127.0.0.3");

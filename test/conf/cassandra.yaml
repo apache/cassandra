@@ -68,6 +68,10 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
+mutation_tracking:
+  enabled: true
+  journal_directory: build/test/cassandra/mutation_journal
+
 accord:
     enabled: true
     journal_directory: build/test/cassandra/accord_journal

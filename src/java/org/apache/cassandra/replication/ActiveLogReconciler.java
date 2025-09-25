@@ -161,21 +161,21 @@ public final class ActiveLogReconciler implements Shutdownable
         @Override
         public void onResponse(Message<NoPayload> msg)
         {
-            MutationTrackingService.instance.receivedWriteResponse(mutationId, toHost);
+            MutationTrackingService.instance().receivedWriteResponse(mutationId, toHost);
         }
 
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
         {
-            MutationTrackingService.instance.retryFailedWrite(mutationId, toHost, failureReason);
+            MutationTrackingService.instance().retryFailedWrite(mutationId, toHost, failureReason);
         }
 
         void send()
         {
-            RecordPointer pointer = MutationJournal.instance.lookUp(mutationId);
+            RecordPointer pointer = MutationJournal.instance().lookUp(mutationId);
             Preconditions.checkNotNull(pointer, "Mutation %s not found in the journal", mutationId);
 
-            MutationJournal.instance.read(pointer, (segment, position, key, buffer, version) -> {
+            MutationJournal.instance().read(pointer, (segment, position, key, buffer, version) -> {
 
                 // don't send mutations to nodes that have migrated to, or are in the process of migrating to untracked replication
                 try (DataInputBuffer in = new DataInputBuffer(buffer, true))
@@ -227,7 +227,7 @@ public final class ActiveLogReconciler implements Shutdownable
         public void onResponse(Message<NoPayload> msg)
         {
             logger.debug("Received activation ack for TransferTask from {}", toHost);
-            MutationTrackingService.instance.receivedActivationResponse(transfer, toHost);
+            MutationTrackingService.instance().receivedActivationResponse(transfer, toHost);
         }
 
         @Override
@@ -239,7 +239,7 @@ public final class ActiveLogReconciler implements Shutdownable
         public void onFailure(Throwable cause)
         {
             logger.debug("Received activation failure for TransferTask from {} due to", toHost, cause);
-            MutationTrackingService.instance.retryFailedTransfer(transfer, toHost, cause);
+            MutationTrackingService.instance().retryFailedTransfer(transfer, toHost, cause);
         }
 
         void send()

@@ -257,7 +257,7 @@ public class CassandraDaemon
 
         Keyspace.setInitialized();
         CommitLog.instance.start();
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         SnapshotManager.instance.start(false);
         SnapshotManager.instance.clearExpiredSnapshots();
@@ -340,7 +340,9 @@ public class CassandraDaemon
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
-            MutationJournal.instance.replayStaticSegments();
+
+            if (DatabaseDescriptor.getMutationTrackingEnabled())
+                MutationJournal.instance().replayStaticSegments();
         }
         catch (IOException e)
         {

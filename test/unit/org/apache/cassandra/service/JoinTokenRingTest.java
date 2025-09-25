@@ -46,7 +46,7 @@ public class JoinTokenRingTest
         DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         SchemaLoader.schemaDefinition("JoinTokenRingTest");
     }
 

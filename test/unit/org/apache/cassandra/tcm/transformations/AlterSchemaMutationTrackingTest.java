@@ -59,7 +59,7 @@ public class AlterSchemaMutationTrackingTest
         CassandraRelevantProperties.PARTITIONER.setString(Murmur3Partitioner.class.getName());
         ServerTestUtils.daemonInitialization();
         ServerTestUtils.prepareServer();
-        MutationJournal.instance.start();
+        MutationJournal.start();
         partitioner = (Murmur3Partitioner) DatabaseDescriptor.getPartitioner();
     }
 

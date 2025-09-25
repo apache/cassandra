@@ -235,7 +235,7 @@ public class SSTableImporter
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
             if (isTracked)
-                MutationTrackingService.instance.executeTransfers(cfs.keyspace.getName(), newSSTables, ConsistencyLevel.ALL);
+                MutationTrackingService.instance().executeTransfers(cfs.keyspace.getName(), newSSTables, ConsistencyLevel.ALL);
             else
                 cfs.getTracker().addSSTables(newSSTables);
 

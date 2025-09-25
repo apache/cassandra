@@ -124,7 +124,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+        return MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
     }
 
     public static MutationSummary summaryForTable(String keyspaceName, String tableName)
@@ -161,7 +161,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance.createSummaryForRange(range, table.id, false);
+        return MutationTrackingService.instance().createSummaryForRange(range, table.id, false);
     }
 
     public static Offsets summaryIdSpace(CoordinatorSummary summary)
@@ -296,7 +296,7 @@ public class MutationTrackingUtils
     public static Mutation createMutation(TableMetadata tableMetadata, int k, int v)
     {
         DecoratedKey key = tableMetadata.partitioner.decorateKey(ByteBufferUtil.bytes(k));
-        MutationId mutationId = MutationTrackingService.instance.nextMutationId(tableMetadata.keyspace, key.getToken());
+        MutationId mutationId = MutationTrackingService.instance().nextMutationId(tableMetadata.keyspace, key.getToken());
         SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(mutationId, tableMetadata.keyspace, key);
         PartitionUpdate.SimpleBuilder partition = builder.update(tableMetadata);
         partition.row().add("v", v);

@@ -1072,7 +1072,7 @@ public class StorageProxy implements StorageProxyMBean
         MutationId mutationId;
         if (proposal.mutation.id().isNone())
         {
-            mutationId = MutationTrackingService.instance.nextMutationId(keyspaceName, tk);
+            mutationId = MutationTrackingService.instance().nextMutationId(keyspaceName, tk);
             proposal = proposal.withMutationId(mutationId);
         }
         else
@@ -1139,7 +1139,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // Register write request with tracking service
         if (!remoteReplicas.isEmpty())
-            MutationTrackingService.instance.sentWriteRequest(proposal.makeMutation(), remoteReplicas);
+            MutationTrackingService.instance().sentWriteRequest(proposal.makeMutation(), remoteReplicas);
 
         if (shouldBlock)
             responseHandler.get();

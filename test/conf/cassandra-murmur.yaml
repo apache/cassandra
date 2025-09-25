@@ -44,3 +44,5 @@ sasi_indexes_enabled: true
 materialized_views_enabled: true
 accord:
     journal_directory: build/test/cassandra/accord_journal
+mutation_tracking:
+  journal_directory: build/test/cassandra/mutation_journal

@@ -82,7 +82,6 @@ public class WitnessAlwaysReadsFullReplicaTest extends SharedClusterTestBase
         setupCluster(6, builder -> builder.withRacks(2, 1, 3)  // 2 DCs with 3 nodes each
                                           .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                                 .with(Feature.GOSSIP)
-                                                                .set("mutation_tracking_enabled", "true")
                                                                 .set("transient_replication_enabled", "true")
                                                                 .set("dynamic_snitch", false)  // Disable dynamic snitch
                                                                 .set("node_proximity", TransientFirstProximity.class.getName()))); // Use our custom proximity

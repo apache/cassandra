@@ -74,7 +74,7 @@ public class MutationJournalTest
         directory.deleteRecursiveOnExit();
 
         journal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
-        journal.start();
+        journal.startInternal();
     }
 
     @AfterClass

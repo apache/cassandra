@@ -109,7 +109,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
             {
                 // We ARE a replica - generate mutation ID and update the commit
                 String keyspaceName = commit.metadata().keyspace;
-                MutationId mutationId = MutationTrackingService.instance.nextMutationId(keyspaceName, commit.partitionKey().getToken());
+                MutationId mutationId = MutationTrackingService.instance().nextMutationId(keyspaceName, commit.partitionKey().getToken());
                 Mutation mutationWithId = commit.makeMutation(mutationId);
                 Committed commitWithId = new Commit.Committed(commit.ballot, mutationWithId);
 

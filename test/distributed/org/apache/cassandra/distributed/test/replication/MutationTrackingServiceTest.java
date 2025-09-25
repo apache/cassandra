@@ -46,7 +46,7 @@ public class MutationTrackingServiceTest extends TestBaseImpl
 
             // Test that shards remain the same object (no reconfiguration)
             Boolean shardsUnchanged = cluster.get(1).callOnInstance(() -> {
-                var service = MutationTrackingService.instance;
+                var service = MutationTrackingService.instance();
                 Object initialShards = MutationTrackingService.TestAccess.getKeyspaceShards(service, KS_NAME);
                 Object newShards = MutationTrackingService.TestAccess.getKeyspaceShards(service, KS_NAME);
                 return initialShards == newShards; // Same object reference

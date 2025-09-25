@@ -68,7 +68,7 @@ public class CoordinatorLogTest
                                                  .addClusteringColumn("ck", UTF8Type.instance)
                                                  .addRegularColumn("value", UTF8Type.instance)
                                                  .build());
-        MutationJournal.instance.start();
+        MutationJournal.start();
     }
 
     private static Token tk(String key)
@@ -176,8 +176,8 @@ public class CoordinatorLogTest
         Mutation mutation2 = createMutation(new MutationId(logId.asLong(), MutationId.sequenceId(2, 0)));
         unreconciled.addDirectly(mutation1);
         unreconciled.addDirectly(mutation2);
-        MutationJournal.instance.write(mutation1.id(), mutation1);
-        MutationJournal.instance.write(mutation2.id(), mutation2);
+        MutationJournal.instance().write(mutation1.id(), mutation1);
+        MutationJournal.instance().write(mutation2.id(), mutation2);
 
         CoordinatorLog log =
             CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);

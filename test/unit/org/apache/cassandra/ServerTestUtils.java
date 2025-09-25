@@ -155,7 +155,7 @@ public final class ServerTestUtils
         daemonInitialization();
 
         // Need to happen after daemonInitialization for config to be set, but before CFS initialization
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         if (isServerPrepared)
             return;

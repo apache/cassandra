@@ -138,7 +138,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         if (cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable())
         {
             PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
-            MutationTrackingService.instance.received(transfer);
+            MutationTrackingService.instance().received(transfer);
         }
     }
 
