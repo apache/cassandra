@@ -236,7 +236,7 @@ public class CoordinatorLogOffsetsTest
     public void reconciledBounds() throws InterruptedException, ExecutionException {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         String ks = "ks";
         String tbl = "tbl";

@@ -61,7 +61,7 @@ public class CoordinatorLogOffsetsLifecycleTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
-        MutationJournal.instance.start();
+        MutationJournal.start();
     }
 
     @BeforeClass

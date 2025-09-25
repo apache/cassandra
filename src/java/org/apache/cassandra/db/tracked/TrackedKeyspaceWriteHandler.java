@@ -40,7 +40,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             group = Keyspace.writeOrder.start();
 
             Tracing.trace("Appending to mutation journal");
-            RecordPointer pointer = MutationJournal.instance.write(mutation.id(), mutation);
+            RecordPointer pointer = MutationJournal.instance().write(mutation.id(), mutation);
 
             // TODO (preferred): update journal to return CommitLogPosition or otherwise remove requirement to allocate second object here
             return new CassandraWriteContext(group, new CommitLogPosition(pointer.segment, pointer.position));

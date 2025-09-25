@@ -97,7 +97,7 @@ public interface PartialTrackedRead
 
     default void augment(ShortMutationId mutationId)
     {
-        Mutation mutation = MutationJournal.instance.read(mutationId);
+        Mutation mutation = MutationJournal.instance().read(mutationId);
         Preconditions.checkNotNull(mutation);
         if (!command().selectsKey(mutation.key()))
         {

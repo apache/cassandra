@@ -257,7 +257,7 @@ public class CassandraDaemon
 
         Keyspace.setInitialized();
         CommitLog.instance.start();
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         SnapshotManager.instance.start(false);
         SnapshotManager.instance.clearExpiredSnapshots();

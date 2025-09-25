@@ -3933,7 +3933,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.forceRecycleAllSegments();
 
             CommitLog.instance.shutdownBlocking();
-            MutationJournal.instance.shutdownBlocking();
+            MutationJournal.shutdown();
 
             AutoRepair.instance.shutdownBlocking();
 

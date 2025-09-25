@@ -56,7 +56,7 @@ public class ShardTest
                                                  .addClusteringColumn("ck", UTF8Type.instance)
                                                  .addRegularColumn("value", UTF8Type.instance)
                                                  .build());
-        MutationJournal.instance.start();
+        MutationJournal.start();
     }
 
     private static Token tk(String key)

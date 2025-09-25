@@ -229,7 +229,7 @@ public class UnreconciledMutations
             for (int offset = iter.start(), end = iter.end(); offset <= end; offset++)
             {
                 ShortMutationId id = new ShortMutationId(witnessed.logId, offset);
-                result.addDirectly(MutationJournal.instance.read(id));
+                result.addDirectly(MutationJournal.instance().read(id));
             }
         }
 

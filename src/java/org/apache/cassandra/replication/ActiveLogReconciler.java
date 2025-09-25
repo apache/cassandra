@@ -145,7 +145,7 @@ public final class ActiveLogReconciler implements Shutdownable
 
         void send()
         {
-            RecordPointer pointer = MutationJournal.instance.lookUp(mutationId);
+            RecordPointer pointer = MutationJournal.instance().lookUp(mutationId);
             Preconditions.checkNotNull(pointer, "Mutation %s not found in the journal", mutationId);
 
             Message<PushMutationRequest> message =

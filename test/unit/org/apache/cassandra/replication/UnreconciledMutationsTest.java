@@ -422,7 +422,7 @@ public class UnreconciledMutationsTest
     @Test
     public void testLoadFromJournal()
     {
-        MutationJournal.instance.start();
+        MutationJournal.start();
 
         CoordinatorLogId logId = new CoordinatorLogId(1, 1);
 
@@ -438,8 +438,8 @@ public class UnreconciledMutationsTest
 
         Mutation mutation6 = createMutation(6, 6, 6);
         Mutation mutation7 = createMutation(7, 7, 7);
-        MutationJournal.instance.write(mutation6.id(), mutation6);
-        MutationJournal.instance.write(mutation7.id(), mutation7);
+        MutationJournal.instance().write(mutation6.id(), mutation6);
+        MutationJournal.instance().write(mutation7.id(), mutation7);
 
         Offsets.Mutable loadedOffsets = new Offsets.Mutable(logId);
         UnreconciledMutations unreconciled = UnreconciledMutations.loadFromJournal(witnessed, 1);
