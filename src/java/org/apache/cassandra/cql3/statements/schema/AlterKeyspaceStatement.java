@@ -87,6 +87,15 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
             Guardrails.simpleStrategyEnabled.ensureEnabled(state);
 
+        if (newKeyspace.params.replicationType.isTracked() && !keyspace.params.replicationType.isTracked())
+        {
+            if (SchemaConstants.isSystemKeyspace(keyspaceName))
+                throw ire("Mutation tracking is not supported on system keyspaces");
+
+            if (!DatabaseDescriptor.getMutationTrackingEnabled())
+                throw ire("Mutation tracking is disabled. Enable in cassandra.yaml to use.");
+        }
+ 
         if (keyspace.params.replication.isMeta() && !keyspace.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
             throw ire("Can not alter a keyspace to use MetaReplicationStrategy");
 

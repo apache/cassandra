@@ -27,6 +27,7 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -83,6 +84,17 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
 
+        if (keyspaceMetadata.params.replicationType.isTracked())
+        {
+            if (SchemaConstants.isSystemKeyspace(keyspaceName))
+                throw ire("Mutation tracking is not supported on system keyspaces");
+
+            if (!DatabaseDescriptor.getMutationTrackingEnabled())
+            {
+                throw ire("Mutation tracking is disabled. Enable in cassandra.yaml to use.");
+            }
+        }
+ 
         if (keyspaceMetadata.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
