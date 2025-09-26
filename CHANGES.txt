@@ -179,6 +179,7 @@ Uber specific changes:
 <begin>
  * [SO-51721] Add support for switching on/off QAN at runtime
  * [SO-51787] SLI logs should log the query message
+ * [SO-50760] Add Unit Test for Repair Disk Headroom Check During Repair
  * [SO-51734] Add SSTable Direct Reading Infrastructure for MV Backfill
  * [SO-51432] BaseRead generator for MV key rebuild
  * [SO-34269] Productionize QAN MVP: Optimize QAN Schema
