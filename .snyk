@@ -3,7 +3,7 @@
 version: v1.25.0
 ignore:
   CVE-2023-44487:
-    - reason: https://issues.apache.org/jira/browse/CASSANDRA-18943 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2023-6378:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
   CVE-2023-6481:
@@ -12,7 +12,19 @@ ignore:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
   CVE-2024-12801:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
+  CVE-2024-29025:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2024-45772:
     - reason: https://issues.apache.org/jira/browse/CASSANDRA-20024 -- ^pkg:maven/org\.apache\.lucene/lucene\-.*@9.7.0$
+  CVE-2024-47535:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-24970:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2025-25193:
-    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20504 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-55163:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-58056:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-58057:
+    - reason: https://issues.apache.org/jira/browse/CASSANDRA-20924 -- ^pkg:maven/io\.netty/netty\-.*@.*$
