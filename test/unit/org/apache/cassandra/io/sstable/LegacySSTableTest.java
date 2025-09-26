@@ -249,28 +249,13 @@ public class LegacySSTableTest
                     TimeUUID random = nextTimeUUID();
                     try
                     {
-                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, random, false);
+                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, random);
                         if (!sstable.descriptor.version.hasPendingRepair())
                             fail("We should fail setting pending repair on unsupported sstables "+sstable);
                     }
                     catch (IllegalStateException e)
                     {
                         if (sstable.descriptor.version.hasPendingRepair())
-                            fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
-                    }
-                }
-                // set transient
-                for (SSTableReader sstable : cfs.getLiveSSTables())
-                {
-                    try
-                    {
-                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, nextTimeUUID(), true);
-                        if (!sstable.descriptor.version.hasIsTransient())
-                            fail("We should fail setting pending repair on unsupported sstables "+sstable);
-                    }
-                    catch (IllegalStateException e)
-                    {
-                        if (sstable.descriptor.version.hasIsTransient())
                             fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }

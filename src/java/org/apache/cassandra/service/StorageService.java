@@ -5716,7 +5716,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
                 Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
                 if (!preview)
-                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null);
                 return sstables;
             }, predicate, OperationType.ANTICOMPACTION, true, false, true);
             sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));

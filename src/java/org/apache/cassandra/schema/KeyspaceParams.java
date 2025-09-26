@@ -142,6 +142,10 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), replicationType);
     }
 
+    public static KeyspaceParams ntsTracked(Object... args)
+    {
+        return nts(ReplicationType.tracked, args);
+    }
 
     public static KeyspaceParams nts(Object... args)
     {
