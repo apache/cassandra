@@ -137,6 +137,8 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
+
+        Guardrails.keyspaceProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
     }
 
     public static final class Raw extends CQLStatement.Raw

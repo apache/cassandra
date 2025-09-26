@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.*;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -54,6 +55,11 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         FastPathStrategy strategy = getFastPathStrategy();
         if (strategy != null && strategy.kind() == FastPathStrategy.Kind.INHERIT_KEYSPACE)
             throw new ConfigurationException("Cannot use keyspace inheriting fast path strategy with keyspaces");
+    }
+    
+    public static Set<String> allKeywords()
+    {
+        return Sets.union(validKeywords, obsoleteKeywords);
     }
 
     public String getReplicationStrategyClass()

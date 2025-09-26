@@ -127,6 +127,21 @@ public interface GuardrailsConfig
     Set<String> getTablePropertiesDisallowed();
 
     /**
+     * @return The keyspace properties that are warned about when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesWarned();
+
+    /**
+     * @return The keyspace properties that are ignored when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesIgnored();
+
+    /**
+     * @return The keyspace properties that are disallowed when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesDisallowed();
+
+    /**
      * Returns whether user-provided timestamps are allowed.
      *
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
