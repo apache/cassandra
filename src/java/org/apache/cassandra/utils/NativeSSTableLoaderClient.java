@@ -60,7 +60,8 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     public void init(String keyspace)
     {
-        Cluster.Builder builder = Cluster.builder().addContactPointsWithPorts(hosts).allowBetaProtocolVersion();
+        // SO-51591: change to use V4 for Marmaray team
+        Cluster.Builder builder = Cluster.builder().addContactPointsWithPorts(hosts).withProtocolVersion(ProtocolVersion.V4);
 
         if (sslOptions != null)
             builder.withSSL(sslOptions);
@@ -219,7 +220,8 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         String name = row.getString("column_name");
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
-        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
+        // SO-51591: change to check null for Marmaray team
+        ColumnMetadata.Kind kind = row.isNull("kind") ? null : ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
         ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind);
         long droppedTime = row.getTimestamp("dropped_time").getTime();
         return new DroppedColumn(column, droppedTime);

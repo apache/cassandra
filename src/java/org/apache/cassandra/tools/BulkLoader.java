@@ -290,7 +290,8 @@ public class BulkLoader
         return sslOptions;
     }
 
-    static class ExternalClient extends NativeSSTableLoaderClient
+    // SO-51591: change to public for Marmaray team
+   public static class ExternalClient extends NativeSSTableLoaderClient
     {
         private final int storagePort;
         private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;

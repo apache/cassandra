@@ -17,16 +17,14 @@
 # limitations under the License.
 #
 
-# when publishing JAVA8 make sure to change the version so it won't conflict with JAVA11 builds
-
 set -ex
 
 echo "BRANCH: $BRANCH"
 echo "RELEASE: $RELEASE"
 
-# env setup (Java8, ant)
+# env setup (Java11, ant)
 source "./.jenkins/env_setup.sh"
-j8Setup
+j11Setup
 antSetup
 
 ant realclean
