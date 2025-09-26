@@ -263,7 +263,7 @@ public class CoordinatorLogOffsetsTest
         ClusterMetadataTestHelper.createKeyspace(ks, KeyspaceParams.simple(3, ReplicationType.tracked));
         ClusterMetadataTestHelper.commit(new AlterSchema(SchemaTransformations.addTable(tableMetadata, false)));
 
-        MutationTrackingService.instance().start(metadata);
+        MutationTrackingService.start(metadata);
 
         // Eventually, will also run perturbations before checking isReconciled (like log truncation, durability, etc.)
         // to ensure that we don't prune data required to check what's been reconciled
