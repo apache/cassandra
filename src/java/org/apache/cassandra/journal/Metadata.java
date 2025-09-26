@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.zip.CRC32;
 
-import accord.utils.Invariants;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.Crc;
 
@@ -38,20 +37,21 @@ public final class Metadata
 {
     private int fsyncLimit;
     // Indicates whether a segment needs to be replayed or no.
-    private volatile boolean needsReplay = true;
+    private volatile boolean needsReplay;
     private volatile int recordsCount;
     private static final AtomicIntegerFieldUpdater<Metadata> recordsCountUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Metadata.class, "recordsCount");
 
     static Metadata empty()
     {
-        return new Metadata(0, 0);
+        return new Metadata(0, 0,  true);
     }
 
-    private Metadata(int recordsCount, int fsyncLimit)
+    private Metadata(int recordsCount, int fsyncLimit, boolean needsReplay)
     {
         this.recordsCount = recordsCount;
         this.fsyncLimit = fsyncLimit;
+        this.needsReplay = needsReplay;
     }
 
     void update()
@@ -64,10 +64,9 @@ public final class Metadata
         this.fsyncLimit = fsyncLimit;
     }
 
-    public void needsReplay(boolean needsReplay)
+    public void clearNeedsReplay()
     {
-        Invariants.require(this.needsReplay && !needsReplay, "needsReplay can only go from true to false. Old value: %s, new value: %s", this.needsReplay, needsReplay);
-        this.needsReplay = needsReplay;
+        this.needsReplay = false;
     }
 
     int fsyncLimit()
@@ -112,7 +111,7 @@ public final class Metadata
         updateChecksumInt(crc, fsyncLimit);
         updateChecksumInt(crc, needsReplay ? 1 : 0);
         validateCRC(crc, in.readInt());
-        return new Metadata(recordsCount, fsyncLimit);
+        return new Metadata(recordsCount, fsyncLimit, needsReplay);
     }
 
     void persist(Descriptor descriptor)
@@ -162,7 +161,7 @@ public final class Metadata
                 throw e;
         }
 
-        return new Metadata(recordsCount, fsyncLimit);
+        return new Metadata(recordsCount, fsyncLimit, true);
     }
 
     static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport)

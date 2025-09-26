@@ -36,13 +36,13 @@ import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class DefaultStateTrackerTest
+public class SegmentStateTrackerTest
 {
     @Test
     public void trivialTest()
     {
         long segment = 123L;
-        DefaultStateTracker tracker = new DefaultStateTracker(segment);
+        SegmentStateTracker tracker = new SegmentStateTracker(segment);
         TableId tbl = TableId.generate();
 
         assertTrue(tracker.isClean());
@@ -62,8 +62,8 @@ public class DefaultStateTrackerTest
     @Test
     public void memtableSpannignMultipleSegmentsTest()
     {
-        DefaultStateTracker segment1 = new DefaultStateTracker(1);
-        DefaultStateTracker segment2 = new DefaultStateTracker(2);
+        SegmentStateTracker segment1 = new SegmentStateTracker(1);
+        SegmentStateTracker segment2 = new SegmentStateTracker(2);
         TableId tbl = TableId.fromLong(1);
 
         segment1.markDirty(tbl, segment1.segmentId(), 10);
@@ -180,7 +180,7 @@ public class DefaultStateTrackerTest
                                       }
                                   };
 
-                                  DefaultStateTracker currentSegment = null;
+                                  SegmentStateTracker currentSegment = null;
                                   int currentSegmentOffset = 0;
                                   for (int i = 0; i < allocationCount; i++)
                                   {
@@ -196,7 +196,7 @@ public class DefaultStateTrackerTest
 
                                       if (i % 100 == 0)
                                       {
-                                          currentSegment = new DefaultStateTracker(segments.size());
+                                          currentSegment = new SegmentStateTracker(segments.size());
                                           currentSegmentOffset = 0;
                                           segments.put(currentSegment.segmentId(), currentSegment);
                                       }

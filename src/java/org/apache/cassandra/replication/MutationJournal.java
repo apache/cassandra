@@ -105,7 +105,7 @@ public class MutationJournal
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
         if (tracker != null && tracker.removeCleanFromDirty())
         {
-            segment.metadata().needsReplay(false);
+            segment.metadata().clearNeedsReplay();
             segment.persistMetadata();
         }
     }
@@ -132,7 +132,7 @@ public class MutationJournal
             SegmentStateTracker tracker = lastSegmentTracker;
             if (tracker == null || tracker.segmentId() != ptr.segmentId)
             {
-                tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, DefaultStateTracker::new);
+                tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
                 lastSegmentTracker = tracker;
             }
 
@@ -221,7 +221,7 @@ public class MutationJournal
                     TableId tableId = e.getKey();
 
                     // Start segment state tracking
-                    segmentStateTrackers.computeIfAbsent(segmentId, DefaultStateTracker::new)
+                    segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
                                         .markDirty(tableId, segmentId, position);
                     // TODO (required): shouldReplay
                     if (newPUCollector == null)
@@ -407,11 +407,6 @@ public class MutationJournal
         @Override
         public int compare(ShortMutationId id1, ShortMutationId id2)
         {
-            if (id1 == null || id2 == null)
-            {
-                System.out.println(id1 + " " + id2);
-                System.out.println(id1 + " " + id2);
-            }
             int cmp = Long.compare(id1.logId(), id2.logId());
             return cmp != 0 ? cmp : Integer.compare(id1.offset(), id2.offset());
         }

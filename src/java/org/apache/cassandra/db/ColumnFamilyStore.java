@@ -3253,7 +3253,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         data.notifyDropped(DatabaseDescriptor.getAutoSnapshotTtl());
 
-        // TODO (required): mutation tracking
+        // TODO (required): mutation tracking + table dropping
         if (metadata().replicationType().isTracked())
             throw new IllegalStateException("not implemented");
         else

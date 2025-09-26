@@ -923,6 +923,7 @@ public class Journal<K, V> implements Shutdownable
     {
         closeActiveSegmentAndOpenAsStatic(activeSegment, null);
     }
+
     protected void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment, @Nullable Runnable onDone)
     {
         if (activeSegment.isEmpty())

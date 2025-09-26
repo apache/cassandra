@@ -136,20 +136,6 @@ class Segments<K, V>
                 into.add(segment);
     }
 
-    Segment<K, V>[] select(long[] segmentIds)
-    {
-        @SuppressWarnings({ "unchecked" })
-        Segment<K, V>[] segments = new Segment[segmentIds.length];
-        for (int i = 0; i < segmentIds.length; i++)
-            segments[i] = Invariants.nonNull(this.segments.get(segmentIds[i]));
-        return segments;
-    }
-
-    Segment<K, V> select(long segmentId)
-    {
-        return Invariants.nonNull(this.segments.get(segmentId));
-    }
-
     boolean isSwitched(ActiveSegment<K, V> active)
     {
         for (Segment<K, V> segment : segments.values())

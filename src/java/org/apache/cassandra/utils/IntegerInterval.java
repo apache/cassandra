@@ -144,7 +144,7 @@ public class IntegerInterval
         @Inline
         public static long[] add(long[] ranges, int start, int end)
         {
-            Invariants.require(start <= end, "%d should be strictly smaller than %d", start, end);
+            Invariants.require(start <= end, "Start (%d) should be less than or equal to end (%d)", start, end);
             long[] newRanges;
             {
                 // extend ourselves to cover any ranges we overlap

@@ -142,7 +142,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     @Override
     public void persistMetadata()
     {
-        throw new UnsupportedOperationException("Can not mutate active segment's metadata. It should be done on flush.");
+        throw new UnsupportedOperationException("Can not mutate active segment's metadata.");
     }
 
     /**
