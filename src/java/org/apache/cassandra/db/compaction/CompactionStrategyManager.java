@@ -1371,7 +1371,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers()))
+            for (PendingRepairManager prm : pendingRepairs.getManagers())
                 cleanupTasks.add(prm.releaseSessionData(sessions));
         }
         finally

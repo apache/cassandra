@@ -239,6 +239,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         return COMMAND.get();
     }
 
+    public boolean acceptsTransient()
+    {
+        return false;
+    }
+
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
     protected abstract void serializeSelectionWithoutKey(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);

@@ -632,7 +632,7 @@ public class ReplicaPlans
         }
     };
 
-    // TODO (review): Cheap quorums are not a goal for now, would really require speculation for writes
+    // TODO (desired): Cheap quorums are not a goal for now, would really require speculation for writes
     // and would trigger reconciliation work later, potentially quite a lot so I don't think it makes sense.
     // So just remove selector?
     /**

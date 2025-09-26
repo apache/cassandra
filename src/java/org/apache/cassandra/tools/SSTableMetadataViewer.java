@@ -422,9 +422,9 @@ public class SSTableMetadataViewer
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
-            // TODO (review): This should be removed right? Nothing depends on it?
-//            if (stats != null)
-//                field("IsTransient", stats.isTransient);
+            // TODO (desired): This should be removed, but some tools might blow up expecting it
+            if (stats != null)
+                field("IsTransient", false);
         }
     }
 

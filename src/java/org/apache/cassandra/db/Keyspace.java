@@ -643,9 +643,6 @@ public class Keyspace
                         RangesAtEndpoint localRanges = replicationStrategy.getLocalRanges(cm);
                         Token token = upd.partitionKey().getToken();
                         boolean foundMatch = false;
-                        // TODO (review): Races and this being an out of range mutation, it's silently accepting the mutation to the log
-                        // but not applying to the CF. This was already checked, but in a race what happens? Double check ack handling
-                        // and whether the voting group is checked to match safely
                         for (Range<Token> r : localRanges.onlyFull().ranges())
                         {
                             if (r.contains(token))
