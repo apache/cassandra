@@ -39,18 +39,24 @@
     </suppress>
     <!-- netty's http stuff is not applicable here -->
     <suppress>
-        <packageUrl regex="true">^pkg:maven/io\.netty/netty\-all@.*$</packageUrl>
+        <packageUrl regex="true">^pkg:maven/io\.netty/netty\-.*@.*$</packageUrl>
         <cve>CVE-2021-21290</cve>
         <cve>CVE-2021-21295</cve>
         <cve>CVE-2021-21409</cve>
+        <cve>CVE-2022-24823</cve>
+        <cve>CVE-2025-24970</cve>
+        <cve>CVE-2025-25193</cve>
+        <cve>CVE-2024-29025</cve>
+        <cve>CVE-2023-34462</cve>
         <cve>CVE-2021-37136</cve>
         <cve>CVE-2021-37137</cve>
-        <cve>CVE-2021-43797</cve>
-        <cve>CVE-2022-24823</cve>
         <cve>CVE-2022-41881</cve>
-        <cve>CVE-2023-34462</cve>
+        <cve>CVE-2021-43797</cve>
         <cve>CVE-2023-44487</cve>
-        <cve>CVE-2025-25193</cve>
+        <cve>CVE-2024-47535</cve>
+        <cve>CVE-2025-55163</cve>
+        <cve>CVE-2025-58056</cve>
+        <cve>CVE-2025-58057</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-19142 -->
