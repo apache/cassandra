@@ -1006,8 +1006,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                                      Iterator<SSTableReader> sstableIterator,
                                                      Collection<Range<Token>> ranges,
                                                      LifecycleTransaction txn,
-                                                     TimeUUID sessionID,
-                                                     boolean isTransient) throws IOException
+                                                     TimeUUID sessionID) throws IOException
     {
         if (ranges.isEmpty())
             return;
@@ -1017,7 +1016,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         Set<SSTableReader> fullyContainedSSTables = findSSTablesToAnticompact(sstableIterator, normalizedRanges, sessionID);
 
         cfs.metric.bytesMutatedAnticompaction.mark(SSTableReader.getTotalBytes(fullyContainedSSTables));
-        cfs.getCompactionStrategyManager().mutateRepaired(fullyContainedSSTables, UNREPAIRED_SSTABLE, sessionID, isTransient);
+        cfs.getCompactionStrategyManager().mutateRepaired(fullyContainedSSTables, UNREPAIRED_SSTABLE, sessionID);
         // since we're just re-writing the sstable metdata for the fully contained sstables, we don't want
         // them obsoleted when the anti-compaction is complete. So they're removed from the transaction here
         txn.cancel(fullyContainedSSTables);
@@ -1065,8 +1064,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
             Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
             validateSSTableBoundsForAnticompaction(sessionID, sstables, replicas);
-            mutateFullyContainedSSTables(cfs, validatedForRepair, sstables.iterator(), replicas.onlyFull().ranges(), txn, sessionID, false);
-            mutateFullyContainedSSTables(cfs, validatedForRepair, sstables.iterator(), replicas.onlyTransient().ranges(), txn, sessionID, true);
+            mutateFullyContainedSSTables(cfs, validatedForRepair, sstables.iterator(), replicas.ranges(), txn, sessionID);
 
             assert txn.originals().equals(sstables);
             if (!sstables.isEmpty())

@@ -130,12 +130,12 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
             if (i % 3 == 0)
             {
                 //make 1 third of sstables repaired
-                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, System.currentTimeMillis(), null, false);
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, System.currentTimeMillis(), null);
             }
             else if (i % 3 == 1)
             {
                 //make 1 third of sstables pending repair
-                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, 0, nextTimeUUID(), false);
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, 0, nextTimeUUID());
             }
             previousSSTables = currentSSTables;
         }
@@ -294,7 +294,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         assertEquals(1, matches);
     }
 
-    private static void assertInvalieHolderConfig(boolean isRepaired, boolean isPendingRepair)
+    private static void assertInvalidHolderConfig(boolean isRepaired, boolean isPendingRepair)
     {
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
@@ -320,10 +320,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         assertHolderExclusivity(true, false, CompactionStrategyHolder.class);
         assertHolderExclusivity(false, true, PendingRepairHolder.class);
         assertHolderExclusivity(false, true, PendingRepairHolder.class);
-        assertInvalieHolderConfig(true, true);
-        assertInvalieHolderConfig(true, true);
-        assertInvalieHolderConfig(false, false);
-        assertInvalieHolderConfig(true, false);
+        assertInvalidHolderConfig(true, true);
     }
 
     PartitionPosition forKey(int key)
@@ -354,8 +351,8 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
             repaired.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
         }
 
-        cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, nextTimeUUID(), false);
-        cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null, false);
+        cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, nextTimeUUID());
+        cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null);
 
         DiskBoundaries boundaries = new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(),
                                                        Lists.newArrayList(forKey(100), forKey(200), forKey(300)),

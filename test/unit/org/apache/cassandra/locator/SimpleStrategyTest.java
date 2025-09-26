@@ -82,10 +82,11 @@ public class SimpleStrategyTest extends CassandraTestBase
     @Before
     public void defineSchema()
     {
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -283,10 +284,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         tokens.put(endpoints.get(3), tk(400));
         tokens.forEach(ClusterMetadataTestHelper::addEndpoint);
 
-        Map<String, String> configOptions = new HashMap<String, String>();
-        configOptions.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
-        configOptions.put("replication_factor", "3/1");
-        SchemaLoader.createKeyspace("ks", KeyspaceParams.create(false, configOptions));
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.simpleWitness("3/1"));
         Range<Token> range1 = range(Murmur3Partitioner.MINIMUM.token, 100);
 
         Util.assertRCEquals(EndpointsForToken.of(range1.right,

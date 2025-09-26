@@ -25,16 +25,13 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionRangeReadCommand;
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
@@ -229,7 +226,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             for (Replica replica : replicaPlan.contacts())
             {
                 Tracing.trace("Enqueuing request to {}", replica);
-                Message<ReadCommand> message = command.createMessage(trackRepairedStatus && replica.isFull(), requestTime);
+                Message<ReadCommand> message = rangeCommand.createMessage(trackRepairedStatus && replica.isFull(), requestTime);
                 readCoordinator.sendReadCommand(message, replica.endpoint(), handler);
             }
         }

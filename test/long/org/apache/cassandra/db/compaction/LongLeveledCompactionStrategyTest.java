@@ -232,7 +232,7 @@ public class LongLeveledCompactionStrategyTest
         populateSSTables(store);
         assertTrue(repaired.getSSTables().isEmpty());
         assertFalse(unrepaired.getSSTables().isEmpty());
-        mgr.mutateRepaired(store.getLiveSSTables(), FBUtilities.nowInSeconds(), null, false);
+        mgr.mutateRepaired(store.getLiveSSTables(), FBUtilities.nowInSeconds(), null);
         assertFalse(repaired.getSSTables().isEmpty());
         assertTrue(unrepaired.getSSTables().isEmpty());
 
@@ -249,8 +249,7 @@ public class LongLeveledCompactionStrategyTest
         // mark unrepair
         mgr.mutateRepaired(store.getLiveSSTables().stream().filter(s -> s.isRepaired()).collect(Collectors.toList()),
                            ActiveRepairService.UNREPAIRED_SSTABLE,
-                           null,
-                           false);
+                           null);
         assertTrue(repaired.getSSTables().isEmpty());
         assertFalse(unrepaired.getSSTables().isEmpty());
     }
