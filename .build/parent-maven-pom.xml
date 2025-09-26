@@ -446,17 +446,14 @@
         <version>2.19.2</version>
       </dependency>
       <dependency>
+        <!-- Keep an eye on this when bumping it as it depends on snakeyaml we use in production as well
+        and historically we have been excluding snakeyaml from here. We are using snakeyaml 2.4 now, Jackson 2.19.2
+        is using snakeyaml of that version too, so it is not necessary to exclude it. OWASP checks 12.1.6 also
+        depends on snakeyaml 2.4. -->
         <groupId>com.fasterxml.jackson.dataformat</groupId>
         <artifactId>jackson-dataformat-yaml</artifactId>
         <version>2.19.2</version>
         <scope>test</scope>
-        <!-- 2.19.2 would bring in snakeyaml 2.4, but we depend on 2.1 in prod code -->
-        <exclusions>
-          <exclusion>
-            <artifactId>snakeyaml</artifactId>
-            <groupId>org.yaml</groupId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>com.boundary</groupId>
@@ -469,9 +466,12 @@
         <version>${jamm.version}</version>
       </dependency>
       <dependency>
+        <!-- Test scoped jackson-dataformat-yaml also depends on snakeyaml. For now, these versions are aligned
+        but if you happen to bump it here then exclude it in jackson-dataformat-yaml.
+        -->
         <groupId>org.yaml</groupId>
         <artifactId>snakeyaml</artifactId>
-        <version>2.1</version>
+        <version>2.4</version>
       </dependency>
       <dependency>
         <groupId>junit</groupId>
