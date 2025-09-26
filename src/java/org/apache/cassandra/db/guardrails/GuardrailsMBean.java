@@ -196,6 +196,66 @@ public interface GuardrailsMBean
     void setTablePropertiesIgnoredCSV(String properties);
 
     /**
+     * @return properties that are warned about when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesWarned();
+
+    /**
+     * @return Comma-separated list of properties that are warned about when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesWarnedCSV();
+
+    /**
+     * @param properties properties that are warned about when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesWarned(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are warned about when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesWarnedCSV(String properties);
+
+    /**
+     * @return properties that are not allowed when creating or altering a keyspace.
+     */    
+    Set<String> getKeyspacePropertiesDisallowed();
+    
+    /**
+     * @return Comma-separated list of properties that are not allowed when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesDisallowedCSV();
+
+    /**
+     * @param properties properties that are not allowed when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesDisallowed(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are not allowed when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesDisallowedCSV(String properties);
+
+    /**
+     * @return properties that are ignored when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesIgnored();
+
+    /**
+     * @return Comma-separated list of properties that are ignored when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesIgnoredCSV();
+
+    /**
+     * @param properties properties that are ignored when creating or altering a keyspace.
+     */ 
+    void setKeyspacePropertiesIgnored(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are ignored when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesIgnoredCSV(String properties);
+
+    /**
      * Returns whether user-provided timestamps are allowed.
      *
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.

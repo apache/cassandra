@@ -312,6 +312,9 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "vector_dimensions_warn_threshold                  -1   \n";
 
     private static final String ALL_VALUES_GETTER_OUTPUT =
+    "keyspace_properties_disallowed               []   \n" +
+    "keyspace_properties_ignored                  []   \n" +
+    "keyspace_properties_warned                   []   \n" +
     "read_consistency_levels_disallowed           []   \n" +
     "read_consistency_levels_warned               []   \n" +
     "table_properties_disallowed                  []   \n" +
