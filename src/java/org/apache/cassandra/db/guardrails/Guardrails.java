@@ -144,6 +144,17 @@ public final class Guardrails implements GuardrailsMBean
                  "Table Properties");
 
     /**
+     * Guardrail warning about, ignoring or rejecting the usage of certain keyspace properties.
+     */
+    public static final Values<String> keyspaceProperties =
+    new Values<>("keyspace_properties",
+                 null,
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesWarned(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesIgnored(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesDisallowed(),
+                 "Keyspace Properties");
+
+    /**
      * Guardrail disabling user-provided timestamps.
      */
     public static final EnableFlag userTimestampsEnabled =
@@ -843,6 +854,93 @@ public final class Guardrails implements GuardrailsMBean
         setTablePropertiesIgnored(fromCSV(properties));
     }
 
+    @Override
+    public Set<String> getKeyspacePropertiesWarned()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesWarned();
+    }
+
+    @Override
+    public String getKeyspacePropertiesWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesWarned());
+    }
+
+    public void setKeyspacePropertiesWarned(String... properties)
+    {
+        setKeyspacePropertiesWarned(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarned(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesWarned(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarnedCSV(String properties)
+    {
+        setKeyspacePropertiesWarned(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesDisallowed()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesDisallowed();
+    }
+
+    @Override
+    public String getKeyspacePropertiesDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesDisallowed());
+    }
+
+    public void setKeyspacePropertiesDisallowed(String... properties)
+    {
+        setKeyspacePropertiesDisallowed(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowed(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesDisallowed(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowedCSV(String properties)
+    {
+        setKeyspacePropertiesDisallowed(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesIgnored()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesIgnored();
+    }
+
+    @Override
+    public String getKeyspacePropertiesIgnoredCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesIgnored());
+    }
+
+    public void setKeyspacePropertiesIgnored(String... properties)
+    {
+        setKeyspacePropertiesIgnored(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnored(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesIgnored(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnoredCSV(String properties)
+    {
+        setKeyspacePropertiesIgnored(fromCSV(properties));
+    }
+    
     @Override
     public boolean getUserTimestampsEnabled()
     {

@@ -908,6 +908,9 @@ public class Config
     public volatile Set<String> table_properties_warned = Collections.emptySet();
     public volatile Set<String> table_properties_ignored = Collections.emptySet();
     public volatile Set<String> table_properties_disallowed = Collections.emptySet();
+    public volatile Set<String> keyspace_properties_warned = Collections.emptySet();
+    public volatile Set<String> keyspace_properties_ignored = Collections.emptySet();
+    public volatile Set<String> keyspace_properties_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> read_consistency_levels_warned = Collections.emptySet();
     public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();

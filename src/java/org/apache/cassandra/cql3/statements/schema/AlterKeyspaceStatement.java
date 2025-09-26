@@ -123,6 +123,14 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     }
 
     @Override
+    public void validate(ClientState state)
+    {
+        super.validate(state);
+
+        Guardrails.keyspaceProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+    }
+
+    @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
         HashSet<String> clientWarnings = new HashSet<>();
