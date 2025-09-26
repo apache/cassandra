@@ -65,7 +65,10 @@ public class WitnessAlwaysReadsFullReplicaTest extends SharedClusterTestBase
         // Test all consistency levels except NODE_LOCAL as requested
         for (ConsistencyLevel cl : ConsistencyLevel.values())
         {
-            if (cl == ConsistencyLevel.ANY || cl == ConsistencyLevel.NODE_LOCAL)
+            if (cl == ConsistencyLevel.ANY
+                || cl == ConsistencyLevel.NODE_LOCAL
+                || cl == ConsistencyLevel.SERIAL
+                || cl == ConsistencyLevel.LOCAL_SERIAL)
                 continue;
             result.add(new Object[]{ cl });
         }

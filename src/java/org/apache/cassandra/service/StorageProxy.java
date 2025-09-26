@@ -1548,8 +1548,7 @@ public class StorageProxy implements StorageProxyMBean
                         return;
 
                     // Always construct the replica plan to check availability
-                    // TODO in my changes I switch ReplicaPlans.writeNormal to ReplicaPlans.writeAll and I don't remember why
-                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
                     if (dataReplicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
                         writeMetrics.localRequests.mark();
