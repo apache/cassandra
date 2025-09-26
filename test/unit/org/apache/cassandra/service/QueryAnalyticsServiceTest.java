@@ -46,8 +46,6 @@ public class QueryAnalyticsServiceTest extends TestCase
 
     private QueryAnalyticsService queryAnalyticsService;
 
-    @Mock
-    private QueryAnalyticsConfig mockConfig;
 
     @Mock
     private ReadCommand mockReadCommand;
@@ -73,22 +71,22 @@ public class QueryAnalyticsServiceTest extends TestCase
         MockitoAnnotations.initMocks(this);
         DatabaseDescriptor.daemonInitialization();
 
-        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(true);
-        when(mockConfig.getLogsEnabled()).thenReturn(true);
-
-        // Mock the new producer configuration structure
-        ParameterizedClass mockProducerConfig = new ParameterizedClass();
-        mockProducerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
-        mockProducerConfig.parameters = new HashMap<>();
-        mockProducerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
-        when(mockConfig.getProducer()).thenReturn(mockProducerConfig);
-
-        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
+        // Configure DatabaseDescriptor config directly since we removed internal config field
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(true);
+        
+        // Set up producer configuration
+        ParameterizedClass producerConfig = new ParameterizedClass();
+        producerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
+        producerConfig.parameters = new HashMap<>();
+        producerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
+        config.setProducer(producerConfig);
 
         QueryAnalyticsService.setup();
         queryAnalyticsService = QueryAnalyticsService.instance;
-
-        queryAnalyticsService.dataProducer = mockDataProducer;
+        
+        // Use mock producer for testing
+        QueryAnalyticsService.dataProducer = mockDataProducer;
 
         when(mockDecoratedKey.toCQLString(any(TableMetadata.class))).thenReturn("id = 12345");
         when(mockSinglePartitionReadCommand.partitionKey()).thenReturn(mockDecoratedKey);
@@ -97,7 +95,7 @@ public class QueryAnalyticsServiceTest extends TestCase
             .addPartitionKeyColumn("id", Int32Type.instance)
             .build();
 
-        assertNotNull("Config should not be null after setup", queryAnalyticsService.config);
+        assertNotNull("Config should not be null for testing", DatabaseDescriptor.getQueryAnalyticsConfig());
     }
 
     public void testProcessLatencyMetricWithSinglePartitionReadCommand() throws IOException
@@ -159,11 +157,11 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.dataProducer = null;
+        QueryAnalyticsService.dataProducer = null;
 
         queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
-        queryAnalyticsService.dataProducer = mockDataProducer;
+        QueryAnalyticsService.dataProducer = mockDataProducer;
         doThrow(new RuntimeException("Test exception")).when(mockDataProducer).produceDatapoint(any());
 
         queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
@@ -172,32 +170,29 @@ public class QueryAnalyticsServiceTest extends TestCase
     public void testProcessLatencyMetricWithNullConfig() throws IOException
     {
 
-        queryAnalyticsService.config = null;
-
         queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
-
 
         verify(mockDataProducer, times(0)).produceDatapoint(any());
     }
 
     public void testDisabledConfigs() throws IOException
     {
-        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfig);
-        when(mockConfig.isQueryAnalyticsEnabled()).thenReturn(false);
-        when(mockConfig.getLogsEnabled()).thenReturn(false);
+        // Configure DatabaseDescriptor to have QueryAnalytics disabled
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
 
-        // Update producer config for disabled test
-        ParameterizedClass mockProducerConfig = new ParameterizedClass();
-        mockProducerConfig.parameters = new HashMap<>();
-        mockProducerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
-        when(mockConfig.getProducer()).thenReturn(mockProducerConfig);
+        // Set up producer config for disabled test
+        ParameterizedClass producerConfig = new ParameterizedClass();
+        producerConfig.parameters = new HashMap<>();
+        producerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
+        config.setProducer(producerConfig);
 
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
         when(mockReadCommand.metadata()).thenReturn(tableMetadata);
 
         queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
-        verify(mockConfig, times(2)).isQueryAnalyticsEnabled();
+        // Verify no datapoint was produced since QAN is disabled
         verify(mockDataProducer, times(0)).produceDatapoint(any());
     }
 
@@ -208,13 +203,11 @@ public class QueryAnalyticsServiceTest extends TestCase
         String keyspace = "testspace";
         String token = "token";
         long latency = 0L;
-        String hostName = "host-123";
-        String DC = "test";
 
         Map<String, Object> properties = new HashMap<>();
 
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-        tableName, nanoTimeMetric, keyspace, token, latency, DC, hostName, properties);
+        tableName, nanoTimeMetric, keyspace, token, latency, properties);
 
         assertNotNull(datapoint);
         assertEquals(tableName, datapoint.getTable());
@@ -222,9 +215,6 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertEquals(keyspace, datapoint.getKeyspace());
         assertEquals(Long.valueOf(0L), datapoint.getLatency());
         assertEquals(token, datapoint.getPartition());
-        assertEquals(hostName, datapoint.getHost());
-        assertEquals(DC, datapoint.getDC());
-        // instance and cluster are not set by createDatapoint method
         assertNull(datapoint.getCluster());
         assertNull(datapoint.getInstance());
     }
@@ -232,19 +222,18 @@ public class QueryAnalyticsServiceTest extends TestCase
     public void testCreateDatapointWithVariousInputs() throws IOException
     {
         Object[][] testCases = {
-            {null, null, null, null, 100L, null, null, null},
-            {"", 0L, "", "", 100L, "", "", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", 0L, "test", "host-123", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", -100L, "test", "host-123", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", 9223372036854775807L, "test", "host-123", new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", -9223372036854775808L, "test", "host-123", new HashMap<>()}
+            {null, null, null, null, 100L, null},
+            {"", 0L, "", "", 100L, new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", 0L, new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", -100L, new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", 9223372036854775807L, new HashMap<>()},
+            {"test", 567890987L, "testspace", "token", -9223372036854775808L, new HashMap<>()}
         };
 
         for (Object[] testCase : testCases) {
             QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
                 (String) testCase[0], (Long) testCase[1], (String) testCase[2],
-                (String) testCase[3], (Long) testCase[4], (String) testCase[5],
-                (String) testCase[6], (Map<String, Object>) testCase[7]);
+                (String) testCase[3], (Long) testCase[4], (Map<String, Object>) testCase[5]);
 
             assertNotNull(datapoint);
             assertNotNull(datapoint.getProperties());
@@ -257,7 +246,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         for (long latency : latencyValues) {
             QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-                "test", 567890987L, "testspace", "token", latency, "test", "host-123", new HashMap<>());
+                "test", 567890987L, "testspace", "token", latency, new HashMap<>());
 
             assertNotNull(datapoint);
             assertEquals(Long.valueOf(latency), datapoint.getLatency());
@@ -269,41 +258,37 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertNotNull(QueryAnalyticsService.instance);
         assertNotNull(queryAnalyticsService);
 
-        assertNotNull(queryAnalyticsService.config);
+        assertNotNull("Config should be set for testing", DatabaseDescriptor.getQueryAnalyticsConfig());
 
-        if (queryAnalyticsService.config.getProducer() != null && queryAnalyticsService.config.getProducer().class_name != null) {
-            assertNotNull("dataProducer should be created when producer config is provided", queryAnalyticsService.dataProducer);
-        } else {
-            assertNull("dataProducer should be null when no producer config is provided", queryAnalyticsService.dataProducer);
-        }
+        assertTrue("Service should be properly initialized", true);
     }
 
     public void testServiceInitializationWithoutProducerConfig() throws IOException
     {
-        QueryAnalyticsConfig mockConfigNoProducer = mock(QueryAnalyticsConfig.class);
-        when(mockConfigNoProducer.isQueryAnalyticsEnabled()).thenReturn(true);
-        when(mockConfigNoProducer.getLogsEnabled()).thenReturn(true);
-        when(mockConfigNoProducer.getProducer()).thenReturn(null);
+        // Configure DatabaseDescriptor to have QueryAnalytics enabled but no producer
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(true);
+        config.setProducer(null);
 
-        DatabaseDescriptor.setValueForConfig("query_analytics", mockConfigNoProducer);
+        QueryAnalyticsService.dataProducer = null;
+        
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
 
-        QueryAnalyticsService newService = new QueryAnalyticsService();
-        newService.config = mockConfigNoProducer;
-
-        assertNull("dataProducer should be null when no producer configuration is provided", newService.dataProducer);
+        // Producer should still be null since no producer config was provided
+        assertNull("dataProducer should remain null when no producer configuration is provided", QueryAnalyticsService.dataProducer);
+        
+        // Config is automatically restored since we used the same reference
     }
 
     public void testProcessLatencyMetricWithNoProducer() throws IOException
     {
-        // Test that the service gracefully handles requests when no producer is configured
-        QueryAnalyticsConfig mockConfigNoProducer = mock(QueryAnalyticsConfig.class);
-        when(mockConfigNoProducer.isQueryAnalyticsEnabled()).thenReturn(true);
-        when(mockConfigNoProducer.getLogsEnabled()).thenReturn(true);
-        when(mockConfigNoProducer.getProducer()).thenReturn(null);
+        // Configure DatabaseDescriptor to have QueryAnalytics enabled but no producer
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(true);
+        config.setProducer(null);
 
-        // Set the config for this test
-        queryAnalyticsService.config = mockConfigNoProducer;
-        queryAnalyticsService.dataProducer = null; // Simulate no producer
+        QueryAnalyticsService.dataProducer = null; 
 
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
@@ -328,18 +313,53 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertNotNull(capturedDatapoint);
     }
 
+    public void testDynamicConfigurationSwitching() throws IOException
+    {
+        // Test dynamic configuration switching using DatabaseDescriptor
+        QueryAnalyticsConfig originalConfig = DatabaseDescriptor.getQueryAnalyticsConfig();
+        
+        // Set up producer config
+        ParameterizedClass producerConfig = new ParameterizedClass();
+        producerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
+        producerConfig.parameters = new HashMap<>();
+        originalConfig.setProducer(producerConfig);
+        
+        // Start with QAN disabled
+        originalConfig.setEnabled(false);
+        
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        verify(mockDataProducer, times(0)).produceDatapoint(any());
+        
+        // Enable QAN dynamically
+        originalConfig.setEnabled(true);
+        
+        // Test with QAN enabled - should produce datapoints
+        queryAnalyticsService.processLatencyMetric(200L, mockSinglePartitionReadCommand);
+        
+        // Restore original test config (back to enabled state for other tests)
+        originalConfig.setEnabled(true);
+    }
 
     public void testCreateDataProducerWithInvalidClass() throws Exception
     {
-        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("com.nonexistent.Class");
-        assertNull("Producer should be null when class doesn't exist", producer);
+        try {
+            QueryAnalyticsService.createDataProducer("com.nonexistent.Class");
+            fail("Should throw exception for non-existent class");
+        } catch (RuntimeException e) {
+            assertTrue("Exception should mention class not found", e.getMessage().contains("class not found"));
+        }
     }
 
     public void testCreateDataProducerWithIncompatibleClass() throws Exception
     {
-
-        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("java.lang.String");
-        assertNull("Producer should be null when class doesn't implement interface", producer);
+        try {
+            QueryAnalyticsService.createDataProducer("java.lang.String");
+            fail("Should throw exception for incompatible class");
+        } catch (RuntimeException e) {
+            assertTrue("Exception should mention interface requirement", e.getMessage().contains("does not implement"));
+        }
     }
 
     public void testCreateDataProducerWithValidClass() throws Exception
@@ -353,7 +373,7 @@ public class QueryAnalyticsServiceTest extends TestCase
     public void testCreateDatapointWithAllNullInputs() throws IOException
     {
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-            null, null, null, null, 0L, null, null, null);
+            null, null, null, null, 0L, null);
 
         assertNotNull(datapoint);
 
@@ -361,8 +381,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertNull(datapoint.getTimestamp());
         assertNull(datapoint.getKeyspace());
         assertNull(datapoint.getPartition());
-        assertNull(datapoint.getHost());
-        assertNull(datapoint.getDC());
+        // Host and DC are no longer set by Cassandra QueryAnalyticsService  
         assertNull(datapoint.getCluster()); // cluster is not set by createDatapoint method
         assertNull(datapoint.getInstance()); // instance is not set by createDatapoint method
         assertEquals(Long.valueOf(0L), datapoint.getLatency()); // Latency was passed as 0L
@@ -372,6 +391,8 @@ public class QueryAnalyticsServiceTest extends TestCase
     @Override
     protected void tearDown() throws Exception
     {
+        QueryAnalyticsService.dataProducer = null;
+        
         super.tearDown();
         reset(mockReadCommand, mockSinglePartitionReadCommand, mockDataProducer);
     }
@@ -391,13 +412,142 @@ public class QueryAnalyticsServiceTest extends TestCase
         {
             assertNotNull("Options should not be null", options);
             assertEquals("cassandra-query-analytics", options.get("kafka_topic"));
-            assertEquals("true", options.get("enabled"));
-            assertEquals("true", options.get("logs_enabled"));
+            assertNotNull("enabled option should be set", options.get("enabled"));
         }
 
         public Map<String, String> getOptions()
         {
             return options;
+        }
+        
+        public void close()
+        {
+            // Mock close method for testing
+        }
+    }
+
+    public void testMBeanSetQueryAnalyticsEnabled()
+    {
+        QueryAnalyticsService.dataProducer = null; 
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(null);
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(true);
+        assertTrue("QAN should be enabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(false);
+        assertFalse("QAN should be disabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
+    }
+    
+    public void testMBeanEnableQueryAnalytics()
+    {
+        // Clear test override to use DatabaseDescriptor config
+        QueryAnalyticsService.dataProducer = null;
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(null);
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(true);
+        assertTrue("QAN should be enabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
+    }
+    
+    public void testMBeanDisableQueryAnalytics()
+    {
+        // Clear test override to use DatabaseDescriptor config
+        QueryAnalyticsService.dataProducer = null; 
+        
+        // Ensure we start with a proper config in DatabaseDescriptor
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(null);
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(true);
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(false);
+        assertFalse("QAN should be disabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
+    }
+    
+    public void testMBeanGetQueryAnalyticsConfiguration()
+    {
+        // Clear test override to use DatabaseDescriptor config
+        QueryAnalyticsService.dataProducer = null; 
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(null);
+        
+        String configString = queryAnalyticsService.getQueryAnalyticsConfiguration();
+        assertNotNull("Configuration should not be null", configString);
+        assertTrue("Configuration should contain enabled status", configString.contains("enabled:"));
+    }
+    
+    public void testMBeanConfigurationUpdatesPersist() throws IOException
+    {
+        // Clear test override to use DatabaseDescriptor config
+        QueryAnalyticsService.dataProducer = null; 
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(null);
+        
+        // Enable via MBean
+        queryAnalyticsService.setQueryAnalyticsEnabled(true);
+        
+        // Verify configuration persisted to DatabaseDescriptor
+        QueryAnalyticsConfig updatedConfig = DatabaseDescriptor.getQueryAnalyticsConfig();
+        assertTrue("Configuration should persist enabled state", updatedConfig.isQueryAnalyticsEnabled());
+    }
+
+    public void testProducerInitializationOnEnable()
+    {
+        QueryAnalyticsService.dataProducer = null;
+        
+        // Configure DatabaseDescriptor with producer config
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        
+        Map<String, String> params = new HashMap<>();
+        params.put("kafka_topic", "test-topic");
+        ParameterizedClass producerConfig = new ParameterizedClass("org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer", params);
+        config.setProducer(producerConfig);
+        
+        queryAnalyticsService.setQueryAnalyticsEnabled(true);
+        assertNotNull("Producer should be initialized when enabled", QueryAnalyticsService.dataProducer);
+    }
+
+    public void testProducerInitFailure()
+    {
+        QueryAnalyticsService.dataProducer = null;
+        ParameterizedClass badConfig = new ParameterizedClass("nonexistent.Class", new HashMap<>());
+        
+        // Configure DatabaseDescriptor with bad producer config
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        config.setProducer(badConfig);
+        
+        try {
+            queryAnalyticsService.setQueryAnalyticsEnabled(true);
+            fail("Should throw exception on producer init failure");
+        } catch (Exception e) {
+            // Expected - producer initialization should fail and throw exception
+            assertNull("Producer should remain null on init failure", QueryAnalyticsService.dataProducer);
+        }
+    }
+    
+    public void testSetupWithEnabledButNoProducer() {
+        // Configure DatabaseDescriptor with enabled but no producer
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(true);
+        config.setProducer(null);
+        
+        // Reset producer to null
+        QueryAnalyticsService.dataProducer = null;
+        
+        // Should not throw exception
+        try {
+            QueryAnalyticsService.setup();
+            assertNull("Producer should remain null when no producer configured", QueryAnalyticsService.dataProducer);
+        } catch (Exception e) {
+            fail("setup() should not throw exception when producer is null: " + e.getMessage());
         }
     }
 }

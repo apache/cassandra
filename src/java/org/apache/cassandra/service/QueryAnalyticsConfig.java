@@ -27,38 +27,42 @@ import org.apache.cassandra.config.ParameterizedClass;
 public class QueryAnalyticsConfig
 {
     // enable/disable Query Analytics globally, overrides all other settings
-    public final Boolean enabled;
-
-    // enable/disable query analytic data from appearing in logs
-    public Boolean logs_enabled;
+    public volatile Boolean enabled;
 
     // producer configuration  
-    public ParameterizedClass producer;
+    public volatile ParameterizedClass producer;
 
     public QueryAnalyticsConfig()
     {
-        this(false, false, new ParameterizedClass("", Collections.emptyMap()));
+        this(false, new ParameterizedClass("", Collections.emptyMap()));
     }
 
-    public QueryAnalyticsConfig(Boolean enabled, Boolean logsEnabled, ParameterizedClass producer)
+    public QueryAnalyticsConfig(Boolean enabled, ParameterizedClass producer)
     {
         this.enabled = enabled;
-        this.logs_enabled = logsEnabled;
         this.producer = producer;
     }
 
     public Boolean isQueryAnalyticsEnabled()
     {
+        if (enabled == null) {
+            return false;
+        }
         return enabled;
     }
 
-    public Boolean getLogsEnabled()
+    public void setEnabled(Boolean enabled)
     {
-        return logs_enabled;
+        this.enabled = enabled;
     }
 
     public ParameterizedClass getProducer()
     {
         return producer;
+    }
+
+    public void setProducer(ParameterizedClass producer)
+    {
+        this.producer = producer;
     }
 }

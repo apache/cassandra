@@ -20,10 +20,11 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,38 +32,43 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QueryAnalyticsService
+public class QueryAnalyticsService implements QueryAnalyticsServiceMBean
 {
-    @VisibleForTesting
-    protected QueryAnalyticsConfig config;
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=QueryAnalyticsService";
+    
     public static final QueryAnalyticsService instance = new QueryAnalyticsService();
     private static final Logger logger = LoggerFactory.getLogger(QueryAnalyticsService.class);
     @VisibleForTesting
-    protected  QueryAnalyticsDataProducer dataProducer;
+    protected static QueryAnalyticsDataProducer dataProducer;
     
-    @VisibleForTesting
-    private String hostName;
-    @VisibleForTesting
-    private String DC;
-
-    public static void setup() throws IOException
+    static
     {
-        instance.config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        try {
-            if (instance.config.getProducer() != null && instance.config.getProducer().class_name != null) {
-                instance.dataProducer = createDataProducer(instance.config.getProducer().class_name);
+        MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
+    }
+    
+    public QueryAnalyticsConfig getQueryAnalyticsConfig()
+    {
+        return DatabaseDescriptor.getQueryAnalyticsConfig();
+    }
+    
+    public static void setup()
+    {
+        QueryAnalyticsConfig currentConfig = DatabaseDescriptor.getQueryAnalyticsConfig();
+        
+        // Initialize producer if enabled and configured
+        if (currentConfig != null && currentConfig.isQueryAnalyticsEnabled()) {
+            if (currentConfig.getProducer() != null && currentConfig.getProducer().class_name != null) {
+                try {
+                    dataProducer = createDataProducer(currentConfig.getProducer().class_name);
+                    logger.info("QueryAnalytics setup complete - producer initialized");
+                } catch (Exception e) {
+                    logger.warn("Failed to initialize QueryAnalytics producer: {}", e.getMessage());
+                }
             } else {
-                instance.dataProducer = null;
+                logger.warn("QueryAnalytics setup complete - no producer configured, metrics will not be sent");
             }
-        } catch (Exception e) {
-            logger.warn("Failed to setup QueryAnalyticsDataProducer: {}", e.getMessage());
-            instance.dataProducer = null;
-        }
-        instance.hostName = FBUtilities.getLocalAddressAndPort().getHostName().split("\\.")[0];
-
-        if (instance.hostName != null)
-        {
-            instance.DC = instance.hostName.split("-")[0];
+        } else {
+            logger.info("QueryAnalytics setup complete - disabled");
         }
     }
 
@@ -71,36 +77,39 @@ public class QueryAnalyticsService
     {
     }
 
+    /**
+     * Main method to process query latency metrics
+     */
     public void processLatencyMetric(long latency, SinglePartitionReadCommand command)
     {
-        if (config == null || !config.isQueryAnalyticsEnabled())
-        {
-            return;
-        }
-
         if (command == null || command.metadata() == null || command.partitionKey() == null)
         {
             return;
         }
 
-        processLatencyMetric(latency, command.partitionKey().toCQLString(command.metadata()), command.metadata().keyspace, command.metadata().name, null);
-    }
+        // exit early if disabled
+        if (!isQueryAnalyticsEnabled())
+        {
+            logger.debug("QueryAnalytics metric processing skipped, QAN disabled");
+            return;
+        }
 
-    private void processLatencyMetric(long latency, String partitionKey, String keyspace, String tableName)
-    {
-        processLatencyMetric(latency, partitionKey, keyspace, tableName, null);
-    }
-
-    private void processLatencyMetric(long latency, String partitionKey, String keyspace, String tableName, Map<String, Object> properties)
-    {
         try
         {
+            String partitionKey = command.partitionKey().toCQLString(command.metadata());
+            String keyspace = command.metadata().keyspace;
+            String tableName = command.metadata().name;
+            
             Long timestamp = currentTimeMillis();
             QueryAnalyticsDatapoint datapoint = createDatapoint(
-            tableName, timestamp, keyspace, partitionKey, latency, DC, hostName, properties);
+                tableName, timestamp, keyspace, partitionKey, latency, null);
 
             if (dataProducer != null) {
                 dataProducer.produceDatapoint(datapoint);
+                    logger.debug("QueryAnalytics datapoint sent: keyspace={}, table={}, latency={}ms, partition={}", 
+                               keyspace, tableName, latency, partitionKey);
+            } else {
+                logger.debug("QueryAnalytics datapoint not sent: no producer configured");
             }
         }
         catch (Exception e)
@@ -109,6 +118,54 @@ public class QueryAnalyticsService
         }
     }
 
+    
+    //MBean Interface Implementations
+    @Override
+    public void setQueryAnalyticsEnabled(boolean enabled) {
+        DatabaseDescriptor.getQueryAnalyticsConfig().setEnabled(enabled);
+        
+        // Initialize producer if enabling
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        if (enabled && dataProducer == null && config.getProducer() != null) {
+            dataProducer = createDataProducer(config.getProducer().class_name);
+            logger.info("QueryAnalytics producer initialized");
+        } else if (enabled && config.getProducer() == null) {
+            logger.warn("QueryAnalytics enabled but no producer configured - metrics will not be sent");
+        }
+        
+        logger.info("QueryAnalytics enabled set to: {}", enabled);
+    }
+
+    @Override
+    public boolean isQueryAnalyticsEnabled() {
+        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
+        return config != null && config.isQueryAnalyticsEnabled();
+    }
+
+    @Override
+    public String getQueryAnalyticsConfiguration() {
+        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
+        StringBuilder sb = new StringBuilder();
+        sb.append("Query Analytics Configuration:\n");
+        sb.append("  enabled: ").append(config.isQueryAnalyticsEnabled()).append("\n");
+        
+        if (config.getProducer() != null) {
+            sb.append("  producer:\n");
+            sb.append("    class_name: ").append(config.getProducer().class_name).append("\n");
+            if (config.getProducer().parameters != null && !config.getProducer().parameters.isEmpty()) {
+                sb.append("    parameters:\n");
+                for (Map.Entry<String, String> entry : config.getProducer().parameters.entrySet()) {
+                    sb.append("      ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+            }
+        } else {
+            sb.append("  producer: none\n");
+        }
+        
+        return sb.toString().trim();
+    }
+
+    //Helper Methods for Producer and Datapoint creation
     @VisibleForTesting
     protected static QueryAnalyticsDataProducer createDataProducer(String clazz) {
         if (clazz == null || clazz.trim().isEmpty()) {
@@ -120,20 +177,19 @@ public class QueryAnalyticsService
             Class<?> clazzObj = Class.forName(clazz);
             if (!QueryAnalyticsDataProducer.class.isAssignableFrom(clazzObj)) {
                 logger.error("{} does not implement QueryAnalyticsDataProducer", clazz);
-                return null;
+                throw new RuntimeException("QueryAnalytics producer class " + clazz + " does not implement QueryAnalyticsDataProducer");
             }
 
             Map<String, String> options = new HashMap<>();
 
-            if (instance.config.getProducer() != null) {
-                options.putAll(instance.config.getProducer().parameters);
+            // Get current configuration dynamically
+            QueryAnalyticsConfig currentConfig = instance.getQueryAnalyticsConfig();
+            if (currentConfig != null && currentConfig.getProducer() != null) {
+                options.putAll(currentConfig.getProducer().parameters);
             }
 
             if (!options.containsKey("enabled")) {
-                options.put("enabled", instance.config.isQueryAnalyticsEnabled().toString());
-            }
-            if (!options.containsKey("logs_enabled")) {
-                options.put("logs_enabled", instance.config.getLogsEnabled().toString());
+                options.put("enabled", currentConfig != null ? currentConfig.isQueryAnalyticsEnabled().toString() : "false");
             }
 
             logger.info("Initializing QueryAnalyticsDataProducer {} with options: {}", clazz, options);
@@ -143,34 +199,29 @@ public class QueryAnalyticsService
 
             return producer;
         } catch (ClassNotFoundException e) {
-            logger.info("{} not available - query analytics disabled", clazz);
-            return null;
+            logger.error("QueryAnalytics producer class not found: {}", clazz);
+            throw new RuntimeException("QueryAnalytics producer class not found: " + clazz, e);
         } catch (Exception e) {
-            logger.error("Failed to create {}: {}", clazz, e.getMessage());
-            return null;
+            logger.error("Failed to create QueryAnalytics producer {}: {}", clazz, e.getMessage());
+            throw new RuntimeException("Failed to create QueryAnalytics producer " + clazz + ": " + e.getMessage(), e);
         }
     }
 
     @VisibleForTesting
-    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency, String DC, String hostName)
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency)
     {
-        return createDatapoint(tableName, timestamp, keyspace, partition, latency, DC, hostName, null);
+        return createDatapoint(tableName, timestamp, keyspace, partition, latency, null);
     }
 
     @VisibleForTesting
-    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency, String DC, String hostName, Map<String, Object> properties)
+    protected static QueryAnalyticsDatapoint createDatapoint(String tableName, Long timestamp, String keyspace, String partition, long latency, Map<String, Object> properties)
     {
         QueryAnalyticsDatapoint.Builder builder = QueryAnalyticsDatapoint.builder()
-            .host(hostName)
             .keyspace(keyspace)
             .table(tableName)
             .partition(partition)
             .timestamp(timestamp)
             .latency(latency);
-
-        if (DC != null) {
-            builder.DC(DC);
-        }
 
         if (properties != null) {
             builder.properties(properties);

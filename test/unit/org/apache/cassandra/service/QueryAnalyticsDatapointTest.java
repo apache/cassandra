@@ -31,8 +31,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -42,8 +40,6 @@ public class QueryAnalyticsDatapointTest
 
         assertEquals("test-instance", datapoint.getInstance());
         assertEquals("test-cluster", datapoint.getCluster());
-        assertEquals("test-host", datapoint.getHost());
-        assertEquals("test-dc", datapoint.getDC());
         assertEquals("test-keyspace", datapoint.getKeyspace());
         assertEquals("test-table", datapoint.getTable());
         assertEquals("test-partition", datapoint.getPartition());
@@ -62,8 +58,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -86,8 +80,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -102,11 +94,10 @@ public class QueryAnalyticsDatapointTest
     }
 
     @Test
-    public void testBuilderWithNullDC() {
+    public void testBuilderWithoutOptionalFields() {
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -114,7 +105,6 @@ public class QueryAnalyticsDatapointTest
             .latency(100L)
             .build();
 
-        assertNull(datapoint.getDC());
         assertEquals("test-instance", datapoint.getInstance());
         assertEquals("test-cluster", datapoint.getCluster());
     }
@@ -128,8 +118,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -148,8 +136,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -166,8 +152,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapointWithProps = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -187,8 +171,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -209,8 +191,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -221,8 +201,6 @@ public class QueryAnalyticsDatapointTest
         String result = datapoint.toString();
         assertTrue(result.contains("test-instance"));
         assertTrue(result.contains("test-cluster"));
-        assertTrue(result.contains("test-host"));
-        assertTrue(result.contains("test-dc"));
         assertTrue(result.contains("test-keyspace"));
         assertTrue(result.contains("test-table"));
         assertTrue(result.contains("test-partition"));
@@ -239,8 +217,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint original = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -253,8 +229,6 @@ public class QueryAnalyticsDatapointTest
 
         assertEquals(original.getInstance(), copy.getInstance());
         assertEquals(original.getCluster(), copy.getCluster());
-        assertEquals(original.getHost(), copy.getHost());
-        assertEquals(original.getDC(), copy.getDC());
         assertEquals(original.getKeyspace(), copy.getKeyspace());
         assertEquals(original.getTable(), copy.getTable());
         assertEquals(original.getPartition(), copy.getPartition());
@@ -271,8 +245,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint original = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")
@@ -288,8 +260,6 @@ public class QueryAnalyticsDatapointTest
         QueryAnalyticsDatapoint modified = QueryAnalyticsDatapoint.builder()
             .instance("test-instance")
             .cluster("test-cluster")
-            .host("test-host")
-            .DC("test-dc")
             .keyspace("test-keyspace")
             .table("test-table")
             .partition("test-partition")

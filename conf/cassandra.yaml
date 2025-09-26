@@ -1780,16 +1780,14 @@ transient_replication_enabled: false
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
 drop_compact_storage_enabled: false
 
-# Enables kafka messages to be sent to hp-cstar-qan for query analytics
-# Kafka messages are currently being tested and is still not recommended for production use
-
+# Enables messages to be sent to Message Producer for query analytics
+# Query Analytics is currently being tested and is still not recommended for production use
 # query_analytics:
 #  enabled : false
-#  logs_enabled: false
 #  producer:
 #    - class_name: com.uber.cassandra.analytics.QueryAnalyticsProducerImp
 #      parameters:
-#        - kafka_topic: "hp-cstar-qan-v2"
+#        kafka_topic: "hp-cstar-qan-v2"
 
 # Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
 #use_statements_enabled: true

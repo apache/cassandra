@@ -1528,19 +1528,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return true;
     }
 
-    private void doQueryAnalyticsSetup()
+    /*
+     * Setup the QueryAnalyticsService
+     */
+    public static void doQueryAnalyticsSetup()
     {
-        if(DatabaseDescriptor.getQueryAnalyticsConfig().isQueryAnalyticsEnabled())
+        try
         {
-            try
+            QueryAnalyticsService.setup();
+            if (!DatabaseDescriptor.getQueryAnalyticsConfig().isQueryAnalyticsEnabled())
             {
-                QueryAnalyticsService.setup();
-                logger.info("Enable Query Analytics");
+                logger.info("Query Analytics is disabled");
+                return;
             }
-            catch (Exception e)
-            {
-                logger.error("Query Analytics Setup Failed, error: ",e);
-            }
+            logger.info("Enable Query Analytics");
+            logger.info("QueryAnalytics setup complete!");
+        }
+        catch (Exception e)
+        {
+            logger.error("Query Analytics Setup Failed, error: ", e);
         }
     }
 

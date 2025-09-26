@@ -32,8 +32,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
 
     private final String instance;
     private final String cluster; // TODO: This field is not currently ingested
-    private final String host;
-    private final String DC;
     private final String keyspace;
     private final String table;
     private final String partition;
@@ -46,8 +44,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
     {
         this.instance = builder.instance;
         this.cluster = builder.cluster;
-        this.host = builder.host;
-        this.DC = builder.DC;
         this.keyspace = builder.keyspace;
         this.table = builder.table;
         this.partition = builder.partition;
@@ -65,8 +61,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
     {
         return new Builder().instance(datapoint.instance)
                            .cluster(datapoint.cluster)
-                           .host(datapoint.host)
-                           .DC(datapoint.DC)
                            .keyspace(datapoint.keyspace)
                            .table(datapoint.table)
                            .partition(datapoint.partition)
@@ -86,14 +80,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
 
     public String getCluster() {
         return cluster;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public String getDC() {
-        return DC;
     }
 
     public String getKeyspace() {
@@ -139,8 +125,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
         return "QueryAnalyticsDatapoint{" +
                "instance='" + instance + '\'' +
                ", cluster='" + cluster + '\'' +
-               ", host='" + host + '\'' +
-               ", DC='" + DC + '\'' +
                ", keyspace='" + keyspace + '\'' +
                ", table='" + table + '\'' +
                ", partition='" + partition + '\'' +
@@ -154,8 +138,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
     {
         private String instance;
         private String cluster;
-        private String host;
-        private String DC;
         private String keyspace;
         private String table;
         private String partition;
@@ -181,18 +163,6 @@ public class QueryAnalyticsDatapoint implements Serializable {
         public Builder cluster(String val)
         {
             cluster = val;
-            return this;
-        }
-
-        public Builder host(String val)
-        {
-            host = val;
-            return this;
-        }
-
-        public Builder DC(String val)
-        {
-            DC = val;
             return this;
         }
 

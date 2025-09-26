@@ -110,6 +110,7 @@ import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.MonitoringServiceMBean;
+import org.apache.cassandra.service.QueryAnalyticsServiceMBean;
 import org.apache.cassandra.service.RateLimiterServiceMBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
@@ -178,6 +179,7 @@ public class NodeProbe implements AutoCloseable
     protected GuardrailsMBean grProxy;
     protected CompactionStrategyMigrationManagerMBean csmmProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
+    protected QueryAnalyticsServiceMBean queryAnalyticsProxy;
     protected Output output;
     private boolean failed;
 
@@ -313,6 +315,8 @@ public class NodeProbe implements AutoCloseable
             csmmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionStrategyMigrationManagerMBean.class);
             name = new ObjectName(AutoRepairService.MBEAN_NAME);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
+            name = new ObjectName("org.apache.cassandra.db:type=QueryAnalyticsService");
+            queryAnalyticsProxy = JMX.newMBeanProxy(mbeanServerConn, name, QueryAnalyticsServiceMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -2829,6 +2833,21 @@ public class NodeProbe implements AutoCloseable
     public void setAutoRepairRetryBackoff(String repairType, String interval)
     {
         autoRepairProxy.setAutoRepairRetryBackoff(repairType, interval);
+    }
+    
+    public void setQueryAnalyticsEnabled(boolean enabled)
+    {
+        queryAnalyticsProxy.setQueryAnalyticsEnabled(enabled);
+    }
+    
+    public boolean isQueryAnalyticsEnabled()
+    {
+        return queryAnalyticsProxy.isQueryAnalyticsEnabled();
+    }
+    
+    public String queryAnalyticsConfiguration()
+    {
+        return queryAnalyticsProxy.getQueryAnalyticsConfiguration();
     }
 }
 
