@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.guardrails.GuardrailTester;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.LocalizeString;
 import org.junit.Before;
