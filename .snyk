@@ -5,21 +5,21 @@ ignore:
   CVE-2020-8908:
     - reason: not applicable https://nvd.nist.gov/vuln/detail/CVE-2020-8908 -- ^pkg:maven/com\.google\.guava/guava@.*$
   CVE-2021-21290:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2021-21295:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2021-21409:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2021-37136:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2021-37137:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2021-43797:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2022-1471:
     - reason: https://issues.apache.org/jira/browse/CASSANDRA-17907 -- ^pkg:maven/org\.yaml/snakeyaml@.*$
   CVE-2022-24823:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2022-25857:
     - reason: https://issues.apache.org/jira/browse/CASSANDRA-17907 -- ^pkg:maven/org\.yaml/snakeyaml@.*$
   CVE-2022-38749:
@@ -33,18 +33,30 @@ ignore:
   CVE-2022-41854:
     - reason: https://issues.apache.org/jira/browse/CASSANDRA-17907 -- ^pkg:maven/org\.yaml/snakeyaml@.*$
   CVE-2022-41881:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2023-2976:
     - reason: not applicable https://nvd.nist.gov/vuln/detail/CVE-2020-8908 -- ^pkg:maven/com\.google\.guava/guava@.*$
   CVE-2023-34462:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2023-44487:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2023-6378:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
   CVE-2024-12798:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
   CVE-2024-12801:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
+  CVE-2024-29025:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2024-47535:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-24970:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
   CVE-2025-25193:
-    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-55163:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-58056:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
+  CVE-2025-58057:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-.*@.*$
