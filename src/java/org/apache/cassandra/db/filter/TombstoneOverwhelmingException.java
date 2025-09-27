@@ -28,7 +28,7 @@ public class TombstoneOverwhelmingException extends RejectException
 {
     public TombstoneOverwhelmingException(int numTombstones, String query, TableMetadata metadata, DecoratedKey lastPartitionKey, ClusteringPrefix<?> lastClustering)
     {
-        super(String.format("Scanned over %d tombstones during query '%s' (last scanned row token was %s and partion key was (%s)); query aborted",
+        super(String.format("Scanned over %d tombstones during query '%s' (last scanned row token was %s and partition key was (%s)); query aborted",
                             numTombstones, query, lastPartitionKey.getToken(), makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
     }
 
