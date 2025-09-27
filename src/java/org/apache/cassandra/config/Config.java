@@ -519,12 +519,10 @@ public class Config
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("3600s"); // 1 hour default
 
-    // TODO: add to cassandra.yaml
     // Dictionary training settings
     public volatile int compression_dictionary_training_max_dictionary_size = 65536; // 64KB
     public volatile int compression_dictionary_training_max_total_sample_size = 10485760; // 10MB total
     public volatile boolean compression_dictionary_training_auto_train_enabled = false;
-    public volatile DurationSpec.IntSecondsBound compression_dictionary_training_manual_sampling_duration = new DurationSpec.IntSecondsBound("600s"); // 10 minutes default
     public volatile int compression_dictionary_training_sampling_rate = 100; // samples 1%; using int since random.nextInt is generally faster than random.nextDouble
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;

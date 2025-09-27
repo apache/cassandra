@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -89,25 +87,19 @@ public class CompressionDictionarySchedulerTest
     @Test
     public void testScheduleManualTraining()
     {
-        testManualTraining(false, Map.of());
+        testManualTraining(false, new ManualTrainingOptions(600));
     }
 
     @Test
     public void testScheduleManualTrainingWithCustomDuration()
     {
-        testManualTraining(true, Map.of("maxSamplingDurationSeconds", "1"));
-    }
-
-    @Test
-    public void testScheduleManualTrainingWithInvalidDuration()
-    {
-        testManualTraining(false, Map.of("maxSamplingDurationSeconds", "invalid"));
+        testManualTraining(true, new ManualTrainingOptions(1));
     }
 
     @Test
     public void testConcurrentTraining()
     {
-        Map<String, String> options = Collections.emptyMap();
+        ManualTrainingOptions options = new ManualTrainingOptions(600);
 
         testTrainer.setReady(true);
         testTrainer.setTrainingResult(CompletableFuture.completedFuture(testDictionary));
@@ -124,7 +116,7 @@ public class CompressionDictionarySchedulerTest
     @Test
     public void testManualTrainingFailure()
     {
-        Map<String, String> options = Collections.emptyMap();
+        ManualTrainingOptions options = new ManualTrainingOptions(600);
 
         testTrainer.setReady(true);
         CompletableFuture<CompressionDictionary> failedFuture = new CompletableFuture<>();
@@ -140,7 +132,7 @@ public class CompressionDictionarySchedulerTest
     @Test
     public void testTrainerNotStarted()
     {
-        Map<String, String> options = Collections.emptyMap();
+        ManualTrainingOptions options = new ManualTrainingOptions(600);
 
         testTrainer.setTrainingStatus(TrainingStatus.NOT_STARTED);
 
@@ -151,7 +143,7 @@ public class CompressionDictionarySchedulerTest
         spinUntilTrue(() -> scheduler.scheduledManualTrainingTask() == null, 5);
     }
 
-    private void testManualTraining(boolean expectForceTraining, Map<String, String> trainOptions)
+    private void testManualTraining(boolean expectForceTraining, ManualTrainingOptions trainOptions)
     {
         boolean ready = !expectForceTraining;
         testTrainer.setReady(ready);

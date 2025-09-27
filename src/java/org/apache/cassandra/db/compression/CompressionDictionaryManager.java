@@ -212,8 +212,11 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             throw new IllegalStateException("Dictionary trainer is not available for table " + keyspaceName + '.' + tableName);
         }
 
+        // Parse and validate training options
+        ManualTrainingOptions trainingOptions = ManualTrainingOptions.fromStringMap(options);
+
         trainer.start(true);
-        scheduler.scheduleManualTraining(options, trainer);
+        scheduler.scheduleManualTraining(trainingOptions, trainer);
     }
 
     @Override

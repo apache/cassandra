@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Map;
-
 /**
  * Interface for managing scheduled tasks for compression dictionary operations.
  * <p>
@@ -38,11 +36,11 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
     /**
      * Schedules manual training with the specified options.
      *
-     * @param options training options including maxSamplingDurationSeconds
+     * @param options parsed and validated training options
      * @param trainer the trainer to use
      * @throws IllegalStateException if training is already in progress
      */
-    void scheduleManualTraining(Map<String, String> options, ICompressionDictionaryTrainer trainer);
+    void scheduleManualTraining(ManualTrainingOptions options, ICompressionDictionaryTrainer trainer);
 
     /**
      * Cancel the in-progress manual training

@@ -4396,10 +4396,6 @@ public class DatabaseDescriptor
         return conf.compression_dictionary_training_auto_train_enabled;
     }
 
-    public static int getCompressionDictionaryTrainingManualSamplingDurationSeconds()
-    {
-        return conf.compression_dictionary_training_manual_sampling_duration.toSeconds();
-    }
 
     public static int getCompressionDictionaryTrainingSamplingRate()
     {

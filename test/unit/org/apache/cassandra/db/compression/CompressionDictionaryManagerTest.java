@@ -153,7 +153,7 @@ public class CompressionDictionaryManagerTest
 
         managerWithoutDict.maybeReloadFromSchema(dictParams);
 
-        managerWithoutDict.train(Map.of());
+        managerWithoutDict.train(Map.of("maxSamplingDurationSeconds", "600"));
         // Should now have training capability
         String newStatus = managerWithoutDict.getTrainingStatus();
         assertThat(newStatus)
@@ -164,7 +164,7 @@ public class CompressionDictionaryManagerTest
     @Test
     public void testMaybeReloadFromSchemaDisableDictionaryCompression()
     {
-        managerWithDict.train(Map.of());
+        managerWithDict.train(Map.of("maxSamplingDurationSeconds", "600"));
         String status = managerWithDict.getTrainingStatus();
         assertThat(status)
         .as("Should be sampling")
@@ -184,7 +184,7 @@ public class CompressionDictionaryManagerTest
     @Test
     public void testTrainerCompatibilityCheck()
     {
-        managerWithDict.train(Map.of());
+        managerWithDict.train(Map.of("maxSamplingDurationSeconds", "600"));
         String initialStatus = managerWithDict.getTrainingStatus();
         assertThat(initialStatus)
         .as("Should be sampling")
@@ -221,9 +221,34 @@ public class CompressionDictionaryManagerTest
     @Test
     public void testTrainManualWithNonDictionaryTable()
     {
-        assertThatThrownBy(() -> managerWithoutDict.train(Map.of()))
+        assertThatThrownBy(() -> managerWithoutDict.train(Map.of("maxSamplingDurationSeconds", "600")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not support dictionary compression");
+    }
+
+    @Test
+    public void testTrainManualWithMissingParameters()
+    {
+        assertThatThrownBy(() -> managerWithDict.train(Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("maxSamplingDurationSeconds parameter is required");
+
+        assertThatThrownBy(() -> managerWithDict.train(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("maxSamplingDurationSeconds parameter is required");
+    }
+
+    @Test
+    public void testTrainManualWithInvalidParameters()
+    {
+        assertThatThrownBy(() -> managerWithDict.train(Map.of("maxSamplingDurationSeconds", "invalid")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid maxSamplingDurationSeconds value: invalid")
+        .hasCauseInstanceOf(NumberFormatException.class);
+
+        assertThatThrownBy(() -> managerWithDict.train(Map.of("maxSamplingDurationSeconds", "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("maxSamplingDurationSeconds must be positive, got: -1");
     }
 
     @Test
@@ -249,7 +274,7 @@ public class CompressionDictionaryManagerTest
         CompressionParams dictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
                                                               Map.of("compression_level", "3"));
         managerWithoutDict.maybeReloadFromSchema(dictParams);
-        managerWithoutDict.train(Map.of());
+        managerWithoutDict.train(Map.of("maxSamplingDurationSeconds", "600"));
         // Should now support training
         String enabledStatus = managerWithoutDict.getTrainingStatus();
         assertThat(enabledStatus).isEqualTo(TrainingStatus.SAMPLING.toString());
@@ -262,7 +287,7 @@ public class CompressionDictionaryManagerTest
         // Should still support training with new parameters
         String updatedStatus = managerWithoutDict.getTrainingStatus();
         assertThat(updatedStatus).isEqualTo(TrainingStatus.NOT_STARTED.toString());
-        managerWithoutDict.train(Map.of());
+        managerWithoutDict.train(Map.of("maxSamplingDurationSeconds", "600"));
         assertThat(enabledStatus).isEqualTo(TrainingStatus.SAMPLING.toString());
 
         // Disable dictionary compression
@@ -278,7 +303,7 @@ public class CompressionDictionaryManagerTest
     public void testUpdateSamplingRate()
     {
         // Test with enabled dictionary manager
-        managerWithDict.train(Map.of());
+        managerWithDict.train(Map.of("maxSamplingDurationSeconds", "600"));
 
         // Should be able to update sampling rate
         assertThatNoException().isThrownBy(() -> managerWithDict.updateSamplingRate(5));
@@ -299,7 +324,7 @@ public class CompressionDictionaryManagerTest
     public void testUpdateSamplingRateValidation()
     {
         // Test with enabled dictionary manager
-        managerWithDict.train(Map.of());
+        managerWithDict.train(Map.of("maxSamplingDurationSeconds", "600"));
 
         // Test invalid sampling rates are rejected by the trainer
         assertThatThrownBy(() -> managerWithDict.updateSamplingRate(0))

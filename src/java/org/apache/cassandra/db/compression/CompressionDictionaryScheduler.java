@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -79,28 +78,14 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @Override
-    public void scheduleManualTraining(Map<String, String> options, ICompressionDictionaryTrainer trainer)
+    public void scheduleManualTraining(ManualTrainingOptions options, ICompressionDictionaryTrainer trainer)
     {
         if (scheduledManualTrainingTask != null)
         {
             throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
         }
 
-        // Parse max sampling duration from options (default from configuration)
-        int maxSamplingDurationSeconds = DatabaseDescriptor.getCompressionDictionaryTrainingManualSamplingDurationSeconds();
-        if (options.containsKey("maxSamplingDurationSeconds"))
-        {
-            String durationStr = options.get("maxSamplingDurationSeconds");
-            try
-            {
-                maxSamplingDurationSeconds = Integer.parseInt(durationStr);
-            }
-            catch (NumberFormatException e)
-            {
-                logger.warn("Invalid maxSamplingDurationSeconds value: {}, using default: {}",
-                            durationStr, maxSamplingDurationSeconds);
-            }
-        }
+        int maxSamplingDurationSeconds = options.getMaxSamplingDurationSeconds();
 
         logger.info("Starting manual dictionary training for {}.{} with max sampling duration: {} seconds",
                     keyspaceName, tableName, maxSamplingDurationSeconds);

@@ -112,13 +112,13 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training")
-        .isThrownBy(() -> manager.train(Map.of()));
+        .isThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")));
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         manager.maybeReloadFromSchema(nonDictParams);
 
-        assertThatThrownBy(() -> manager.train(Map.of()))
+        assertThatThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")))
         .as("Should disallow manual training when using lz4")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not support dictionary compression");
@@ -130,7 +130,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training after switching back to dictionary compression")
-        .isThrownBy(() -> manager.train(Map.of()));
+        .isThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")));
     }
 
     @Test
