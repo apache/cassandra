@@ -566,6 +566,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         LoaderOptions loaderOptions = new LoaderOptions();
         loaderOptions.setCodePointLimit(64 * 1024 * 1024); // 64 MiB
+        loaderOptions.setWarnOnDuplicateKeys(false);
         return loaderOptions;
     }
 }
