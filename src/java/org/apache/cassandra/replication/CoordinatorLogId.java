@@ -89,6 +89,11 @@ public class CoordinatorLogId implements Serializable
         return NONE;
     }
 
+    public static CoordinatorLogId fromLong(long logId)
+    {
+        return new CoordinatorLogId(logId);
+    }
+
     static boolean isNone(int hostId, int hostLogId)
     {
         return hostId == NONE.hostId && hostLogId == NONE.hostLogId;
@@ -121,7 +126,7 @@ public class CoordinatorLogId implements Serializable
 
     public static final Comparator<CoordinatorLogId> comparator = (l, r) -> Long.compareUnsigned(l.asLong(), r.asLong());
 
-    static final class Serializer implements IVersionedSerializer<CoordinatorLogId>
+    public static final class Serializer implements IVersionedSerializer<CoordinatorLogId>
     {
         @Override
         public void serialize(CoordinatorLogId logId, DataOutputPlus out, int version) throws IOException
@@ -158,5 +163,5 @@ public class CoordinatorLogId implements Serializable
         }
     }
 
-    static final Serializer serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 }

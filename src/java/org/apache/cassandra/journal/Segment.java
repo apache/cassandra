@@ -133,6 +133,12 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         }
     }
 
+    /**
+     * Read all records from this segment using the RecordConsumer interface.
+     * This provides access to deserialized keys and raw value ByteBuffers for streaming scenarios.
+     */
+    public abstract void readAll(RecordConsumer<K> consumer);
+
     @Override
     public int compareTo(Segment<K, V> that)
     {

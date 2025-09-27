@@ -50,6 +50,27 @@ public class MutationJournal
 
     private final Journal<ShortMutationId, Mutation> journal;
 
+    public static class Snapshot implements AutoCloseable
+    {
+        private final Journal.Snapshot<ShortMutationId, Mutation> wrapped;
+
+        public Snapshot(Journal.Snapshot<ShortMutationId, Mutation> wrapped)
+        {
+            this.wrapped = wrapped;
+        }
+
+        public void readAll(RecordConsumer<ShortMutationId> consumer)
+        {
+            wrapped.readAll(consumer);
+        }
+
+        @Override
+        public void close()
+        {
+            wrapped.close();
+        }
+    }
+
     private MutationJournal()
     {
         this(new File(DatabaseDescriptor.getCommitLogLocation()), new JournalParams());
@@ -87,6 +108,17 @@ public class MutationJournal
         return journal.readLast(id, consumer);
     }
 
+    public MutationJournal.Snapshot snapshot()
+    {
+        return new MutationJournal.Snapshot(journal.snapshot(s -> true));
+    }
+
+    @VisibleForTesting
+    public void advanceSegment()
+    {
+        journal.advanceSegment();
+    }
+
     /**
      * @return record pointer of the last mutation with the provided id, or null if not found
      */
@@ -114,6 +146,11 @@ public class MutationJournal
             Preconditions.checkState(mutation != null);
             into.add(mutation);
         }
+    }
+
+    public void readAll(RecordConsumer<ShortMutationId> consumer)
+    {
+        journal.readAll(consumer);
     }
 
     static class JournalParams implements Params

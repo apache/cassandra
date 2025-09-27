@@ -191,47 +191,29 @@ public class MutationTrackingUtils
         assertSummaryContents(summary, expected);
     }
 
-    public static void assertMatchingSummaryForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, MutationSummary expected)
-    {
-        byte[] encodedExpected = encodeSummary(expected);
-        node.runOnInstance(() -> {
-            MutationSummary decodedExpected = decodeSummary(encodedExpected);
-            MutationSummary actual = summaryForKey(keyspaceName, tableName, key);
-            Assert.assertEquals(decodedExpected, actual);
-        });
-    }
-
     /**
      * Checks that nodes have seen the same ids, regardless of whether they agree on their reconciliation status
      */
     public static void assertMatchingSummaryIdSpaceForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, MutationSummary expected)
     {
-        byte[] encodedExpected = encodeSummary(expected);
-        node.runOnInstance(() -> {
-            MutationSummary decodedExpected = decodeSummary(encodedExpected);
-            MutationSummary actual = summaryForKey(keyspaceName, tableName, key);
-            Assert.assertEquals(summaryIdSpace(decodedExpected), summaryIdSpace(actual));
-        });
+        byte[] encodedActual = node.callOnInstance(() -> encodeSummary(summaryForKey(keyspaceName, tableName, key)));
+        MutationSummary actual = decodeSummary(encodedActual);
+        Assert.assertEquals(summaryIdSpace(expected), summaryIdSpace(actual));
     }
 
     public static void assertMatchingSummaryForTable(IInvokableInstance node, String keyspaceName, String tableName, MutationSummary expected)
     {
-        byte[] encodedExpected = encodeSummary(expected);
-        node.runOnInstance(() -> {
-            MutationSummary decodedExpected = decodeSummary(encodedExpected);
-            MutationSummary actual = summaryForTable(keyspaceName, tableName);
-            Assert.assertEquals(decodedExpected, actual);
-        });
+        byte[] encodedActual = node.callOnInstance(() -> encodeSummary(summaryForTable(keyspaceName, tableName)));
+
+        MutationSummary actual = decodeSummary(encodedActual);
+        Assert.assertEquals(expected, actual);
     }
 
     public static void assertMatchingSummaryIdSpaceForTable(IInvokableInstance node, String keyspaceName, String tableName, MutationSummary expected)
     {
-        byte[] encodedExpected = encodeSummary(expected);
-        node.runOnInstance(() -> {
-            MutationSummary decodedExpected = decodeSummary(encodedExpected);
-            MutationSummary actual = summaryForTable(keyspaceName, tableName);
-            Assert.assertEquals(summaryIdSpace(decodedExpected), summaryIdSpace(actual));
-        });
+        byte[] encodedActual = node.callOnInstance(() -> encodeSummary(summaryForTable(keyspaceName, tableName)));
+        MutationSummary actual = decodeSummary(encodedActual);
+        Assert.assertEquals(summaryIdSpace(expected), summaryIdSpace(actual));
     }
 
     public static void assertOffsetsIsSuperSet(Offsets expectedSuperset, Offsets expectedSubset)
