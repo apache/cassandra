@@ -115,14 +115,10 @@ public class MVBackfillManager
         /**
          * Process a translated view row. This method is called for each row
          * that successfully translates from the base table to the view.
-         * 
-         * @param basePartitionKey the partition key from the base table
-         * @param baseRow the row from the base table
+         *
          * @param viewResult the translated view row result, or null if the row doesn't match the view
          */
-        void processViewRow(org.apache.cassandra.db.DecoratedKey basePartitionKey, 
-                          Row baseRow, 
-                          ViewRowTranslator.ViewRowResult viewResult) throws Exception;
+        void processViewRow(ViewRowTranslator.ViewRowResult viewResult) throws Exception;
 
         /**
          * Called when backfill processing is complete.
@@ -212,7 +208,7 @@ public class MVBackfillManager
                                 {
                                     state.viewRowsGenerated++;
                                     // Process the result
-                                    processor.processViewRow(partitionKey, baseRow, viewResult);
+                                    processor.processViewRow(viewResult);
                                 }
                                 else
                                 {
@@ -310,4 +306,5 @@ public class MVBackfillManager
     {
         return submitBackfill(baseCfs, view, java.util.Collections.singletonList(range), processor, state);
     }
+
 }

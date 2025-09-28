@@ -102,6 +102,7 @@ public class Directories
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
+    public static final String MV_BACKFILL_SUBDIR = "mv_backfill";
     public static final String TMP_SUBDIR = "tmp";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
@@ -631,6 +632,13 @@ public class Directories
         {
             return getOrCreate(location, BACKUPS_SUBDIR);
         }
+    }
+
+    public static File getMVBackfillDirectory(File location)
+    {
+        // we should not do MV backfill for secondary index
+        assert !isSecondaryIndexFolder(location);
+        return getOrCreate(location, MV_BACKFILL_SUBDIR);
     }
 
     /**

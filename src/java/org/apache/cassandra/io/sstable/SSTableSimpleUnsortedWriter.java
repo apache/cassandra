@@ -53,7 +53,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  *
  * @see SSTableSimpleWriter
  */
-class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
+public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
     private static final Buffer SENTINEL = new Buffer();
 
@@ -68,7 +68,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final BlockingQueue<Buffer> writeQueue = newBlockingQueue(0);
     private final DiskWriter diskWriter = new DiskWriter();
 
-    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
+    public SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
         super(directory, metadata, columns);
         this.maxSSTableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
@@ -78,7 +78,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     }
 
     @Override
-    PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
+    public PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
         assert key != null;
         PartitionUpdate.Builder previous = buffer.get(key);

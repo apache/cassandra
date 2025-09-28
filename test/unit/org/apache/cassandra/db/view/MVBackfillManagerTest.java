@@ -139,7 +139,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
 
         try
         {
-            processor.processViewRow(key, row, viewResult);
+            processor.processViewRow(viewResult);
             assertEquals(1, processor.processedRows.size());
             assertEquals(viewResult, processor.processedRows.get(0));
         }
@@ -389,9 +389,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         Exception failure = null;
 
         @Override
-        public void processViewRow(DecoratedKey basePartitionKey,
-                                 Row baseRow,
-                                 ViewRowTranslator.ViewRowResult viewResult) throws Exception
+        public void processViewRow(ViewRowTranslator.ViewRowResult viewResult) throws Exception
         {
             if (viewResult != null)
                 processedRows.add(viewResult);
@@ -415,9 +413,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         Exception failure = null;
 
         @Override
-        public void processViewRow(DecoratedKey basePartitionKey,
-                                 Row baseRow,
-                                 ViewRowTranslator.ViewRowResult viewResult) throws Exception
+        public void processViewRow(ViewRowTranslator.ViewRowResult viewResult) throws Exception
         {
             throw new RuntimeException("Processor failure for testing");
         }
