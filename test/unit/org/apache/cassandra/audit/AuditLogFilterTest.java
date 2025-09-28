@@ -22,21 +22,19 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.Assert;
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.SchemaLoader;
 
 import static org.apache.cassandra.audit.AuditLogFilter.isFiltered;
 
 public class AuditLogFilterTest
 {
-    @Before
-    public void setup()
+    @BeforeClass
+    public static void beforeClass()
     {
-        DatabaseDescriptor.setConfig(new Config());
-        DatabaseDescriptor.applyAddressConfig();
+        SchemaLoader.prepareServer();
     }
 
     @Test

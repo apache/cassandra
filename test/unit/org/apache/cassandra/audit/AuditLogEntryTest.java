@@ -25,10 +25,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.auth.MutualTlsAuthenticator.METADATA_IDENTITY_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,7 +46,7 @@ public class AuditLogEntryTest
     @BeforeClass
     public static void beforeClass()
     {
-        DatabaseDescriptor.daemonInitialization();
+        SchemaLoader.prepareServer();
     }
 
     @Before
@@ -75,17 +76,17 @@ public class AuditLogEntryTest
     @Test
     public void testDefaultGetLogString()
     {
-        assertThat(entry.getLogString()).matches("user:cassandra_user\\|host:/127.0.0.1:9042\\|" +
-                                                 "source:/127.0.0.1\\|port:9999\\|timestamp:\\d+\\|" +
-                                                 "type:LOGIN_SUCCESS\\|category:AUTH\\|" +
+        assertThat(entry.getLogString()).matches("user:cassandra_user\\|localHostId:" + StorageService.instance.getLocalHostId() +
+                                                 "\\|host:/127.0.0.1:9042\\|source:/127.0.0.1\\|port:9999\\|" +
+                                                 "timestamp:\\d+\\|type:LOGIN_SUCCESS\\|category:AUTH\\|" +
                                                  "operation:LOGIN SUCCESSFUL\\|identity:cassandra_user_identity");
     }
 
     @Test
     public void testGetLogStringWithCustomSeparators()
     {
-        assertThat(entry.getLogString("=", " ")).matches("user=cassandra_user host=/127.0.0.1:9042 " +
-                                                         "source=/127.0.0.1 port=9999 timestamp=\\d+ " +
+        assertThat(entry.getLogString("=", " ")).matches("user=cassandra_user localHostId=" + StorageService.instance.getLocalHostId() +
+                                                         " host=/127.0.0.1:9042 source=/127.0.0.1 port=9999 timestamp=\\d+ " +
                                                          "type=LOGIN_SUCCESS category=AUTH " +
                                                          "operation=LOGIN SUCCESSFUL identity=cassandra_user_identity");
     }

@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -40,6 +41,7 @@ public class AuditLogEntry
 {
     static final String DEFAULT_KEY_VALUE_SEPARATOR = ":";
     static final String DEFAULT_FIELD_SEPARATOR = "|";
+    private final String localHostId;
     private final InetAddressAndPort host = FBUtilities.getBroadcastNativeAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -66,6 +68,7 @@ public class AuditLogEntry
         this.options = builder.options;
         this.state = builder.state;
         this.metadata = builder.metadata;
+        this.localHostId = StorageService.instance.getLocalHostId();
     }
 
     @VisibleForTesting
@@ -78,6 +81,7 @@ public class AuditLogEntry
     {
         StringBuilder builder = new StringBuilder(100);
         builder.append("user").append(keyValueSeparator).append(user)
+               .append(fieldSeparator).append("localHostId").append(keyValueSeparator).append(localHostId)
                .append(fieldSeparator).append("host").append(keyValueSeparator).append(host);
 
         // Source is only expected to be null during testing
