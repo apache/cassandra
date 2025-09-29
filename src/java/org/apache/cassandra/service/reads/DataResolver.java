@@ -297,7 +297,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
 
         UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(results, mergeListener);
-        Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
+        Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness(), command.skipPurger());
         FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
         PartitionIterator counted = Transformation.apply(preCountFilter.apply(filtered), context.mergedResultCounter);
 

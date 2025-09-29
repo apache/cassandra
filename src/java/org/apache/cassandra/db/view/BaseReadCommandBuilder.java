@@ -124,12 +124,17 @@ public class BaseReadCommandBuilder
         DecoratedKey basePK = buildBaseTablePartitionKey(viewRawDataMap);
         Clustering<?> baseClustering = buildBaseClusteringKey(viewRawDataMap);
         ClusteringIndexNamesFilter baseClusteringFilter = new ClusteringIndexNamesFilter(FBUtilities.singleton(baseClustering, baseMetadata.comparator), false);
-        return SinglePartitionReadCommand.create(baseMetadata,
-                                                 nowInSec,
-                                                 ColumnFilter.all(baseMetadata),
-                                                 RowFilter.NONE,
-                                                 DataLimits.NONE,
-                                                 basePK,
-                                                 baseClusteringFilter);
+        return SinglePartitionReadCommand.createUnfiltered(false,
+                                                           0,
+                                                           false,
+                                                           baseMetadata,
+                                                           nowInSec,
+                                                           ColumnFilter.all(baseMetadata),
+                                                           RowFilter.NONE,
+                                                           DataLimits.NONE,
+                                                           basePK,
+                                                           baseClusteringFilter,
+                                                           null,
+                                                           false);
     }
 }

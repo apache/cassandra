@@ -112,6 +112,9 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private boolean trackWarnings;
 
+    // Hack warning: See Filter for details. This field is only used by coordinator node and not serialized
+    private final boolean skipPurger;
+
     @Nullable
     private final IndexMetadata index;
 
@@ -153,7 +156,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                           RowFilter rowFilter,
                           DataLimits limits,
                           IndexMetadata index,
-                          boolean trackWarnings)
+                          boolean trackWarnings,
+                          boolean skipPurger)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
         if (acceptsTransient && isDigestQuery)
@@ -165,6 +169,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.acceptsTransient = acceptsTransient;
         this.index = index;
         this.trackWarnings = trackWarnings;
+        this.skipPurger = skipPurger;
     }
 
     public static ReadCommand getCommand()
@@ -269,6 +274,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     public IndexMetadata indexMetadata()
     {
         return index;
+    }
+
+    public boolean skipPurger()
+    {
+        return skipPurger;
     }
 
     /**

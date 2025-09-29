@@ -77,7 +77,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                       IndexMetadata index,
                                       boolean trackWarnings)
     {
-        super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
+        super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings, false);
         this.dataRange = dataRange;
     }
 

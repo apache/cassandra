@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.Filter;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
@@ -119,6 +120,11 @@ public abstract class UnfilteredPartitionIterators
     public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final int nowInSec)
     {
         return FilteredPartitions.filter(iterator, nowInSec);
+    }
+
+    public static PartitionIterator filterSkipPurger(final UnfilteredPartitionIterator iterator, final int nowInSec)
+    {
+        return FilteredPartitions.filter(iterator, new Filter(nowInSec, iterator.metadata().enforceStrictLiveness(), true));
     }
 
     @SuppressWarnings("resource")

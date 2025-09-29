@@ -80,7 +80,9 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
         if (!hasTransientResponse(responses))
         {
-            return UnfilteredPartitionIterators.filter(dataResponse.payload.makeIterator(command), command.nowInSec());
+            return command.skipPurger()
+                   ? UnfilteredPartitionIterators.filterSkipPurger(dataResponse.payload.makeIterator(command), command.nowInSec())
+                   : UnfilteredPartitionIterators.filter(dataResponse.payload.makeIterator(command), command.nowInSec());
         }
         else
         {

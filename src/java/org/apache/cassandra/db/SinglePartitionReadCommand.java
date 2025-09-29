@@ -77,12 +77,41 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
                                          IndexMetadata index,
-                                         boolean trackWarnings)
+                                         boolean trackWarnings,
+                                         boolean skipPurger)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings, skipPurger);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
+    }
+
+    public static SinglePartitionReadCommand createUnfiltered(boolean isDigest,
+                                                               int digestVersion,
+                                                               boolean acceptsTransient,
+                                                               TableMetadata metadata,
+                                                               int nowInSec,
+                                                               ColumnFilter columnFilter,
+                                                               RowFilter rowFilter,
+                                                               DataLimits limits,
+                                                               DecoratedKey partitionKey,
+                                                               ClusteringIndexFilter clusteringIndexFilter,
+                                                               IndexMetadata index,
+                                                               boolean trackWarnings)
+    {
+        return new SinglePartitionReadCommand(isDigest,
+                                              digestVersion,
+                                              acceptsTransient,
+                                              metadata,
+                                              nowInSec,
+                                              columnFilter,
+                                              rowFilter,
+                                              limits,
+                                              partitionKey,
+                                              clusteringIndexFilter,
+                                              index,
+                                              trackWarnings,
+                                              true);
     }
 
     private static SinglePartitionReadCommand create(boolean isDigest,
@@ -124,7 +153,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               partitionKey,
                                               clusteringIndexFilter,
                                               index,
-                                              trackWarnings);
+                                              trackWarnings,
+                                              false);
     }
 
     /**
@@ -1322,7 +1352,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          IndexMetadata index,
                                                          boolean trackWarnings)
         {
-            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings);
+            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings, false);
         }
 
         @Override
