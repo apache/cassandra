@@ -341,30 +341,6 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-
-    public V readLast(K id, long segmentId)
-    {
-        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-
-        Segment<K, V> segment = segments.get().get(segmentId);
-        try (OpOrder.Group group = readOrder.start())
-        {
-            if (segment.readLast(id, holder))
-            {
-                try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
-                {
-                    return valueSerializer.deserialize(holder.key, in, holder.userVersion);
-                }
-                catch (IOException e)
-                {
-                    // can only throw if serializer is buggy
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-        return null;
-    }
-
     public void readLast(K id, long segmentId, DeserializedRecordConsumer<K, V> consumer)
     {
         Segment<K, V> segment = segments.get().get(segmentId);
