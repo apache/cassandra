@@ -31,8 +31,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.journal.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +88,7 @@ public class MutationJournal
                                                         });
             }
         };
-        segmentStateTrackers = new NonBlockingHashMap<>();
+        segmentStateTrackers = new NonBlockingHashMapLong<>();
     }
 
     public CommitLogPosition getCurrentPosition()
