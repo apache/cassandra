@@ -130,10 +130,36 @@ class Segments<K, V>
 
     void select(long minTimestamp, long maxTimestamp, Collection<Segment<K, V>> into)
     {
-        // TODO (required): use binary search in the sorted structure!
-        for (Segment<K, V> segment : segments.values())
-            if (segment.descriptor.timestamp >= minTimestamp && segment.descriptor.timestamp <= maxTimestamp)
-                into.add(segment);
+        List<Segment<K, V>> sorted = allSorted(true);
+        int idx = findIdxFor(minTimestamp);
+        while (idx < sorted.size())
+        {
+            Segment<K, V> segment = sorted.get(idx++);
+            if (segment.descriptor.timestamp > maxTimestamp)
+                break;
+            into.add(segment);
+        }
+    }
+
+    int findIdxFor(long timestamp)
+    {
+        List<Segment<K, V>> sorted = allSorted(true);
+        int minTimestampIdx = -1;
+        {
+            int low = 0, mid = sorted.size(), high = mid - 1, res = -1;
+            while (low <= high)
+            {
+                mid = (low + high) >>> 1;
+                res = Long.compare(timestamp, sorted.get(mid).descriptor.timestamp);
+                if (res > 0)
+                    low = mid + 1;
+                else if (res == 0)
+                    return mid;
+                else
+                    high = mid - 1;
+            }
+        }
+        throw new IllegalStateException(String.format("Could not find a segment with id %d among %s", minTimestampIdx, sorted));
     }
 
     boolean isSwitched(ActiveSegment<K, V> active)

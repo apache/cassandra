@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import accord.utils.Invariants;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.IntegerInterval;
@@ -63,6 +64,7 @@ public class SegmentStateTracker
         return segmentId;
     }
 
+    @VisibleForTesting
     public boolean isClean()
     {
         removeCleanFromDirty();
