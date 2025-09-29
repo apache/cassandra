@@ -47,5 +47,5 @@ public abstract class DeserializedRecordConsumer<K, V> implements RecordConsumer
         }
     }
 
-    protected abstract void accept(long segment, int position, K key, V buffer);
+    protected abstract void accept(long segment, int position, K key, V value);
 }

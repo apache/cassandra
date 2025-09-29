@@ -204,16 +204,16 @@ public class MutationJournal
         replay(new DeserializedRecordConsumer<>(MutationSerializer.INSTANCE)
         {
             @Override
-            protected void accept(long segmentId, int position, ShortMutationId key, Mutation mutation)
+            protected void accept(long segmentId, int position, ShortMutationId key, Mutation value)
             {
-                if (Schema.instance.getKeyspaceMetadata(mutation.getKeyspaceName()) == null)
+                if (Schema.instance.getKeyspaceMetadata(value.getKeyspaceName()) == null)
                     return;
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
-                final Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+                final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
                 // TODO (required): replayFilter
-                for (Map.Entry<TableId, PartitionUpdate> e : mutation.modifications().entrySet())
+                for (Map.Entry<TableId, PartitionUpdate> e : value.modifications().entrySet())
                 {
                     PartitionUpdate update = e.getValue();
                     update.validate();
@@ -226,7 +226,7 @@ public class MutationJournal
                                         .markDirty(tableId, segmentId, position);
                     // TODO (required): shouldReplay
                     if (newPUCollector == null)
-                        newPUCollector = new Mutation.PartitionUpdateCollector(mutation.id(), mutation.getKeyspaceName(), mutation.key());
+                        newPUCollector = new Mutation.PartitionUpdateCollector(value.id(), value.getKeyspaceName(), value.key());
                     newPUCollector.add(update);
                     // TODO (required): replayedCount
                 }
@@ -240,7 +240,7 @@ public class MutationJournal
     }
 
     @VisibleForTesting
-    void replay(DeserializedRecordConsumer<ShortMutationId, Mutation> replayOne, int parallelism)
+    public void replay(DeserializedRecordConsumer<ShortMutationId, Mutation> replayOne, int parallelism)
     {
         try (Journal<ShortMutationId, Mutation>.StaticSegmentKeyIterator iter =
                      journal.staticSegmentKeyIterator(s -> s.isStatic()
@@ -413,7 +413,7 @@ public class MutationJournal
         }
     }
 
-    static class MutationSerializer implements ValueSerializer<ShortMutationId, Mutation>
+    public static class MutationSerializer implements ValueSerializer<ShortMutationId, Mutation>
     {
         public static MutationSerializer INSTANCE = new MutationSerializer();
         @Override

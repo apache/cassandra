@@ -56,7 +56,6 @@ public class MutationTrackingBounceTest extends FuzzTestBase
                 List<HistoryBuilder> builders = new ArrayList<>();
                 for (int i = 0; i < tables; i++)
                 {
-
                     Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "mutation_tracking_bounce_" + (builders.size() + 1), POPULATION,
                                                                                      SchemaSpec.optionsBuilder());
 
@@ -69,7 +68,7 @@ public class MutationTrackingBounceTest extends FuzzTestBase
                 }
 
                 int counter = 0;
-                for (int pk = 0; pk <= pks; pk++) {
+                for (int pk = 0; pk < pks; pk++) {
                     for (HistoryBuilder history : builders)
                         for (int i = 0; i < writesPerKey; i++)
                             history.insert(pk);
@@ -85,6 +84,8 @@ public class MutationTrackingBounceTest extends FuzzTestBase
                     for (HistoryBuilder history : builders)
                         for (int i = 0; i < 10; i++)
                             history.selectPartition(pk);
+
+                cluster.get(1).runOnInstance(new MutationTrackingBounce_ValidateRunnable(tables * pks * writesPerKey));
             });
         }
     }
