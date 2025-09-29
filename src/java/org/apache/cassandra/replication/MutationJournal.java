@@ -99,7 +99,7 @@ public class MutationJournal
     // If all Memtables associated with given segment were flushed by the time we have closed active segment
     // and opened it as static, mark its metadata to indicate it does not need replay. It may happen that we
     // crash before persisting this metadata, in which case we will unnecessarily replay the segment, which
-    // has no correction implications.
+    // has no correctness implications.
     private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
     {
         Invariants.require(segment.isStatic());
