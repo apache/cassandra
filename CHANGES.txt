@@ -1,5 +1,6 @@
 5.1
  * Add DDL Guardrail enabling administrators to disallow creation/modification of keyspaces with durable_writes = false (CASSANDRA-20913)
+ * Optimize Counter, Meter and Histogram metrics using thread local counters (CASSANDRA-20250)
  * Update snakeyaml to 2.4 (CASSANDRA-20928)
  * Update Netty to 4.1.125.Final (CASSANDRA-20925)
  * Expose uncaught exceptions in system_views.uncaught_exceptions table (CASSANDRA-20858)

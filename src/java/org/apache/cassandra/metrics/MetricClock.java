@@ -15,39 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.metrics;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.Clock;
 
-/**
- * Adds ability to reset a histogram
- */
-public class ClearableHistogram extends ThreadLocalHistogram
+public class MetricClock extends com.codahale.metrics.Clock
 {
-    private final DecayingEstimatedHistogramReservoir reservoirRef;
-
-    /**
-     * Creates a new {@link com.codahale.metrics.Histogram} with the given reservoir.
-     *
-     * @param reservoir the reservoir to create a histogram from
-     */
-    public ClearableHistogram(DecayingEstimatedHistogramReservoir reservoir)
+    @Override
+    public long getTick()
     {
-        super(reservoir);
-
-        this.reservoirRef = reservoir;
+        return Clock.Global.nanoTime();
     }
 
-    @VisibleForTesting
-    public void clear()
+    public TimeUnit getTickUnit()
     {
-        clearCount();
-        reservoirRef.clear();
+        return TimeUnit.NANOSECONDS;
     }
 
-    private void clearCount()
+    private static final MetricClock DEFAULT = new MetricClock();
+
+    public static MetricClock defaultClock()
     {
-        reset();
+        return DEFAULT;
     }
 }

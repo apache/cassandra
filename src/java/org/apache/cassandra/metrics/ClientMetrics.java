@@ -199,7 +199,7 @@ public final class ClientMetrics
 
         CassandraReservoir ipUsageReservoir = ClientResourceLimits.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
-                         new CassandraHistogram(ipUsageReservoir)
+                         new OverrideHistogram(ipUsageReservoir)
         {
              public long getCount()
              {

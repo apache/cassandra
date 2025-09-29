@@ -116,6 +116,7 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
+import org.apache.cassandra.metrics.ThreadLocalMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -1009,7 +1010,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> EpochAwareDebounce.instance.close(),
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
-                                DiskErrorsHandlerService::close
+                                DiskErrorsHandlerService::close,
+                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;
