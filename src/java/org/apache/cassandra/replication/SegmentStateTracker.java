@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableId;
@@ -49,6 +51,7 @@ public class SegmentStateTracker
     final long segmentId;
 
     private final Map<TableId, IntervalState> states = new HashMap<>(32);
+    private final Lock lock = new ReentrantLock();
 
     public SegmentStateTracker(long segmentId)
     {
@@ -63,9 +66,14 @@ public class SegmentStateTracker
     public boolean isClean()
     {
         removeCleanFromDirty();
-        synchronized (this.states)
+        lock.lock();
+        try
         {
             return states.isEmpty();
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 
@@ -80,9 +88,14 @@ public class SegmentStateTracker
     {
         List<Map.Entry<TableId, IntervalState>> states;
         // Take a "snapshot" of states, while holding a lock
-        synchronized (this.states)
+        lock.lock();
+        try
         {
             states = new ArrayList<>(this.states.entrySet());
+        }
+        finally
+        {
+            lock.unlock();
         }
 
         int[] remove = new int[states.size()];
@@ -99,7 +112,8 @@ public class SegmentStateTracker
         // Remove all fully covered items, while holding a lock
         if (removeCount > 0)
         {
-            synchronized (this.states)
+            lock.lock();
+            try
             {
                 if (this.states.size() == removeCount)
                 {
@@ -112,6 +126,10 @@ public class SegmentStateTracker
                     Map.Entry<TableId, IntervalState> e = states.get(remove[i]);
                     this.states.remove(e.getKey());
                 }
+            }
+            finally
+            {
+                lock.unlock();
             }
         }
 
@@ -127,13 +145,18 @@ public class SegmentStateTracker
     {
         Invariants.require(segmentId == this.segmentId);
         IntervalState state;
-        synchronized (states)
+        lock.lock();
+        try
         {
             state = states.computeIfAbsent(tableId, (k) -> {
                 // Initialize with given position as both low and high bound to ensure we correctly set
                 // lower bound when marking as clean
                 return new IntervalState(position, position);
             });
+        }
+        finally
+        {
+            lock.unlock();
         }
         state.markDirty(position);
     }
@@ -145,9 +168,14 @@ public class SegmentStateTracker
             return;
 
         IntervalState state;
-        synchronized (states)
+        lock.lock();
+        try
         {
             state = states.get(tableId);
+        }
+        finally
+        {
+            lock.unlock();
         }
 
         if (state != null)
