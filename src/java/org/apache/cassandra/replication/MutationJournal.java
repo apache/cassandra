@@ -32,6 +32,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.journal.*;
 
+import org.apache.cassandra.net.InboundConnectionSettings;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +84,7 @@ public class MutationJournal
             {
                 super.closeActiveSegmentAndOpenAsStatic(activeSegment,
                                                         () -> {
-                                                            maybeCleanupStaticSegment(Invariants.nonNull(getStaticSegment(activeSegment.id())));
+                                                            maybeCleanupStaticSegment(Invariants.nonNull(getSegment(activeSegment.id())));
                                                             if (onDone != null) onDone.run();
                                                         });
             }
@@ -102,6 +103,7 @@ public class MutationJournal
     // has no correction implications.
     private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
     {
+        Invariants.require(segment.isStatic());
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
         if (tracker != null && tracker.removeCleanFromDirty())
         {

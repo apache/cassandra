@@ -828,7 +828,7 @@ public class Journal<K, V> implements Shutdownable
         return currentSegment;
     }
 
-    @Nullable protected Segment<K, V> getStaticSegment(long timestamp)
+    @Nullable protected Segment<K, V> getSegment(long timestamp)
     {
         return segments().get(timestamp);
     }
