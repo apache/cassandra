@@ -3253,9 +3253,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         data.notifyDropped(DatabaseDescriptor.getAutoSnapshotTtl());
 
-        // TODO (required): mutation tracking + table dropping
+        // TODO (required): test mutation tracking + table dropping
         if (metadata().replicationType().isTracked())
-            throw new IllegalStateException("not implemented");
+            MutationJournal.instance.notifyFlushed(metadata.id, new CommitLogPosition(0, 0), MutationJournal.instance.getCurrentPosition());
         else
             CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
