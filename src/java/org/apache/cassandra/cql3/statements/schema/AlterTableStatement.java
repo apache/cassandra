@@ -653,7 +653,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             boolean forceMigrationChange = modeChange && explicitlySetMigrationFrom && next.transactionalMigrationFrom != newMigrateFrom;
 
             if (modeChange && next.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
-                throw ire(format("Cannot change transactional mode to %s for %s.%s with accord_transactions_enabled set to false",
+                throw ire(format("Cannot change transactional mode to %s for %s.%s with accord.enabled set to false",
                                  next.transactionalMode, keyspaceName, tableName));
 
             // user is manually updating migration mode, don't interfere
