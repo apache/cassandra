@@ -1,3 +1,12 @@
+**CRITICAL: UPGRADING**
+----------------------
+
+In order to support the new Cluster Metadata Service, added to Apache Cassandra
+in "CEP-21: Transactional Cluster Metadata", upgrading to this version of
+Cassandra involves operational steps above and beyond most previous upgrades.
+See the instructions below in the "Upgrading" section for more details on how
+to proceed.
+
 PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092 & CASSANDRA-14227)
 -----------------------------------------------------------------------------------
 (General upgrading instructions are available in the next section)
