@@ -286,6 +286,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <createFunctionStatement>
                           | <createAggregateStatement>
                           | <createTriggerStatement>
+                          | <addIdentityStatement>
                           | <dropKeyspaceStatement>
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
@@ -294,6 +295,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <dropFunctionStatement>
                           | <dropAggregateStatement>
                           | <dropTriggerStatement>
+                          | <dropIdentityStatement>
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           | <alterUserTypeStatement>
@@ -1749,6 +1751,7 @@ syntax_rules += r'''
                              "ON" cf=<columnFamilyName>
                          ;
 '''
+
 explain_completion('createTriggerStatement', 'class', '\'fully qualified class name\'')
 
 
@@ -1764,6 +1767,13 @@ def drop_trigger_completer(ctxt, cass):
     names = get_trigger_names(ctxt, cass)
     return list(map(maybe_escape_name, names))
 
+
+syntax_rules += r'''
+<addIdentityStatement> ::= "ADD" "IDENTITY" ("IF" "NOT" "EXISTS")? <stringLiteral> "TO" "ROLE" <rolename>
+                         ;
+<dropIdentityStatement> ::= "DROP" "IDENTITY" ("IF" "EXISTS")? <stringLiteral>
+                          ;
+'''
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 
