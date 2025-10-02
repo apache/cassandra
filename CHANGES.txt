@@ -1,4 +1,5 @@
 5.1
+ * Add cqlsh autocompletion for the identity mapping feature (CASSANDRA-20021)
  * Add DDL Guardrail enabling administrators to disallow creation/modification of keyspaces with durable_writes = false (CASSANDRA-20913)
  * Optimize Counter, Meter and Histogram metrics using thread local counters (CASSANDRA-20250)
  * Update snakeyaml to 2.4 (CASSANDRA-20928)
