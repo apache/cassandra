@@ -1769,10 +1769,10 @@ def drop_trigger_completer(ctxt, cass):
 
 
 syntax_rules += r'''
-<addIdentityStatement> ::= "ADD" "USER" ("IF" "NOT" "EXISTS")? <stringLiteral>
+<addIdentityStatement> ::= "ADD" "IDENTITY" ("IF" "NOT" "EXISTS")? <stringLiteral>
                             "TO" "ROLE" <rolename>
                             ;
-<dropIdentityStatement> ::= "DROP" "USER" ("IF" "EXISTS")? <stringLiteral>
+<dropIdentityStatement> ::= "DROP" "IDENTITY" ("IF" "EXISTS")? <stringLiteral>
                             ;
 '''
 
