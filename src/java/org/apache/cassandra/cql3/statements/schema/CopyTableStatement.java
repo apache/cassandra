@@ -20,12 +20,15 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -67,14 +70,14 @@ public final class CopyTableStatement extends AlterSchemaStatement
     private final String targetTableName;
     private final boolean ifNotExists;
     private final TableAttributes attrs;
-    private final CreateLikeOption createLikeOption;
+    private final Set<CreateLikeOption> createLikeOptions;
 
     public CopyTableStatement(String sourceKeyspace,
                               String targetKeyspace,
                               String sourceTableName,
                               String targetTableName,
                               boolean ifNotExists,
-                              CreateLikeOption createLikeOption,
+                              Set<CreateLikeOption> createLikeOptions,
                               TableAttributes attrs)
     {
         super(targetKeyspace);
@@ -83,7 +86,8 @@ public final class CopyTableStatement extends AlterSchemaStatement
         this.sourceTableName = sourceTableName;
         this.targetTableName = targetTableName;
         this.ifNotExists = ifNotExists;
-        this.createLikeOption = createLikeOption;
+        this.createLikeOptions = createLikeOptions != null ?
+            EnumSet.copyOf(createLikeOptions) : EnumSet.noneOf(CreateLikeOption.class);
         this.attrs = attrs;
     }
 
@@ -202,6 +206,8 @@ public final class CopyTableStatement extends AlterSchemaStatement
                                                                          UserFunctions.none())
                                                                   .indexes(Indexes.none())
                                                                   .triggers(Triggers.none());
+        maybeCopyComments(targetBuilder, sourceTableMeta);
+        maybeCopySecurityLabels(targetBuilder, sourceTableMeta);
 
         TableParams originalParams = targetBuilder.build().params;
         TableParams newTableParams = attrs.asAlteredTableParams(originalParams);
@@ -241,7 +247,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
 
     private void maybeCopyIndexes(TableMetadata.Builder builder, TableMetadata sourceTableMeta, KeyspaceMetadata targetKeyspaceMeta)
     {
-        if (createLikeOption != CreateLikeOption.INDEXES || sourceTableMeta.indexes.isEmpty())
+        if (!createLikeOptions.contains(CreateLikeOption.INDEXES) || sourceTableMeta.indexes.isEmpty())
             return;
 
         Set<String> customIndexes = Sets.newTreeSet();
@@ -285,13 +291,49 @@ public final class CopyTableStatement extends AlterSchemaStatement
                                                    customIndexes));
     }
 
+    private void maybeCopyComments(TableMetadata.Builder builder, TableMetadata sourceTableMeta)
+    {
+        if (!createLikeOptions.contains(CreateLikeOption.COMMENTS))
+        {
+            return;
+        }
+
+        if (!StringUtils.isEmpty(sourceTableMeta.params.comment))
+        {
+            builder.comment(sourceTableMeta.params.comment);
+        }
+
+        for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
+        {
+            builder.alterColumnComment(columnMetadata.name, columnMetadata.comment);
+        }
+    }
+
+    private void maybeCopySecurityLabels(TableMetadata.Builder builder, TableMetadata sourceTableMeta)
+    {
+        if (!createLikeOptions.contains(CreateLikeOption.SECURITY_LABELS))
+        {
+            return;
+        }
+
+        if (!StringUtils.isEmpty(sourceTableMeta.params.securityLabel))
+        {
+            builder.securityLabel(sourceTableMeta.params.securityLabel);
+        }
+
+        for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
+        {
+            builder.alterColumnSecurityLabel(columnMetadata.name, columnMetadata.securityLabel);
+        }
+    }
+
     public final static class Raw extends CQLStatement.Raw
     {
         private final QualifiedName oldName;
         private final QualifiedName newName;
         private final boolean ifNotExists;
         public final TableAttributes attrs = new TableAttributes();
-        private CreateLikeOption createLikeOption = null;
+        private Set<CreateLikeOption> createLikeOptions = EnumSet.noneOf(CreateLikeOption.class);
 
         public Raw(QualifiedName newName, QualifiedName oldName, boolean ifNotExists)
         {
@@ -305,17 +347,19 @@ public final class CopyTableStatement extends AlterSchemaStatement
         {
             String oldKeyspace = oldName.hasKeyspace() ? oldName.getKeyspace() : state.getKeyspace();
             String newKeyspace = newName.hasKeyspace() ? newName.getKeyspace() : state.getKeyspace();
-            return new CopyTableStatement(oldKeyspace, newKeyspace, oldName.getName(), newName.getName(), ifNotExists, createLikeOption, attrs);
+            return new CopyTableStatement(oldKeyspace, newKeyspace, oldName.getName(), newName.getName(), ifNotExists, createLikeOptions, attrs);
         }
 
-        public void withLikeOption(CreateLikeOption option)
+        public void addLikeOption(CreateLikeOption option)
         {
-            this.createLikeOption = option;
+            this.createLikeOptions.add(option);
         }
     }
 
     public enum CreateLikeOption
     {
-        INDEXES;
+        INDEXES,
+        COMMENTS,
+        SECURITY_LABELS;
     }
 }

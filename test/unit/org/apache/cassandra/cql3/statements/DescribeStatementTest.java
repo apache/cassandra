@@ -265,7 +265,8 @@ public class DescribeStatementTest extends CQLTester
                           "    PRIMARY KEY (keyspace_name, table_name, column_name)\n" +
                           ") WITH CLUSTERING ORDER BY (table_name ASC, column_name ASC)\n" +
                           "    AND comment = 'virtual column definitions';\n" +
-                          "*/"));
+                          "*/\n" +
+                          "COMMENT ON TABLE system_virtual_schema.columns IS 'virtual column definitions';"));
     }
 
     @Test
@@ -1050,6 +1051,163 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
+    @Test
+    public void testDescribeKeyspaceWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            // Create keyspace with comment and security label
+            execute("CREATE KEYSPACE test_comments WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
+            execute("COMMENT ON KEYSPACE test_comments IS 'This is a test keyspace with comments'");
+            execute("SECURITY LABEL ON KEYSPACE test_comments IS 'confidential'");
+
+            String expectedKeyspaceOutput = "CREATE KEYSPACE test_comments WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                                           "  AND durable_writes = true" +
+                                           "  AND fast_path = 'simple';\n" +
+                                           "COMMENT ON KEYSPACE test_comments IS 'This is a test keyspace with comments';\n" +
+                                           "SECURITY LABEL ON KEYSPACE test_comments IS 'confidential';";
+
+            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
+            {
+                assertRowsNet(executeDescribeNet(describeKeyword + " ONLY KEYSPACE test_comments"),
+                              row("test_comments", "keyspace", "test_comments", expectedKeyspaceOutput));
+            }
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS test_comments");
+        }
+    }
+
+    @Test
+    public void testDescribeTableWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            // Create keyspace and table with comments and security labels
+            execute("CREATE KEYSPACE test_table_comments WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
+            execute("CREATE TABLE test_table_comments.users (id int PRIMARY KEY, name text, email text)");
+
+            // Add comments and security labels to table and columns
+            execute("COMMENT ON TABLE test_table_comments.users IS 'User information table'");
+            execute("SECURITY LABEL ON TABLE test_table_comments.users IS 'restricted'");
+            execute("COMMENT ON COLUMN test_table_comments.users.name IS 'User full name'");
+            execute("SECURITY LABEL ON COLUMN test_table_comments.users.name IS 'pii'");
+
+            String expectedTableOutput = "CREATE TABLE test_table_comments.users (\n" +
+                                        "    id int PRIMARY KEY,\n" +
+                                        "    email text,\n" +
+                                        "    name text\n" +
+                                        ") WITH " + tableParametersCql("User information table") + "\n" +
+                                        "COMMENT ON TABLE test_table_comments.users IS 'User information table';\n" +
+                                        "SECURITY LABEL ON TABLE test_table_comments.users IS 'restricted';\n" +
+                                        "COMMENT ON COLUMN test_table_comments.users.name IS 'User full name';\n" +
+                                        "SECURITY LABEL ON COLUMN test_table_comments.users.name IS 'pii';";
+            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
+            {
+                assertRowsNet(executeDescribeNet("test_table_comments", describeKeyword + " TABLE users"),
+                              row("test_table_comments", "table", "users", expectedTableOutput));
+            }
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS test_table_comments");
+        }
+    }
+
+    @Test
+    public void testDescribeUserTypeWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            // Create a user-defined type with comments and security labels
+            String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (name text, age int, address text)");
+
+            execute("COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Person information type'");
+            execute("SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'personal_data'");
+
+            String expectedTypeOutput = "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                       "    name text,\n" +
+                                       "    age int,\n" +
+                                       "    address text\n" +
+                                       ");\n" +
+                                       "COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." +  type + " IS 'Person information type';\n" +
+                                       "SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." +  type + " IS 'personal_data';";
+
+            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
+            {
+                assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, describeKeyword + " TYPE " + type),
+                              row(KEYSPACE_PER_TEST, "type", type, expectedTypeOutput));
+            }
+        }
+        finally
+        {
+            // Cleanup is handled by the base test class
+        }
+    }
+
+    @Test
+    public void testDescribeSchemaWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            // Create a comprehensive schema with comments and security labels
+            execute("CREATE KEYSPACE test_schema WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
+            execute("COMMENT ON KEYSPACE test_schema IS 'Test schema for comments and security labels'");
+            execute("SECURITY LABEL ON KEYSPACE test_schema IS 'test_environment'");
+
+            execute("CREATE TYPE test_schema.address_type (street text, city text, zip text)");
+            String type = "address_type";
+            execute("COMMENT ON TYPE test_schema." + type + " IS 'Address information'");
+            execute("SECURITY LABEL ON TYPE test_schema." + type + " IS 'location_data'");
+
+            execute("CREATE TABLE test_schema.customers (id int PRIMARY KEY, name text, addr " + type + ")");
+            execute("COMMENT ON TABLE test_schema.customers IS 'Customer information'");
+            execute("SECURITY LABEL ON TABLE test_schema.customers IS 'customer_data'");
+            execute("COMMENT ON COLUMN test_schema.customers.name IS 'Customer name'");
+            execute("SECURITY LABEL ON COLUMN test_schema.customers.name IS 'pii'");
+
+            ResultSet result = executeDescribeNet("DESCRIBE SCHEMA");
+            boolean foundKeyspaceWithComment = false;
+            boolean foundTypeWithComment = false;
+            boolean foundTableWithComment = false;
+
+            for (Row row : result.all())
+            {
+                String createStatement = row.getString("create_statement");
+
+                if (row.getString("type").equals("keyspace") && row.getString("name").equals("test_schema"))
+                {
+                    assertTrue("Keyspace should include comment", createStatement.contains("COMMENT ON KEYSPACE test_schema IS 'Test schema for comments and security labels'"));
+                    assertTrue("Keyspace should include security label", createStatement.contains("SECURITY LABEL ON KEYSPACE test_schema IS 'test_environment'"));
+                    foundKeyspaceWithComment = true;
+                }
+                else if (row.getString("type").equals("type") && row.getString("name").equals(type))
+                {
+                    assertTrue("Type should include comment", createStatement.contains("COMMENT ON TYPE test_schema." + type + " IS 'Address information'"));
+                    assertTrue("Type should include security label", createStatement.contains("SECURITY LABEL ON TYPE test_schema." +  type + " IS 'location_data'"));
+                    foundTypeWithComment = true;
+                }
+                else if (row.getString("type").equals("table") && row.getString("name").equals("customers"))
+                {
+                    assertTrue("Table should include comment", createStatement.contains("COMMENT ON TABLE test_schema.customers IS 'Customer information';"));
+                    assertTrue("Table should include security label", createStatement.contains("SECURITY LABEL ON TABLE test_schema.customers IS 'customer_data'"));
+                    assertTrue("Table should include column comment", createStatement.contains("COMMENT ON COLUMN test_schema.customers.name IS 'Customer name'"));
+                    assertTrue("Table should include column security label", createStatement.contains("SECURITY LABEL ON COLUMN test_schema.customers.name IS 'pii'"));
+                    foundTableWithComment = true;
+                }
+            }
+
+            assertTrue("Should find keyspace with comment in schema", foundKeyspaceWithComment);
+            assertTrue("Should find type with comment in schema", foundTypeWithComment);
+            assertTrue("Should find table with comment in schema", foundTableWithComment);
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS test_schema");
+        }
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +
@@ -1135,6 +1293,11 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
+        return tableParametersCql("");
+    }
+
+    private static String tableParametersCql(String comment)
+    {
         if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             return "additional_write_policy = '99p'\n" +
@@ -1142,7 +1305,7 @@ public class DescribeStatementTest extends CQLTester
                    "    AND bloom_filter_fp_chance = 0.01\n" +
                    "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                    "    AND cdc = false\n" +
-                   "    AND comment = ''\n" +
+                   "    AND comment = '" + comment + "'\n" +
                    "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                    "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                    "    AND memtable = 'default'\n" +

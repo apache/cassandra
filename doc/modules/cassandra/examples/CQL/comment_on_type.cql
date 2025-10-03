@@ -1,0 +1,1 @@
+COMMENT ON TYPE cycling.address IS 'User-defined type for storing address information';

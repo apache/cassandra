@@ -101,7 +101,8 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTO_REPAIR;
+        AUTO_REPAIR,
+        SECURITY_LABEL;
 
         @Override
         public String toString()
@@ -111,6 +112,7 @@ public final class TableParams
     }
 
     public final String comment;
+    public final String securityLabel;
     public final boolean allowAutoSnapshot;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
@@ -139,6 +141,7 @@ public final class TableParams
     private TableParams(Builder builder)
     {
         comment = builder.comment;
+        securityLabel = builder.securityLabel;
         allowAutoSnapshot = builder.allowAutoSnapshot;
         bloomFilterFpChance = builder.bloomFilterFpChance == -1
                             ? builder.compaction.defaultBloomFilterFbChance()
@@ -178,6 +181,7 @@ public final class TableParams
                             .bloomFilterFpChance(params.bloomFilterFpChance)
                             .caching(params.caching)
                             .comment(params.comment)
+                            .securityLabel(params.securityLabel)
                             .compaction(params.compaction)
                             .compression(params.compression)
                             .memtable(params.memtable)
@@ -276,6 +280,7 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
+            && securityLabel.equals(p.securityLabel)
             && additionalWritePolicy.equals(p.additionalWritePolicy)
             && allowAutoSnapshot == p.allowAutoSnapshot
             && bloomFilterFpChance == p.bloomFilterFpChance
@@ -305,6 +310,7 @@ public final class TableParams
     public int hashCode()
     {
         return Objects.hashCode(comment,
+                                securityLabel,
                                 additionalWritePolicy,
                                 allowAutoSnapshot,
                                 bloomFilterFpChance,
@@ -335,6 +341,7 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(COMMENT.toString(), comment)
+                          .add(Option.SECURITY_LABEL.toString(), securityLabel)
                           .add(ADDITIONAL_WRITE_POLICY.toString(), additionalWritePolicy)
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
@@ -375,6 +382,8 @@ public final class TableParams
                .newLine()
                .append("AND cdc = ").append(cdc)
                .newLine()
+               // TODO: AND comment should be deprecatod in future releases in favor of
+               //  JIRA Introducing comments and security labels for schema elements
                .append("AND comment = ").appendWithSingleQuotes(comment)
                .newLine()
                .append("AND compaction = ").append(compaction.asMap())
@@ -431,6 +440,7 @@ public final class TableParams
     public static final class Builder
     {
         private String comment = "";
+        private String securityLabel = "";
         private boolean allowAutoSnapshot = true;
         private double bloomFilterFpChance = -1;
         private double crcCheckChance = 1.0;
@@ -467,6 +477,12 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
+            return this;
+        }
+
+        public Builder securityLabel(String val)
+        {
+            securityLabel = val;
             return this;
         }
 
@@ -614,6 +630,7 @@ public final class TableParams
         public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.comment);
+            out.writeUTF(t.securityLabel);
             out.writeDouble(t.bloomFilterFpChance);
             out.writeDouble(t.crcCheckChance);
             out.writeInt(t.gcGraceSeconds);
@@ -649,6 +666,7 @@ public final class TableParams
         {
             TableParams.Builder builder = TableParams.builder();
             builder.comment(in.readUTF())
+                   .securityLabel(in.readUTF())
                    .bloomFilterFpChance(in.readDouble())
                    .crcCheckChance(in.readDouble())
                    .gcGraceSeconds(in.readInt())
@@ -680,6 +698,7 @@ public final class TableParams
         public long serializedSize(TableParams t, Version version)
         {
             long size = sizeof(t.comment) +
+                   sizeof(t.securityLabel) +
                    sizeof(t.bloomFilterFpChance) +
                    sizeof(t.crcCheckChance) +
                    sizeof(t.gcGraceSeconds) +

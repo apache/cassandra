@@ -284,6 +284,14 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st45=copyTableStatement              { $stmt = st45; }
     | st46=batchTxnStatement               { $stmt = st46; }
     | st47=letStatement                    { $stmt = st47; }
+    | st48=commentOnKeyspaceStatement      { $stmt = st48; }
+    | st49=securityLabelOnKeyspaceStatement { $stmt = st49; }
+    | st50=commentOnTableStatement         { $stmt = st50; }
+    | st51=securityLabelOnTableStatement   { $stmt = st51; }
+    | st52=commentOnColumnStatement        { $stmt = st52; }
+    | st53=securityLabelOnColumnStatement  { $stmt = st53; }
+    | st54=commentOnTypeStatement          { $stmt = st54; }
+    | st55=securityLabelOnTypeStatement    { $stmt = st55; }
     ;
 
 /*
@@ -1061,7 +1069,17 @@ propertyOrOption[CopyTableStatement.Raw stmt]
     ;
 
 tableLikeSingleOption[CopyTableStatement.Raw stmt]
-    : K_INDEXES {$stmt.withLikeOption(CopyTableStatement.CreateLikeOption.INDEXES);}
+    : likeOptionList[stmt]
+    ;
+
+likeOptionList[CopyTableStatement.Raw stmt]
+    : likeOption[stmt] (K_AND likeOption[stmt])*
+    ;
+
+likeOption[CopyTableStatement.Raw stmt]
+    : K_INDEXES {$stmt.addLikeOption(CopyTableStatement.CreateLikeOption.INDEXES);}
+    | K_COMMENTS {$stmt.addLikeOption(CopyTableStatement.CreateLikeOption.COMMENTS);}
+    | K_SECURITY K_LABELS {$stmt.addLikeOption(CopyTableStatement.CreateLikeOption.SECURITY_LABELS);}
     ;
 
 /**
@@ -1273,6 +1291,70 @@ alterTypeStatement returns [AlterTypeStatement.Raw stmt]
 dropKeyspaceStatement returns [DropKeyspaceStatement.Raw stmt]
     @init { boolean ifExists = false; }
     : K_DROP K_KEYSPACE (K_IF K_EXISTS { ifExists = true; } )? ks=keyspaceName { $stmt = new DropKeyspaceStatement.Raw(ks, ifExists); }
+    ;
+
+/**
+ * COMMENT ON KEYSPACE <keyspace> IS <comment>;
+ */
+commentOnKeyspaceStatement returns [CommentOnKeyspaceStatement.Raw stmt]
+    : K_COMMENT K_ON K_KEYSPACE ks=keyspaceName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnKeyspaceStatement.Raw(ks, comment != null ? $comment.text : null); }
+    ;
+
+/**
+ * SECURITY LABEL [FOR <provider>] ON KEYSPACE <keyspace> IS <label>;
+ */
+securityLabelOnKeyspaceStatement returns [SecurityLabelOnKeyspaceStatement.Raw stmt]
+    @init { String provider = null; }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_KEYSPACE ks=keyspaceName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnKeyspaceStatement.Raw(ks, label != null ? $label.text : null, provider); }
+    ;
+
+/**
+ * COMMENT ON TABLE <table> IS <comment>;
+ */
+commentOnTableStatement returns [CommentOnTableStatement.Raw stmt]
+    : K_COMMENT K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnTableStatement.Raw(cf, comment != null ? $comment.text : null); }
+    ;
+
+/**
+ * SECURITY LABEL [FOR <provider>] ON TABLE <table> IS <label>;
+ */
+securityLabelOnTableStatement returns [SecurityLabelOnTableStatement.Raw stmt]
+    @init { String provider = null; }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnTableStatement.Raw(cf, label != null ? $label.text : null, provider); }
+    ;
+
+/**
+ * COMMENT ON COLUMN <table>.<column> IS <comment>;
+ * COMMENT ON COLUMN <keyspace>.<table>.<column> IS <comment>;
+ */
+commentOnColumnStatement returns [CommentOnColumnStatement.Raw stmt]
+    : K_COMMENT K_ON K_COLUMN columnRef=columnReference K_IS (comment=STRING_LITERAL | K_NULL)
+      { $stmt = new CommentOnColumnStatement.Raw($columnRef.table, $columnRef.column, comment != null ? $comment.text : null); }
+    ;
+
+/**
+ * SECURITY LABEL [FOR <provider>] ON COLUMN <table>.<column> IS <label>;
+ * SECURITY LABEL [FOR <provider>] ON COLUMN <keyspace>.<table>.<column> IS <label>;
+ */
+securityLabelOnColumnStatement returns [SecurityLabelOnColumnStatement.Raw stmt]
+    @init { String provider = null; }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_COLUMN columnRef=columnReference K_IS (label=STRING_LITERAL | K_NULL)
+      { $stmt = new SecurityLabelOnColumnStatement.Raw($columnRef.table, $columnRef.column, label != null ? $label.text : null, provider); }
+    ;
+
+/**
+ * COMMENT ON TYPE <type> IS <comment>;
+ */
+commentOnTypeStatement returns [CommentOnTypeStatement.Raw stmt]
+    : K_COMMENT K_ON K_TYPE tn=userTypeName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnTypeStatement.Raw(tn, comment != null ? $comment.text : null); }
+    ;
+
+/**
+ * SECURITY LABEL [FOR <provider>] ON TYPE <type> IS <label>;
+ */
+securityLabelOnTypeStatement returns [SecurityLabelOnTypeStatement.Raw stmt]
+    @init { String provider = null; }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_TYPE tn=userTypeName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnTypeStatement.Raw(tn, label != null ? $label.text : null, provider); }
     ;
 
 /**
@@ -1783,6 +1865,15 @@ columnFamilyName returns [QualifiedName name]
     @init { $name = new QualifiedName(); }
     : (ksName[name] '.')? cfName[name]
     ;
+
+columnReference returns [QualifiedName table, ColumnIdentifier column]
+    @init { $table = new QualifiedName(); }
+    : cfName[$table] '.' col=cident
+      { $column = col; }
+    | ksName[$table] '.' cfName[$table] '.' col=cident
+      { $column = col; }
+    ;
+
 
 userTypeName returns [UTName name]
     : (ks=noncol_ident '.')? ut=non_type_ident { $name = new UTName(ks, ut); }
@@ -2324,6 +2415,7 @@ basic_unreserved_keyword returns [String str]
         | K_ONLY
         | K_STATIC
         | K_FROZEN
+        | K_FOR
         | K_TUPLE
         | K_FUNCTION
         | K_FUNCTIONS
@@ -2362,5 +2454,8 @@ basic_unreserved_keyword returns [String str]
         | K_LET
         | K_THEN
         | K_TRANSACTION
+        | K_COMMENT
+        | K_SECURITY
+        | K_LABEL
         ) { $str = $k.text; }
     ;

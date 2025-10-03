@@ -68,6 +68,8 @@ public enum Version
      */
     V7(7),
 
+    V8(8),
+
     UNKNOWN(Integer.MAX_VALUE);
 
     /**

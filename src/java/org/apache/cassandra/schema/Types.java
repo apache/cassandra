@@ -43,6 +43,7 @@ import static java.util.stream.Collectors.toList;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 
+import static org.apache.cassandra.db.TypeSizes.BOOL_SIZE;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -363,12 +364,17 @@ public final class Types implements Iterable<UserType>
 
         public void add(String name, List<String> fieldNames, List<String> fieldTypes)
         {
+            add(name, fieldNames, fieldTypes, "", "");
+        }
+
+        public void add(String name, List<String> fieldNames, List<String> fieldTypes, String comment, String securityLabel)
+        {
             List<CQL3Type.Raw> rawFieldTypes =
                 fieldTypes.stream()
                           .map(CQLTypeParser::parseRaw)
                           .collect(toList());
 
-            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes));
+            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes, comment, securityLabel));
         }
 
         private static final class RawUDT
@@ -376,12 +382,21 @@ public final class Types implements Iterable<UserType>
             final String name;
             final List<String> fieldNames;
             final List<CQL3Type.Raw> fieldTypes;
+            final String comment;
+            final String securityLabel;
 
             RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes)
+            {
+                this(name, fieldNames, fieldTypes, "", "");
+            }
+
+            RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes, String comment, String securityLabel)
             {
                 this.name = name;
                 this.fieldNames = fieldNames;
                 this.fieldTypes = fieldTypes;
+                this.comment = comment;
+                this.securityLabel = securityLabel;
             }
 
             boolean referencesUserType(RawUDT other)
@@ -401,7 +416,7 @@ public final class Types implements Iterable<UserType>
                               .map(t -> t.prepareInternal(keyspace, types).getType())
                               .collect(toList());
 
-                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true);
+                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true, comment, securityLabel);
             }
 
             @Override
@@ -469,6 +484,15 @@ public final class Types implements Iterable<UserType>
                 out.writeInt(fieldTypes.size());
                 for (String s : fieldTypes)
                     out.writeUTF(s);
+                if (version.isAtLeast(Version.V8))
+                {
+                    out.writeBoolean(type.comment != null);
+                    if (type.comment != null)
+                        out.writeUTF(type.comment);
+                    out.writeBoolean(type.securityLabel != null);
+                    if (type.securityLabel != null)
+                        out.writeUTF(type.securityLabel);
+                }
             }
         }
 
@@ -487,7 +511,16 @@ public final class Types implements Iterable<UserType>
                 List<String> fieldTypes = new ArrayList<>(fieldTypeSize);
                 for (int x = 0; x < fieldTypeSize; x++)
                     fieldTypes.add(in.readUTF());
-                builder.add(name, fieldNames, fieldTypes);
+                String comment = "";
+                String securityLabel = "";
+                if (version.isAtLeast(Version.V8))
+                {
+                    if (in.readBoolean())
+                        comment = in.readUTF();
+                    if (in.readBoolean())
+                        securityLabel = in.readUTF();
+                }
+                builder.add(name, fieldNames, fieldTypes, comment, securityLabel);
             }
             return builder.build();
         }
@@ -506,6 +539,11 @@ public final class Types implements Iterable<UserType>
                 size += sizeof(fieldTypes.size());
                 for (String s : fieldTypes)
                     size += sizeof(s);
+                if (version.isAtLeast(Version.V8))
+                {
+                    size += BOOL_SIZE + (type.comment != null ? sizeof(type.comment) : 0);
+                    size += BOOL_SIZE + (type.securityLabel != null ? sizeof(type.securityLabel) : 0);
+                }
             }
             return size;
         }

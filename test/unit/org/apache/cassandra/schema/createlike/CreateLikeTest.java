@@ -42,6 +42,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.validation.operations.CreateTest;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -698,6 +699,82 @@ public class CreateLikeTest extends CQLTester
         ResultSet res = executeNet("CREATE TABLE " + targetKs + ".targettbb LIKE " + sourceKs + "." + sourceTb + " WITH INDEXES");
         assertWarningsContain(res.getExecutionInfo().getWarnings(),
                               "Source table " + sourceKs + "." + sourceTb + " to copy indexes from to " + targetKs + ".targettbb has custom indexes. These indexes were not copied: " + customIndexes);
+    }
+
+    @Test
+    public void testCreateTableLikeWithComments() throws Throwable
+    {
+        String sourceTb = createTable(sourceKs, "CREATE TABLE %s (a int PRIMARY KEY, b int, c text)", "source_tb_comments");
+        execute("COMMENT ON TABLE " + sourceKs + "." + sourceTb + " IS 'Test table comment'");
+        execute("COMMENT ON COLUMN " + sourceKs + "." + sourceTb + ".b IS 'Test column comment'");
+
+        // Test CREATE TABLE copy LIKE source WITH COMMENTS
+        String targetTb = createTableLike("CREATE TABLE %s LIKE %s WITH COMMENTS", sourceTb, sourceKs, targetKs);
+
+        // Verify that the table structure is copied
+        assertTableMetaEqualsWithoutKs(sourceKs, targetKs, sourceTb, targetTb, true, false, false);
+
+        // Verify that comments are copied
+        TableMetadata sourceTable = getTableMetadata(sourceKs, sourceTb);
+        TableMetadata targetTable = getTableMetadata(targetKs, targetTb);
+
+        assertEquals("Table comment should be copied", sourceTable.params.comment, targetTable.params.comment);
+        assertEquals("Column comment should be copied",
+                    sourceTable.getColumn(UTF8Type.instance.decompose("b")).comment,
+                    targetTable.getColumn(UTF8Type.instance.decompose("b")).comment);
+    }
+
+    @Test
+    public void testCreateTableLikeWithSecurityLabels() throws Throwable
+    {
+        String sourceTb = createTable(sourceKs, "CREATE TABLE %s (a int PRIMARY KEY, b int, c text)", "source_tb_labels");
+        execute("SECURITY LABEL ON TABLE " + sourceKs + "." + sourceTb + " IS 'confidential'");
+        execute("SECURITY LABEL ON COLUMN " + sourceKs + "." + sourceTb + ".b IS 'restricted'");
+
+        // Test CREATE TABLE copy LIKE source WITH SECURITY LABELS
+        String targetTb = createTableLike("CREATE TABLE %s LIKE %s WITH SECURITY LABELS", sourceTb, sourceKs, targetKs);
+
+        // Verify that the table structure is copied
+        assertTableMetaEqualsWithoutKs(sourceKs, targetKs, sourceTb, targetTb, true, false, false);
+
+        // Verify that security labels are copied
+        TableMetadata sourceTable = getTableMetadata(sourceKs, sourceTb);
+        TableMetadata targetTable = getTableMetadata(targetKs, targetTb);
+
+        assertEquals("Table security label should be copied", sourceTable.params.securityLabel, targetTable.params.securityLabel);
+        assertEquals("Column security label should be copied",
+                    sourceTable.getColumn(UTF8Type.instance.decompose("b")).securityLabel,
+                    targetTable.getColumn(UTF8Type.instance.decompose("b")).securityLabel);
+    }
+
+    @Test
+    public void testCreateTableLikeWithAllOptions() throws Throwable
+    {
+        String sourceTb = createTable(sourceKs, "CREATE TABLE %s (a int PRIMARY KEY, b int, c text)", "source_tb_all");
+        execute("COMMENT ON TABLE " + sourceKs + "." + sourceTb + " IS 'Test table comment'");
+        execute("COMMENT ON COLUMN " + sourceKs + "." + sourceTb + ".b IS 'Test column comment'");
+        execute("SECURITY LABEL ON TABLE " + sourceKs + "." + sourceTb + " IS 'confidential'");
+        execute("SECURITY LABEL ON COLUMN " + sourceKs + "." + sourceTb + ".b IS 'restricted'");
+        createIndex(sourceKs, "CREATE INDEX ON %s (b)");
+
+        // Test CREATE TABLE copy LIKE source WITH INDEXES AND COMMENTS AND SECURITY LABELS
+        String targetTb = createTableLike("CREATE TABLE %s LIKE %s WITH INDEXES AND COMMENTS AND SECURITY LABELS", sourceTb, sourceKs, targetKs);
+
+        // Verify that the table structure and indexes are copied
+        assertTableMetaEqualsWithoutKs(sourceKs, targetKs, sourceTb, targetTb, true, true, true);
+
+        // Verify that comments and security labels are copied
+        TableMetadata sourceTable = getTableMetadata(sourceKs, sourceTb);
+        TableMetadata targetTable = getTableMetadata(targetKs, targetTb);
+
+        assertEquals("Table comment should be copied", sourceTable.params.comment, targetTable.params.comment);
+        assertEquals("Table security label should be copied", sourceTable.params.securityLabel, targetTable.params.securityLabel);
+        assertEquals("Column comment should be copied",
+                    sourceTable.getColumn(UTF8Type.instance.decompose("b")).comment,
+                    targetTable.getColumn(UTF8Type.instance.decompose("b")).comment);
+        assertEquals("Column security label should be copied",
+                    sourceTable.getColumn(UTF8Type.instance.decompose("b")).securityLabel,
+                    targetTable.getColumn(UTF8Type.instance.decompose("b")).securityLabel);
     }
 
     private void assertTableMetaEqualsWithoutKs(String sourceKs, String targetKs, String sourceTb, String targetTb)

@@ -1,0 +1,1 @@
+COMMENT ON KEYSPACE cycling IS 'Keyspace for cycling application data';

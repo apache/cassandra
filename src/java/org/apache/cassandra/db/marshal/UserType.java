@@ -66,6 +66,8 @@ public class UserType extends TupleType implements SchemaElement
 
     public final String keyspace;
     public final ByteBuffer name;
+    public final String comment;
+    public final String securityLabel;
     private final List<FieldIdentifier> fieldNames;
     private final List<String> stringFieldNames;
     private final boolean isMultiCell;
@@ -73,10 +75,17 @@ public class UserType extends TupleType implements SchemaElement
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
+        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, "", "");
+    }
+
+    public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell, String comment, String securityLabel)
+    {
         super(fieldTypes, false);
         assert fieldNames.size() == fieldTypes.size();
         this.keyspace = keyspace;
         this.name = name;
+        this.comment = comment;
+        this.securityLabel = securityLabel;
         this.fieldNames = fieldNames;
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
         this.isMultiCell = isMultiCell;
@@ -106,7 +115,7 @@ public class UserType extends TupleType implements SchemaElement
             columnTypes.add(p.right);
         }
 
-        return new UserType(keyspace, name, columnNames, columnTypes, true);
+        return new UserType(keyspace, name, columnNames, columnTypes, true, "", "");
     }
 
     @Override
@@ -311,13 +320,13 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false) : this;
+        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false, comment, securityLabel) : this;
     }
 
     @Override
     public UserType unfreeze()
     {
-        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true);
+        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true, comment, securityLabel);
     }
 
     @Override
@@ -331,13 +340,13 @@ public class UserType extends TupleType implements SchemaElement
                 .map(subtype -> (subtype.isFreezable() && subtype.isMultiCell() ? subtype.freeze() : subtype))
                 .collect(Collectors.toList());
 
-        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell);
+        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell, comment, securityLabel);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell);
+        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell, comment, securityLabel);
     }
 
     @Override
@@ -384,7 +393,9 @@ public class UserType extends TupleType implements SchemaElement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && keyspace.equals(other.keyspace)
-            && isMultiCell == other.isMultiCell;
+            && isMultiCell == other.isMultiCell
+            && comment.equals(other.comment)
+            && securityLabel.equals(other.securityLabel);
     }
 
     public boolean equalsWithOutKs(UserType other)
@@ -392,7 +403,9 @@ public class UserType extends TupleType implements SchemaElement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && types.equals(other.types)
-            && isMultiCell == other.isMultiCell;
+            && isMultiCell == other.isMultiCell
+            && comment.equals(other.comment)
+            && securityLabel.equals(other.securityLabel);
     }
 
     public Optional<Difference> compare(UserType other)
@@ -442,14 +455,26 @@ public class UserType extends TupleType implements SchemaElement
         {
             return isMultiCell == udt.isMultiCell
                  ? udt
-                 : new UserType(keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell);
+                 : new UserType(keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell, udt.comment, udt.securityLabel);
         }
 
         return new UserType(keyspace,
                             name,
                             fieldNames,
                             Lists.newArrayList(transform(fieldTypes(), t -> t.withUpdatedUserType(udt))),
-                            isMultiCell());
+                            isMultiCell(),
+                            comment,
+                            securityLabel);
+    }
+
+    public UserType withComment(String comment)
+    {
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel);
+    }
+
+    public UserType withSecurityLabel(String securityLabel)
+    {
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel);
     }
 
     @Override

@@ -1,0 +1,1 @@
+COMMENT ON COLUMN cycling.cyclist_name.id IS 'Unique identifier for each cyclist';

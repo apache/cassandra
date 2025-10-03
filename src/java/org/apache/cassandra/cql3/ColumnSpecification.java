@@ -32,13 +32,22 @@ public class ColumnSpecification
     public final String cfName;
     public final ColumnIdentifier name;
     public final AbstractType<?> type;
+    public final String comment;
+    public final String securityLabel;
 
     public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type)
+    {
+        this(ksName, cfName, name, type, null, null);
+    }
+
+    public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type, String comment, String securityLabel)
     {
         this.ksName = ksName;
         this.cfName = cfName;
         this.name = name;
         this.type = type;
+        this.comment = comment;
+        this.securityLabel = securityLabel;
     }
 
     /**
@@ -49,7 +58,7 @@ public class ColumnSpecification
      */
     public ColumnSpecification withAlias(ColumnIdentifier alias)
     {
-        return new ColumnSpecification(ksName, cfName, alias, type);
+        return new ColumnSpecification(ksName, cfName, alias, type, comment, securityLabel);
     }
 
     public boolean isReversedType()
@@ -86,12 +95,14 @@ public class ColumnSpecification
         return this.ksName.equals(that.ksName) &&
                this.cfName.equals(that.cfName) &&
                this.name.equals(that.name) &&
-               this.type.equals(that.type);
+               this.type.equals(that.type) &&
+               Objects.equal(this.comment, that.comment) &&
+               Objects.equal(this.securityLabel, that.securityLabel);
     }
 
     public int hashCode()
     {
-        return Objects.hashCode(ksName, cfName, name, type);
+        return Objects.hashCode(ksName, cfName, name, type, comment, securityLabel);
     }
 
     @Override
@@ -100,6 +111,8 @@ public class ColumnSpecification
         return MoreObjects.toStringHelper(this)
                           .add("name", name)
                           .add("type", type)
+                          .add("comment", comment)
+                          .add("securityLabel", securityLabel)
                           .toString();
     }
 }

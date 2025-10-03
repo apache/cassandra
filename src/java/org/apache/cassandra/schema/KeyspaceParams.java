@@ -57,7 +57,9 @@ public final class KeyspaceParams
     {
         DURABLE_WRITES,
         REPLICATION,
-        FAST_PATH;
+        FAST_PATH,
+        COMMENT,
+        SECURITY_LABEL;
 
         @Override
         public String toString()
@@ -69,17 +71,26 @@ public final class KeyspaceParams
     public final boolean durableWrites;
     public final ReplicationParams replication;
     public final FastPathStrategy fastPath;
+    public final String comment;
+    public final String securityLabel;
 
     public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath)
+    {
+        this(durableWrites, replication, fastPath, "", "");
+    }
+
+    public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath, String comment, String securityLabel)
     {
         this.durableWrites = durableWrites;
         this.replication = replication;
         this.fastPath = fastPath;
+        this.comment = comment;
+        this.securityLabel = securityLabel;
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, FastPathStrategy fastPath)
     {
-        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath);
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath, "", "");
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, Map<String, String> fastPath)
@@ -94,32 +105,42 @@ public final class KeyspaceParams
 
     public static KeyspaceParams local()
     {
-        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple());
+        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple(), "", "");
     }
 
     public static KeyspaceParams simple(int replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
     }
 
     public static KeyspaceParams simple(String replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
     }
 
     public static KeyspaceParams nts(Object... args)
     {
-        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple());
+        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), "", "");
     }
 
     public KeyspaceParams withSwapped(ReplicationParams params)
     {
-        return new KeyspaceParams(durableWrites, params, fastPath);
+        return new KeyspaceParams(durableWrites, params, fastPath, comment, securityLabel);
+    }
+
+    public KeyspaceParams withComment(String comment)
+    {
+        return new KeyspaceParams(durableWrites, replication, fastPath, comment, securityLabel);
+    }
+
+    public KeyspaceParams withSecurityLabel(String securityLabel)
+    {
+        return new KeyspaceParams(durableWrites, replication, fastPath, comment, securityLabel);
     }
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
@@ -138,13 +159,13 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath);
+        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath) && comment.equals(p.comment) && securityLabel.equals(p.securityLabel);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(durableWrites, replication, fastPath);
+        return Objects.hashCode(durableWrites, replication, fastPath, comment, securityLabel);
     }
 
     @Override
@@ -154,6 +175,8 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .add(Option.FAST_PATH.toString(), fastPath.toString())
+                          .add(Option.COMMENT.toString(), comment)
+                          .add(Option.SECURITY_LABEL.toString(), securityLabel)
                           .toString();
     }
 
@@ -163,6 +186,8 @@ public final class KeyspaceParams
         {
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
+            out.writeUTF(t.comment);
+            out.writeUTF(t.securityLabel);
             if (version.isAtLeast(MIN_ACCORD_VERSION))
                 FastPathStrategy.serializer.serialize(t.fastPath, out, version);
         }
@@ -171,16 +196,20 @@ public final class KeyspaceParams
         {
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
+            String comment = in.readUTF();
+            String securityLabel = in.readUTF();
             FastPathStrategy fastPath = version.isAtLeast(MIN_ACCORD_VERSION)
                     ? FastPathStrategy.serializer.deserialize(in, version)
                     : FastPathStrategy.simple();
-            return new KeyspaceParams(durableWrites, params, fastPath);
+            return new KeyspaceParams(durableWrites, params, fastPath, comment, securityLabel);
         }
 
         public long serializedSize(KeyspaceParams t, Version version)
         {
             return ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites) +
+                   TypeSizes.sizeof(t.comment) +
+                   TypeSizes.sizeof(t.securityLabel) +
                    (version.isAtLeast(MIN_ACCORD_VERSION) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
         }
     }

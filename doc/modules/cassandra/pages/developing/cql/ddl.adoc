@@ -803,3 +803,161 @@ statements.
 However, tables are the only object that can be truncated currently, and the `TABLE` keyword can be omitted.
 
 Truncating a table permanently removes all existing data from the table, but without removing the table itself.
+
+[[comment-statement]]
+== COMMENT ON
+
+The `COMMENT ON` statement allows you to add descriptive comments to schema elements for documentation purposes.
+Comments are stored in the schema metadata and displayed when using `DESCRIBE` statements.
+
+=== COMMENT ON KEYSPACE
+
+Add or modify a comment on a keyspace:
+
+[source,cql]
+----
+COMMENT ON KEYSPACE keyspace_name IS 'comment text';
+COMMENT ON KEYSPACE keyspace_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON KEYSPACE cycling IS 'Keyspace for cycling application data';
+----
+
+=== COMMENT ON TABLE
+
+Add or modify a comment on a table:
+
+[source,cql]
+----
+COMMENT ON TABLE [keyspace_name.]table_name IS 'comment text';
+COMMENT ON TABLE [keyspace_name.]table_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON TABLE cycling.cyclist_name IS 'Table storing cyclist names and basic information';
+----
+
+=== COMMENT ON COLUMN
+
+Add or modify a comment on a column:
+
+[source,cql]
+----
+COMMENT ON COLUMN [keyspace_name.]table_name.column_name IS 'comment text';
+COMMENT ON COLUMN [keyspace_name.]table_name.column_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON COLUMN cycling.cyclist_name.id IS 'Unique identifier for each cyclist';
+----
+
+=== COMMENT ON TYPE
+
+Add or modify a comment on a user-defined type:
+
+[source,cql]
+----
+COMMENT ON TYPE [keyspace_name.]type_name IS 'comment text';
+COMMENT ON TYPE [keyspace_name.]type_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON TYPE cycling.address IS 'User-defined type for storing address information';
+----
+
+NOTE: Comments can be removed by setting them to `NULL`. Comments are displayed when using `DESCRIBE` statements
+and are useful for documenting the purpose and structure of your schema elements.
+
+[[security-label-statement]]
+== SECURITY LABEL ON
+
+The `SECURITY LABEL ON` statement allows you to add security classification labels to schema elements.
+Security labels are stored in the schema metadata and displayed when using `DESCRIBE` statements.
+These labels can be used to mark data sensitivity levels or compliance requirements.
+
+=== SECURITY LABEL ON KEYSPACE
+
+Add or modify a security label on a keyspace:
+
+[source,cql]
+----
+SECURITY LABEL ON KEYSPACE keyspace_name IS 'label';
+SECURITY LABEL ON KEYSPACE keyspace_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON KEYSPACE cycling IS 'CONFIDENTIAL';
+----
+
+=== SECURITY LABEL ON TABLE
+
+Add or modify a security label on a table:
+
+[source,cql]
+----
+SECURITY LABEL ON TABLE [keyspace_name.]table_name IS 'label';
+SECURITY LABEL ON TABLE [keyspace_name.]table_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON TABLE cycling.cyclist_name IS 'PII';
+----
+
+=== SECURITY LABEL ON COLUMN
+
+Add or modify a security label on a column:
+
+[source,cql]
+----
+SECURITY LABEL ON COLUMN [keyspace_name.]table_name.column_name IS 'label';
+SECURITY LABEL ON COLUMN [keyspace_name.]table_name.column_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON COLUMN cycling.cyclist_name.email IS 'PII-EMAIL';
+----
+
+=== SECURITY LABEL ON TYPE
+
+Add or modify a security label on a user-defined type:
+
+[source,cql]
+----
+SECURITY LABEL ON TYPE [keyspace_name.]type_name IS 'label';
+SECURITY LABEL ON TYPE [keyspace_name.]type_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON TYPE cycling.address IS 'SENSITIVE';
+----
+
+NOTE: Security labels can be removed by setting them to `NULL`. Security labels are displayed when using `DESCRIBE` statements
+and can be used in conjunction with custom authorization plugins or audit systems to enforce data access policies.
+
+IMPORTANT: `COMMENT ON` and `SECURITY LABEL ON` statements require schema version V8 or higher.
+Ensure all nodes in your cluster support this version before using these features.

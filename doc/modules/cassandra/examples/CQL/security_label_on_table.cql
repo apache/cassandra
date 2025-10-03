@@ -1,0 +1,1 @@
+SECURITY LABEL ON TABLE cycling.cyclist_name IS 'PII';
