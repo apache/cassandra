@@ -18,10 +18,10 @@ The sequence of the steps in the write path:
 [[commit-log]]
 == Logging writes to commit logs
 
-When a write operation takes place, Cassandra records the data in a local append-only https://cassandra.apache.org/_/glossary.html#commit-log[commit log] on disk.
+When a write operation takes place, Cassandra records the data in a local append-only https://cassandra.apache.org/\_/glossary.html#commit-log[commit log] on disk.
 This action provides xref:cassandra:managing/configuration/cass_yaml_file.adoc[configurable durability] by logging every write made to a Cassandra node.
 If an unexpected shutdown occurs, the commit log provides permanent durable writes of the data.
-On startup, any mutations in the commit log will be applied to https://cassandra.apache.org/_/glossary.html#memtable[memtables].
+On startup, any mutations in the commit log will be applied to https://cassandra.apache.org/\_/glossary.html#memtable[memtables].
 The commit log is shared among tables.
 
 All mutations are write-optimized on storage in commit log segments, reducing the number of seeks needed to write to disk. 
