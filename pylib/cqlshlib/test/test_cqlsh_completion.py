@@ -166,10 +166,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
     cqlver = '3.1.6'
 
     def test_complete_on_empty_string(self):
-        self.trycompletions('', choices=('?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
+        self.trycompletions('', choices=('?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'COMMENT', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'ELAPSED', 'EXPAND', 'SERIAL', 'TRUNCATE',
+                                         'SECURITY', 'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'ELAPSED', 'EXPAND', 'SERIAL', 'TRUNCATE',
                                          'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS', 'history'))
 
     def test_complete_command_words(self):
@@ -288,10 +288,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs', 'sausage', 'spam');"),
-            choices=['?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
+            choices=['?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'COMMENT', 'CONSISTENCY', 'COPY',
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
                      'ELAPSED', 'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
-                     'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
+                     'REVOKE', 'SECURITY', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
                      'TRUNCATE', 'UPDATE', 'USE', 'exit', 'history', 'quit',
                      'CLEAR', 'CLS'])
 
@@ -856,7 +856,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'min_index_interval',
                                      'speculative_retry', 'additional_write_policy',
                                      'cdc', 'read_repair',
-                                     'INDEXES'])
+                                     'INDEXES', 'COMMENTS', 'SECURITY'])
         self.trycompletions('CREATE TABLE new_table LIKE old_table WITH INDEXES ',
                             choices=[';' , '=', 'AND'])
         self.trycompletions('CREATE TABLE ' + 'new_table LIKE old_table WITH bloom_filter_fp_chance ',
@@ -909,7 +909,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'min_index_interval',
                                      'speculative_retry', 'additional_write_policy',
                                      'cdc', 'read_repair',
-                                     'INDEXES'])
+                                     'INDEXES', 'COMMENTS', 'SECURITY'])
         self.trycompletions('CREATE TABLE ' + "new_table LIKE old_table WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",
                             choices=['compaction_window_unit', 'compaction_window_size',

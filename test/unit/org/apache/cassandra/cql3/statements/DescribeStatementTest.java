@@ -46,6 +46,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -265,7 +266,8 @@ public class DescribeStatementTest extends CQLTester
                           "    PRIMARY KEY (keyspace_name, table_name, column_name)\n" +
                           ") WITH CLUSTERING ORDER BY (table_name ASC, column_name ASC)\n" +
                           "    AND comment = 'virtual column definitions';\n" +
-                          "*/"));
+                          "*/\n" +
+                          "COMMENT ON TABLE system_virtual_schema.columns IS 'virtual column definitions';"));
     }
 
     @Test
@@ -845,7 +847,7 @@ public class DescribeStatementTest extends CQLTester
     {
         requireNetwork();
         DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
-        String souceTable = createTable(KEYSPACE_PER_TEST,
+        String sourceTable = createTable(KEYSPACE_PER_TEST,
                                         "CREATE TABLE %s (" +
                                         "  pk1 text, " +
                                         "  pk2 int MASKED WITH DEFAULT, " +
@@ -857,14 +859,14 @@ public class DescribeStatementTest extends CQLTester
                                         "PRIMARY KEY ((pk1, pk2), ck1, ck2 ))");
         TableMetadata source = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
         assertNotNull(source);
-        String targetTable = createTableLike("CREATE TABLE %s LIKE %s", souceTable, KEYSPACE_PER_TEST, KEYSPACE_PER_TEST);
+        String targetTable = createTableLike("CREATE TABLE %s LIKE %s", sourceTable, KEYSPACE_PER_TEST, KEYSPACE_PER_TEST);
         TableMetadata target = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
         assertNotNull(target);
         assertTrue(equalsWithoutTableNameAndDropCns(source, target, true, true, true));
         assertNotEquals(source.id, target.id);
         assertNotEquals(source.name, target.name);
 
-        String sourceTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " (\n" +
+        String sourceTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + sourceTable + " (\n" +
                                             "    pk1 text,\n" +
                                             "    pk2 int MASKED WITH system.mask_default(),\n" +
                                             "    ck1 int,\n" +
@@ -889,10 +891,10 @@ public class DescribeStatementTest extends CQLTester
                                             "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                             "    AND " + tableParametersCql();
 
-        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " WITH INTERNALS"),
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + sourceTable + " WITH INTERNALS"),
                       row(KEYSPACE_PER_TEST,
                           "table",
-                          souceTable,
+                          sourceTable,
                           sourceTableCreateStatement));
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + targetTable + " WITH INTERNALS"),
                       row(KEYSPACE_PER_TEST,
@@ -1050,6 +1052,174 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
+    @Test
+    public void testDescribeKeyspaceWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            execute("CREATE KEYSPACE test_comments WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
+            String describeStatement = "DESCRIBE KEYSPACE test_comments";
+            String dropStatement = "DROP KEYSPACE IF EXISTS test_comments";
+            testDescribeOnSchemaElement("KEYSPACE", "test_comments", describeStatement, dropStatement);
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS test_comments");
+        }
+    }
+
+    @Test
+    public void testDescribeTableWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".table_comment_test (id int PRIMARY KEY, name text)");
+            testDescribeOnSchemaElement("TABLE",
+                                        KEYSPACE_PER_TEST + ".table_comment_test",
+                                        "DESCRIBE TABLE " + KEYSPACE_PER_TEST + ".table_comment_test",
+                                        "DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".table_comment_test");
+        }
+        finally
+        {
+            execute("DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".table_comment_test");
+        }
+    }
+
+    @Test
+    public void testDescribeColumnWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".column_test (id int PRIMARY KEY, test_column text)");
+            testDescribeOnSchemaElement("COLUMN",
+                                        KEYSPACE_PER_TEST + ".column_test.test_column",
+                                        "DESCRIBE TABLE " + KEYSPACE_PER_TEST + ".column_test",
+                                        "ALTER TABLE " + KEYSPACE_PER_TEST + ".column_test DROP test_column");
+        }
+        finally
+        {
+            execute("DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".column_test");
+        }
+    }
+
+    @Test
+    public void testDescribeUserTypeWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (name text, age int, address text)");
+            testDescribeOnSchemaElement("TYPE", KEYSPACE_PER_TEST + "." + type, "DESCRIBE TYPE " + KEYSPACE_PER_TEST + "." + type, "DROP TYPE IF EXISTS " + KEYSPACE_PER_TEST + "." + type);
+        }
+        finally
+        {
+            // Cleanup is handled by the base test class
+        }
+    }
+
+    @Test
+    public void testDescribeUserTypeWithFieldCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (latitude double, longitude double)");
+            testDescribeOnSchemaElement("FIELD", KEYSPACE_PER_TEST + "." + type + ".latitude", "DESCRIBE TYPE " + KEYSPACE_PER_TEST + "." + type, "DROP TYPE " + KEYSPACE_PER_TEST + "." + type);
+
+        }
+        finally
+        {
+            // Cleanup is handled by the base test class
+        }
+    }
+
+
+    @Test
+    public void testDescribeEscapesSingleQuotesInKeyspaceComment() throws Throwable
+    {
+        String commentWithQuotes ="a''; DROP KEYSPACE " + KEYSPACE_PER_TEST + ";";
+        execute(String.format("COMMENT ON KEYSPACE %s IS '%s'", KEYSPACE_PER_TEST, commentWithQuotes));
+        String describeOutput = executeDescribeNet("DESCRIBE KEYSPACE " + KEYSPACE_PER_TEST).one().getString("create_statement");
+
+        // Verify that single quotes are properly escaped (doubled) in the output
+        assertTrue("DESCRIBE output should contain escaped single quotes in comment",
+                  describeOutput.contains("COMMENT ON KEYSPACE " + KEYSPACE_PER_TEST + " IS 'a''; DROP KEYSPACE " + KEYSPACE_PER_TEST + ";';"));
+    }
+
+    /**
+     * Helper method to set comment and security label on a schema element and test DESCRIBE output.
+     * Handles special cases for FIELD and COLUMN which don't have their own DESCRIBE commands.
+     */
+    private void testDescribeOnSchemaElement(String objectType, String objectName, String describeCommand, String dropStatement) throws Throwable
+    {
+        String commentStatement = String.format("COMMENT ON %s %s IS 'testComment'", objectType, objectName);
+        String securitylabelStatement = String.format("SECURITY LABEL ON %s %s IS 'sensitive'", objectType, objectName);
+
+        testSetCommentAndLabel(describeCommand, commentStatement, securitylabelStatement);
+        testUnsetCommentAndLabel(describeCommand, objectType, objectName, commentStatement, securitylabelStatement);
+        testDropRemovesCommentAndLabel(objectType, objectName, commentStatement, securitylabelStatement, dropStatement);
+    }
+
+    private void testSetCommentAndLabel(String describeCommand, String commentStatement, String securitylabelStatement) throws Throwable
+    {
+        execute(commentStatement);
+        execute(securitylabelStatement);
+
+        String schema = describeSchemaElement(describeCommand);
+        assertTrue(schema.contains(commentStatement));
+        assertTrue(schema.contains(securitylabelStatement));
+        String fullSchema = describeFullSchema();
+        assertTrue(fullSchema.contains(commentStatement));
+        assertTrue(fullSchema.contains(securitylabelStatement));
+    }
+
+    private void testUnsetCommentAndLabel(String describeCommand, String objectType, String objectName,
+                                          String commentStatement, String securitylabelStatement) throws Throwable
+    {
+        String unsetCommentStatement = String.format("COMMENT ON %s %s IS NULL", objectType, objectName);
+        String unsetSecurityLabelStatement = String.format("SECURITY LABEL ON %s %s IS NULL", objectType, objectName);
+        execute(unsetCommentStatement);
+        execute(unsetSecurityLabelStatement);
+
+        String schema = describeSchemaElement(describeCommand);
+        String fullSchema = describeFullSchema();
+        assertFalse(schema.contains(unsetSecurityLabelStatement));
+        assertFalse(schema.contains(unsetCommentStatement));
+        assertFalse(fullSchema.contains(commentStatement));
+        assertFalse(fullSchema.contains(securitylabelStatement));
+    }
+
+    private void testDropRemovesCommentAndLabel(String objectType, String objectName,
+                                                String commentStatement, String securitylabelStatement,
+                                                String dropStatement) throws Throwable
+    {
+        execute(commentStatement);
+        execute(securitylabelStatement);
+        execute(dropStatement);
+
+        String unsetCommentStatement = String.format("COMMENT ON %s %s IS NULL", objectType, objectName);
+        String unsetSecurityLabelStatement = String.format("SECURITY LABEL ON %s %s IS NULL", objectType, objectName);
+        String fullSchema = describeFullSchema();
+        assertFalse(fullSchema.contains(unsetSecurityLabelStatement));
+        assertFalse(fullSchema.contains(unsetCommentStatement));
+        assertFalse(fullSchema.contains(commentStatement));
+        assertFalse(fullSchema.contains(securitylabelStatement));
+    }
+
+    private String describeSchemaElement(String describeCommand) throws Throwable
+    {
+        return executeDescribeNet(describeCommand).one().getString("create_statement");
+    }
+
+    private String describeFullSchema() throws Throwable
+    {
+        ResultSet result = executeDescribeNet("DESCRIBE SCHEMA");
+        StringBuilder fullSchema = new StringBuilder();
+        for (Row row : result.all())
+        {
+            fullSchema.append(row.getString("create_statement")).append("\n");
+        }
+        return fullSchema.toString();
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +
@@ -1135,6 +1305,11 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
+        return tableParametersCql("");
+    }
+
+    private static String tableParametersCql(String comment)
+    {
         if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
             return "additional_write_policy = '99p'\n" +
@@ -1142,7 +1317,7 @@ public class DescribeStatementTest extends CQLTester
                    "    AND bloom_filter_fp_chance = 0.01\n" +
                    "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                    "    AND cdc = false\n" +
-                   "    AND comment = ''\n" +
+                   "    AND comment = '" + comment + "'\n" +
                    "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                    "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                    "    AND memtable = 'default'\n" +

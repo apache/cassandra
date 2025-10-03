@@ -2212,6 +2212,16 @@ public class DatabaseDescriptor
         conf.credentials_cache_active_update = update;
     }
 
+    public static int getMaxCommentLength()
+    {
+        return conf.max_comment_length;
+    }
+
+    public static int getMaxSecurityLabelLength()
+    {
+        return conf.max_security_label_length;
+    }
+
     public static int getMaxValueSize()
     {
         return Ints.saturatedCast(conf.max_value_size.toMebibytes() * 1024L * 1024);

@@ -64,6 +64,14 @@ public enum AuditLogEntryType
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
     TRANSACTION(AuditLogEntryCategory.TRANSACTION),
+    COMMENT_KEYSPACE(AuditLogEntryCategory.DDL),
+    COMMENT_TABLE(AuditLogEntryCategory.DDL),
+    COMMENT_COLUMN(AuditLogEntryCategory.DDL),
+    COMMENT_TYPE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_KEYSPACE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_TABLE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_COLUMN(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_TYPE(AuditLogEntryCategory.DDL),
 
     /*
      * Common Audit Log Entry Types
