@@ -299,6 +299,14 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           | <alterUserTypeStatement>
+                          | <commentOnKeyspaceStatement>
+                          | <commentOnTableStatement>
+                          | <commentOnColumnStatement>
+                          | <commentOnTypeStatement>
+                          | <securityLabelOnKeyspaceStatement>
+                          | <securityLabelOnTableStatement>
+                          | <securityLabelOnColumnStatement>
+                          | <securityLabelOnTypeStatement>
                           ;
 
 <authenticationStatement> ::= <createUserStatement>
@@ -402,6 +410,8 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                     ;
 <propertyOrOption> ::= <property>
                      | "INDEXES"
+                     | "COMMENTS"
+                     | "SECURITY" "LABELS"
                      ;
 
 '''
@@ -1591,6 +1601,32 @@ syntax_rules += r'''
 <alterKeyspaceStatement> ::= "ALTER" wat=( "KEYSPACE" | "SCHEMA" ) ("IF" "EXISTS")? ks=<alterableKeyspaceName>
                                  "WITH" <property> ( "AND" <property> )*
                            ;
+'''
+
+syntax_rules += r'''
+<commentOnKeyspaceStatement> ::= "COMMENT" "ON" "KEYSPACE" ks=<keyspaceName> "IS" comment=( <stringLiteral> | "NULL" )
+                               ;
+
+<commentOnTableStatement> ::= "COMMENT" "ON" wat=( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName> "IS" comment=( <stringLiteral> | "NULL" )
+                            ;
+
+<commentOnColumnStatement> ::= "COMMENT" "ON" "COLUMN" cf=<columnFamilyName> dot="." col=<cident> "IS" comment=( <stringLiteral> | "NULL" )
+                             ;
+
+<commentOnTypeStatement> ::= "COMMENT" "ON" "TYPE" ut=<userTypeName> "IS" comment=( <stringLiteral> | "NULL" )
+                           ;
+
+<securityLabelOnKeyspaceStatement> ::= "SECURITY" "LABEL" "ON" "KEYSPACE" ks=<keyspaceName> "IS" label=( <stringLiteral> | "NULL" )
+                                     ;
+
+<securityLabelOnTableStatement> ::= "SECURITY" "LABEL" "ON" wat=( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName> "IS" label=( <stringLiteral> | "NULL" )
+                                  ;
+
+<securityLabelOnColumnStatement> ::= "SECURITY" "LABEL" "ON" "COLUMN" cf=<columnFamilyName> dot="." col=<cident> "IS" label=( <stringLiteral> | "NULL" )
+                                   ;
+
+<securityLabelOnTypeStatement> ::= "SECURITY" "LABEL" "ON" "TYPE" ut=<userTypeName> "IS" label=( <stringLiteral> | "NULL" )
+                                 ;
 '''
 
 syntax_rules += r'''

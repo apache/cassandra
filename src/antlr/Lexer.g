@@ -96,6 +96,7 @@ K_KEYSPACE:    ( K E Y S P A C E
 K_KEYSPACES:   K E Y S P A C E S;
 K_COLUMNFAMILY:( C O L U M N F A M I L Y
                  | T A B L E );
+K_COLUMN:      C O L U M N;
 K_TABLES:      ( C O L U M N F A M I L I E S
                  | T A B L E S );
 K_MATERIALIZED:M A T E R I A L I Z E D;
@@ -209,6 +210,8 @@ K_TUPLE:       T U P L E;
 K_TRIGGER:     T R I G G E R;
 K_STATIC:      S T A T I C;
 K_FROZEN:      F R O Z E N;
+K_FOR:         F O R;
+K_FIELD:       F I E L D;
 
 K_FUNCTION:    F U N C T I O N;
 K_FUNCTIONS:   F U N C T I O N S;
@@ -236,6 +239,12 @@ K_SELECT_MASKED: S E L E C T '_' M A S K E D;
 
 K_VECTOR:      V E C T O R;
 K_ANN:         A N N;
+
+K_COMMENT:     C O M M E N T;
+K_COMMENTS:    C O M M E N T S;
+K_SECURITY:    S E C U R I T Y;
+K_LABEL:       L A B E L;
+K_LABELS:      L A B E L S;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

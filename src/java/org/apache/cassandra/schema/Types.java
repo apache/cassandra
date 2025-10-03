@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -44,6 +45,7 @@ import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
@@ -54,6 +56,10 @@ public final class Types implements Iterable<UserType>
     public static final Serializer serializer = new Serializer();
 
     private static final Types NONE = new Types(ImmutableMap.of());
+    private static final String EMPTY_COMMENT = "";
+    private static final String EMPTY_SECURITY_LABEL = "";
+    private static final List<String> EMPTY_FIELD_COMMENTS = List.of();
+    private static final List<String> EMPTY_FIELD_SECURITY_LABELS = List.of();
 
     private final Map<ByteBuffer, UserType> types;
 
@@ -363,12 +369,28 @@ public final class Types implements Iterable<UserType>
 
         public void add(String name, List<String> fieldNames, List<String> fieldTypes)
         {
+            add(name, fieldNames, fieldTypes, EMPTY_COMMENT, EMPTY_SECURITY_LABEL, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+        }
+
+        public void add(String name, List<String> fieldNames, List<String> fieldTypes, String comment, String securityLabel)
+        {
+            add(name, fieldNames, fieldTypes, comment, securityLabel, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+        }
+
+        public void add(String name,
+                        List<String> fieldNames,
+                        List<String> fieldTypes,
+                        String comment,
+                        String securityLabel,
+                        List<String> fieldComments,
+                        List<String> fieldSecurityLabels)
+        {
             List<CQL3Type.Raw> rawFieldTypes =
                 fieldTypes.stream()
                           .map(CQLTypeParser::parseRaw)
                           .collect(toList());
 
-            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes));
+            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes, comment, securityLabel, fieldComments, fieldSecurityLabels));
         }
 
         private static final class RawUDT
@@ -376,12 +398,36 @@ public final class Types implements Iterable<UserType>
             final String name;
             final List<String> fieldNames;
             final List<CQL3Type.Raw> fieldTypes;
+            final String comment;
+            final String securityLabel;
+            final List<String> fieldComments;
+            final List<String> fieldSecurityLabels;
 
             RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes)
+            {
+                this(name, fieldNames, fieldTypes, EMPTY_COMMENT, EMPTY_SECURITY_LABEL, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+            }
+
+            RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes, String comment, String securityLabel)
+            {
+                this(name, fieldNames, fieldTypes, comment, securityLabel, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+            }
+
+            RawUDT(String name,
+                   List<String> fieldNames,
+                   List<CQL3Type.Raw> fieldTypes,
+                   String comment,
+                   String securityLabel,
+                   List<String> fieldComments,
+                   List<String> fieldSecurityLabels)
             {
                 this.name = name;
                 this.fieldNames = fieldNames;
                 this.fieldTypes = fieldTypes;
+                this.comment = comment;
+                this.securityLabel = securityLabel;
+                this.fieldComments = fieldComments;
+                this.fieldSecurityLabels = fieldSecurityLabels;
             }
 
             boolean referencesUserType(RawUDT other)
@@ -401,7 +447,18 @@ public final class Types implements Iterable<UserType>
                               .map(t -> t.prepareInternal(keyspace, types).getType())
                               .collect(toList());
 
-                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true);
+                Map<FieldIdentifier, String> preparedFieldComments = new HashMap<>();
+                Map<FieldIdentifier, String> preparedFieldSecurityLabels = new HashMap<>();
+
+                for (int i = 0; i < preparedFieldNames.size(); i++)
+                {
+                    if (i < fieldComments.size() && !fieldComments.get(i).isEmpty())
+                        preparedFieldComments.put(preparedFieldNames.get(i), fieldComments.get(i));
+                    if (i < fieldSecurityLabels.size() && !fieldSecurityLabels.get(i).isEmpty())
+                        preparedFieldSecurityLabels.put(preparedFieldNames.get(i), fieldSecurityLabels.get(i));
+                }
+
+                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true, comment, securityLabel, preparedFieldComments, preparedFieldSecurityLabels);
             }
 
             @Override
@@ -461,7 +518,8 @@ public final class Types implements Iterable<UserType>
             for (UserType type : t.types.values())
             {
                 out.writeUTF(type.getNameAsString());
-                List<String> fieldNames = type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList());
+                List<FieldIdentifier> fieldIdentifiers = type.fieldNames();
+                List<String> fieldNames = fieldIdentifiers.stream().map(FieldIdentifier::toString).collect(toList());
                 List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());
                 out.writeInt(fieldNames.size());
                 for (String s : fieldNames)
@@ -469,6 +527,12 @@ public final class Types implements Iterable<UserType>
                 out.writeInt(fieldTypes.size());
                 for (String s : fieldTypes)
                     out.writeUTF(s);
+                if (version.isAtLeast(Version.V8))
+                {
+                    out.writeUTF(type.comment);
+                    out.writeUTF(type.securityLabel);
+                    serializeFieldMetadata(type, fieldIdentifiers, out);
+                }
             }
         }
 
@@ -487,7 +551,17 @@ public final class Types implements Iterable<UserType>
                 List<String> fieldTypes = new ArrayList<>(fieldTypeSize);
                 for (int x = 0; x < fieldTypeSize; x++)
                     fieldTypes.add(in.readUTF());
-                builder.add(name, fieldNames, fieldTypes);
+                String comment = EMPTY_COMMENT;
+                String securityLabel = EMPTY_SECURITY_LABEL;
+                List<String> fieldComments = new ArrayList<>(Collections.nCopies(fieldNamesSize, ""));
+                List<String> fieldSecurityLabels = new ArrayList<>(Collections.nCopies(fieldNamesSize, ""));
+                if (version.isAtLeast(Version.V8))
+                {
+                    comment = in.readUTF();
+                    securityLabel = in.readUTF();
+                    deserializeFieldMetadata(in, fieldComments, fieldSecurityLabels);
+                }
+                builder.add(name, fieldNames, fieldTypes, comment, securityLabel, fieldComments, fieldSecurityLabels);
             }
             return builder.build();
         }
@@ -498,16 +572,95 @@ public final class Types implements Iterable<UserType>
             for (UserType type : t.types.values())
             {
                 size += sizeof(type.getNameAsString());
-                List<String> fieldNames = type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList());
-                List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());
+                List<FieldIdentifier> fieldIdentifiers = type.fieldNames();
+                List<String> fieldNames = fieldIdentifiers.stream().map(FieldIdentifier::toString).collect(toList());
+                List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());;
                 size += sizeof(fieldNames.size());
                 for (String s : fieldNames)
                     size += sizeof(s);
                 size += sizeof(fieldTypes.size());
                 for (String s : fieldTypes)
                     size += sizeof(s);
+                if (version.isAtLeast(Version.V8))
+                {
+                    size += sizeof(type.comment);
+                    size += sizeof(type.securityLabel);
+                    size += fieldMetadataSize(type, fieldIdentifiers);
+                }
             }
             return size;
+        }
+
+        private void serializeFieldMetadata(UserType type, List<FieldIdentifier> fieldIdentifiers, DataOutputPlus out) throws IOException
+        {
+            // Sparse serialization: only serialize non-empty metadata with their positions
+            serializeSparseMetadata(fieldIdentifiers, type::fieldComment, out);
+            serializeSparseMetadata(fieldIdentifiers, type::fieldSecurityLabel, out);
+        }
+
+        private void serializeSparseMetadata(List<FieldIdentifier> fieldIdentifiers,
+                                             Function<FieldIdentifier, String> metadataGetter,
+                                             DataOutputPlus out) throws IOException
+        {
+            // Collect only non-empty indexes
+            List<Integer> nonEmptyIndexes = new ArrayList<>();
+            for (int i = 0; i < fieldIdentifiers.size(); i++)
+            {
+                String value = metadataGetter.apply(fieldIdentifiers.get(i));
+                if (!value.isEmpty())
+                    nonEmptyIndexes.add(i);
+            }
+
+            // Write count followed by position-value pairs
+            out.writeUnsignedVInt32(nonEmptyIndexes.size());
+            for (int index : nonEmptyIndexes)
+            {
+                out.writeUnsignedVInt32(index);
+                out.writeUTF(metadataGetter.apply(fieldIdentifiers.get(index)));
+            }
+        }
+
+        private void deserializeFieldMetadata(DataInputPlus in, List<String> fieldComments, List<String> fieldSecurityLabels) throws IOException
+        {
+            deserializeSparseMetadata(in, fieldComments);
+            deserializeSparseMetadata(in, fieldSecurityLabels);
+        }
+
+        private void deserializeSparseMetadata(DataInputPlus in, List<String> target) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            for (int i = 0; i < count; i++)
+            {
+                int position = in.readUnsignedVInt32();
+                String value = in.readUTF();
+                target.set(position, value);
+            }
+        }
+
+        private long fieldMetadataSize(UserType type, List<FieldIdentifier> fieldIdentifiers)
+        {
+            return sparseMetadataSize(fieldIdentifiers, type::fieldComment)
+                 + sparseMetadataSize(fieldIdentifiers, type::fieldSecurityLabel);
+        }
+
+        private long sparseMetadataSize(List<FieldIdentifier> fieldIdentifiers,
+                                       java.util.function.Function<FieldIdentifier, String> metadataGetter)
+        {
+            int nonEmptyCount = 0;
+            long dataSize = 0;
+
+            for (int i = 0; i < fieldIdentifiers.size(); i++)
+            {
+                String value = metadataGetter.apply(fieldIdentifiers.get(i));
+                if (!value.isEmpty())
+                {
+                    nonEmptyCount++;
+                    dataSize += sizeofUnsignedVInt(i);     // position (int)
+                    dataSize += sizeof(value); // value string
+                }
+            }
+
+            return sizeofUnsignedVInt(nonEmptyCount) + dataSize;
         }
     }
 }

@@ -108,6 +108,9 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound credentials_update_interval = null;
     public volatile boolean credentials_cache_active_update = false;
 
+    public int max_comment_length = 128;
+    public int max_security_label_length = 48;
+
     /* Hashing strategy Random or OPHF */
     public String partitioner;
 

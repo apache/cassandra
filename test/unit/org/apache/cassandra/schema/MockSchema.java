@@ -324,7 +324,11 @@ public class MockSchema
                         ? mockKS.tables.with(metadata)
                         : mockKS.tables.withSwapped(metadata);
         mockKS = mockKS.withSwapped(tables);
-        return new ColumnFamilyStore(new Keyspace(mockKS), metadata.name, Util.newSeqGen(), metadata, new Directories(metadata), false, false);
+        // Use Schema.instance to get or create the keyspace instance to avoid creating duplicate metrics
+        Keyspace keyspace = Schema.instance.getKeyspaceInstance(metadata.keyspace);
+        if (keyspace == null)
+            keyspace = new Keyspace(mockKS);
+        return new ColumnFamilyStore(keyspace, metadata.name, Util.newSeqGen(), metadata, new Directories(metadata), false, false);
     }
 
     private static TableMetadata newTableMetadata(String ksname)
@@ -381,6 +385,7 @@ public class MockSchema
     public static class MockSchemaProvider implements SchemaProvider
     {
         private final SchemaProvider originalSchemaProvider = Schema.instance;
+        private volatile Keyspace mockKeyspaceInstance;
 
         @Override
         public Set<String> getKeyspaces()
@@ -464,7 +469,18 @@ public class MockSchema
         public Keyspace getKeyspaceInstance(String keyspaceName)
         {
             if (isMockKS(keyspaceName))
-                return new Keyspace(mockKS);
+            {
+                // Cache the keyspace instance to avoid creating duplicate metrics
+                if (mockKeyspaceInstance == null)
+                {
+                    synchronized (this)
+                    {
+                        if (mockKeyspaceInstance == null)
+                            mockKeyspaceInstance = new Keyspace(mockKS);
+                    }
+                }
+                return mockKeyspaceInstance;
+            }
 
             return originalSchemaProvider.getKeyspaceInstance(keyspaceName);
         }

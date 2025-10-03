@@ -251,7 +251,22 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           @Nullable ColumnMask mask,
                           @Nonnull ColumnConstraints columnConstraints)
     {
-        super(ksName, cfName, name, type);
+        this(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
+    }
+
+    public ColumnMetadata(String ksName,
+                          String cfName,
+                          ColumnIdentifier name,
+                          AbstractType<?> type,
+                          int uniqueId,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask,
+                          @Nonnull ColumnConstraints columnConstraints,
+                          String comment,
+                          String securityLabel)
+    {
+        super(ksName, cfName, name, type, comment, securityLabel);
         this.uniqueId = uniqueId;
         assert name != null && type != null && kind != null;
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
@@ -302,22 +317,32 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata copy()
     {
-        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
     }
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
     }
 
     public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
     {
-        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, newMask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, newMask, columnConstraints, comment, securityLabel);
+    }
+
+    public ColumnMetadata withNewComment(String newComment)
+    {
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, newComment, securityLabel);
+    }
+
+    public ColumnMetadata withNewSecurityLabel(String newSecurityLabel)
+    {
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, comment, newSecurityLabel);
     }
 
     public boolean isPartitionKey()
@@ -397,7 +422,13 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public ColumnMetadata withNewColumnConstraints(ColumnConstraints constraints)
     {
         constraints.validate(this);
-        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, constraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, constraints, comment, securityLabel);
+    }
+
+
+    public ColumnMetadata withSecurityLabel(String securityLabel)
+    {
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, comment, securityLabel);
     }
 
     public void removeColumnConstraints()
@@ -739,6 +770,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             }
             if (version.isAtLeast(Version.V7))
                 out.writeVInt32(t.uniqueId);
+            if (version.isAtLeast(Version.V8))
+            {
+                out.writeUTF(t.comment);
+                out.writeUTF(t.securityLabel);
+            }
         }
 
         public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -765,7 +801,14 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             int uniqueId = NO_UNIQUE_ID;
             if (version.isAtLeast(Version.V7))
                 uniqueId = in.readVInt32();
-            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints);
+            String comment = EMPTY_COMMENT;
+            String securityLabel = EMPTY_SECURITY_LABEL;
+            if (version.isAtLeast(Version.V8))
+            {
+                comment = in.readUTF();
+                securityLabel = in.readUTF();
+            }
+            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints, comment, securityLabel);
         }
 
         public long serializedSize(ColumnMetadata t, Version version)
@@ -776,6 +819,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 constraintsSize += BOOL_SIZE;
                 if (t.hasConstraint())
                     constraintsSize += t.getColumnConstraints().serializer().serializedSize(t.columnConstraints, version);
+            }
+            long commentsAndSecurityLabelSize = 0;
+            if (version.isAtLeast(Version.V8))
+            {
+                commentsAndSecurityLabelSize += sizeof(t.comment);
+                commentsAndSecurityLabelSize += sizeof(t.securityLabel);
             }
             return sizeof(t.ksName) +
                    sizeof(t.cfName) +
@@ -788,7 +837,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    BOOL_SIZE +
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
                    constraintsSize +
-                   (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0);
+                   (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0) +
+                   commentsAndSecurityLabelSize;
         }
     }
 }

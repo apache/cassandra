@@ -59,7 +59,7 @@ public class CreateLikeWithSessionTest extends CQLTester
 
 
         assertThatExceptionOfType(com.datastax.driver.core.exceptions.InvalidQueryException.class).isThrownBy(() -> executeNet("CREATE TABLE tb7 LIKE " + ks2 + "." + tb1))
-                                                                                                  .withMessage("Souce Table 'ks2.tb1' doesn't exist");
+                                                                                                  .withMessage("Source Table 'ks2.tb1' doesn't exist");
 
         assertNotNull(getTableMetadata(ks1, tb1));
         assertNotNull(getTableMetadata(ks1, "tb3"));
