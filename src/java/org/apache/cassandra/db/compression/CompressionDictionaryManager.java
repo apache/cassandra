@@ -32,6 +32,7 @@ import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.Trainin
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.MBeanWrapper.OnException;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -42,15 +43,16 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private final String keyspaceName;
     private final String tableName;
+    private volatile boolean mbeanRegistered;
+    private volatile boolean isEnabled;
+
     // Components
     private final ICompressionDictionaryEventHandler eventHandler;
     private final ICompressionDictionaryCache cache;
     private final ICompressionDictionaryScheduler scheduler;
     private ICompressionDictionaryTrainer trainer = null;
 
-    private volatile boolean isEnabled;
-
-    public CompressionDictionaryManager(ColumnFamilyStore columnFamilyStore)
+    public CompressionDictionaryManager(ColumnFamilyStore columnFamilyStore, boolean registerBookkeeping)
     {
         this.keyspaceName = columnFamilyStore.keyspace.getName();
         this.tableName = columnFamilyStore.getTableName();
@@ -71,15 +73,18 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
             trainer.start(false);
         }
-        registerMBean(keyspaceName, tableName, this);
+
+        if (registerBookkeeping)
+        {
+            MBeanWrapper.instance.registerMBean(this, mbeanName(keyspaceName, tableName));
+        }
+        mbeanRegistered = registerBookkeeping;
     }
 
-    private static void registerMBean(String keyspaceName, String tableName, CompressionDictionaryManagerMBean mBean)
+    static String mbeanName(String keyspaceName, String tableName)
     {
-        // Register as MBean for this specific table
-        String mbeanName = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager" +
-                           ",keyspace=" + keyspaceName + ",table=" + tableName;
-        MBeanWrapper.instance.registerMBean(mBean, mbeanName);
+        return "org.apache.cassandra.db.compression:type=CompressionDictionaryManager" +
+               ",keyspace=" + keyspaceName + ",table=" + tableName;
     }
 
     public boolean isEnabled()
@@ -243,18 +248,18 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     /**
      * Close all the resources. The method can be called multiple times.
-     * @throws Exception if this resource cannot be closed
      */
     @Override
-    public synchronized void close() throws Exception
+    public synchronized void close()
     {
+        unregisterMbean();
         if (trainer != null)
         {
-            trainer.close();
+            closeQuitely(trainer, "CompressionDictionaryTrainer");
             trainer = null;
         }
-        cache.close();
-        scheduler.close();
+        closeQuitely(cache, "CompressionDictionaryCache");
+        closeQuitely(scheduler, "CompressionDictionaryScheduler");
     }
 
     private void handleNewDictionary(CompressionDictionary dictionary)
@@ -304,6 +309,27 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         return !trainer.isCompatibleWith(newParams);
+    }
+
+    private void unregisterMbean()
+    {
+        if (mbeanRegistered)
+        {
+            MBeanWrapper.instance.unregisterMBean(mbeanName(keyspaceName, tableName), OnException.IGNORE);
+            mbeanRegistered = true;
+        }
+    }
+
+    private void closeQuitely(AutoCloseable closeable, String objectName)
+    {
+        try
+        {
+            closeable.close();
+        }
+        catch (Exception exception)
+        {
+            logger.warn("Failed closing {}", objectName, exception);
+        }
     }
 
     @VisibleForTesting

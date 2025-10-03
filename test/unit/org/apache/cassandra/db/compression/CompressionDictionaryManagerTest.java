@@ -31,8 +31,6 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
-import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -92,9 +90,8 @@ public class CompressionDictionaryManagerTest
     @Before
     public void setUp()
     {
-        // Create managers - they will auto-initialize based on table compression params
-        managerWithDict = new CompressionDictionaryManager(cfsWithDict);
-        managerWithoutDict = new CompressionDictionaryManager(cfsWithoutDict);
+        managerWithDict = new CompressionDictionaryManager(cfsWithDict, true);
+        managerWithoutDict = new CompressionDictionaryManager(cfsWithoutDict, true);
     }
 
     @After
@@ -334,12 +331,5 @@ public class CompressionDictionaryManagerTest
         assertThatThrownBy(() -> managerWithDict.updateSamplingRate(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Sampling rate must be positive");
-    }
-
-    private static ZstdCompressionDictionary createTestDictionary()
-    {
-        byte[] dictBytes = "test dictionary data for manager testing".getBytes();
-        DictId dictId = new DictId(Kind.ZSTD, System.currentTimeMillis());
-        return new ZstdCompressionDictionary(dictId, dictBytes);
     }
 }
