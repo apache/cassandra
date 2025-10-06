@@ -1227,6 +1227,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("ADD IDENTITY 'alice@example.com' ", immediate='TO ROLE ')
         self.trycompletions("ADD IDENTITY 'alice@example.com' TO ROLE ",
                             choices=['<identifier>', '<quotedName>'], other_choices_ok=True)
+        self.trycompletions("ADD IDENTITY 'alice@example.com' TO ROLE data_engineer ",
+                                    choices=[';'])
         self.trycompletions("ADD IDENTITY IF NOT EXISTS 'alice@example.com' TO ROLE data_engineer ",
                             choices=[';'])
 
