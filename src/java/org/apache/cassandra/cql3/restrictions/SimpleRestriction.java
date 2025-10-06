@@ -343,9 +343,12 @@ public final class SimpleRestriction implements SingleRestriction
                 List<ByteBuffer> buffers = bindAndGet(options);
                 if (operator.kind() != Operator.Kind.BINARY)
                 {
-                    // For BETWEEN we support like in SQL reversed bounds
-                    if (operator.kind() == Operator.Kind.TERNARY)
+                    // New: only sort IN‑list values; preserve order for BETWEEN
+                    if (operator == Operator.IN)
+                    {
+                        // IN‑list bounds sorted for efficient lookup
                         buffers.sort(column.type);
+                    }
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)
