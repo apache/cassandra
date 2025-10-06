@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
@@ -70,6 +72,12 @@ public class ViewUpdateGenerator
         UPDATE_EXISTING, // There was an entry and the update modifies it
         SWITCH_ENTRY     // There was an entry and there is still one after update,
                          // but they are not the same one.
+    }
+
+    private enum ReadRebuildAction
+    {
+        REWRITE,                // Rewrite the base row entry
+        DELETE_FROM_BASE_READ        // Delete the base row entry
     }
 
     /**
@@ -126,6 +134,171 @@ public class ViewUpdateGenerator
                 deleteOldEntry(existingBaseRow, mergedBaseRow);
                 return;
         }
+    }
+
+    public void addBaseTableRowForReadRebuild(@Nullable Row baseRow,
+                                              Clustering<?> baseClustering,
+                                              long readTime,
+                                              @Nullable ByteBuffer nonPKValue)
+    {
+        assert (nonPKValue == null && view.hasSamePrimaryKeyColumnsAsBaseTable())
+               || (nonPKValue != null && !view.hasSamePrimaryKeyColumnsAsBaseTable()) : "nonPKValue should be null iff view has same PK columns as base table";
+
+        switch (updateActionForReadRebuild(baseRow, nonPKValue))
+        {
+            case REWRITE:
+                // updateActionForReadRebuild returns REWRITE only when baseRow is non-null
+                createEntry(baseRow);
+                return;
+            case DELETE_FROM_BASE_READ:
+                deleteEntryFromBaseRead(baseRow, baseClustering, readTime, nonPKValue);
+                return;
+        }
+    }
+
+    Row maybeAddDeletionFromReadTime(@Nullable Row baseRow,
+                                     Clustering<?> baseClustering,
+                                     long readTime)
+    {
+        // In case we read null from the base table, the tombstone is disacrded.
+        // We fabricate a deleted row with deletion time the same as the read time.
+        if (baseRow == null)
+            return BTreeRow.emptyDeletedRow(baseClustering,
+                                            Row.Deletion.regular(new DeletionTime(readTime, nowInSec)));
+
+        // check if non-pk is null - if so we add a psedo deletion with the read time as deletion time to the cell
+        if (!view.hasSamePrimaryKeyColumnsAsBaseTable())
+        {
+            ColumnMetadata nonPKCol = view.baseNonPKColumnsInViewPK.get(0);
+            ColumnMetadata baseNonPkCol = view.getBaseColumn(nonPKCol);
+            ColumnData baseNonPKColData = baseRow.getColumnData(baseNonPkCol);
+
+            if (baseNonPKColData == null)
+            {
+                // clone the base row and add a pseudo deletion to the non-pk cell
+                Row.Builder builder = BTreeRow.unsortedBuilder();
+                builder.newRow(baseClustering);
+                builder.addRowDeletion(baseRow.deletion());
+                builder.addPrimaryKeyLivenessInfo(baseRow.primaryKeyLivenessInfo());
+                for (ColumnData data : baseRow.columnData())
+                {
+                    if (data.column().isComplex())
+                    {
+                        ComplexColumnData complexData = (ComplexColumnData)data;
+                        builder.addComplexDeletion(data.column(), complexData.complexDeletion());
+                        for (Cell<?> cell : complexData)
+                            builder.addCell(cell);
+                    }
+                    else
+                        builder.addCell((Cell<?>)data);
+                }
+
+                // add a pseudo deletion to the cell
+                builder.addCell(BufferCell.tombstone(baseNonPkCol, readTime, nowInSec));
+                return builder.build();
+            }
+        }
+        return baseRow;
+    }
+
+    private void deleteEntryFromBaseRead(@Nullable Row baseRow,
+                                         Clustering<?> baseClustering,
+                                         long readTime,
+                                         @Nullable ByteBuffer nonPKValue)
+    {
+        Row targetRow = maybeAddDeletionFromReadTime(baseRow, baseClustering, readTime);
+        // compute the view PK
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
+            startNewUpdate(targetRow);
+        else
+        {
+            // baseRow can have mismatched nonPKValue. The deletion should be issued on the targeted PK
+            ByteBuffer[] clusteringValues = new ByteBuffer[viewMetadata.clusteringColumns().size()];
+            for (ColumnMetadata viewColumn : viewMetadata.primaryKeyColumns())
+            {
+                ByteBuffer value = view.baseNonPKColumnsInViewPK.contains(view.getBaseColumn(viewColumn))
+                                   ? nonPKValue
+                                   : ViewUtils.getValueForPK(view.getBaseColumn(viewColumn), baseRow, basePartitionKey);
+                if (viewColumn.isPartitionKey())
+                    currentViewEntryPartitionKey[viewColumn.position()] = value;
+                else
+                    clusteringValues[viewColumn.position()] = value;
+            }
+            currentViewEntryBuilder.newRow(Clustering.make(clusteringValues));
+        }
+
+        // compute a deletion timestamp for the entry
+        DeletionTime rowDeletion = targetRow.deletion().time();
+        long timestamp = rowDeletion.markedForDeleteAt();
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
+        {
+            timestamp = Math.max(timestamp, targetRow.primaryKeyLivenessInfo().timestamp());
+            if (!view.getDefinition().includeAllColumns)
+            {
+                for (Cell<?> cell : targetRow.cells())
+                {
+                    // At this point, we know baseRow.hasLiveData=false, which means
+                    // 1. Primary key liveness info says dead (never had row level liveness, or it's already expired)
+                    // 2. any(cell.isLive)=false
+
+                    // Here we need to determine the timestamp for the expired TTL liveness info. (See ViewUtils.computeLivenessInfoForEntry)
+                    // In deleteOldEntryInternal, one will only check the unselected cells (when PK is the same, and there are unselected columns)
+                    // Here instead we'll have to check all cells - The intention here is to ensure that the deletion
+                    // shadow any existing cell, so we need to find the max timestamp among all cells
+                    timestamp = Math.max(timestamp, cell.maxTimestamp());
+                }
+            }
+        }
+        else
+        {
+            Cell<?> nonPKCell = targetRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
+            // targetRow can be an empty deleted row, in which case nonPKCell is null
+            timestamp = (nonPKCell != null && !rowDeletion.deletes(nonPKCell))
+                        ? nonPKCell.timestamp()
+                        : rowDeletion.markedForDeleteAt();
+        }
+
+        // ensure that deletion can only at max readTime, can only happen if we read a timestamp in the future
+        timestamp = Math.min(timestamp, readTime);
+        addDeletion(targetRow, timestamp, rowDeletion.markedForDeleteAt());
+        submitUpdate();
+    }
+
+    ReadRebuildAction updateActionForReadRebuild(@Nullable Row baseRow, @Nullable ByteBuffer nonPKValue)
+    {
+        // REWRITE: baseRow is alive
+        // baseRow is alive from view's perspective, either:
+        // 1. has non-pk base column in view pk, which is alive
+        // 2. doesn't have the non-pk base column in view pk, baseRow has live data
+
+        // DELETE: baseRow is dead
+        // baseRow is dead from view's perspective, either:
+        // 1. has non-pk base column in view pk, which is null/dead, or mismatch with the clustering key
+        //    e.g., view pk (k,v), base pk (k), base non-pk column v. We want to fix (k=1,v=1) in view, however,
+        //    we read (k=1,v=9) from base table, so we need to delete (k=1,v=1) in view
+        // 2. doesn't have the non-pk base column in view pk, baseRow is null/dead
+
+        // TODO: obervability on each action taken?
+
+        if (baseRow == null)
+            return ReadRebuildAction.DELETE_FROM_BASE_READ;
+
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
+        {
+            return baseRow.hasLiveData(nowInSec, baseEnforceStrictLiveness)
+                   ? ReadRebuildAction.REWRITE
+                   : ReadRebuildAction.DELETE_FROM_BASE_READ;
+        }
+
+        ColumnMetadata nonPKCol = view.baseNonPKColumnsInViewPK.get(0);
+        ColumnMetadata baseNonPkCol = view.getBaseColumn(nonPKCol);
+        Cell<?> cell = baseRow.getCell(baseNonPkCol);
+        if (!ViewUtils.isLive(cell, nowInSec))
+            return ReadRebuildAction.DELETE_FROM_BASE_READ;
+        // if the non-pk cell matches
+        return cell.buffer().equals(nonPKValue)
+               ? ReadRebuildAction.REWRITE
+               : ReadRebuildAction.DELETE_FROM_BASE_READ;
     }
 
     /**
@@ -382,8 +555,15 @@ public class ViewUpdateGenerator
         long timestamp = computeTimestampForEntryDeletion(existingBaseRow, mergedBaseRow);
         long rowDeletion = mergedBaseRow.deletion().time().markedForDeleteAt();
         assert timestamp >= rowDeletion;
-        
-        // If computed deletion timestamp greater than row deletion, it must be coming from 
+
+        addDeletion(mergedBaseRow, timestamp, rowDeletion);
+        addDifferentCells(existingBaseRow, mergedBaseRow);
+        submitUpdate();
+    }
+
+    private void addDeletion(Row mergedBaseRow, long timestamp, long rowDeletion)
+    {
+        // If computed deletion timestamp greater than row deletion, it must be coming from
         //  1. non-pk base column used in view pk, or
         //  2. unselected base column
         //  any case, we need to use it as expired livenessInfo
@@ -401,9 +581,6 @@ public class ViewUpdateGenerator
             currentViewEntryBuilder.addPrimaryKeyLivenessInfo(info);
         }
         currentViewEntryBuilder.addRowDeletion(mergedBaseRow.deletion());
-
-        addDifferentCells(existingBaseRow, mergedBaseRow);
-        submitUpdate();
     }
 
     /**

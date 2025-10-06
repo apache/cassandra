@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-51564] addBaseTableRowForReadRebuild: from baseRow to viewRow mutations
  * [SO-52436] Create SSTable stream for MV backfill dir to remote/local MV replicas
  * [SO-52401] Create View Backfill SSTable Sink
  * [SO-51894] skipPurger option in read command and Filter to read with unfiltered row
