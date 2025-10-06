@@ -90,7 +90,7 @@ public class ColumnMaskTest extends TestBaseImpl
         {
             IInvokableInstance node = cluster.get(1);
 
-            cluster.schemaChange(withKeyspace("CREATE FUNCTION %s.custom_mask(column text, replacement text) " +
+            cluster.schemaChange(withKeyspace("CREATE FUNCTION %s.custom_mask(value text, replacement text) " +
                                               "RETURNS NULL ON NULL INPUT " +
                                               "RETURNS text " +
                                               "LANGUAGE java " +

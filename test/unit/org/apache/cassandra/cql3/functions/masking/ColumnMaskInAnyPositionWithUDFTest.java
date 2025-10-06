@@ -42,14 +42,14 @@ public class ColumnMaskInAnyPositionWithUDFTest extends ColumnMaskInAnyPositionT
     {
         createFunction(KEYSPACE,
                        "text, text",
-                       "CREATE FUNCTION IF NOT EXISTS " + TEXT_REPLACE_FUNCTION + " (column text, replacement text) " +
+                       "CREATE FUNCTION IF NOT EXISTS " + TEXT_REPLACE_FUNCTION + " (value text, replacement text) " +
                        "CALLED ON NULL INPUT " +
                        "RETURNS text " +
                        "LANGUAGE java " +
                        "AS 'return replacement;'");
         createFunction(KEYSPACE,
                        "int, int",
-                       "CREATE FUNCTION IF NOT EXISTS " + INT_REPLACE_FUNCTION + " (column int, replacement int) " +
+                       "CREATE FUNCTION IF NOT EXISTS " + INT_REPLACE_FUNCTION + " (value int, replacement int) " +
                        "CALLED ON NULL INPUT " +
                        "RETURNS int " +
                        "LANGUAGE java " +

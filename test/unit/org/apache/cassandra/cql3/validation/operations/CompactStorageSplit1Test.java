@@ -58,16 +58,16 @@ public class CompactStorageSplit1Test extends CQLTester
     @Test
     public void before() throws Throwable
     {
-        createTable("CREATE TABLE %s (key TEXT, column TEXT, value BLOB, PRIMARY KEY (key, column)) WITH COMPACT STORAGE");
+        createTable("CREATE TABLE %s (key TEXT, col TEXT, value BLOB, PRIMARY KEY (key, col)) WITH COMPACT STORAGE");
 
         ByteBuffer largeBytes = ByteBuffer.wrap(new byte[100000]);
-        execute("INSERT INTO %s (key, column, value) VALUES (?, ?, ?)", "test", "a", largeBytes);
+        execute("INSERT INTO %s (key, col, value) VALUES (?, ?, ?)", "test", "a", largeBytes);
         ByteBuffer smallBytes = ByteBuffer.wrap(new byte[10]);
-        execute("INSERT INTO %s (key, column, value) VALUES (?, ?, ?)", "test", "c", smallBytes);
+        execute("INSERT INTO %s (key, col, value) VALUES (?, ?, ?)", "test", "c", smallBytes);
 
         flush();
 
-        assertRows(execute("SELECT column FROM %s WHERE key = ? AND column IN (?, ?, ?)", "test", "c", "a", "b"),
+        assertRows(execute("SELECT col FROM %s WHERE key = ? AND col IN (?, ?, ?)", "test", "c", "a", "b"),
                    row("a"),
                    row("c"));
     }

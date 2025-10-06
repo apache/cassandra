@@ -86,10 +86,10 @@ public class GcCompactionBenchTest extends CQLTester
     {
         createTable("CREATE TABLE %s(" +
                     "  key int," +
-                    "  column int," +
+                    "  value int," +
                     "  data int," +
                     "  extra text," +
-                    "  PRIMARY KEY(key, column)" +
+                    "  PRIMARY KEY(key, value)" +
                     ")"
                    );
 
@@ -117,7 +117,7 @@ public class GcCompactionBenchTest extends CQLTester
                 " STYPE int" +
                 " INITCOND 1");
 
-        hashQuery = String.format("SELECT count(column), %s(key), %s(column), %s(data), %s(extra), avg(key), avg(column), avg(data) FROM %%s",
+        hashQuery = String.format("SELECT count(value), %s(key), %s(value), %s(data), %s(extra), avg(key), avg(value), avg(data) FROM %%s",
                                   hashInt, hashInt, hashInt, hashText);
     }
     AtomicLong id = new AtomicLong();
@@ -131,8 +131,8 @@ public class GcCompactionBenchTest extends CQLTester
             if (ii % 1000 == 0)
                 System.out.print('.');
             int key = rand.nextInt(KEY_RANGE);
-            int column = rand.nextInt(CLUSTERING_RANGE);
-            execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", key, column, (int) ii, genExtra(rand));
+            int value = rand.nextInt(CLUSTERING_RANGE);
+            execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", key, value, (int) ii, genExtra(rand));
             maybeCompact(ii);
         }
     }
@@ -162,11 +162,11 @@ public class GcCompactionBenchTest extends CQLTester
                     long cid = rand.nextInt(DEL_SECTIONS);
                     int cstart = (int) (cid * CLUSTERING_RANGE / DEL_SECTIONS);
                     int cend = (int) ((cid + 1) * CLUSTERING_RANGE / DEL_SECTIONS);
-                    res = execute("SELECT column FROM %s WHERE key = ? AND column >= ? AND column < ? LIMIT 1", key, cstart, cend);
+                    res = execute("SELECT value FROM %s WHERE key = ? AND value >= ? AND value < ? LIMIT 1", key, cstart, cend);
                 } while (res.size() == 0);
                 UntypedResultSet.Row r = Iterables.get(res, rand.nextInt(res.size()));
-                int clustering = r.getInt("column");
-                execute("DELETE FROM %s WHERE key = ? AND column = ?", key, clustering);
+                int clustering = r.getInt("value");
+                execute("DELETE FROM %s WHERE key = ? AND value = ?", key, clustering);
             }
             else
             {
@@ -174,7 +174,7 @@ public class GcCompactionBenchTest extends CQLTester
                 long cid = rand.nextInt(DEL_SECTIONS);
                 int cstart = (int) (cid * CLUSTERING_RANGE / DEL_SECTIONS);
                 int cend = (int) ((cid + 1) * CLUSTERING_RANGE / DEL_SECTIONS);
-                res = execute("DELETE FROM %s WHERE key = ? AND column >= ? AND column < ?", key, cstart, cend);
+                res = execute("DELETE FROM %s WHERE key = ? AND value >= ? AND value < ?", key, cstart, cend);
             }
             maybeCompact(ii);
         }

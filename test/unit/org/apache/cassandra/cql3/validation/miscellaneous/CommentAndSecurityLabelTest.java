@@ -369,8 +369,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
             assertComment(type, keyspace, objectName, testValue);
             setComment(type, objectName, updatedValue);
             assertComment(type, keyspace, objectName, updatedValue);
-            setComment(type, objectName, null);
-            assertComment(type, keyspace, objectName, null);
+            setComment(type, objectName, "");
+            assertComment(type, keyspace, objectName, "");
         }
         else
         {
@@ -378,8 +378,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
             assertSecurityLabel(type, keyspace, objectName, testValue);
             setSecurityLabel(type, objectName, updatedValue);
             assertSecurityLabel(type, keyspace, objectName, updatedValue);
-            setSecurityLabel(type, objectName, null);
-            assertSecurityLabel(type, keyspace, objectName, null);
+            setSecurityLabel(type, objectName, "");
+            assertSecurityLabel(type, keyspace, objectName, "");
         }
     }
 
