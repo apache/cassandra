@@ -166,7 +166,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     cqlver = '3.1.6'
 
     def test_complete_on_empty_string(self):
-        self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
+        self.trycompletions('', choices=('?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
                                          'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'ELAPSED', 'EXPAND', 'SERIAL', 'TRUNCATE',
@@ -613,7 +613,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_drop(self):
         self.trycompletions('DR', immediate='OP ')
         self.trycompletions('DROP ',
-                            choices=['AGGREGATE', 'COLUMNFAMILY', 'FUNCTION',
+                            choices=['AGGREGATE', 'COLUMNFAMILY', 'FUNCTION', 'IDENTITY',
                                      'INDEX', 'KEYSPACE', 'ROLE', 'TABLE',
                                      'TRIGGER', 'TYPE', 'USER', 'MATERIALIZED'])
 
@@ -1048,12 +1048,12 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                              'system_virtual_schema', 'system_cluster_metadata'])
 
     def test_complete_in_create_index(self):
-        self.trycompletions('CREATE I', immediate='NDEX ')
+        self.trycompletions('CREATE IN', immediate='DEX ')
         self.trycompletions('CREATE INDEX ', choices=['<new_index_name>', 'IF', 'ON'])
         self.trycompletions('CREATE INDEX example ', immediate='ON ')
 
     def test_complete_in_drop_index(self):
-        self.trycompletions('DROP I', immediate='NDEX ')
+        self.trycompletions('DROP IN', immediate='DEX ')
 
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')
@@ -1184,9 +1184,15 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TYPE IF EXISTS new_type ADD IF NOT EXISTS ', choices=['<new_field_name>'])
         self.trycompletions('ALTER TYPE IF EXISTS new_type RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
 
+    # USER checks
+    def test_complete_in_create_user(self):
+        self.trycompletions('CREATE USER ', choices=['<username>', 'IF'])
+        self.trycompletions('CREATE USER IF ', immediate='NOT EXISTS ')
+
     def test_complete_in_alter_user(self):
         self.trycompletions('ALTER USER ', choices=['<identifier>', 'IF', '<pgStringLiteral>', '<quotedStringLiteral>'])
 
+    # ROLE checks
     def test_complete_in_create_role(self):
         self.trycompletions('CREATE ROLE ', choices=['<rolename>', 'IF'])
         self.trycompletions('CREATE ROLE IF ', immediate='NOT EXISTS ')
@@ -1205,17 +1211,42 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
         self.trycompletions('ALTER ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
 
-    def test_complete_in_create_user(self):
-        self.trycompletions('CREATE USER ', choices=['<username>', 'IF'])
-        self.trycompletions('CREATE USER IF ', immediate='NOT EXISTS ')
 
     def test_complete_in_drop_role(self):
         self.trycompletions('DROP ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
+
+
+    # IDENTITY checks
+    def test_complete_in_add_identity(self):
+        self.trycompletions('ADD ID', immediate='ENTITY ')
+        self.trycompletions('ADD IDENTITY IF ', immediate='NOT EXISTS ')
+        self.trycompletions('ADD IDENTITY IF NOT ', immediate='EXISTS ')
+        self.trycompletions('ADD IDENTITY ',
+            choices=['<pgStringLiteral>', '<quotedStringLiteral>', 'IF'])
+        self.trycompletions("ADD IDENTITY 'alice@example.com' TO R", immediate='OLE ')
+        self.trycompletions("ADD IDENTITY 'alice@example.com' ", immediate='TO ROLE ')
+        self.trycompletions("ADD IDENTITY 'alice@example.com' TO ROLE ",
+                            choices=['<identifier>', '<quotedName>'], other_choices_ok=True)
+        self.trycompletions("ADD IDENTITY IF NOT EXISTS 'alice@example.com' TO ROLE data_engineer ",
+                            choices=[';'])
+
+    def test_complete_in_drop_identity(self):
+        self.trycompletions('DROP IDENTITY ',
+                            choices=['<pgStringLiteral>', '<quotedStringLiteral>', 'IF'])
+        self.trycompletions('DROP IDENTITY IF ', immediate='EXISTS ')
+        self.trycompletions('DROP IDENTITY IF EXISTS ',
+                            choices=['<pgStringLiteral>', '<quotedStringLiteral>'])
+        self.trycompletions("DROP IDENTITY 'alice@example.com' ", choices=[';'])
+        self.trycompletions("DROP IDENTITY IF EXISTS 'alice@example.com' ", choices=[';'])
 
     def test_complete_in_list(self):
         self.trycompletions('LIST ',
                             choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER',
                                      'CREATE', 'DROP', 'MODIFY', 'SELECT', 'UNMASK', 'SELECT_MASKED', 'SUPERUSERS'])
+
+    def test_complete_drop_end(self):
+        self.trycompletions("DROP USER 'alice@example.com' ", choices=[';'])
+        self.trycompletions("DROP USER IF EXISTS 'alice@example.com' ", choices=[';'])
 
     # Non-CQL Shell Commands
 
