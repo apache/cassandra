@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.view;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -151,7 +152,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         // Test completion
         try
         {
-            processor.complete();
+            processor.rowProcessComplete();
             assertTrue(processor.completed);
         }
         catch (Exception e)
@@ -396,7 +397,13 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         }
 
         @Override
-        public void complete() throws Exception
+        public void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception
+        {
+
+        }
+
+        @Override
+        public void rowProcessComplete() throws Exception
         {
             completed = true;
         }
@@ -419,7 +426,13 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         }
 
         @Override
-        public void complete() throws Exception
+        public void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception
+        {
+
+        }
+
+        @Override
+        public void rowProcessComplete() throws Exception
         {
             // Should not be called
         }

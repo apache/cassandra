@@ -19,7 +19,9 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -132,6 +134,11 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         };
     }
 
+    public Collection<String> getGeneratedFileNames()
+    {
+        return diskWriter.fileNames;
+    }
+
     @Override
     public void close() throws IOException
     {
@@ -203,6 +210,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private class DiskWriter extends FastThreadLocalThread
     {
         volatile Throwable exception = null;
+        volatile Set<String> fileNames = new HashSet<>();
 
         public void run()
         {
@@ -220,6 +228,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                             writer.append(entry.getValue().build().unfilteredIterator());
                         Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
                         notifySSTableProduced(finished);
+                        fileNames.add(writer.getFilename());
                     }
                 }
                 catch (Throwable e)

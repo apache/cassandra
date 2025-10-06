@@ -28,7 +28,8 @@ public enum StreamOperation
     BOOTSTRAP("Bootstrap", false),
     REBUILD("Rebuild", false),
     BULK_LOAD("Bulk Load"),
-    REPAIR("Repair", CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean());
+    REPAIR("Repair", CassandraRelevantProperties.STREAMING_REQUIRES_VIEW_BUILD_DURING_REPAIR.getBoolean()),
+    MV_BACKFILL("MV Backfill", false);
     private final String description;
     private final boolean requiresViewBuild;
 

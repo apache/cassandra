@@ -121,6 +121,18 @@ public class MVBackfillManager
         void processViewRow(ViewRowTranslator.ViewRowResult viewResult) throws Exception;
 
         /**
+         * Process the translated ranges. This method is called for the ranges that have finished processing all the
+         * base table rows in the given ranges
+         * For example, for SSTable stream sink, this will stream the generated sstable to remote nodes.
+         */
+        void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception;
+
+        /**
+         * Called when backfill processing for each row is complete.
+         */
+        default void rowProcessComplete() throws Exception {}
+
+        /**
          * Called when backfill processing is complete.
          */
         default void complete() throws Exception {}
@@ -160,14 +172,37 @@ public class MVBackfillManager
 
         int nowInSec = FBUtilities.nowInSeconds();
 
+        baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VIEW_BUILD_STARTED);
+
+        processBaseTableRangesByRow(baseCfs, view, ranges, processor, state, nowInSec);
+        try
+        {
+            processor.postRowProcess(ranges);
+            processor.complete();
+        }
+        catch (Exception e)
+        {
+            processor.fail(e);
+            state.fail(e);
+        }
+        state.complete();
+    }
+
+    private void processBaseTableRangesByRow(ColumnFamilyStore baseCfs,
+                                             View view,
+                                             Collection<Range<Token>> ranges,
+                                             BackfillSink processor,
+                                             BackfillState state,
+                                             int nowInSec)
+    {
         long start = nanoTime();
         try (MVBackfillIterator iterator = getBackfillIterator(baseCfs, ranges, nowInSec))
         {
             if (iterator.isEmpty())
             {
-                logger.info("No data to backfill for ranges {} in {}.{}", 
-                           ranges, baseCfs.keyspace.getName(), baseCfs.name);
-                processor.complete();
+                logger.info("No data to backfill for ranges {} in {}.{}",
+                            ranges, baseCfs.keyspace.getName(), baseCfs.name);
+                processor.rowProcessComplete();
                 state.complete();
                 return;
             }
@@ -180,7 +215,6 @@ public class MVBackfillManager
                 try (UnfilteredRowIterator partition = iterator.next())
                 {
                     DecoratedKey partitionKey = partition.partitionKey();
-                    
                     // Process each row in the partition
                     while (partition.hasNext())
                     {
@@ -189,7 +223,7 @@ public class MVBackfillManager
                         if (unfiltered.isRow())
                         {
                             Row baseRow = (Row) unfiltered;
-                            
+
                             // Skip dead rows (should be rare after compaction merge)
                             if (!baseRow.hasLiveData(nowInSec, baseCfs.metadata().enforceStrictLiveness()))
                             {
@@ -217,20 +251,17 @@ public class MVBackfillManager
                             }
                             catch (Exception e)
                             {
-                                logger.error("Failed to process base row for MV backfill: partition={}, row={}", 
-                                           partitionKey, baseRow, e);
+                                logger.error("Failed to process base row for MV backfill: partition={}, row={}",
+                                             partitionKey, baseRow, e);
                                 throw e;
                             }
                         }
                     }
-
                     state.partitionsProcessed++;
                     state.updated(iterator);
                 }
             }
-
-            processor.complete();
-            state.complete();
+            processor.rowProcessComplete();
         }
         catch (Exception e)
         {
@@ -239,16 +270,13 @@ public class MVBackfillManager
         }
         finally
         {
-            if (logger.isDebugEnabled())
-            {
-                long duration = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
-                logger.debug("MV backfill of {} partitions (~{}) finished in {} msec for view {}.{}",
-                           state.partitionsProcessed,
-                           FBUtilities.prettyPrintMemory(state.estimatedTotalBytes),
-                           duration,
-                           view.getDefinition().keyspace(),
-                           view.name);
-            }
+            long duration = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
+            logger.debug("MV backfill of {} partitions (~{}) finished in {} msec for view {}.{}",
+                         state.partitionsProcessed,
+                         FBUtilities.prettyPrintMemory(state.estimatedTotalBytes),
+                         duration,
+                         view.getDefinition().keyspace(),
+                         view.name);
         }
     }
 

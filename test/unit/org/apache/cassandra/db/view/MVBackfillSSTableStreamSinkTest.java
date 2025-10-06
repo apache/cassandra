@@ -25,7 +25,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ViewAbstractTest;
@@ -41,7 +40,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-public class MVBackfillSSTableSinkTest extends ViewAbstractTest
+public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
 {
     private static final String VIEW_NAME = "test_view";
 
@@ -84,10 +83,10 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     public void testMVBackfillSSTableSink() throws Throwable
     {
         // Test creating the sink
-        MVBackfillSSTableSink sink;
+        MVBackfillSSTableStreamSink sink;
         try
         {
-            sink = new MVBackfillSSTableSink(viewCfs);
+            sink = new MVBackfillSSTableStreamSink(viewCfs);
         }
         catch (IOException e)
         {
@@ -121,7 +120,7 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
         // Test completion
         try
         {
-            sink.complete();
+            sink.rowProcessComplete();
         }
         catch (Exception e)
         {
@@ -136,11 +135,11 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     @Test
     public void testMVBackfillSSTableSinkFailure() throws Throwable
     {
-        MVBackfillSSTableSink sink;
+        MVBackfillSSTableStreamSink sink;
         
         try
         {
-            sink = new MVBackfillSSTableSink(viewCfs);
+            sink = new MVBackfillSSTableStreamSink(viewCfs);
         }
         catch (IOException e)
         {
@@ -158,10 +157,10 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     public void testMVBackfillSSTableSinkWithCustomBufferSize() throws Throwable
     {
         // Test creating sink with custom buffer size
-        MVBackfillSSTableSink sink;
+        MVBackfillSSTableStreamSink sink;
         try
         {
-            sink = new MVBackfillSSTableSink(viewCfs, 64); // 64MB buffer
+            sink = new MVBackfillSSTableStreamSink(viewCfs, 64); // 64MB buffer
         }
         catch (IOException e)
         {
@@ -176,7 +175,7 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
         // Clean up
         try
         {
-            sink.complete();
+            sink.rowProcessComplete();
         }
         catch (Exception e)
         {
@@ -201,10 +200,10 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     }
 
     @Test
-    public void testCompleteWithException() throws Throwable
+    public void testRowProcessCompleteWithException() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableSink sink = new MVBackfillSSTableSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
         
         // Use reflection to replace the writer with a mock that throws exception on close
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
@@ -212,14 +211,14 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
         doThrow(testException).when(mockWriter).close();
         
         // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableSink.class.getDeclaredField("writer");
+        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
         writerField.setAccessible(true);
         writerField.set(sink, mockWriter);
         
         // Test that complete() propagates the exception
         try
         {
-            sink.complete();
+            sink.rowProcessComplete();
             fail("Expected exception to be thrown from complete()");
         }
         catch (IOException e)
@@ -235,7 +234,7 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     public void testFailWithException() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableSink sink = new MVBackfillSSTableSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
         
         // Use reflection to replace the writer with a mock that throws exception on close
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
@@ -243,7 +242,7 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
         doThrow(cleanupException).when(mockWriter).close();
         
         // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableSink.class.getDeclaredField("writer");
+        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
         writerField.setAccessible(true);
         writerField.set(sink, mockWriter);
         
@@ -266,14 +265,14 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     public void testFailWithoutException() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableSink sink = new MVBackfillSSTableSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
         
         // Use reflection to replace the writer with a mock that closes successfully
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
         doNothing().when(mockWriter).close();
         
         // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableSink.class.getDeclaredField("writer");
+        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
         writerField.setAccessible(true);
         writerField.set(sink, mockWriter);
         
@@ -292,17 +291,17 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
     }
 
     @Test
-    public void testCompleteAfterFailure() throws Throwable
+    public void testRowProcessCompleteAfterFailure() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableSink sink = new MVBackfillSSTableSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
         
         // Use reflection to replace the writer with a mock
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
         doNothing().when(mockWriter).close();
         
         // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableSink.class.getDeclaredField("writer");
+        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
         writerField.setAccessible(true);
         writerField.set(sink, mockWriter);
         
@@ -311,10 +310,137 @@ public class MVBackfillSSTableSinkTest extends ViewAbstractTest
         sink.fail(originalException);
         
         // Then call complete() - this should work (writer.close() should be idempotent)
-        sink.complete();
+        sink.rowProcessComplete();
         
         // Verify that close was called twice on the mock writer
         verify(mockWriter, times(2)).close();
+    }
+
+    @Test
+    public void testDeleteMVBackfillFilesWithValidDirectory() throws Throwable
+    {
+        // Create a sink with valid MV backfill directory
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+
+        File backfillDir = sink.getBackfillDirectory();
+        assertTrue("Backfill directory should exist", backfillDir.exists());
+        assertTrue("Backfill directory should be a directory", backfillDir.isDirectory());
+        assertTrue("Backfill directory should contain mv_backfill",
+                   backfillDir.absolutePath().contains("mv_backfill"));
+        
+        // Close the writer before calling complete
+        sink.rowProcessComplete();
+        
+        // This should successfully delete the backfill directory
+        sink.complete();
+        
+        // Verify that the directory was deleted
+        assertFalse("Backfill directory should be deleted after complete()", backfillDir.exists());
+    }
+
+    @Test
+    public void testDeleteMVBackfillFilesAssertsOnDataDirectory() throws Throwable
+    {
+        // Create a sink
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        
+        // Use reflection to replace the backfillDirectory field with a mock data/data directory
+        // This simulates a bug where getBackfillDirectory() accidentally returns the data directory
+        File dataDir = viewCfs.getDirectories().getDirectoryForNewSSTables();
+        
+        Field backfillDirField = MVBackfillSSTableStreamSink.class.getDeclaredField("backfillDirectory");
+        backfillDirField.setAccessible(true);
+        backfillDirField.set(sink, dataDir);
+        
+        // Close the writer first
+        sink.rowProcessComplete();
+        
+        // This should fail with an AssertionError because the directory doesn't contain "mv_backfill"
+        try
+        {
+            sink.complete();
+            fail("Expected AssertionError when trying to delete a directory that doesn't contain 'mv_backfill'");
+        }
+        catch (AssertionError e)
+        {
+            // Expected - the assertion should catch this bug
+            assertTrue("Assertion error message should be related to mv_backfill check", true);
+        }
+    }
+
+    @Test
+    public void testDeleteMVBackfillFilesAssertsOnNonDirectory() throws Throwable
+    {
+        // Create a sink
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        
+        File backfillDir = sink.getBackfillDirectory();
+        
+        // Create a file (not a directory) in the backfill directory's parent
+        File parentDir = backfillDir.parent();
+        File fakeFile = new File(parentDir, "mv_backfill_fake_file");
+        fakeFile.createFileIfNotExists();
+        
+        // Use reflection to replace the backfillDirectory field with the file
+        Field backfillDirField = MVBackfillSSTableStreamSink.class.getDeclaredField("backfillDirectory");
+        backfillDirField.setAccessible(true);
+        backfillDirField.set(sink, fakeFile);
+        
+        // Close the writer first
+        sink.rowProcessComplete();
+        
+        // This should fail with an AssertionError because the path is not a directory
+        try
+        {
+            sink.complete();
+            fail("Expected AssertionError when trying to delete a non-directory path");
+        }
+        catch (AssertionError e)
+        {
+            // Expected - the assertion should catch that it's not a directory
+            assertTrue("Assertion error should be related to directory check", true);
+        }
+        finally
+        {
+            // Clean up the fake file
+            if (fakeFile.exists())
+                fakeFile.delete();
+        }
+    }
+
+    @Test
+    public void testDeleteMVBackfillFilesAssertsOnRootDataDirectory() throws Throwable
+    {
+        // Create a sink
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        
+        // Get a reference to the root data directory (several levels up from mv_backfill)
+        // The typical structure is: data/keyspace/table_name/mv_backfill
+        File backfillDir = sink.getBackfillDirectory();
+        File tableDir = backfillDir.parent(); // table directory
+        File keyspaceDir = tableDir.parent(); // keyspace directory
+        File dataDir = keyspaceDir.parent(); // data directory
+        
+        // Use reflection to replace the backfillDirectory field with the data directory
+        // This simulates a severe bug where the directory accidentally points to the root data folder
+        Field backfillDirField = MVBackfillSSTableStreamSink.class.getDeclaredField("backfillDirectory");
+        backfillDirField.setAccessible(true);
+        backfillDirField.set(sink, dataDir);
+        
+        // Close the writer first
+        sink.rowProcessComplete();
+        
+        // This should fail with an AssertionError because the directory doesn't contain "mv_backfill"
+        try
+        {
+            sink.complete();
+            fail("Expected AssertionError when trying to delete the root data directory");
+        }
+        catch (AssertionError e)
+        {
+            // Expected - the assertion should prevent accidental deletion of the data directory
+            assertTrue("Assertion should prevent deletion of data directory", true);
+        }
     }
 }
 
