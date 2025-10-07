@@ -73,9 +73,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         if (!attrs.hasOption(Option.REPLICATION))
             throw ire("Missing mandatory option '%s'", Option.REPLICATION);
 
-        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
-            Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
-
         if (schema.containsKeyspace(keyspaceName))
         {
             if (ifNotExists)
@@ -86,6 +83,9 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // if apply is not no-op then we check guardrail for this ddl op
         Guardrails.ddlEnabled.ensureEnabled(state);
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+            Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
+
 
         KeyspaceMetadata keyspace = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
 

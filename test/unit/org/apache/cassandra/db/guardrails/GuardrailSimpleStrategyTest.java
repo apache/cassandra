@@ -63,6 +63,14 @@ public class GuardrailSimpleStrategyTest extends GuardrailTester
     }
 
     @Test
+    public void testGuardrailAfterExistentCheck() throws Throwable
+    {
+        execute("CREATE KEYSPACE test_ss WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1':2, 'datacenter2':0};");
+        setGuardrail(false);
+        assertValid("CREATE KEYSPACE IF NOT EXISTS test_ss WITH replication = {'class': 'SimpleStrategy'};");
+    }
+
+    @Test
     public void testGuardrailBlocksAlter() throws Throwable
     {
         setGuardrail(false);
