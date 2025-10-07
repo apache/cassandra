@@ -142,7 +142,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     @Test
     public void testPasswordAuthenticationSuccessfulAuth()
     {
-        CharSequence expectedLogStringRegex = "^user:cassandra\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
+        CharSequence expectedLogStringRegex = "^user:cassandra\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_SUCCESS\\|category:AUTH" +
                                               "\\|operation:LOGIN SUCCESSFUL$";
 
@@ -172,8 +173,9 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     @Test
     public void testPasswordAuthenticationFailedAuth()
     {
-        CharSequence expectedLogStringRegex = "^user:null\\|host:/127.0.0.1:\\d+\\|source:/127.0.0.1" +
-                                              "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
+        CharSequence expectedLogStringRegex = "^user:null\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:/127.0.0.1:\\d+\\|source:/127.0.0.1\\|port:\\d+" +
+                                              "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Provided username cassandra and/or .*$";
         try
         {
@@ -200,7 +202,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     public void testMutualTlsAuthenticationSuccessfulAuth() throws Exception
     {
         Path clientKeystorePath = generateClientCertificate(null, tempFolder.getRoot(), CA);
-        CharSequence expectedLogStringRegex = "^user:cassandra_ssl_test\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
+        CharSequence expectedLogStringRegex = "^user:cassandra_ssl_test\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_SUCCESS\\|category:AUTH" +
                                               "\\|operation:LOGIN SUCCESSFUL\\|identity:spiffe://test.cassandra.apache.org/unitTest/mtls$";
 
@@ -234,7 +237,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     {
         configureMutualTlsAuthenticator();
         // optionally match source/port because in MacOS source/port are null
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
+        CharSequence expectedLogStringRegex = "^user:null\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
                                               "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Empty client certificate chain.*$";
         Path untrustedCertPath = generateSelfSignedCertificate(null, tempFolder.getRoot());
@@ -246,7 +250,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     public void testMutualTlsAuthenticationFailedWithExpiredCertificate() throws Exception
     {
         // optionally match source/port because in MacOS source/port are null
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
+        CharSequence expectedLogStringRegex = "^user:null\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+(\\|source:/127.0.0.1\\|port:\\d+)?" +
                                               "\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; PKIX path validation failed.*$";
 
@@ -259,7 +264,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     @Test
     public void testMutualTlsAuthenticationFailedWithInvalidSpiffeCertificate() throws Exception
     {
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
+        CharSequence expectedLogStringRegex = "^user:null\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Unable to extract Spiffe from the certificate.*$";
 
@@ -272,7 +278,8 @@ public class AuthAuditLoggingTest extends TestBaseImpl
     @Test
     public void testMutualTlsAuthenticationFailedWithIdentityThatDoesNotMapToARole() throws Exception
     {
-        CharSequence expectedLogStringRegex = "^user:null\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
+        CharSequence expectedLogStringRegex = "^user:null\\|localHostId:[\\da-f]{8}(-[\\da-f]{4}){3}-[\\da-f]{12}" +
+                                              "\\|host:.*/127.0.0.1:\\d+\\|source:/127.0.0.1" +
                                               "\\|port:\\d+\\|timestamp:\\d+\\|type:LOGIN_ERROR\\|category:AUTH" +
                                               "\\|operation:LOGIN FAILURE; Certificate identity 'spiffe://test.cassandra.apache.org/dTest/notMapped' not authorized.*$";
 
