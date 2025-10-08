@@ -5979,4 +5979,12 @@ public class DatabaseDescriptor
     {
         partitioner = FBUtilities.newPartitioner(name);
     }
+
+    public static Map<String, String> getCompressionServiceOptions()
+    {
+        if (conf == null || conf.compression_service_options == null)
+            return null;
+        return conf.compression_service_options.configurations;
+    }
+
 }

@@ -2529,3 +2529,6 @@ storage_compatibility_mode: NONE
 #         # especially in keyspaces with many tables. The splitter avoids batching tables together if they
 #         # exceed other configuration parameters like bytes_per_assignment or partitions_per_assignment.
 #         max_tables_per_assignment: 64
+#compression_service_options:
+#  configurations:
+#    DeflateCompressor: QatDeflateCompressorFactory

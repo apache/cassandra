@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ServiceLoader;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -31,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -40,10 +42,14 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static java.lang.String.format;
 
 public final class CompressionParams
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
@@ -75,6 +81,7 @@ public final class CompressionParams
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
+    private static ImmutableMap<String, ICompressorFactory> compressionServices;
 
     public static CompressionParams fromMap(Map<String, String> opts)
     {
@@ -280,7 +287,11 @@ public final class CompressionParams
             for (String provided : compressionOptions.keySet())
                 if (!compressor.supportedOptions().contains(provided))
                     throw new ConfigurationException("Unknown compression options " + provided);
-            return compressor;
+
+            // Load all the compressor services in the classpath and
+            // create a decorated compressor, if service providers available
+            loadServices();
+            return decorateCompressor(compressor, compressionOptions);
         }
         catch (NoSuchMethodException e)
         {
@@ -329,6 +340,67 @@ public final class CompressionParams
         for (Map.Entry<? extends CharSequence, ? extends CharSequence> entry : co.entrySet())
             compressionOptions.put(entry.getKey().toString(), entry.getValue().toString());
         return compressionOptions;
+    }
+
+    /**
+     * Load the services associated with ICompressorFactory and create
+     * a hashmap with key as in-built compressor which will be decorated
+     * and value being the serviceprovider factory
+     */
+    private static void loadServices()
+    {
+	    if(compressionServices != null)
+            return;
+        // Read options from configuration file and populate compressionServices map
+	    ImmutableMap.Builder<String, ICompressorFactory> compressionServiceBuilder = ImmutableMap.builder();
+	    Map<String, String> compressionServiceOptions = DatabaseDescriptor.getCompressionServiceOptions();
+        compressionServiceOptions.forEach((algorithmName, configuredFactoryName) -> {
+		    try
+            {
+			    ICompressorFactory  compressorFactory = getServiceProviderFactory(configuredFactoryName);
+			    if (compressorFactory != null)
+                {
+				    compressionServiceBuilder.put(algorithmName, compressorFactory);
+				    logger.info("Adding '{}' for '{}'", configuredFactoryName, algorithmName);
+			    }
+		    }
+            catch (Exception e)
+            {
+                logger.warn("Failed to load service '{}' for '{}'", configuredFactoryName, algorithmName);
+            }
+	    });
+        compressionServices = compressionServiceBuilder.build();
+    }
+
+    private static ICompressorFactory getServiceProviderFactory(String configuredFactoryName)
+    {
+	    ServiceLoader<ICompressorFactory> loader = ServiceLoader.load(ICompressorFactory.class);
+	    return loader.stream()
+                     .filter(factory -> factory.type().getSimpleName().equals(configuredFactoryName))
+                     .map(ServiceLoader.Provider::get)
+                     .findFirst()
+                     .get();
+    }
+
+    /**
+     * Creates a decorated compressor, if service providers available or
+     * returns the base compressor provided as input
+     */
+    private static ICompressor decorateCompressor(ICompressor baseCompressor, Map<String, String> options)
+    {
+        if(compressionServices != null) {
+            try {
+                 ICompressorFactory selectedFactory = compressionServices.get(baseCompressor.getClass().getSimpleName());
+		 if (selectedFactory != null) {
+                       ICompressor pluginCompressor = selectedFactory.createCompressionProvider(baseCompressor, options);
+                       return new CompressorDecorator(baseCompressor, pluginCompressor);
+                   }
+            }
+            catch(Exception e) {
+                logger.warn("Failed to access service provider. Will fallback to default!!");
+            }
+        }
+        return baseCompressor;
     }
 
     /**

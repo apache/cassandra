@@ -1502,4 +1502,16 @@ public class Config
     public boolean enforce_native_deadline_for_hints = false;
 
     public boolean paxos_repair_race_wait = true;
+
+    //Retrieves the compression service configurations.
+    public static class CompressionServiceOptions
+    {
+        public Map<String, String> configurations = new HashMap<>();
+
+        public CompressionServiceOptions()
+        {
+        }
+    }
+    public final CompressionServiceOptions compression_service_options = new CompressionServiceOptions();
+
 }
