@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compression;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -30,9 +31,9 @@ public class CompressionDictionaryUpdateMessage
     public static final IVersionedSerializer<CompressionDictionaryUpdateMessage> serializer = new DictionaryUpdateMessageSerializer();
 
     public final TableId tableId;
-    public final long dictionaryId;
+    public final DictId dictionaryId;
 
-    public CompressionDictionaryUpdateMessage(TableId tableId, long dictionaryId)
+    public CompressionDictionaryUpdateMessage(TableId tableId, DictId dictionaryId)
     {
         this.tableId = tableId;
         this.dictionaryId = dictionaryId;
@@ -44,21 +45,25 @@ public class CompressionDictionaryUpdateMessage
         public void serialize(CompressionDictionaryUpdateMessage message, DataOutputPlus out, int version) throws IOException
         {
             TableId.serializer.serialize(message.tableId, out, version);
-            out.writeLong(message.dictionaryId);
+            out.writeByte(message.dictionaryId.kind.ordinal());
+            out.writeLong(message.dictionaryId.id);
         }
 
         @Override
         public CompressionDictionaryUpdateMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.serializer.deserialize(in, version);
+            int kindOrdinal = in.readByte();
             long dictionaryId = in.readLong();
-            return new CompressionDictionaryUpdateMessage(tableId, dictionaryId);
+            DictId dictId = new DictId(CompressionDictionary.Kind.values()[kindOrdinal], dictionaryId);
+            return new CompressionDictionaryUpdateMessage(tableId, dictId);
         }
 
         @Override
         public long serializedSize(CompressionDictionaryUpdateMessage message, int version)
         {
             return TableId.serializer.serializedSize(message.tableId, version) +
+                   1 + // byte for kind ordinal
                    8; // long for dictionaryId
         }
     }

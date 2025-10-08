@@ -62,7 +62,7 @@ public class CompressionDictionaryEventHandlerTest
     private static final String TEST_NAME = "compression_dict_event_handler_test_";
     private static final String KEYSPACE = TEST_NAME + "keyspace";
     private static final String TABLE = "test_table";
-    private static final long TEST_DICTIONARY_ID = 12345L;
+    private static final DictId TEST_DICTIONARY_ID = new DictId(Kind.ZSTD, 12345L);
 
     private static TableMetadata tableMetadata;
     private static ColumnFamilyStore cfs;
@@ -227,8 +227,7 @@ public class CompressionDictionaryEventHandlerTest
     private static ZstdCompressionDictionary createTestDictionary()
     {
         byte[] dictBytes = "test dictionary data for event handler testing".getBytes();
-        DictId dictId = new DictId(Kind.ZSTD, TEST_DICTIONARY_ID);
-        return new ZstdCompressionDictionary(dictId, dictBytes);
+        return new ZstdCompressionDictionary(TEST_DICTIONARY_ID, dictBytes);
     }
 
     private static DecoratedKey key(TableMetadata metadata, int key)

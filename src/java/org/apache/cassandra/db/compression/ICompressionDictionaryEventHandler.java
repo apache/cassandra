@@ -24,12 +24,12 @@ public interface ICompressionDictionaryEventHandler
      * Invoked when a new dictionary is trained
      * @param dictionaryId dictionary id
      */
-    void onNewDictionaryTrained(long dictionaryId);
+    void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId);
 
     /**
      * Invoked when {@link CompressionDictionaryUpdateMessage} is received indicating
      * a dictionary is trained and local node should retrieve the specified dictionary
      * @param dictionaryId dictionary id
      */
-    void onNewDictionaryAvailable(long dictionaryId);
+    void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId);
 }
