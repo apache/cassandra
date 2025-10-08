@@ -288,7 +288,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs', 'sausage', 'spam');"),
-            choices=['?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
+            choices=['?', 'ADD', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
                      'ELAPSED', 'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
                      'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
