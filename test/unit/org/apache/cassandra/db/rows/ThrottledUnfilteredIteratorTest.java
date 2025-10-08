@@ -214,8 +214,6 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
         {
             try (UnfilteredRowIterator rowIterator = scanner.next())
             {
-                // only 1 partition data
-                assertFalse(scanner.hasNext());
                 List<Unfiltered> expectedUnfiltereds = new ArrayList<>();
                 rowIterator.forEachRemaining(expectedUnfiltereds::add);
 
@@ -227,15 +225,17 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                         assertTrue(scannerForThrottle.hasNext());
                         try (UnfilteredRowIterator rowIteratorForThrottle = scannerForThrottle.next())
                         {
-                            assertFalse(scannerForThrottle.hasNext());
                             verifyThrottleIterator(expectedUnfiltereds,
                                                    rowIteratorForThrottle,
                                                    new ThrottledUnfilteredIterator(rowIteratorForThrottle, throttle),
                                                    throttle);
                         }
+                        assertFalse(scannerForThrottle.hasNext());
                     }
                 }
             }
+            // only 1 partition data
+            assertFalse(scanner.hasNext());
         }
     }
 
