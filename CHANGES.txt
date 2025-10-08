@@ -1,4 +1,5 @@
 5.0.6
+ * Avoid re-initializing underlying iterator in LazilyInitializedUnfilteredRowIterator after closing (CASSANDRA-20972)
  * Flush SAI segment builder when current SSTable writer is switched (CASSANDRA-20752)
  * Throw RTE instead of FSError when RTE is thrown from FileUtis.write in TOCComponent (CASSANDRA-20917)
  * Upgrade jackson-dataformat-yaml to 2.19.2 and snakeyaml to 2.1 (CASSANDRA-18875)

@@ -169,26 +169,28 @@ public class AntiCompactionTest
             {
                 while (scanner.hasNext())
                 {
-                    UnfilteredRowIterator row = scanner.next();
-                    Token token = row.partitionKey().getToken();
-                    if (sstable.isPendingRepair() && !sstable.isTransient())
+                    try (UnfilteredRowIterator row = scanner.next())
                     {
-                        assertTrue(fullContains.test(token));
-                        assertFalse(transContains.test(token));
-                        stats.pendingKeys++;
-                    }
-                    else if (sstable.isPendingRepair() && sstable.isTransient())
-                    {
+                        Token token = row.partitionKey().getToken();
+                        if (sstable.isPendingRepair() && !sstable.isTransient())
+                        {
+                            assertTrue(fullContains.test(token));
+                            assertFalse(transContains.test(token));
+                            stats.pendingKeys++;
+                        }
+                        else if (sstable.isPendingRepair() && sstable.isTransient())
+                        {
 
-                        assertTrue(transContains.test(token));
-                        assertFalse(fullContains.test(token));
-                        stats.transKeys++;
-                    }
-                    else
-                    {
-                        assertFalse(fullContains.test(token));
-                        assertFalse(transContains.test(token));
-                        stats.unrepairedKeys++;
+                            assertTrue(transContains.test(token));
+                            assertFalse(fullContains.test(token));
+                            stats.transKeys++;
+                        }
+                        else
+                        {
+                            assertFalse(fullContains.test(token));
+                            assertFalse(transContains.test(token));
+                            stats.unrepairedKeys++;
+                        }
                     }
                 }
             }
