@@ -35,7 +35,6 @@ import com.google.common.primitives.Longs;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
-import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -53,8 +52,6 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
-
-import static org.apache.cassandra.db.compression.CompressionDictionary.Kind.ZSTD;
 
 /**
  * Holds metadata about compressed file
@@ -204,15 +201,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
         // 1. The current compressor is not a dictionary compressor, but there is dictionary attached
         // 2. The current dictionary compressor is a different type, e.g. table schema is changed
         // In those cases, we should get the compatible dictionary compressor based on the dictionary
-        if (dictionary.kind() == ZSTD)
-        {
-            ZstdCompressionDictionary zstdDict = (ZstdCompressionDictionary) dictionary;
-            return ZstdDictionaryCompressor.create(zstdDict);
-        }
 
-        // Program should never reach here!
-        // When adding other dictionary-based compressors, make sure the dictionaries are handled in the above
-        throw new IllegalStateException("No compressor is created for dictionary of " + dictionary.kind());
+        return dictionary.getCompressor();
     }
 
     public int chunkLength()

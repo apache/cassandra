@@ -125,7 +125,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
                         currentSampleCount, totalSampleSize.get(), isReady);
             byte[] dictBytes = zstdTrainer.trainSamples();
             long zstdDictId = Zstd.getDictIdFromDict(dictBytes);
-            DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(System.currentTimeMillis(), zstdDictId));
+            DictId dictId = new DictId(Kind.ZSTD, DictId.makeDictId(System.currentTimeMillis(), zstdDictId));
             currentTrainingStatus = TrainingStatus.COMPLETED;
             logger.debug("New dictionary is trained with {}", dictId);
             CompressionDictionary dictionary = new ZstdCompressionDictionary(dictId, dictBytes);
@@ -285,39 +285,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         }
 
         logger.info("Permanently closed dictionary trainer for {}.{}", keyspaceName, tableName);
-    }
-
-    /**
-     * Creates a monotonically increasing dictionary ID by combining timestamp and Zstd dictionary ID.
-     *
-     * The resulting dictionary ID has the following structure:
-     * - Upper 32 bits: timestamp in minutes (signed int)
-     * - Lower 32 bits: Zstd dictionary ID (unsigned int, passed as long due to Java limitations)
-     *
-     * This ensures dictionary IDs are monotonically increasing over time, which helps to identify
-     * the latest dictionary.
-     *
-     * The implementation assumes that dictionary training frequency is significantly larger than
-     * every minute, which a healthy system should do. In the scenario when multiple dictionaries
-     * are trained in the same minute (only possible using manual training), there should not be
-     * correctness concerns since the dictionary is attached to the SSTables, but leads to performance
-     * hit from having too many dictionary. Therefore, such scenario should be avoided at the best.
-     *
-     * @param currentTimeMillis the current time in milliseconds
-     * @param zstdDictId Zstd dictionary ID (unsigned 32-bit value represented as long)
-     * @return combined dictionary ID that is monotonically increasing over time
-     */
-    static long makeDictionaryId(long currentTimeMillis, long zstdDictId)
-    {
-        // timestamp in minutes since Unix epoch. Good until year 6053
-        long timestampMinutes = currentTimeMillis / 1000 / 60;
-        // Convert timestamp to long and shift to upper 32 bits
-        long combined = timestampMinutes << 32;
-
-        // Add the unsigned int (already as long) to lower 32 bits
-        combined |= (zstdDictId & 0xFFFFFFFFL);
-
-        return combined;
     }
 
     @VisibleForTesting

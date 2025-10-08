@@ -192,13 +192,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public void onNewDictionaryTrained(long dictionaryId)
+    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
     {
         eventHandler.onNewDictionaryTrained(dictionaryId);
     }
 
     @Override
-    public void onNewDictionaryAvailable(long dictionaryId)
+    public void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId)
     {
         eventHandler.onNewDictionaryAvailable(dictionaryId);
     }
@@ -266,7 +266,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         // sequence meatters; persist the new dictionary before broadcasting to others.
         storeDictionary(dictionary);
-        onNewDictionaryTrained(dictionary.identifier().id);
+        onNewDictionaryTrained(dictionary.identifier());
     }
 
     private CompressionDictionaryTrainingConfig createTrainingConfig()

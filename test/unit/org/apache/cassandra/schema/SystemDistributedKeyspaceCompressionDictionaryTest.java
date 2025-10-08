@@ -136,9 +136,9 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
 
         // Retrieve specific dictionary by ID
         CompressionDictionary dict1 = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 100L);
+        TEST_KEYSPACE, TEST_TABLE, new DictId(Kind.ZSTD, 100L));
         CompressionDictionary dict2 = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 200L);
+        TEST_KEYSPACE, TEST_TABLE, new DictId(Kind.ZSTD, 200L));
 
         assertThat(dict1)
         .as("Should retrieve dictionary 1")
@@ -173,7 +173,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
 
         // Try to retrieve specific dictionary that doesn't exist
         CompressionDictionary nonExistentById = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 999L);
+        TEST_KEYSPACE, TEST_TABLE, new DictId(Kind.ZSTD, 999L));
 
         assertThat(nonExistentById)
         .as("Should return null for non-existent dictionary ID")

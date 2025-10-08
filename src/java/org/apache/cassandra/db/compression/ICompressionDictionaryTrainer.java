@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
-import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.schema.CompressionParams;
 
 /**
@@ -143,16 +142,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     {
         ICompressor compressor = params.getSstableCompressor();
         if (!(compressor instanceof IDictionaryCompressor))
-        {
             throw new IllegalArgumentException("Compressor does not support dictionary training: " + params.getSstableCompressor());
-        }
 
         IDictionaryCompressor dictionaryCompressor = (IDictionaryCompressor) compressor;
-        if (dictionaryCompressor.acceptableDictionaryKind() == CompressionDictionary.Kind.ZSTD)
-        {
-            ZstdDictionaryCompressor zstdDictionaryCompressor = (ZstdDictionaryCompressor) compressor;
-            return new ZstdDictionaryTrainer(keyspaceName, tableName, config, zstdDictionaryCompressor.compressionLevel());
-        }
+        if (CompressionDictionary.Kind.ACCEPTABLE_DICTIONARY_KINDS.contains(dictionaryCompressor.acceptableDictionaryKind()))
+            return dictionaryCompressor.acceptableDictionaryKind().getTrainer(keyspaceName, tableName, config, compressor);
 
         throw new IllegalArgumentException("No dictionary trainer available for: " + params.getSstableCompressor());
     }

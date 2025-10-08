@@ -59,9 +59,9 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     }
 
     @Override
-    public void onNewDictionaryTrained(long dictionaryId)
+    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
     {
-        logger.info("Notifying cluster about dictionary update for {}.{} with dictionaryId {}",
+        logger.info("Notifying cluster about dictionary update for {}.{} with {}",
                     keyspaceName, tableName, dictionaryId);
 
         CompressionDictionaryUpdateMessage message = new CompressionDictionaryUpdateMessage(cfs.metadata().id, dictionaryId);
@@ -76,7 +76,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     }
 
     @Override
-    public void onNewDictionaryAvailable(long dictId)
+    public void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId)
     {
         // Best effort to retrieve the dictionary; otherwise, the periodic task should retrieve the dictionary later
         CompletableFuture.runAsync(() -> {
@@ -87,13 +87,13 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                     return;
                 }
 
-                CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictId);
+                CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictionaryId);
                 cache.setCurrentIfNewer(dictionary);
             }
             catch (Exception e)
             {
-                logger.warn("Failed to retrieve compression dictionary for {}.{}. dictionaryId={}",
-                            keyspaceName, tableName, dictId, e);
+                logger.warn("Failed to retrieve compression dictionary for {}.{}. {}",
+                            keyspaceName, tableName, dictionaryId, e);
             }
         }, ScheduledExecutors.nonPeriodicTasks);
     }
@@ -102,7 +102,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     // If the request fails, each peer has periodic task scheduled to pull.
     private void sendNotification(InetAddressAndPort target, CompressionDictionaryUpdateMessage message)
     {
-        logger.debug("Sending dictionary update notification to {}", target);
+        logger.debug("Sending dictionary update notification for {} to {}", message.dictionaryId, target);
 
         Message<CompressionDictionaryUpdateMessage> msg = Message.out(Verb.DICTIONARY_UPDATE_REQ, message);
         MessagingService.instance()
