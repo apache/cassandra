@@ -142,13 +142,12 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     {
         ICompressor compressor = params.getSstableCompressor();
         if (!(compressor instanceof IDictionaryCompressor))
+        {
             throw new IllegalArgumentException("Compressor does not support dictionary training: " + params.getSstableCompressor());
+        }
 
         IDictionaryCompressor dictionaryCompressor = (IDictionaryCompressor) compressor;
-        if (CompressionDictionary.Kind.ACCEPTABLE_DICTIONARY_KINDS.contains(dictionaryCompressor.acceptableDictionaryKind()))
-            return dictionaryCompressor.acceptableDictionaryKind().getTrainer(keyspaceName, tableName, config, compressor);
-
-        throw new IllegalArgumentException("No dictionary trainer available for: " + params.getSstableCompressor());
+        return dictionaryCompressor.acceptableDictionaryKind().createTrainer(keyspaceName, tableName, config, compressor);
     }
 
     enum TrainingStatus

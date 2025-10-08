@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 
 import javax.annotation.Nullable;
 
-public class ZstdDictionaryCompressor extends ZstdCompressorBase implements IDictionaryCompressor<ZstdCompressionDictionary>
+public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
     private static final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> instancesPerLevel = new ConcurrentHashMap<>();
     private static final Cache<ZstdCompressionDictionary, ZstdDictionaryCompressor> instancePerDict =

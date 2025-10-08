@@ -23,16 +23,14 @@ import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.base.Preconditions;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 
 public interface CompressionDictionary extends AutoCloseable
@@ -59,11 +57,6 @@ public interface CompressionDictionary extends AutoCloseable
     default Kind kind()
     {
         return identifier().kind;
-    }
-
-    default IDictionaryCompressor<? extends CompressionDictionary> getCompressor()
-    {
-        return kind().getCompressor(this);
     }
 
     /**
@@ -132,11 +125,13 @@ public interface CompressionDictionary extends AutoCloseable
         if (checksum != calculatedChecksum)
             throw new IOException("Compression dictionary checksum does not match");
 
-        CompressionDictionary dictionary = kind.getDictionary(dictId, dict);
+        CompressionDictionary dictionary = kind.createDictionary(dictId, dict);
 
         // update the dictionary manager if it exists
         if (manager != null)
+        {
             manager.add(dictionary);
+        }
 
         return dictionary;
     }
@@ -149,7 +144,7 @@ public interface CompressionDictionary extends AutoCloseable
         try
         {
             Kind kind = CompressionDictionary.Kind.valueOf(kindStr);
-            return kind.getDictionary(new DictId(kind, dictId), row.getByteArray("dict"));
+            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"));
         }
         catch (IllegalArgumentException ex)
         {
@@ -167,77 +162,75 @@ public interface CompressionDictionary extends AutoCloseable
         return hasher.hash().asInt();
     }
 
+    // Defines the compression dictionary kind, as well as serves as a factory for creating components of dictionary compression
     enum Kind
     {
         // Order matters: the enum ordinal is serialized
         ZSTD
         {
-            public CompressionDictionary getDictionary(DictId dictId, byte[] dict)
+            public CompressionDictionary createDictionary(DictId dictId, byte[] dict)
             {
                 return new ZstdCompressionDictionary(dictId, dict);
             }
 
             @Override
-            public IDictionaryCompressor<? extends CompressionDictionary> getCompressor(CompressionDictionary dictionary)
+            public ICompressor createCompressor(CompressionDictionary dictionary)
             {
-                assert dictionary instanceof ZstdCompressionDictionary;
+                Preconditions.checkArgument(dictionary instanceof ZstdCompressionDictionary,
+                                            "Expected dictionary to be ZstdCompressionDictionary; actual: %s",
+                                            dictionary.getClass().getSimpleName());
                 return ZstdDictionaryCompressor.create((ZstdCompressionDictionary) dictionary);
             }
 
             @Override
-            public ICompressionDictionaryTrainer getTrainer(String keyspaceName, String tableName, CompressionDictionaryTrainingConfig config, ICompressor compressor)
+            public ICompressionDictionaryTrainer createTrainer(String keyspaceName,
+                                                               String tableName,
+                                                               CompressionDictionaryTrainingConfig config,
+                                                               ICompressor compressor)
             {
-                assert compressor instanceof ZstdDictionaryCompressor;
+                Preconditions.checkArgument(compressor instanceof ZstdDictionaryCompressor,
+                                            "Expected compressor to be ZstdDictionaryCompressor; actual: %s",
+                                            compressor.getClass().getSimpleName());
                 return new ZstdDictionaryTrainer(keyspaceName, tableName, config, ((ZstdDictionaryCompressor) compressor).compressionLevel());
             }
         };
 
-        public static final Set<Kind> ACCEPTABLE_DICTIONARY_KINDS = ImmutableSet.of(Kind.ZSTD);
+        /**
+         * Creates a compression dictionary instance for this kind
+         *
+         * @param dictId the dictionary identifier
+         * @param dict the raw dictionary bytes
+         * @return a compression dictionary instance
+         */
+        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict);
 
-        public abstract CompressionDictionary getDictionary(CompressionDictionary.DictId dictId, byte[] dict);
+        /**
+         * Creates a dictionary compressor for this kind
+         *
+         * @param dictionary the compression dictionary to use for compression
+         * @return a dictionary compressor instance
+         */
+        public abstract ICompressor createCompressor(CompressionDictionary dictionary);
 
-        public abstract IDictionaryCompressor<? extends CompressionDictionary> getCompressor(CompressionDictionary dictionary);
-
-        public abstract ICompressionDictionaryTrainer getTrainer(String keyspaceName, String tableName, CompressionDictionaryTrainingConfig config, ICompressor compressor);
+        /**
+         * Creates a dictionary trainer for this kind
+         *
+         * @param keyspaceName the keyspace name
+         * @param tableName the table name
+         * @param config the training configuration
+         * @param compressor the compressor to use for training
+         * @return a dictionary trainer instance
+         */
+        public abstract ICompressionDictionaryTrainer createTrainer(String keyspaceName,
+                                                                    String tableName,
+                                                                    CompressionDictionaryTrainingConfig config,
+                                                                    ICompressor compressor);
     }
 
     final class DictId
     {
         public final Kind kind;
         public final long id; // A value of negative or 0 means no dictionary
-
-        /**
-         * Creates a monotonically increasing dictionary ID by combining timestamp and dictionary ID.
-         * <p>
-         * The resulting dictionary ID has the following structure:
-         * - Upper 32 bits: timestamp in minutes (signed int)
-         * - Lower 32 bits: Zstd dictionary ID (unsigned int, passed as long due to Java limitations)
-         * <p>
-         * This ensures dictionary IDs are monotonically increasing over time, which helps to identify
-         * the latest dictionary.
-         * <p>
-         * The implementation assumes that dictionary training frequency is significantly larger than
-         * every minute, which a healthy system should do. In the scenario when multiple dictionaries
-         * are trained in the same minute (only possible using manual training), there should not be
-         * correctness concerns since the dictionary is attached to the SSTables, but leads to performance
-         * hit from having too many dictionary. Therefore, such scenario should be avoided at the best.
-         *
-         * @param currentTimeMillis the current time in milliseconds
-         * @param dictId            dictionary ID (unsigned 32-bit value represented as long)
-         * @return combined dictionary ID that is monotonically increasing over time
-         */
-        static long makeDictId(long currentTimeMillis, long dictId)
-        {
-            // timestamp in minutes since Unix epoch. Good until year 6053
-            long timestampMinutes = currentTimeMillis / 1000 / 60;
-            // Convert timestamp to long and shift to upper 32 bits
-            long combined = timestampMinutes << 32;
-
-            // Add the unsigned int (already as long) to lower 32 bits
-            combined |= (dictId & 0xFFFFFFFFL);
-
-            return combined;
-        }
 
         public DictId(Kind kind, long id)
         {

@@ -29,7 +29,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary;
  * 
  * @param <T> the specific type of compression dictionary this compressor supports
  */
-public interface IDictionaryCompressor<T extends CompressionDictionary> extends ICompressor
+public interface IDictionaryCompressor<T extends CompressionDictionary>
 {
     /**
      * Returns a compressor instance configured with the specified compression dictionary.

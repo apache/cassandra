@@ -201,8 +201,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
         // 1. The current compressor is not a dictionary compressor, but there is dictionary attached
         // 2. The current dictionary compressor is a different type, e.g. table schema is changed
         // In those cases, we should get the compatible dictionary compressor based on the dictionary
-
-        return dictionary.getCompressor();
+        return dictionary.kind().createCompressor(dictionary);
     }
 
     public int chunkLength()
