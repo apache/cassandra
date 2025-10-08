@@ -59,7 +59,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     }
 
     @Override
-    public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
+    public void onNewDictionaryTrained(long dictionaryId)
     {
         logger.info("Notifying cluster about dictionary update for {}.{} with {}",
                     keyspaceName, tableName, dictionaryId);
@@ -76,7 +76,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     }
 
     @Override
-    public void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId)
+    public void onNewDictionaryAvailable(long dictionaryId)
     {
         // Best effort to retrieve the dictionary; otherwise, the periodic task should retrieve the dictionary later
         CompletableFuture.runAsync(() -> {

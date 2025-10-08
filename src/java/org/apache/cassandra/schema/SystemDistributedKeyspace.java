@@ -460,10 +460,10 @@ public final class SystemDistributedKeyspace
      * @return the compression dictionary identified by the specified keyspace, table and dictionaryId,
      *         or null if no dictionary exists or if an error occurs during retrieval
      */
-    public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, CompressionDictionary.DictId dictionaryId)
+    public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, long dictionaryId)
     {
         String query = "SELECT kind, dict_id, dict FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND dict_id=%s";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, dictionaryId.id);
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, dictionaryId);
         try
         {
             UntypedResultSet.Row row = QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one();

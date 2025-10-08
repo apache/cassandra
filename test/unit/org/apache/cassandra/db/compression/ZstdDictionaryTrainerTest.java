@@ -476,10 +476,10 @@ public class ZstdDictionaryTrainerTest
     public void testMonotonicDictionaryIds()
     {
         long now = System.currentTimeMillis();
-        long id1 = CompressionDictionary.DictId.makeDictId(now, 100L);
+        long id1 = ZstdDictionaryTrainer.makeDictionaryId(now, 100L);
         long hourLater= now + TimeUnit.HOURS.toMillis(1);
-        long id2 = CompressionDictionary.DictId.makeDictId(hourLater, 200L);
-        long id3 = CompressionDictionary.DictId.makeDictId(now, 200L);
+        long id2 = ZstdDictionaryTrainer.makeDictionaryId(hourLater, 200L);
+        long id3 = ZstdDictionaryTrainer.makeDictionaryId(now, 200L);
 
         assertThat(id2)
         .as("Dictionary IDs should be monotonic over time")
