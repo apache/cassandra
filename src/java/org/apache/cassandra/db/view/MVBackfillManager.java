@@ -20,6 +20,7 @@ package org.apache.cassandra.db.view;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -112,6 +113,16 @@ public class MVBackfillManager
      */
     public interface BackfillSink
     {
+
+        /**
+         * Prepare the backfill sink for processing. This method is called before any row processing begins
+         * and allows the sink to initialize state, check for existing work, and determine if SSTable building is needed.
+         *
+         * @param forceRestart if true, forces a forceRestart of the backfill process from the beginning, ignoring any existing state
+         * @return the status of the MV backfill
+         */
+        default SystemKeyspace.ViewBackfillStatus prepare(boolean forceRestart){return null;};
+
         /**
          * Process a translated view row. This method is called for each row
          * that successfully translates from the base table to the view.
@@ -125,12 +136,18 @@ public class MVBackfillManager
          * base table rows in the given ranges
          * For example, for SSTable stream sink, this will stream the generated sstable to remote nodes.
          */
-        void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception;
+        void postRowProcess(Set<Range<Token>> baseTableRanges) throws Exception;
 
         /**
-         * Called when backfill processing for each row is complete.
+         * Called when backfill processing for all rows is complete.
          */
         default void rowProcessComplete() throws Exception {}
+
+        /**
+         * Called when backfill processing for all rows is complete or failed, clean up the resources that are not
+         * needed anymore.
+         */
+        default void rowProcessCleanup() {}
 
         /**
          * Called when backfill processing is complete.
@@ -152,14 +169,16 @@ public class MVBackfillManager
 
     /**
      * Performs the MV backfill by scanning base table SSTables and translating rows to view rows.
-     * This method is similar to doValidation in ValidationManager.
+     * If forceRestart is set to true, the backfill will start from the beginning, if forceRestart is false,
+     * the backfill will try to resume from previous state.
      */
     @SuppressWarnings("resource")
     private void doBackfill(ColumnFamilyStore baseCfs, 
-                           View view, 
-                           Collection<Range<Token>> ranges,
-                           BackfillSink processor,
-                           BackfillState state) throws IOException
+                            View view,
+                            Set<Range<Token>> ranges,
+                            BackfillSink processor,
+                            BackfillState state,
+                            boolean forceRestart) throws IOException
     {
         // Check if the base table is still valid
         if (!baseCfs.isValid())
@@ -171,10 +190,11 @@ public class MVBackfillManager
         }
 
         int nowInSec = FBUtilities.nowInSeconds();
-
         baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VIEW_BUILD_STARTED);
+        SystemKeyspace.ViewBackfillStatus status = processor.prepare(forceRestart);
+        if (status == null || status.shouldBuildSSTables())
+            processBaseTableRangesByRow(baseCfs, view, ranges, processor, state, nowInSec);
 
-        processBaseTableRangesByRow(baseCfs, view, ranges, processor, state, nowInSec);
         try
         {
             processor.postRowProcess(ranges);
@@ -190,7 +210,7 @@ public class MVBackfillManager
 
     private void processBaseTableRangesByRow(ColumnFamilyStore baseCfs,
                                              View view,
-                                             Collection<Range<Token>> ranges,
+                                             Set<Range<Token>> ranges,
                                              BackfillSink processor,
                                              BackfillState state,
                                              int nowInSec)
@@ -270,6 +290,7 @@ public class MVBackfillManager
         }
         finally
         {
+            processor.rowProcessCleanup();
             long duration = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
             logger.debug("MV backfill of {} partitions (~{}) finished in {} msec for view {}.{}",
                          state.partitionsProcessed,
@@ -282,19 +303,21 @@ public class MVBackfillManager
 
     /**
      * Submits an MV backfill task for execution. Similar to submitValidation in ValidationManager.
-     * 
-     * @param baseCfs the base table column family store
-     * @param view the materialized view to backfill
-     * @param ranges the token ranges to process
+     *
+     * @param baseCfs   the base table column family store
+     * @param view      the materialized view to backfill
+     * @param ranges    the token ranges to process
      * @param processor the processor to handle translated view rows
-     * @param state the state tracker for progress monitoring
+     * @param state     the state tracker for progress monitoring
+     * @param forceRestart   if we want to force restart the backfill from the very beginning
      * @return a Future representing the backfill task
      */
     public Future<?> submitBackfill(ColumnFamilyStore baseCfs,
-                                   View view,
-                                   Collection<Range<Token>> ranges,
-                                   BackfillSink processor,
-                                   BackfillState state)
+                                    View view,
+                                    Set<Range<Token>> ranges,
+                                    BackfillSink processor,
+                                    BackfillState state,
+                                    boolean forceRestart) throws IOException
     {
         Callable<Object> backfill = new Callable<Object>()
         {
@@ -302,12 +325,7 @@ public class MVBackfillManager
             {
                 try
                 {
-                    doBackfill(baseCfs, view, ranges, processor, state);
-                }
-                catch (CompactionInterruptedException e)
-                {
-                    logger.warn("MV backfill interrupted: {}", e.getMessage());
-                    state.fail(e);
+                    doBackfill(baseCfs, view, ranges, processor, state, forceRestart);
                 }
                 catch (Throwable e)
                 {
@@ -327,12 +345,13 @@ public class MVBackfillManager
      * Convenience method to submit backfill for a single token range.
      */
     public Future<?> submitBackfill(ColumnFamilyStore baseCfs,
-                                   View view,
-                                   Range<Token> range,
-                                   BackfillSink processor,
-                                   BackfillState state)
+                                    View view,
+                                    Range<Token> range,
+                                    BackfillSink processor,
+                                    BackfillState state,
+                                    boolean forceRestart) throws IOException
     {
-        return submitBackfill(baseCfs, view, java.util.Collections.singletonList(range), processor, state);
+        return submitBackfill(baseCfs, view, java.util.Collections.singleton(range), processor, state, forceRestart);
     }
 
 }

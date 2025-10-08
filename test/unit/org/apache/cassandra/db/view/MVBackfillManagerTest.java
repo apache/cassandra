@@ -20,7 +20,9 @@ package org.apache.cassandra.db.view;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -176,7 +178,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         TestBackfillSink processor = new TestBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -207,7 +209,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         TestBackfillSink processor = new TestBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -240,7 +242,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         TestBackfillSink processor = new TestBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -273,7 +275,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         TestBackfillSink processor = new TestBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -302,14 +304,14 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         // Create multiple ranges
         Token token1 = baseCfs.getPartitioner().getToken(Int32Type.instance.decompose(1));
         Token token2 = baseCfs.getPartitioner().getToken(Int32Type.instance.decompose(2));
-        List<Range<Token>> ranges = new ArrayList<>();
+        Set<Range<Token>> ranges = new HashSet<>();
         ranges.add(new Range<>(baseCfs.getPartitioner().getMinimumToken(), token1));
         ranges.add(new Range<>(token1, token2));
 
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         TestBackfillSink processor = new TestBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, ranges, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, ranges, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -338,7 +340,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
         FailingBackfillSink processor = new FailingBackfillSink();
 
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         try
         {
@@ -371,7 +373,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         TestBackfillSink processor = new TestBackfillSink();
 
         // Test single range convenience method
-        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state);
+        Future<?> backfillTask = manager.submitBackfill(baseCfs, testView, range, processor, state, true);
 
         // Wait for completion
         backfillTask.get(10, TimeUnit.SECONDS);
@@ -397,7 +399,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         }
 
         @Override
-        public void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception
+        public void postRowProcess(Set<Range<Token>> baseTableRanges) throws Exception
         {
 
         }
@@ -426,7 +428,7 @@ public class MVBackfillManagerTest extends ViewAbstractTest
         }
 
         @Override
-        public void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception
+        public void postRowProcess(Set<Range<Token>> baseTableRanges) throws Exception
         {
 
         }

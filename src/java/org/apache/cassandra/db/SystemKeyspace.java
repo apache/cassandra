@@ -169,6 +169,7 @@ public final class SystemKeyspace
     public static final String TRANSFERRED_RANGES_V2 = "transferred_ranges_v2";
     public static final String VIEW_BUILDS_IN_PROGRESS = "view_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
+    public static final String VIEW_BACKFILLS = "view_backfills";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
     public static final String TOP_PARTITIONS = "top_partitions";
@@ -413,6 +414,21 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), view_name))")
                 .build();
 
+    private static final TableMetadata ViewBackfills =
+        parse(VIEW_BACKFILLS,
+              "View Backfill status",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "view_name text,"
+              + "base_table_ranges frozen<set<blob>>,"
+              + "status text,"
+              + "backfill_directory_path text,"
+              + "stream_succeeded_hosts set<text>,"
+              + "started_at timestamp,"
+              + "last_status_update timestamp,"
+              + "last_update timestamp,"
+              + "PRIMARY KEY (keyspace_name, view_name, base_table_ranges))").build();
+
     private static final TableMetadata TopPartitions =
         parse(TOP_PARTITIONS,
                 "Stores the top partitions",
@@ -538,6 +554,7 @@ public final class SystemKeyspace
                          LegacyTransferredRanges,
                          ViewBuildsInProgress,
                          BuiltViews,
+                         ViewBackfills,
                          PreparedStatements,
                          Repairs,
                          TopPartitions);
@@ -563,6 +580,13 @@ public final class SystemKeyspace
         COMPLETED,
         IN_PROGRESS,
         DECOMMISSIONED
+    }
+
+    public enum ViewBackfillState
+    {
+        STARTED,
+        SSTABLE_BUILD_COMPLETE,
+        COMPLETE
     }
 
     public static void persistLocalMetadata()
@@ -732,6 +756,169 @@ public final class SystemKeyspace
             status.put(range, Pair.create(lastToken, keysBuilt));
         }
         return status;
+    }
+
+    /**
+     * Starts a MV backfill operation by recording the initial status and timestamps
+     */
+    public static void startViewBackfill(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges)
+    {
+        long now = currentTimeMillis();
+        Date timestamp = new Date(now);
+        
+        Set<ByteBuffer> rangeBytes = getRangesBytebufferForViewBackfill(baseTableRanges);
+        
+        String req = "INSERT INTO system.%s (keyspace_name, view_name, base_table_ranges, status, backfill_directory_path," +
+                     "stream_succeeded_hosts, started_at, last_status_update, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        executeInternal(format(req, VIEW_BACKFILLS),
+                        keyspaceName,
+                        viewName,
+                        rangeBytes,
+                        ViewBackfillState.STARTED.name(),
+                        null,
+                        null,
+                        timestamp,
+                        timestamp,
+                        timestamp);
+        forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    /**
+     * Updates the MV backfill status to indicate SSTable build is complete
+     */
+    public static void setViewBackfillSStableComplete(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges, String directoryPath)
+    {
+        long now = currentTimeMillis();
+        Date timestamp = new Date(now);
+        
+        Set<ByteBuffer> rangeBytes = getRangesBytebufferForViewBackfill(baseTableRanges);
+        
+        String req = "UPDATE system.%s SET status = ?, backfill_directory_path = ?, last_status_update = ?, last_update = ? WHERE keyspace_name = ? AND view_name = ? AND base_table_ranges = ?";
+        executeInternal(format(req, VIEW_BACKFILLS),
+                        ViewBackfillState.SSTABLE_BUILD_COMPLETE.name(),
+                        directoryPath,
+                        timestamp,
+                        timestamp,
+                        keyspaceName,
+                        viewName,
+                        rangeBytes);
+        forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    public static void updateViewBackfillStreamSucceededHosts(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges, InetAddressAndPort succeededHost)
+    {
+        updateViewBackfillStreamSucceededHosts(keyspaceName, viewName, baseTableRanges, Set.of(succeededHost));
+    }
+
+    /**
+     * Updates the stream succeeded hosts for a MV backfill operation
+     */
+    public static void updateViewBackfillStreamSucceededHosts(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges, Set<InetAddressAndPort> succeededHosts)
+    {
+        long now = currentTimeMillis();
+        Date timestamp = new Date(now);
+        Set<String> succeededHostNames = succeededHosts.stream().map(InetAddressAndPort::getHostAddressAndPort).collect(Collectors.toSet());
+        Set<ByteBuffer> rangeBytes = getRangesBytebufferForViewBackfill(baseTableRanges);
+        
+        String req = "UPDATE system.%s SET stream_succeeded_hosts = stream_succeeded_hosts + ?, last_update = ? WHERE keyspace_name = ? AND view_name = ? AND base_table_ranges = ?";
+        executeInternal(format(req, VIEW_BACKFILLS),
+                        succeededHostNames,
+                        timestamp,
+                        keyspaceName,
+                        viewName,
+                        rangeBytes);
+        forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    /**
+     * Marks a MV backfill operation as complete
+     */
+    public static void setViewBackfillComplete(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges)
+    {
+        long now = currentTimeMillis();
+        Date timestamp = new Date(now);
+        
+        Set<ByteBuffer> rangeBytes = getRangesBytebufferForViewBackfill(baseTableRanges);
+        
+        String req = "UPDATE system.%s SET status = ?, last_status_update = ?, last_update = ? WHERE keyspace_name = ? AND view_name = ? AND base_table_ranges = ?";
+        executeInternal(format(req, VIEW_BACKFILLS),
+                        ViewBackfillState.COMPLETE.name(),
+                        timestamp,
+                        timestamp,
+                        keyspaceName,
+                        viewName,
+                        rangeBytes);
+        forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    /**
+     * Retrieves the backfill status for a given MV and specific set of ranges
+     */
+    public static ViewBackfillStatus getViewBackfillStatus(String keyspaceName, String viewName, Set<Range<Token>> baseTableRanges)
+    {
+        Set<ByteBuffer> rangeBytes = getRangesBytebufferForViewBackfill(baseTableRanges);
+        
+        String req = "SELECT status, backfill_directory_path, stream_succeeded_hosts FROM system.%s WHERE keyspace_name = ? AND view_name = ? AND base_table_ranges = ?";
+        UntypedResultSet rs = executeInternal(format(req, VIEW_BACKFILLS), keyspaceName, viewName, rangeBytes);
+
+        if (rs == null || rs.isEmpty())
+            return null;
+
+        UntypedResultSet.Row row = rs.one();
+        String status = row.getString("status");
+        File backfillDirectory;
+        String backfillDirectoryPath = row.has("backfill_directory_path") ? row.getString("backfill_directory_path") : null;
+        backfillDirectory = backfillDirectoryPath == null ? null : new File(backfillDirectoryPath);
+        if (backfillDirectory != null && !backfillDirectory.exists())
+        {
+            backfillDirectory = null;
+        }
+        ViewBackfillState statusEnum = ViewBackfillState.valueOf(status);
+        Set<String> streamSucceededHosts = row.has("stream_succeeded_hosts") ? 
+                                          row.getSet("stream_succeeded_hosts", UTF8Type.instance) : 
+                                          Collections.emptySet();
+        
+        return new ViewBackfillStatus(statusEnum, backfillDirectory, streamSucceededHosts);
+    }
+
+    private static Set<ByteBuffer> getRangesBytebufferForViewBackfill(Set<Range<Token>> ranges)
+    {
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+        return normalizedRanges.stream()
+                       .map(SystemKeyspace::rangeToBytes)
+                       .collect(Collectors.toSet());
+    }
+
+    /**
+     * Removes backfill status for a given MV (when view is dropped)
+     */
+    public static void removeViewBackfillStatus(String keyspaceName, String viewName)
+    {
+        String req = "DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
+        executeInternal(format(req, VIEW_BACKFILLS), keyspaceName, viewName);
+        forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    /**
+     * Data class to hold view backfill status information
+     */
+    public static class ViewBackfillStatus
+    {
+        public ViewBackfillState status;
+        public File backfillDirectory;
+        public Set<String> streamSucceededHosts;
+        
+        public ViewBackfillStatus(ViewBackfillState status, File backfillDirectory, Set<String> streamSucceededHosts)
+        {
+            this.status = status;
+            this.backfillDirectory = backfillDirectory;
+            this.streamSucceededHosts = streamSucceededHosts;
+        }
+
+        public boolean shouldBuildSSTables()
+        {
+            return status == ViewBackfillState.STARTED;
+        }
     }
 
     public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)

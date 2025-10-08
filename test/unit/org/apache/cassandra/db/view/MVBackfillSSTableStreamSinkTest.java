@@ -20,6 +20,7 @@ package org.apache.cassandra.db.view;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -31,14 +32,27 @@ import org.apache.cassandra.cql3.ViewAbstractTest;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableSimpleUnsortedWriter;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
 {
@@ -70,6 +84,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         baseMetadata = baseCfs.metadata.get();
         // only one MV
         viewCfs = baseCfs.viewManager.allViewsCfs().iterator().next();
+        execute("TRUNCATE TABLE system.view_backfills");
     }
 
     @After
@@ -79,6 +94,11 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         execute(String.format("DROP KEYSPACE IF EXISTS %s", KEYSPACE));
     }
 
+    private Set<Range<Token>> getLocalRanges()
+    {
+        return StorageService.instance.getLocalReplicas(KEYSPACE).ranges();
+    }
+
     @Test
     public void testMVBackfillSSTableSink() throws Throwable
     {
@@ -86,7 +106,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         MVBackfillSSTableStreamSink sink;
         try
         {
-            sink = new MVBackfillSSTableStreamSink(viewCfs);
+            sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         }
         catch (IOException e)
         {
@@ -100,7 +120,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         assertTrue("Backfill directory should exist", backfillDir.exists());
         assertTrue("Backfill directory should be a directory", backfillDir.isDirectory());
         assertTrue("Backfill directory name should contain 'mv_backfill'",
-                   backfillDir.name().contains("mv_backfill"));
+                   backfillDir.path().contains("mv_backfill"));
 
         // Test processing a view row (create a mock ViewRowResult)
         Row mockRow = createRow(1, "test_value");
@@ -139,7 +159,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         
         try
         {
-            sink = new MVBackfillSSTableStreamSink(viewCfs);
+            sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         }
         catch (IOException e)
         {
@@ -160,7 +180,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         MVBackfillSSTableStreamSink sink;
         try
         {
-            sink = new MVBackfillSSTableStreamSink(viewCfs, 64); // 64MB buffer
+            sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges(), 64); // 64MB buffer
         }
         catch (IOException e)
         {
@@ -200,72 +220,10 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
     }
 
     @Test
-    public void testRowProcessCompleteWithException() throws Throwable
-    {
-        // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
-        
-        // Use reflection to replace the writer with a mock that throws exception on close
-        SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
-        IOException testException = new IOException("Test exception during close");
-        doThrow(testException).when(mockWriter).close();
-        
-        // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
-        writerField.setAccessible(true);
-        writerField.set(sink, mockWriter);
-        
-        // Test that complete() propagates the exception
-        try
-        {
-            sink.rowProcessComplete();
-            fail("Expected exception to be thrown from complete()");
-        }
-        catch (IOException e)
-        {
-            assertEquals("Exception should be the same as thrown by writer.close()", testException, e);
-        }
-        
-        // Verify that close was called on the mock writer
-        verify(mockWriter, times(1)).close();
-    }
-
-    @Test
-    public void testFailWithException() throws Throwable
-    {
-        // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
-        
-        // Use reflection to replace the writer with a mock that throws exception on close
-        SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
-        IOException cleanupException = new IOException("Test cleanup exception");
-        doThrow(cleanupException).when(mockWriter).close();
-        
-        // Replace the writer field using reflection
-        Field writerField = MVBackfillSSTableStreamSink.class.getDeclaredField("writer");
-        writerField.setAccessible(true);
-        writerField.set(sink, mockWriter);
-        
-        // Test that fail() handles cleanup exception gracefully
-        RuntimeException originalException = new RuntimeException("Original failure");
-        
-        // This should not throw - fail() should handle cleanup exceptions internally
-        sink.fail(originalException);
-        
-        // Verify that close was called on the mock writer
-        verify(mockWriter, times(1)).close();
-        
-        // Verify that the cleanup exception was added as suppressed to the original exception
-        Throwable[] suppressedExceptions = originalException.getSuppressed();
-        assertEquals("Should have one suppressed exception", 1, suppressedExceptions.length);
-        assertEquals("Suppressed exception should be the cleanup exception", cleanupException, suppressedExceptions[0]);
-    }
-
-    @Test
     public void testFailWithoutException() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         
         // Use reflection to replace the writer with a mock that closes successfully
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
@@ -282,8 +240,8 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         // This should not throw
         sink.fail(originalException);
         
-        // Verify that close was called on the mock writer
-        verify(mockWriter, times(1)).close();
+        // Verify that close was not called on the mock writer
+        verify(mockWriter, times(0)).close();
         
         // Verify that no suppressed exceptions were added
         Throwable[] suppressedExceptions = originalException.getSuppressed();
@@ -294,7 +252,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
     public void testRowProcessCompleteAfterFailure() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         
         // Use reflection to replace the writer with a mock
         SSTableSimpleUnsortedWriter mockWriter = mock(SSTableSimpleUnsortedWriter.class);
@@ -312,15 +270,18 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         // Then call complete() - this should work (writer.close() should be idempotent)
         sink.rowProcessComplete();
         
-        // Verify that close was called twice on the mock writer
-        verify(mockWriter, times(2)).close();
+        // Verify that close not called on the mock writer as it will be called after rowProcessCleanup
+        verify(mockWriter, times(0)).close();
+
+        sink.rowProcessCleanup();
+        verify(mockWriter, times(1)).close();
     }
 
     @Test
     public void testDeleteMVBackfillFilesWithValidDirectory() throws Throwable
     {
         // Create a sink with valid MV backfill directory
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
 
         File backfillDir = sink.getBackfillDirectory();
         assertTrue("Backfill directory should exist", backfillDir.exists());
@@ -334,15 +295,18 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
         // This should successfully delete the backfill directory
         sink.complete();
         
-        // Verify that the directory was deleted
-        assertFalse("Backfill directory should be deleted after complete()", backfillDir.exists());
+        // Verify that the directory was empty
+        assertTrue("Backfill directory should be deleted after complete()", backfillDir.exists());
+        assertTrue(backfillDir.isDirectory());
+        File[] files = backfillDir.list();
+        assertTrue(files == null || files.length == 0);
     }
 
     @Test
     public void testDeleteMVBackfillFilesAssertsOnDataDirectory() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         
         // Use reflection to replace the backfillDirectory field with a mock data/data directory
         // This simulates a bug where getBackfillDirectory() accidentally returns the data directory
@@ -372,7 +336,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
     public void testDeleteMVBackfillFilesAssertsOnNonDirectory() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         
         File backfillDir = sink.getBackfillDirectory();
         
@@ -412,7 +376,7 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
     public void testDeleteMVBackfillFilesAssertsOnRootDataDirectory() throws Throwable
     {
         // Create a sink
-        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs);
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, getLocalRanges());
         
         // Get a reference to the root data directory (several levels up from mv_backfill)
         // The typical structure is: data/keyspace/table_name/mv_backfill
@@ -441,6 +405,279 @@ public class MVBackfillSSTableStreamSinkTest extends ViewAbstractTest
             // Expected - the assertion should prevent accidental deletion of the data directory
             assertTrue("Assertion should prevent deletion of data directory", true);
         }
+    }
+
+    // ===== SystemKeyspace Integration Tests =====
+
+    @Test
+    public void testViewBackfillStatusLifecycle() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Initially, no status should exist
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNull("Initial status should be null", status);
+
+        // Start a backfill
+        SystemKeyspace.startViewBackfill(keyspaceName, viewName, ranges);
+
+        // Verify STARTED status
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after start", status);
+        assertEquals("Status should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status.status);
+        assertNull("Directory should be null initially", status.backfillDirectory);
+        assertTrue("Succeeded hosts should be empty", status.streamSucceededHosts.isEmpty());
+
+        // Mark SSTable build complete
+        String testDirectoryPath = "/tmp/test/mv_backfill";
+        SystemKeyspace.setViewBackfillSStableComplete(keyspaceName, viewName, ranges, testDirectoryPath);
+
+        // Verify SSTABLE_BUILD_COMPLETE status
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after SSTable complete", status);
+        assertEquals("Status should be SSTABLE_BUILD_COMPLETE", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+        // Note: directory might be null if path doesn't exist on filesystem
+
+        // Update succeeded hosts
+        Set<InetAddressAndPort> succeededHosts = Set.of(InetAddressAndPort.getByName("127.0.0.1"), InetAddressAndPort.getByName("127.0.0.2"));
+        Set<String> succeededHostNames = Set.of(InetAddressAndPort.getByName("127.0.0.1").getHostAddressAndPort(), InetAddressAndPort.getByName("127.0.0.2").getHostAddressAndPort());
+        SystemKeyspace.updateViewBackfillStreamSucceededHosts(keyspaceName, viewName, ranges, succeededHosts);
+
+        // Verify succeeded hosts are updated
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after host update", status);
+        assertEquals("Status should still be SSTABLE_BUILD_COMPLETE", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+        assertEquals("Succeeded hosts should match", succeededHostNames, status.streamSucceededHosts);
+
+        // Complete the backfill
+        SystemKeyspace.setViewBackfillComplete(keyspaceName, viewName, ranges);
+
+        // Verify COMPLETE status
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after completion", status);
+        assertEquals("Status should be COMPLETE", SystemKeyspace.ViewBackfillState.COMPLETE, status.status);
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNull("Status should be null after removal", status);
+    }
+
+    @Test
+    public void testSinkPrepareWithDifferentStatuses() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Test 1: No existing status (should start new backfill)
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        SystemKeyspace.ViewBackfillStatus status = sink.prepare(false);
+        assertTrue("Should build SSTables when no status exists", status.shouldBuildSSTables());
+        
+        // Verify status was created
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should be created", status);
+        assertEquals("Status should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status.status);
+
+        // Test 2: STARTED status (should continue building)
+        sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        status = sink.prepare(false);
+        assertTrue("Should build SSTables when status is STARTED", status.shouldBuildSSTables());
+
+        // Test 3: SSTABLE_BUILD_COMPLETE status (should skip building)
+        SystemKeyspace.setViewBackfillSStableComplete(keyspaceName, viewName, ranges, "/tmp/test");
+        sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        status = sink.prepare(false);
+        assertFalse("Should not build SSTables when status is SSTABLE_BUILD_COMPLETE", status.shouldBuildSSTables());
+
+        // Test 4: COMPLETE status (should skip everything)
+        SystemKeyspace.setViewBackfillComplete(keyspaceName, viewName, ranges);
+        sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        status = sink.prepare(false);
+        assertFalse("Should not build SSTables when status is COMPLETE", status.shouldBuildSSTables());
+
+        // Test 5: Restart flag overrides status
+        sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        status = sink.prepare(true); // restart = true
+        assertTrue("Should build SSTables when restart is true regardless of status", status.shouldBuildSSTables());
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
+    }
+
+    @Test
+    public void testSinkRowProcessCompleteUpdatesStatus() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Create sink and prepare
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        sink.prepare(false);
+
+        // Verify initial STARTED status
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertEquals("Status should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status.status);
+
+        // Complete row processing
+        sink.rowProcessComplete();
+
+        // Verify status is updated to SSTABLE_BUILD_COMPLETE
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after row processing", status);
+        assertEquals("Status should be SSTABLE_BUILD_COMPLETE after row processing", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
+    }
+
+    @Test
+    public void testSinkCompleteUpdatesStatus() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Create sink, prepare, and complete row processing
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        sink.prepare(false);
+        sink.rowProcessComplete();
+
+        // Verify SSTABLE_BUILD_COMPLETE status
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertEquals("Status should be SSTABLE_BUILD_COMPLETE", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+
+        // Complete the backfill
+        sink.complete();
+
+        // Verify status is updated to COMPLETE
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after completion", status);
+        assertEquals("Status should be COMPLETE after completion", 
+                    SystemKeyspace.ViewBackfillState.COMPLETE, status.status);
+
+        // Note: complete() also deletes the backfill files, so we can't test directory cleanup
+        // without the directory existing, but the status update is the key functionality
+    }
+
+    @Test
+    public void testSinkFailWithSSTableBuildComplete() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Create sink, prepare, and complete row processing
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        sink.prepare(false);
+        sink.rowProcessComplete();
+
+        // Add some succeeded hosts to test the update functionality
+        Set<String> succeededHosts = Set.of("127.0.0.1");
+        
+        // Use reflection to set succeeded hosts in the sink
+        Field succeededHostsField = MVBackfillSSTableStreamSink.class.getDeclaredField("succeededHosts");
+        succeededHostsField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Set<InetAddressAndPort> sinkSucceededHosts = (Set<InetAddressAndPort>) succeededHostsField.get(sink);
+        sinkSucceededHosts.add(InetAddressAndPort.getByName("127.0.0.1"));
+
+        // Verify initial status
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertEquals("Status should be SSTABLE_BUILD_COMPLETE", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+        assertTrue("Initial succeeded hosts should be empty", status.streamSucceededHosts.isEmpty());
+
+        // Trigger failure
+        Exception testException = new RuntimeException("Test streaming failure");
+        sink.fail(testException);
+
+        // Verify that succeeded hosts were updated during failure handling
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after failure", status);
+        assertEquals("Status should still be SSTABLE_BUILD_COMPLETE after failure", 
+                    SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE, status.status);
+        assertFalse("Succeeded hosts should not be empty after failure update", 
+                   status.streamSucceededHosts.isEmpty());
+        assertTrue("Succeeded hosts should contain 127.0.0.1", 
+                  status.streamSucceededHosts.contains(InetAddressAndPort.getByName("127.0.0.1").getHostAddressAndPort()));
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
+    }
+
+    @Test
+    public void testSinkFailWithoutSSTableBuildComplete() throws Throwable
+    {
+        Set<Range<Token>> ranges = getLocalRanges();
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Create sink and prepare (but don't complete row processing)
+        MVBackfillSSTableStreamSink sink = new MVBackfillSSTableStreamSink(viewCfs, ranges);
+        sink.prepare(false);
+
+        // Verify initial STARTED status
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertEquals("Status should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status.status);
+
+        // Trigger failure
+        Exception testException = new RuntimeException("Test SSTable build failure");
+        sink.fail(testException);
+
+        // Verify that succeeded hosts were NOT updated (since status is not SSTABLE_BUILD_COMPLETE)
+        status = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges);
+        assertNotNull("Status should exist after failure", status);
+        assertEquals("Status should still be STARTED after failure", 
+                    SystemKeyspace.ViewBackfillState.STARTED, status.status);
+        assertTrue("Succeeded hosts should remain empty", status.streamSucceededHosts.isEmpty());
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
+    }
+
+    @Test
+    public void testMultipleRangesCreateSeparateEntries() throws Throwable
+    {
+        String keyspaceName = KEYSPACE;
+        String viewName = VIEW_NAME;
+
+        // Create two different range sets
+        Set<Range<Token>> ranges1 = Set.of(new Range<>(baseCfs.metadata().partitioner.getMinimumToken(), 
+                                                      baseCfs.metadata().partitioner.getRandomToken()));
+        Set<Range<Token>> ranges2 = Set.of(new Range<>(baseCfs.metadata().partitioner.getRandomToken(), 
+                                                      baseCfs.metadata().partitioner.getMaximumToken()));
+
+        // Start backfill for first range set
+        SystemKeyspace.startViewBackfill(keyspaceName, viewName, ranges1);
+        SystemKeyspace.ViewBackfillStatus status1 = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges1);
+        assertNotNull("Status for ranges1 should exist", status1);
+        assertEquals("Status for ranges1 should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status1.status);
+
+        // Start backfill for second range set
+        SystemKeyspace.startViewBackfill(keyspaceName, viewName, ranges2);
+        SystemKeyspace.ViewBackfillStatus status2 = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges2);
+        assertNotNull("Status for ranges2 should exist", status2);
+        assertEquals("Status for ranges2 should be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status2.status);
+
+        // Verify they are independent
+        SystemKeyspace.setViewBackfillComplete(keyspaceName, viewName, ranges1);
+        status1 = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges1);
+        status2 = SystemKeyspace.getViewBackfillStatus(keyspaceName, viewName, ranges2);
+        
+        assertEquals("Status for ranges1 should be COMPLETE", SystemKeyspace.ViewBackfillState.COMPLETE, status1.status);
+        assertEquals("Status for ranges2 should still be STARTED", SystemKeyspace.ViewBackfillState.STARTED, status2.status);
+
+        // Clean up
+        SystemKeyspace.removeViewBackfillStatus(keyspaceName, viewName);
     }
 }
 

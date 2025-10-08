@@ -634,11 +634,11 @@ public class Directories
         }
     }
 
-    public static File getMVBackfillDirectory(File location)
+    public static File getMVBackfillDirectory(File location, String subDirName)
     {
         // we should not do MV backfill for secondary index
         assert !isSecondaryIndexFolder(location);
-        return getOrCreate(location, MV_BACKFILL_SUBDIR);
+        return getOrCreate(location, MV_BACKFILL_SUBDIR, subDirName);
     }
 
     /**

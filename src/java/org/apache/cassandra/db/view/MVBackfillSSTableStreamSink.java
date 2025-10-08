@@ -19,12 +19,14 @@
 package org.apache.cassandra.db.view;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Future;
 
@@ -37,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.Range;
@@ -47,6 +50,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableSimpleUnsortedWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
@@ -75,13 +79,14 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
 {
     private static final Logger logger = LoggerFactory.getLogger(MVBackfillSSTableStreamSink.class);
     private static final long DEFAULT_BUFFER_SIZE_MB = 128; // 128MB buffer size
-    private static final int DEFAULT_CONNECTIONS_PER_HOST = 1;
 
     protected final ColumnFamilyStore viewCfs;
+    private final Set<Range<Token>> baseTableRanges;
     private final File backfillDirectory;
     private final SSTableSimpleUnsortedWriter writer;
-    private final int connectionsPerHost;
     private final Set<InetAddressAndPort> failedHosts = new HashSet<>();
+
+    private final Set<InetAddressAndPort> succeededHosts = new HashSet<>();
     
     // Streaming state
     private final List<SSTableReader> generatedSSTables = new ArrayList<>();
@@ -91,56 +96,87 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
      * Creates a new MVBackfillSSTableSink for the given materialized view.
      *
      * @param viewCfs the materialized view column family store
+     * @param baseTableRanges the base table ranges being backfilled
      * @throws IOException if there's an error creating the backfill directory or writer
      */
-    public MVBackfillSSTableStreamSink(ColumnFamilyStore viewCfs) throws IOException
+    public MVBackfillSSTableStreamSink(ColumnFamilyStore viewCfs, Set<Range<Token>> baseTableRanges) throws IOException
     {
-        this(viewCfs, DEFAULT_BUFFER_SIZE_MB, DEFAULT_CONNECTIONS_PER_HOST);
-    }
-
-    /**
-     * Creates a new MVBackfillSSTableSink for the given materialized view with custom buffer size.
-     *
-     * @param viewCfs the materialized view column family store
-     * @param bufferSizeMB the buffer size in MB for the SSTableSimpleUnsortedWriter
-     * @throws IOException if there's an error creating the backfill directory or writer
-     */
-    public MVBackfillSSTableStreamSink(ColumnFamilyStore viewCfs, long bufferSizeMB) throws IOException
-    {
-        this(viewCfs, bufferSizeMB, DEFAULT_CONNECTIONS_PER_HOST);
+        this(viewCfs, baseTableRanges, DEFAULT_BUFFER_SIZE_MB);
     }
 
     /**
      * Creates a new MVBackfillSSTableSink for the given materialized view with custom settings.
      *
      * @param viewCfs the materialized view column family store
+     * @param baseTableRanges the base table ranges being backfilled
      * @param bufferSizeMB the buffer size in MB for the SSTableSimpleUnsortedWriter
-     * @param connectionsPerHost the number of connections per host for streaming
      * @throws IOException if there's an error creating the backfill directory or writer
      */
-    public MVBackfillSSTableStreamSink(ColumnFamilyStore viewCfs, long bufferSizeMB, int connectionsPerHost) throws IOException
+    public MVBackfillSSTableStreamSink(ColumnFamilyStore viewCfs, Set<Range<Token>> baseTableRanges, long bufferSizeMB) throws IOException
     {
         this.viewCfs = viewCfs;
-        this.connectionsPerHost = connectionsPerHost;
-        this.backfillDirectory = getBackfillDirectory(viewCfs);
-        
+        Objects.requireNonNull(baseTableRanges, "baseTableRanges cannot be null");
+        if (baseTableRanges.isEmpty())
+            throw new IllegalArgumentException("baseTableRanges cannot be empty");
+        // normalize the base table ranges
+        List<Range<Token>> normalizedBaseTableRanges = Range.normalize(baseTableRanges);
+        this.baseTableRanges = new HashSet<>(normalizedBaseTableRanges);
+
+        SystemKeyspace.ViewBackfillStatus status = SystemKeyspace.getViewBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name, this.baseTableRanges);
+        this.backfillDirectory = getBackfillDirectory(viewCfs, status, normalizedBaseTableRanges);
+        if (status != null)
+        {
+            logger.info("Creating backfill sink with stream succeeded hosts {}", status.streamSucceededHosts);
+            for (String host : status.streamSucceededHosts)
+            {
+                try
+                {
+                    succeededHosts.add(InetAddressAndPort.getByName(host));
+                }
+                catch (UnknownHostException e)
+                {
+                    logger.error("Failed to resolve host {}", host, e);
+                }
+            }
+        }
+
         // Create the SSTableSimpleUnsortedWriter for the view
         TableMetadataRef metadataRef = TableMetadataRef.forOfflineTools(viewCfs.metadata.get());
         this.writer = new SSTableSimpleUnsortedWriter(backfillDirectory, metadataRef, 
                                                       viewCfs.metadata.get().regularAndStaticColumns(), 
                                                       bufferSizeMB);
         
-        logger.info("Created MV backfill SSTable sink for view {}.{} writing to directory: {} with {} connections per host", 
-                   viewCfs.keyspace.getName(), viewCfs.name, backfillDirectory, connectionsPerHost);
+        logger.info("Created MV backfill SSTable sink for view {}.{} writing to directory: {} for ranges: {}",
+                   viewCfs.keyspace.getName(), viewCfs.name, backfillDirectory, baseTableRanges);
     }
 
     /**
      * Creates the mv_backfill subdirectory in the materialized view's data directory.
+     * The subdirectory name includes a hash of the normalizedBaseTableRanges to allow different
+     * range sets to have separate backfill directories.
      */
-    private static File getBackfillDirectory(ColumnFamilyStore viewCfs)
+    private static File getBackfillDirectory(ColumnFamilyStore viewCfs, SystemKeyspace.ViewBackfillStatus status, List<Range<Token>> normalizedBaseTableRanges)
     {
+        if (status != null && status.backfillDirectory != null)
+        {
+            return status.backfillDirectory;
+        }
         File viewDataDir = viewCfs.getDirectories().getDirectoryForNewSSTables();
-        return Directories.getMVBackfillDirectory(viewDataDir);
+        int rangeHash = Objects.hash(normalizedBaseTableRanges);
+        return Directories.getMVBackfillDirectory(viewDataDir, Integer.toString(rangeHash));
+    }
+
+    @Override
+    public SystemKeyspace.ViewBackfillStatus prepare(boolean forceRestart)
+    {
+        SystemKeyspace.ViewBackfillStatus viewBackfillStatus = SystemKeyspace.getViewBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
+        
+        if (viewBackfillStatus == null || viewBackfillStatus.status == SystemKeyspace.ViewBackfillState.STARTED || forceRestart)
+        {
+            deleteMVBackfillFiles();
+            SystemKeyspace.startViewBackfill(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
+        }
+        return SystemKeyspace.getViewBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
     }
 
     @Override
@@ -157,7 +193,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     }
 
     @Override
-    public void postRowProcess(Collection<Range<Token>> baseTableRanges) throws Exception
+    public void postRowProcess(Set<Range<Token>> baseTableRanges) throws Exception
     {
         try
         {
@@ -187,10 +223,15 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
             logger.info("Successfully completed MV backfill streaming for view {}.{} base table ranges: {}",
                        viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
         }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Unexpected error during MV backfill streaming for view " +
+                                       viewCfs.keyspace.getName() + "." + viewCfs.name, e);
+        }
         finally
         {
             // Clean up resources
-            cleanup();
+            cleanupStreaming();
         }
     }
 
@@ -199,8 +240,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     {
         try
         {
-            // TODO: Persist the filenames generated in system table, if retry is needed, we don't need to scan the base table again
-            writer.close();
+            SystemKeyspace.setViewBackfillSStableComplete(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges, backfillDirectory.absolutePath());
             logger.info("Successfully completed MV backfill SSTable writing for view {}.{}", 
                        viewCfs.keyspace.getName(), viewCfs.name);
         }
@@ -213,8 +253,22 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     }
 
     @Override
+    public void rowProcessCleanup()
+    {
+        try
+        {
+            writer.close();
+        }
+        catch (Exception e)
+        {
+            logger.error("Error closing SSTable writer", e);
+        }
+    }
+
+    @Override
     public void complete() throws Exception
     {
+        SystemKeyspace.setViewBackfillComplete(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
         deleteMVBackfillFiles();
     }
 
@@ -224,26 +278,23 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
         File mvBackfillDir = getBackfillDirectory();
         // make sure the MV backfill dir is not pointing to some critical directories
         assert mvBackfillDir.isDirectory() && mvBackfillDir.absolutePath().contains(Directories.MV_BACKFILL_SUBDIR);
-        mvBackfillDir.deleteRecursive();
+        // Delete only the contents, not the directory itself
+        PathUtils.forEach(mvBackfillDir.toPath(), PathUtils::deleteRecursive);
     }
-
 
     @Override
     public void fail(Exception e)
     {
-        try
+        // If the sstable generation phase is finished, we can try update the succeeded hosts and persist them
+        SystemKeyspace.ViewBackfillStatus backfillStatus = SystemKeyspace.getViewBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name, this.baseTableRanges);
+        if (backfillStatus != null && backfillStatus.status == SystemKeyspace.ViewBackfillState.SSTABLE_BUILD_COMPLETE)
         {
-            writer.close();
-            logger.error("MV backfill SSTable writing or streaming failed for view {}.{}.",
-                        viewCfs.keyspace.getName(), viewCfs.name, e);
+            SystemKeyspace.updateViewBackfillStreamSucceededHosts(viewCfs.keyspace.getName(), viewCfs.name, this.baseTableRanges, succeededHosts);
+            logger.info("Updated view backfill for stream succeeded hosts {}", succeededHosts);
         }
-        catch (Exception cleanupException)
-        {
-            logger.error("Error during cleanup after MV backfill failure for view {}.{}", 
-                        viewCfs.keyspace.getName(), viewCfs.name, cleanupException);
-            // Suppress cleanup exception and let the original exception propagate
-            e.addSuppressed(cleanupException);
-        }
+
+        logger.error("MV backfill SSTable writing or streaming failed for view {}.{}.",
+                     viewCfs.keyspace.getName(), viewCfs.name, e);
     }
 
     /**
@@ -274,17 +325,22 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
             return Collections.emptyList();
         }
 
-        for (String fileName : writer.getGeneratedFileNames())
+        File[] existingFiles = backfillDirectory.tryList();
+        if (existingFiles != null)
         {
-            File file = new File(fileName);
-            if (file.exists())
+            for (File file : existingFiles)
             {
-                dataFiles.add(file);
+                if (file.name().endsWith("-Data.db"))
+                {
+                    dataFiles.add(file);
+                }
             }
-            else
-            {
-                throw new RuntimeException("Not able to find generated file: " + fileName);
-            }
+        }
+
+        if (dataFiles.isEmpty())
+        {
+            logger.info("No SSTable files found in backfill directory: {}", backfillDirectory);
+            return Collections.emptyList();
         }
 
         for (File dataFile : dataFiles)
@@ -376,7 +432,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
         logger.info("Streaming {} SSTables for MV {}.{} to {} endpoints",
                    sstables.size(), viewCfs.keyspace.getName(), viewCfs.name, streamingDetails.keySet().size());
 
-        StreamPlan plan = new StreamPlan(MV_BACKFILL, connectionsPerHost, false, null, PreviewKind.NONE);
+        StreamPlan plan = new StreamPlan(MV_BACKFILL, 1, false, null, PreviewKind.NONE);
 
         // Add streams for each endpoint
         for (Map.Entry<InetAddressAndPort, Collection<OutgoingStream>> entry : streamingDetails.asMap().entrySet())
@@ -384,7 +440,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
             InetAddressAndPort remote = entry.getKey();
             Collection<OutgoingStream> streams = entry.getValue();
             
-            if (!streams.isEmpty())
+            if (!streams.isEmpty() && !succeededHosts.contains(remote))
             {
                 plan.transferStreams(remote, streams);
             }
@@ -412,6 +468,8 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
             }
             else
             {
+                succeededHosts.add(se.peer);
+                SystemKeyspace.updateViewBackfillStreamSucceededHosts(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges, se.peer);
                 logger.debug("Streaming completed successfully to endpoint {} for MV backfill of view {}.{}", 
                            se.peer, viewCfs.keyspace.getName(), viewCfs.name);
             }
@@ -419,9 +477,9 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     }
 
     /**
-     * Cleans up resources and temporary files.
+     * Cleans up resources and temporary file references for streaming
      */
-    private void cleanup()
+    private void cleanupStreaming()
     {
         try
         {
@@ -456,6 +514,16 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     public Set<InetAddressAndPort> getFailedHosts()
     {
         return failedHosts;
+    }
+
+    /**
+     * Gets the set of hosts that successfully received sstables during streaming.
+     *
+     * @return set of succeeded host endpoints
+     */
+    public Set<InetAddressAndPort> getSucceededHosts()
+    {
+        return succeededHosts;
     }
 
     @Override

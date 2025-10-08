@@ -69,7 +69,7 @@ public class EnforceLCSTest extends CQLTester
     "system.prepared_statements", "system.repairs", "system.size_estimates",
     "system.sstable_activity", "system.sstable_activity_v2", "system.table_estimates",
     "system.top_partitions", "system.transferred_ranges", "system.transferred_ranges_v2",
-    "system.view_builds_in_progress",
+    "system.view_backfills", "system.view_builds_in_progress",
     "system_auth.network_permissions", "system_auth.resource_role_permissons_index",
     "system_auth.role_members", "system_auth.role_permissions", "system_auth.roles",
     "system_distributed.audit_users", "system_distributed.parent_repair_history",
@@ -271,6 +271,8 @@ public class EnforceLCSTest extends CQLTester
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.BATCHES,
                                        SizeTieredCompactionStrategy.class);
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.BUILT_VIEWS,
+                                       defaultCS);
+        schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.VIEW_BACKFILLS,
                                        defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.COMPACTION_HISTORY,
                                        defaultCS);
