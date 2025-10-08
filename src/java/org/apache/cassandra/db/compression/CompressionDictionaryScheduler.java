@@ -29,6 +29,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.utils.Clock;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -90,7 +91,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
         logger.info("Starting manual dictionary training for {}.{} with max sampling duration: {} seconds",
                     keyspaceName, tableName, maxSamplingDurationSeconds);
 
-        long deadlineMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds);
+        long deadlineMillis = Clock.Global.currentTimeMillis() + TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds);
 
         ManualTrainingTask task = new ManualTrainingTask(deadlineMillis, trainer);
 
@@ -182,7 +183,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 return;
             }
 
-            long now = System.currentTimeMillis();
+            long now = Clock.Global.currentTimeMillis();
             // Force training if there are not enough samples, but we have hit the max sampling duration
             boolean reachedDeadline = now >= deadlineMillis;
             if (!isTraining && (trainer.isReady() || reachedDeadline))
@@ -190,7 +191,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 // Set isTraining to only enter the branch once
                 isTraining = true;
                 trainer.trainDictionaryAsync(reachedDeadline)
-                       .whenComplete((dictionary, throwable) -> {
+                       .addCallback((dictionary, throwable) -> {
                            cancelManualTraining();
                            if (throwable != null)
                            {

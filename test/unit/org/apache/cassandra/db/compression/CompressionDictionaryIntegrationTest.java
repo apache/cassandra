@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,9 +51,9 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     public void configureDatabaseDescriptor()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.compression_dictionary_training_sampling_rate = 1;
-        config.compression_dictionary_training_max_total_sample_size = 128 * 1024;
-        config.compression_dictionary_training_max_dictionary_size = 10 * 1024;
+        config.compression_dictionary_training_sampling_rate = 1.0f;
+        config.compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("128KiB");
+        config.compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("10KiB");
         // Ensures that data are still sampled when using the LZ4 (which is picked up when using 'fast')
         // on the SSTable flushing code path
         config.flush_compression = Config.FlushCompression.fast;
@@ -71,7 +73,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .isEqualTo(TrainingStatus.NOT_STARTED.toString());
 
         // Trigger manual training
-        manager.train(Map.of("maxSamplingDurationSeconds", "2"));
+        manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "2"));
 
         // Add sample data that benefits from dictionary compression
         int i = 0;
@@ -112,13 +114,13 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training")
-        .isThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")));
+        .isThrownBy(() -> manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "600")));
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         manager.maybeReloadFromSchema(nonDictParams);
 
-        assertThatThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")))
+        assertThatThrownBy(() -> manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "600")))
         .as("Should disallow manual training when using lz4")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not support dictionary compression");
@@ -130,7 +132,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training after switching back to dictionary compression")
-        .isThrownBy(() -> manager.train(Map.of("maxSamplingDurationSeconds", "600")));
+        .isThrownBy(() -> manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "600")));
     }
 
     @Test
@@ -164,7 +166,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
-        manager.train(Map.of("maxSamplingDurationSeconds", "5"));
+        manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "5"));
 
         // Insert compressible data to train dictionary
         int i = 0;
@@ -244,7 +246,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     private static ZstdCompressionDictionary createTestDictionary()
     {
         byte[] dictBytes = (REPEATED_DATA + " dictionary training data").getBytes();
-        DictId dictId = new DictId(Kind.ZSTD, System.currentTimeMillis());
+        DictId dictId = new DictId(Kind.ZSTD, Clock.Global.currentTimeMillis());
         return new ZstdCompressionDictionary(dictId, dictBytes);
     }
 }

@@ -52,7 +52,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     }
 
     @Override
-    public DictId identifier()
+    public DictId dictId()
     {
         return dictId;
     }
@@ -94,7 +94,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public ZstdDictCompress dictionaryForCompression(int compressionLevel)
     {
         if (closed.get())
-            throw new IllegalStateException("Dictionary has been closed");
+            throw new IllegalStateException("Dictionary has been closed. " + dictId);
 
         ZstdCompressorBase.validateCompressionLevel(compressionLevel);
 
@@ -211,7 +211,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         @Override
         public String name()
         {
-            return "ZstdCompressionDictionary";
+            return ZstdCompressionDictionary.class.getSimpleName();
         }
     }
 }

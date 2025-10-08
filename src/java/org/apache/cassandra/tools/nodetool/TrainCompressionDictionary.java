@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
+import org.apache.cassandra.db.compression.ManualTrainingOptions;
 import org.apache.cassandra.tools.NodeProbe;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -89,7 +90,7 @@ public class TrainCompressionDictionary extends AbstractCommand
 
             // Build options map
             Map<String, String> options = new HashMap<>();
-            options.put("maxSamplingDurationSeconds", String.valueOf(maxSamplingDurationSeconds));
+            options.put(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, String.valueOf(maxSamplingDurationSeconds));
 
             probe.trainCompressionDictionary(keyspace, table, options);
 

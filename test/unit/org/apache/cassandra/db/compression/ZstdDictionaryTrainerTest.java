@@ -20,11 +20,12 @@ package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import org.apache.cassandra.utils.concurrent.Future;
 
 import org.junit.After;
 import org.junit.Before;
@@ -34,6 +35,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -225,7 +227,7 @@ public class ZstdDictionaryTrainerTest
         CompressionDictionaryTrainingConfig.builder()
                                            .maxDictionarySize(1024)
                                            .maxTotalSampleSize(10 * 1024)
-                                           .samplingRate(500) // 0.1% sampling
+                                           .samplingRate(0.001f) // 0.1% sampling
                                            .build();
 
         try (ZstdDictionaryTrainer lowSamplingTrainer = new ZstdDictionaryTrainer(TEST_KEYSPACE, TEST_TABLE,
@@ -413,7 +415,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryAsync() throws Exception
     {
-        CompletableFuture<CompressionDictionary> future = startTraining(true, false, testConfig.acceptableTotalSampleSize);
+        Future<CompressionDictionary> future = startTraining(true, false, testConfig.acceptableTotalSampleSize);
         CompressionDictionary dictionary = future.get(5, TimeUnit.SECONDS);
 
         assertThat(dictionary).as("Dictionary should not be null").isNotNull();
@@ -421,14 +423,14 @@ public class ZstdDictionaryTrainerTest
 
         // Verify callback was called
         assertThat(callbackResult.get()).as("Callback should have been called").isNotNull();
-        assertThat(callbackResult.get().identifier()).as("Callback should receive same dictionary").isEqualTo(dictionary.identifier());
+        assertThat(callbackResult.get().dictId()).as("Callback should receive same dictionary").isEqualTo(dictionary.dictId());
     }
 
     @Test
     public void testTrainDictionaryAsyncForce() throws Exception
     {
         // Don't add enough samples
-        CompletableFuture<CompressionDictionary> future = startTraining(true, true, 512);
+        Future<CompressionDictionary> future = startTraining(true, true, 512);
         CompressionDictionary dictionary = future.get(1, TimeUnit.SECONDS);
         assertThat(dictionary)
         .as("Forced async training should produce dictionary")
@@ -439,10 +441,10 @@ public class ZstdDictionaryTrainerTest
     public void testTrainDictionaryAsyncForceFailsWithNoData() throws Exception
     {
         AtomicReference<CompressionDictionary> dictRef = new AtomicReference<>();
-        CompletableFuture<CompressionDictionary> result = startTraining(true, true, 0)
-                                                          .whenComplete((dict, t) -> dictRef.set(dict));
+        Future<CompressionDictionary> result = startTraining(true, true, 0)
+                                                          .addCallback((dict, t) -> dictRef.set(dict));
 
-        assertThat(result.isCompletedExceptionally())
+        assertThat(result.isDone() && result.cause() != null)
         .as("Result should be completed exceptionally")
         .isTrue();
         assertThat(trainer.getTrainingStatus())
@@ -464,9 +466,9 @@ public class ZstdDictionaryTrainerTest
 
         // Verify callback was invoked with the dictionary
         assertThat(callbackResult.get()).as("Callback should have been called").isNotNull();
-        assertThat(callbackResult.get().identifier().id)
+        assertThat(callbackResult.get().dictId().id)
         .as("Callback should receive correct dictionary ID")
-        .isEqualTo(dictionary.identifier().id);
+        .isEqualTo(dictionary.dictId().id);
         assertThat(callbackResult.get().kind())
         .as("Callback should receive correct dictionary kind")
         .isEqualTo(dictionary.kind());
@@ -475,7 +477,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testMonotonicDictionaryIds()
     {
-        long now = System.currentTimeMillis();
+        long now = Clock.Global.currentTimeMillis();
         long id1 = ZstdDictionaryTrainer.makeDictionaryId(now, 100L);
         long hourLater= now + TimeUnit.HOURS.toMillis(1);
         long id2 = ZstdDictionaryTrainer.makeDictionaryId(hourLater, 200L);
@@ -602,7 +604,7 @@ public class ZstdDictionaryTrainerTest
         .isLessThan(iterations / 2);    // at most 50%
     }
 
-    private CompletableFuture<CompressionDictionary> startTraining(boolean manualTraining, boolean forceTrain, int sampleSize) throws Exception
+    private Future<CompressionDictionary> startTraining(boolean manualTraining, boolean forceTrain, int sampleSize) throws Exception
     {
         trainer.start(manualTraining);
         if (sampleSize > 0)
@@ -618,8 +620,8 @@ public class ZstdDictionaryTrainerTest
         }
 
         CountDownLatch latch = new CountDownLatch(1);
-        CompletableFuture<CompressionDictionary> future = trainer.trainDictionaryAsync(forceTrain)
-                                                                 .whenComplete((dict, throwable) -> latch.countDown());
+        Future<CompressionDictionary> future = trainer.trainDictionaryAsync(forceTrain)
+                                                                 .addCallback((dict, throwable) -> latch.countDown());
         assertThat(latch.await(10, TimeUnit.SECONDS))
         .as("Training should complete within timeout")
         .isTrue();

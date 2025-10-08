@@ -90,9 +90,9 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Retrieved dictionary should not be null")
         .isNotNull();
 
-        assertThat(retrieved.identifier())
+        assertThat(retrieved.dictId())
         .as("Retrieved dictionary ID should match stored")
-        .isEqualTo(testDictionary1.identifier());
+        .isEqualTo(testDictionary1.dictId());
 
         assertThat(retrieved.kind())
         .as("Retrieved dictionary kind should match stored")
@@ -120,9 +120,9 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Should retrieve the latest dictionary")
         .isNotNull();
 
-        assertThat(latest.identifier())
+        assertThat(latest.dictId())
         .as("Should retrieve dictionary with higher ID")
-        .isEqualTo(testDictionary2.identifier());
+        .isEqualTo(testDictionary2.dictId());
 
         latest.close();
     }
@@ -144,17 +144,17 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Should retrieve dictionary 1")
         .isNotNull();
 
-        assertThat(dict1.identifier())
+        assertThat(dict1.dictId())
         .as("Should retrieve correct dictionary by ID")
-        .isEqualTo(testDictionary1.identifier());
+        .isEqualTo(testDictionary1.dictId());
 
         assertThat(dict2)
         .as("Should retrieve dictionary 2")
         .isNotNull();
 
-        assertThat(dict2.identifier())
+        assertThat(dict2.dictId())
         .as("Should retrieve correct dictionary by ID")
-        .isEqualTo(testDictionary2.identifier());
+        .isEqualTo(testDictionary2.dictId());
 
         dict1.close();
         dict2.close();

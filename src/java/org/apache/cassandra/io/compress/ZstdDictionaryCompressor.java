@@ -57,7 +57,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             })
             .build();
 
-    // dictioanry and its ref are null, when they are absent.
+    // dictionary and its ref are null, when they are absent.
     // In this case, the compressor falls back to be the same as ZstdCompressor
     @Nullable
     private final ZstdCompressionDictionary dictionary;

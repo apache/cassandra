@@ -22,11 +22,13 @@ import java.util.Map;
 
 public interface CompressionDictionaryManagerMBean
 {
+    String MBEAN_NAME = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager";
+
     /**
      * Starts sampling and training for this table.
      * 
      * @param options options for the training process (currently unused, reserved for future extensions)
-     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     * @throws UnsupportedOperationException if table doesn't support dictionary compression
      * @throws IllegalStateException if training is already in progress for this table
      */
     void train(Map<String, String> options);

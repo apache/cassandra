@@ -35,6 +35,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.Clock;
 
 /**
  * Zstd implementation of dictionary trainer with lifecycle management.
@@ -125,7 +126,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
                         currentSampleCount, totalSampleSize.get(), isReady);
             byte[] dictBytes = zstdTrainer.trainSamples();
             long zstdDictId = Zstd.getDictIdFromDict(dictBytes);
-            DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(System.currentTimeMillis(), zstdDictId));
+            DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
             currentTrainingStatus = TrainingStatus.COMPLETED;
             logger.debug("New dictionary is trained with {}", dictId);
             CompressionDictionary dictionary = new ZstdCompressionDictionary(dictId, dictBytes);

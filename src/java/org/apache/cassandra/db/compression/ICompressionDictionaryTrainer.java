@@ -19,10 +19,10 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.schema.CompressionParams;
@@ -73,11 +73,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
      * Trains and produces a compression dictionary from collected samples asynchronously.
      *
      * @param force force the dictionary training even if there are not enough samples
-     * @return CompletableFuture that completes when training is done
+     * @return Future that completes when training is done
      */
-    default CompletableFuture<CompressionDictionary> trainDictionaryAsync(boolean force)
+    default Future<CompressionDictionary> trainDictionaryAsync(boolean force)
     {
-        return CompletableFuture.supplyAsync(() -> trainDictionary(force), ScheduledExecutors.nonPeriodicTasks);
+        return ScheduledExecutors.nonPeriodicTasks.submit(() -> trainDictionary(force));
     }
 
     /**

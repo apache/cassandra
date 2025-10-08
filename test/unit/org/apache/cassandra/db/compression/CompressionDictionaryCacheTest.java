@@ -90,7 +90,7 @@ public class CompressionDictionaryCacheTest
     {
         cache.add(testDict1);
 
-        CompressionDictionary retrieved = cache.get(testDict1.identifier());
+        CompressionDictionary retrieved = cache.get(testDict1.dictId());
         assertThat(retrieved)
         .as("Should retrieve the same dictionary instance")
         .isSameAs(testDict1);
@@ -112,9 +112,9 @@ public class CompressionDictionaryCacheTest
         cache.add(testDict2);
         cache.add(testDict3);
 
-        assertThat(cache.get(testDict1.identifier())).isSameAs(testDict1);
-        assertThat(cache.get(testDict2.identifier())).isSameAs(testDict2);
-        assertThat(cache.get(testDict3.identifier())).isSameAs(testDict3);
+        assertThat(cache.get(testDict1.dictId())).isSameAs(testDict1);
+        assertThat(cache.get(testDict2.dictId())).isSameAs(testDict2);
+        assertThat(cache.get(testDict3.dictId())).isSameAs(testDict3);
     }
 
     @Test
@@ -126,7 +126,7 @@ public class CompressionDictionaryCacheTest
         .isSameAs(testDict1);
 
         // Verify it was also added to cache
-        assertThat(cache.get(testDict1.identifier())).isSameAs(testDict1);
+        assertThat(cache.get(testDict1.dictId())).isSameAs(testDict1);
     }
 
     @Test
@@ -140,8 +140,8 @@ public class CompressionDictionaryCacheTest
         .isSameAs(testDict2);
 
         // Both should be in cache
-        assertThat(cache.get(testDict1.identifier())).isSameAs(testDict1);
-        assertThat(cache.get(testDict2.identifier())).isSameAs(testDict2);
+        assertThat(cache.get(testDict1.dictId())).isSameAs(testDict1);
+        assertThat(cache.get(testDict2.dictId())).isSameAs(testDict2);
     }
 
     @Test
@@ -155,8 +155,8 @@ public class CompressionDictionaryCacheTest
         .isSameAs(testDict2);
 
         // Both should be in cache
-        assertThat(cache.get(testDict1.identifier())).isSameAs(testDict1);
-        assertThat(cache.get(testDict2.identifier())).isSameAs(testDict2);
+        assertThat(cache.get(testDict1.dictId())).isSameAs(testDict1);
+        assertThat(cache.get(testDict2.dictId())).isSameAs(testDict2);
     }
 
     @Test
@@ -197,7 +197,7 @@ public class CompressionDictionaryCacheTest
         assertThat(cache.getCurrent())
         .as("Current should not be null before close")
         .isNotNull();
-        assertThat(cache.get(testDict1.identifier()))
+        assertThat(cache.get(testDict1.dictId()))
         .as("Cache should contain dict1 before close")
         .isNotNull();
 
@@ -206,10 +206,10 @@ public class CompressionDictionaryCacheTest
         assertThat(cache.getCurrent())
         .as("Current should be null after close")
         .isNull();
-        assertThat(cache.get(testDict1.identifier()))
+        assertThat(cache.get(testDict1.dictId()))
         .as("Cache should not contain dict1 after close")
         .isNull();
-        assertThat(cache.get(testDict2.identifier()))
+        assertThat(cache.get(testDict2.dictId()))
         .as("Cache should not contain dict2 after close")
         .isNull();
     }
@@ -228,7 +228,7 @@ public class CompressionDictionaryCacheTest
         assertThat(cache.getCurrent())
         .as("Current should remain null")
         .isNull();
-        assertThat(cache.get(testDict1.identifier()))
+        assertThat(cache.get(testDict1.dictId()))
         .as("Cache should remain empty")
         .isNull();
     }
@@ -260,11 +260,11 @@ public class CompressionDictionaryCacheTest
                     {
                         // Mix of read operations
                         CompressionDictionary current = cache.getCurrent();
-                        cache.get(testDict1.identifier());
-                        cache.get(testDict2.identifier());
+                        cache.get(testDict1.dictId());
+                        cache.get(testDict2.dictId());
 
                         // Verify consistency
-                        if (current != null && current.identifier().equals(testDict2.identifier()))
+                        if (current != null && current.dictId().equals(testDict2.dictId()))
                         {
                             successCount.incrementAndGet();
                         }
@@ -343,7 +343,7 @@ public class CompressionDictionaryCacheTest
         assertThat(current)
         .as("A current dictionary should be set")
         .isNotNull();
-        assertThat(current.identifier().id)
+        assertThat(current.dictId().id)
         .as("Current dictionary should be one of the test dictionaries")
         .isBetween(100L, 100L + threadCount);
 

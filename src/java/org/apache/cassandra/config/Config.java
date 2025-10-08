@@ -517,13 +517,13 @@ public class Config
     public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_interval = new DurationSpec.IntSecondsBound("3600s"); // 1 hour - TODO: re-assess whether daily (86400s) is more appropriate
     public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_initial_delay = new DurationSpec.IntSecondsBound("10s"); // 10 seconds default
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
-    public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("3600s"); // 1 hour default
+    public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
 
     // Dictionary training settings
-    public volatile int compression_dictionary_training_max_dictionary_size = 65536; // 64KB
-    public volatile int compression_dictionary_training_max_total_sample_size = 10485760; // 10MB total
+    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("64KiB");
+    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("10MiB");
     public volatile boolean compression_dictionary_training_auto_train_enabled = false;
-    public volatile int compression_dictionary_training_sampling_rate = 100; // samples 1%; using int since random.nextInt is generally faster than random.nextDouble
+    public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 

@@ -20,20 +20,22 @@ package org.apache.cassandra.db.compression;
 
 import java.util.Map;
 
+import com.google.common.base.Preconditions;
+
 /**
  * Configuration options for manual compression dictionary training.
  * This class encapsulates the parsed and validated parameters needed for training.
  */
 public class ManualTrainingOptions
 {
+    public static final String MAX_SAMPLING_DURATION_SECONDS_KEY = "maxSamplingDurationSeconds";
+
     private final int maxSamplingDurationSeconds;
 
     public ManualTrainingOptions(int maxSamplingDurationSeconds)
     {
-        if (maxSamplingDurationSeconds <= 0)
-        {
-            throw new IllegalArgumentException("maxSamplingDurationSeconds must be positive, got: " + maxSamplingDurationSeconds);
-        }
+        Preconditions.checkArgument(maxSamplingDurationSeconds > 0,
+                                    "maxSamplingDurationSeconds must be positive, got: %s", maxSamplingDurationSeconds);
         this.maxSamplingDurationSeconds = maxSamplingDurationSeconds;
     }
 
@@ -46,12 +48,12 @@ public class ManualTrainingOptions
      */
     public static ManualTrainingOptions fromStringMap(Map<String, String> options)
     {
-        if (options == null || !options.containsKey("maxSamplingDurationSeconds"))
+        if (options == null || !options.containsKey(MAX_SAMPLING_DURATION_SECONDS_KEY))
         {
-            throw new IllegalArgumentException("maxSamplingDurationSeconds parameter is required for manual dictionary training");
+            throw new IllegalArgumentException(MAX_SAMPLING_DURATION_SECONDS_KEY + " parameter is required for manual dictionary training");
         }
 
-        String durationStr = options.get("maxSamplingDurationSeconds");
+        String durationStr = options.get(MAX_SAMPLING_DURATION_SECONDS_KEY);
         int maxSamplingDurationSeconds;
         try
         {
@@ -74,7 +76,7 @@ public class ManualTrainingOptions
     public String toString()
     {
         return "ManualTrainingOptions{" +
-               "maxSamplingDurationSeconds=" + maxSamplingDurationSeconds +
+               MAX_SAMPLING_DURATION_SECONDS_KEY + '=' + maxSamplingDurationSeconds +
                '}';
     }
 }

@@ -421,7 +421,7 @@ public final class SystemDistributedKeyspace
                                  keyspaceName,
                                  tableName,
                                  dictionary.kind(),
-                                 dictionary.identifier().id);
+                                 dictionary.dictId().id);
         noThrow(fmtQuery,
                 () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.ONE,
                                              Collections.singletonList(ByteBuffer.wrap(dictionary.rawDictionary()))));

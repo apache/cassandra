@@ -47,10 +47,9 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
     public CompressionDictionaryCache()
     {
-        Duration expiryTime = Duration.ofSeconds(DatabaseDescriptor.getCompressionDictionaryCacheExpireSeconds());
         this.cache = Caffeine.newBuilder()
                              .maximumSize(DatabaseDescriptor.getCompressionDictionaryCacheSize())
-                             .expireAfterAccess(expiryTime)
+                             .expireAfterAccess(Duration.ofSeconds(DatabaseDescriptor.getCompressionDictionaryCacheExpireSeconds()))
                              .removalListener((CompressionDictionary.DictId dictId,
                                                CompressionDictionary dictionary,
                                                RemovalCause cause) -> {
@@ -88,7 +87,7 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     @Override
     public void add(CompressionDictionary compressionDictionary)
     {
-        cache.put(compressionDictionary.identifier(), compressionDictionary);
+        cache.put(compressionDictionary.dictId(), compressionDictionary);
     }
 
     @Override
@@ -100,7 +99,7 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         add(dictionary);
         // Only update the current dictionary if we don't have one or the new one has a higher ID (newer)
         CompressionDictionary current = currentDictionary.get();
-        while ((current == null || dictionary.identifier().id > current.identifier().id)
+        while ((current == null || dictionary.dictId().id > current.dictId().id)
                && !currentDictionary.compareAndSet(current, dictionary))
         {
             current = currentDictionary.get();

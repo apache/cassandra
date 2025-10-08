@@ -38,7 +38,7 @@ public enum StorageCompatibilityMode
     /**
      * Similar to CASSANDRA_4.
      * The new features in 6.0 are
-     * - ZSTD dictioanry-based compression. Once SSTables are compressed with dictioanry, they cannot be rolled back.
+     * - ZSTD dictionary-based compression. Once SSTables are compressed with dictionary, they cannot be rolled back.
      */
     CASSANDRA_5(5),
 

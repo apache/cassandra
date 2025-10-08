@@ -61,9 +61,9 @@ public class CompressionDictionaryTrainingConfig
             return this;
         }
 
-        public Builder samplingRate(int samplingRate)
+        public Builder samplingRate(float samplingRate)
         {
-            this.samplingRate = samplingRate;
+            this.samplingRate = Math.round(1 / samplingRate);
             return this;
         }
 

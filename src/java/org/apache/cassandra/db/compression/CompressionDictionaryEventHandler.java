@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles compression dictionary events including training completion and cluster notifications.
@@ -79,7 +78,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
     public void onNewDictionaryAvailable(CompressionDictionary.DictId dictionaryId)
     {
         // Best effort to retrieve the dictionary; otherwise, the periodic task should retrieve the dictionary later
-        CompletableFuture.runAsync(() -> {
+        ScheduledExecutors.nonPeriodicTasks.submit(() -> {
             try
             {
                 if (!cfs.metadata().params.compression.isDictionaryCompressionEnabled())
@@ -95,7 +94,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                 logger.warn("Failed to retrieve compression dictionary for {}.{}. {}",
                             keyspaceName, tableName, dictionaryId, e);
             }
-        }, ScheduledExecutors.nonPeriodicTasks);
+        });
     }
 
     // Best effort to notify the peer regarding the new dictionary being available to pull.

@@ -83,8 +83,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     static String mbeanName(String keyspaceName, String tableName)
     {
-        return "org.apache.cassandra.db.compression:type=CompressionDictionaryManager" +
-               ",keyspace=" + keyspaceName + ",table=" + tableName;
+        return MBEAN_NAME + ",keyspace=" + keyspaceName + ",table=" + tableName;
     }
 
     public boolean isEnabled()
@@ -209,7 +208,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // Validate table supports dictionary compression
         if (!isEnabled)
         {
-            throw new IllegalArgumentException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
+            throw new UnsupportedOperationException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
         }
 
         if (trainer == null)
@@ -266,7 +265,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         // sequence meatters; persist the new dictionary before broadcasting to others.
         storeDictionary(dictionary);
-        onNewDictionaryTrained(dictionary.identifier());
+        onNewDictionaryTrained(dictionary.dictId());
     }
 
     private CompressionDictionaryTrainingConfig createTrainingConfig()

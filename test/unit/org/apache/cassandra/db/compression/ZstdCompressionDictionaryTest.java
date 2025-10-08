@@ -316,9 +316,9 @@ public class ZstdCompressionDictionaryTest
         .as("Deserialized dictionary should not be null")
         .isNotNull();
 
-        assertThat(deserializedDict.identifier())
+        assertThat(deserializedDict.dictId())
         .as("Deserialized dictionary ID should match")
-        .isEqualTo(dictionary.identifier());
+        .isEqualTo(dictionary.dictId());
 
         assertThat(deserializedDict.kind())
         .as("Deserialized dictionary kind should match")

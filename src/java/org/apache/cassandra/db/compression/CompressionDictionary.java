@@ -40,7 +40,7 @@ public interface CompressionDictionary extends AutoCloseable
      *
      * @return dictionary id
      */
-    DictId identifier();
+    DictId dictId();
 
     /**
      * Get the raw bytes of the compression dictionary
@@ -56,7 +56,7 @@ public interface CompressionDictionary extends AutoCloseable
      */
     default Kind kind()
     {
-        return identifier().kind;
+        return dictId().kind;
     }
 
     /**
@@ -67,7 +67,7 @@ public interface CompressionDictionary extends AutoCloseable
      */
     default void serialize(DataOutput out) throws IOException
     {
-        DictId dictId = identifier();
+        DictId dictId = dictId();
         int ordinal = dictId.kind.ordinal();
         out.writeByte(ordinal);
         out.writeLong(dictId.id);
@@ -123,7 +123,8 @@ public interface CompressionDictionary extends AutoCloseable
         int checksum = input.readInt();
         int calculatedChecksum = calculateChecksum((byte) kindOrdinal, id, dict);
         if (checksum != calculatedChecksum)
-            throw new IOException("Compression dictionary checksum does not match");
+            throw new IOException("Compression dictionary checksum does not match. " +
+                                  "Expected: " + checksum + "; actual: " + calculatedChecksum);
 
         CompressionDictionary dictionary = kind.createDictionary(dictId, dict);
 

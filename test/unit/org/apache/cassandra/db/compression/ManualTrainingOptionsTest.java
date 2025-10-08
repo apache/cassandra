@@ -49,7 +49,7 @@ public class ManualTrainingOptionsTest
     @Test
     public void testFromStringMapValid()
     {
-        Map<String, String> options = Map.of("maxSamplingDurationSeconds", "300");
+        Map<String, String> options = Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "300");
         ManualTrainingOptions trainingOptions = ManualTrainingOptions.fromStringMap(options);
 
         assertThat(trainingOptions.getMaxSamplingDurationSeconds()).isEqualTo(300);
@@ -72,7 +72,7 @@ public class ManualTrainingOptionsTest
     @Test
     public void testFromStringMapInvalidValue()
     {
-        Map<String, String> invalidOptions = Map.of("maxSamplingDurationSeconds", "invalid");
+        Map<String, String> invalidOptions = Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "invalid");
 
         assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(invalidOptions))
         .isInstanceOf(IllegalArgumentException.class)
@@ -83,7 +83,7 @@ public class ManualTrainingOptionsTest
     @Test
     public void testFromStringMapNegativeValue()
     {
-        Map<String, String> negativeOptions = Map.of("maxSamplingDurationSeconds", "-1");
+        Map<String, String> negativeOptions = Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "-1");
 
         assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(negativeOptions))
         .isInstanceOf(IllegalArgumentException.class)
@@ -93,7 +93,7 @@ public class ManualTrainingOptionsTest
     @Test
     public void testFromStringMapZeroValue()
     {
-        Map<String, String> zeroOptions = Map.of("maxSamplingDurationSeconds", "0");
+        Map<String, String> zeroOptions = Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "0");
 
         assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(zeroOptions))
         .isInstanceOf(IllegalArgumentException.class)

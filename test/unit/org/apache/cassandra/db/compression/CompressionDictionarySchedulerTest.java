@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import org.junit.After;
 import org.junit.Before;
@@ -35,6 +37,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -102,7 +105,7 @@ public class CompressionDictionarySchedulerTest
         ManualTrainingOptions options = new ManualTrainingOptions(600);
 
         testTrainer.setReady(true);
-        testTrainer.setTrainingResult(CompletableFuture.completedFuture(testDictionary));
+        testTrainer.setTrainingResult(ImmediateFuture.success(testDictionary));
 
         // Schedule first training
         scheduler.scheduleManualTraining(options, testTrainer);
@@ -119,9 +122,7 @@ public class CompressionDictionarySchedulerTest
         ManualTrainingOptions options = new ManualTrainingOptions(600);
 
         testTrainer.setReady(true);
-        CompletableFuture<CompressionDictionary> failedFuture = new CompletableFuture<>();
-        failedFuture.completeExceptionally(new RuntimeException("Training failed"));
-        testTrainer.setTrainingResult(failedFuture);
+        testTrainer.setTrainingResult(ImmediateFuture.failure(new RuntimeException("Training failed")));
 
         scheduler.scheduleManualTraining(options, testTrainer);
 
@@ -147,7 +148,7 @@ public class CompressionDictionarySchedulerTest
     {
         boolean ready = !expectForceTraining;
         testTrainer.setReady(ready);
-        testTrainer.setTrainingResult(CompletableFuture.completedFuture(testDictionary));
+        testTrainer.setTrainingResult(ImmediateFuture.success(testDictionary));
         AtomicReference<CompressionDictionary> dictHolder = new AtomicReference<>();
         testTrainer.setDictionaryTrainedListener(dictHolder::set);
 
@@ -169,7 +170,7 @@ public class CompressionDictionarySchedulerTest
     private static ZstdCompressionDictionary createTestDictionary()
     {
         byte[] dictBytes = "test dictionary data for scheduler testing".getBytes();
-        DictId dictId = new DictId(Kind.ZSTD, System.currentTimeMillis());
+        DictId dictId = new DictId(Kind.ZSTD, Clock.Global.currentTimeMillis());
         return new ZstdCompressionDictionary(dictId, dictBytes);
     }
 
@@ -182,7 +183,7 @@ public class CompressionDictionarySchedulerTest
         private final AtomicInteger trainDictionaryAsyncCallCount = new AtomicInteger(0);
         private volatile TrainingStatus trainingStatus = TrainingStatus.SAMPLING;
         private volatile boolean ready = false;
-        private volatile CompletableFuture<CompressionDictionary> trainingResult = null;
+        private volatile Future<CompressionDictionary> trainingResult = null;
         private volatile Consumer<CompressionDictionary> onDictionaryTrained = null;
 
         @Override
@@ -204,13 +205,13 @@ public class CompressionDictionarySchedulerTest
         }
 
         @Override
-        public CompletableFuture<CompressionDictionary> trainDictionaryAsync(boolean force)
+        public Future<CompressionDictionary> trainDictionaryAsync(boolean force)
         {
             trainDictionaryAsyncCallCount.incrementAndGet();
             isForceTrained = force;
             if (trainingResult != null)
             {
-                if (trainingResult.isCompletedExceptionally())
+                if (trainingResult.isDone() && trainingResult.cause() != null)
                 {
                     trainingStatus = TrainingStatus.FAILED;
                 }
@@ -229,7 +230,7 @@ public class CompressionDictionarySchedulerTest
                 return trainingResult;
             }
 
-            return CompletableFuture.completedFuture(createTestDictionary());
+            return ImmediateFuture.success(createTestDictionary());
         }
 
         @Override
@@ -303,7 +304,7 @@ public class CompressionDictionarySchedulerTest
             this.trainingStatus = status;
         }
 
-        public void setTrainingResult(CompletableFuture<CompressionDictionary> result)
+        public void setTrainingResult(Future<CompressionDictionary> result)
         {
             this.trainingResult = result;
         }

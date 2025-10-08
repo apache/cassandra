@@ -45,7 +45,7 @@ public class CompressionDictionaryTrainingConfigTest
     {
         int dictSize = 16 * 1024; // 16KB
         int sampleSize = 2 * 1024 * 1024; // 2MB
-        int samplingRate = 200; // 0.5%
+        float samplingRate = 0.005f; // 0.5%
 
         CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
                                                                                         .maxDictionarySize(dictSize)
@@ -57,7 +57,7 @@ public class CompressionDictionaryTrainingConfigTest
         assertThat(config.maxDictionarySize).isEqualTo(dictSize);
         assertThat(config.maxTotalSampleSize).isEqualTo(sampleSize);
         assertThat(config.acceptableTotalSampleSize).isEqualTo(sampleSize / 10 * 8);
-        assertThat(config.samplingRate).isEqualTo(samplingRate);
+        assertThat(config.samplingRate).isEqualTo(Math.round(1 / samplingRate));
 
         // Verify relationship between max and acceptable sample sizes
         assertThat(config.acceptableTotalSampleSize)
