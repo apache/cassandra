@@ -219,7 +219,7 @@ public class CompressionDictionaryManagerTest
     public void testTrainManualWithNonDictionaryTable()
     {
         assertThatThrownBy(() -> managerWithoutDict.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "600")))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support dictionary compression");
     }
 

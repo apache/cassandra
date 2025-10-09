@@ -25,12 +25,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.github.luben.zstd.ZstdDictTrainer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.github.luben.zstd.ZstdDictTrainer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.DictId;
@@ -118,22 +118,10 @@ public class CompressionDictionaryCacheTest
     }
 
     @Test
-    public void testSetCurrentIfNewer()
-    {
-        cache.setCurrentIfNewer(testDict1);
-        assertThat(cache.getCurrent())
-        .as("Should set first dictionary as current")
-        .isSameAs(testDict1);
-
-        // Verify it was also added to cache
-        assertThat(cache.get(testDict1.dictId())).isSameAs(testDict1);
-    }
-
-    @Test
     public void testSetCurrentWithNewerDictionary()
     {
-        cache.setCurrentIfNewer(testDict1);
-        cache.setCurrentIfNewer(testDict2);
+        cache.add(testDict1);
+        cache.add(testDict2);
 
         assertThat(cache.getCurrent())
         .as("Should update to newer dictionary")
@@ -147,8 +135,8 @@ public class CompressionDictionaryCacheTest
     @Test
     public void testSetCurrentWithOlderDictionary()
     {
-        cache.setCurrentIfNewer(testDict2);
-        cache.setCurrentIfNewer(testDict1); // older dictionary
+        cache.add(testDict2);
+        cache.add(testDict1); // older dictionary
 
         assertThat(cache.getCurrent())
         .as("Should keep newer dictionary as current")
@@ -164,8 +152,8 @@ public class CompressionDictionaryCacheTest
     {
         ZstdCompressionDictionary sameDictCopy = createTestDictionary(2);
 
-        cache.setCurrentIfNewer(testDict2);
-        cache.setCurrentIfNewer(sameDictCopy);
+        cache.add(testDict2);
+        cache.add(sameDictCopy);
 
         // Should not update since ID is the same (not newer)
         assertThat(cache.getCurrent())
@@ -178,8 +166,8 @@ public class CompressionDictionaryCacheTest
     @Test
     public void testSetCurrentWithNull()
     {
-        cache.setCurrentIfNewer(testDict1);
-        cache.setCurrentIfNewer(null);
+        cache.add(testDict1);
+        cache.add(null);
 
         // Should not change current dictionary
         assertThat(cache.getCurrent())
@@ -192,7 +180,6 @@ public class CompressionDictionaryCacheTest
     {
         cache.add(testDict1);
         cache.add(testDict2);
-        cache.setCurrentIfNewer(testDict2);
 
         assertThat(cache.getCurrent())
         .as("Current should not be null before close")
@@ -218,7 +205,6 @@ public class CompressionDictionaryCacheTest
     public void testCloseIdempotent()
     {
         cache.add(testDict1);
-        cache.setCurrentIfNewer(testDict1);
 
         // Close multiple times should not cause issues
         cache.close();
@@ -247,7 +233,6 @@ public class CompressionDictionaryCacheTest
         // Pre-populate cache
         cache.add(testDict1);
         cache.add(testDict2);
-        cache.setCurrentIfNewer(testDict2);
 
         for (int i = 0; i < threadCount; i++)
         {
@@ -318,7 +303,7 @@ public class CompressionDictionaryCacheTest
                 try
                 {
                     startLatch.await();
-                    cache.setCurrentIfNewer(dict);
+                    cache.add(dict);
                 }
                 catch (Exception e)
                 {
@@ -351,6 +336,63 @@ public class CompressionDictionaryCacheTest
         for (ZstdCompressionDictionary dict : dicts)
         {
             closeQuietly(dict);
+        }
+    }
+
+    @Test
+    public void testGetCurrentRefreshesCacheEntry() throws InterruptedException
+    {
+        int expireSeconds = 1;
+        try (CompressionDictionaryCache shortLivedCache = new CompressionDictionaryCache(10, expireSeconds))
+        {
+            shortLivedCache.add(testDict1);
+            assertThat(shortLivedCache.getCurrent())
+            .as("Current dictionary should be set")
+            .isSameAs(testDict1);
+            assertThat(shortLivedCache.get(testDict1.dictId()))
+            .as("Dictionary should be in cache")
+            .isNotNull();
+
+            // Access getCurrent() repeatedly for slightly longer than the expiration time
+            int iterations = expireSeconds * 2 + 1;
+            for (int i = 0; i < iterations; i++)
+            {
+                Thread.sleep(900); // Sleep a bit less than expireSeconds between accesses
+
+                CompressionDictionary current = shortLivedCache.getCurrent();
+                assertThat(current)
+                .as("Current dictionary should remain accessible after %d seconds", i + 1)
+                .isSameAs(testDict1);
+
+                assertThat(shortLivedCache.get(testDict1.dictId()))
+                .as("Dictionary should still be in cache after %d seconds", i + 1)
+                .isNotNull();
+            }
+
+            assertThat(shortLivedCache.getCurrent())
+            .as("Current dictionary should remain accessible due to getCurrent() refreshing the cache")
+            .isSameAs(testDict1);
+        }
+    }
+
+    @Test
+    public void testGetCurrentReturnsNullAfterExpiration() throws InterruptedException
+    {
+        int expireSeconds = 1;
+        try (CompressionDictionaryCache shortLivedCache = new CompressionDictionaryCache(10, expireSeconds))
+        {
+            shortLivedCache.add(testDict1);
+            assertThat(shortLivedCache.getCurrent())
+            .as("Current dictionary should be set")
+            .isSameAs(testDict1);
+
+            // Wait for expiration without accessing getCurrent()
+            Thread.sleep((expireSeconds + 1) * 1000);
+
+            // Current should now return null since the entry expired and we only store the DictId
+            assertThat(shortLivedCache.getCurrent())
+            .as("Current dictionary should be null after expiration when not accessed")
+            .isNull();
         }
     }
 

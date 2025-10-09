@@ -136,7 +136,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             }
 
             CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName);
-            cache.setCurrentIfNewer(dictionary);
+            cache.add(dictionary);
         }
         catch (Exception e)
         {

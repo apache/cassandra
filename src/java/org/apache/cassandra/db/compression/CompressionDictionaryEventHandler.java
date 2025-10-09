@@ -87,7 +87,7 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                 }
 
                 CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictionaryId);
-                cache.setCurrentIfNewer(dictionary);
+                cache.add(dictionary);
             }
             catch (Exception e)
             {

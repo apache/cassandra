@@ -122,7 +122,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatThrownBy(() -> manager.train(Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "600")))
         .as("Should disallow manual training when using lz4")
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support dictionary compression");
 
         // Re-enable dictionary compression
@@ -222,7 +222,6 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         // Add test dictionary
         ZstdCompressionDictionary testDict = createTestDictionary();
         manager.add(testDict);
-        manager.setCurrentIfNewer(testDict);
 
         assertThat(testDict.selfRef().globalCount())
         .as("Dictionary's reference count should be 1 after adding to cache")

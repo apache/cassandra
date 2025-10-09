@@ -48,17 +48,9 @@ public interface ICompressionDictionaryCache extends AutoCloseable
     CompressionDictionary get(CompressionDictionary.DictId dictId);
 
     /**
-     * Stores a compression dictionary in the local cache.
+     * Stores a compression dictionary in the local cache and updates the current dictionary if the new one is newer.
      *
-     * @param compressionDictionary the compression dictionary to cache
+     * @param compressionDictionary the compression dictionary to cache, may be null
      */
-    void add(CompressionDictionary compressionDictionary);
-
-    /**
-     * Set the provided dictionary as the current if it is newer.
-     * Also adds the dictionary to the cache.
-     *
-     * @param dictionary the dictionary to potentially set as current, may be null
-     */
-    void setCurrentIfNewer(@Nullable CompressionDictionary dictionary);
+    void add(@Nullable CompressionDictionary compressionDictionary);
 }

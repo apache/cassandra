@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 
 /**
  * Manages caching and current dictionary state for compression dictionaries.
@@ -42,15 +44,21 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressionDictionaryCache.class);
 
-    private final Cache<CompressionDictionary.DictId, CompressionDictionary> cache;
-    private final AtomicReference<CompressionDictionary> currentDictionary = new AtomicReference<>();
+    private final Cache<DictId, CompressionDictionary> cache;
+    private final AtomicReference<DictId> currentDictId = new AtomicReference<>();
 
     public CompressionDictionaryCache()
     {
+        this(DatabaseDescriptor.getCompressionDictionaryCacheSize(), DatabaseDescriptor.getCompressionDictionaryCacheExpireSeconds());
+    }
+
+    @VisibleForTesting
+    CompressionDictionaryCache(int maximumSize, int expireAfterSeconds)
+    {
         this.cache = Caffeine.newBuilder()
-                             .maximumSize(DatabaseDescriptor.getCompressionDictionaryCacheSize())
-                             .expireAfterAccess(Duration.ofSeconds(DatabaseDescriptor.getCompressionDictionaryCacheExpireSeconds()))
-                             .removalListener((CompressionDictionary.DictId dictId,
+                             .maximumSize(maximumSize)
+                             .expireAfterAccess(Duration.ofSeconds(expireAfterSeconds))
+                             .removalListener((DictId dictId,
                                                CompressionDictionary dictionary,
                                                RemovalCause cause) -> {
                                  // Close dictionary when evicted from cache to free native resources
@@ -74,55 +82,57 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     @Override
     public CompressionDictionary getCurrent()
     {
-        return currentDictionary.get();
+        DictId dictId = currentDictId.get();
+        return dictId == null ? null : get(dictId);
     }
 
     @Nullable
     @Override
-    public CompressionDictionary get(CompressionDictionary.DictId dictId)
+    public CompressionDictionary get(DictId dictId)
     {
         return cache.getIfPresent(dictId);
     }
 
     @Override
-    public void add(CompressionDictionary compressionDictionary)
+    public void add(@Nullable CompressionDictionary compressionDictionary)
     {
-        cache.put(compressionDictionary.dictId(), compressionDictionary);
-    }
-
-    @Override
-    public void setCurrentIfNewer(@Nullable CompressionDictionary dictionary)
-    {
-        if (dictionary == null)
+        if (compressionDictionary == null)
             return;
 
-        add(dictionary);
-        // Only update the current dictionary if we don't have one or the new one has a higher ID (newer)
-        CompressionDictionary current = currentDictionary.get();
-        while ((current == null || dictionary.dictId().id > current.dictId().id)
-               && !currentDictionary.compareAndSet(current, dictionary))
+        // Only update cache if not already in the cache
+        DictId newDictId = compressionDictionary.dictId();
+        cache.get(newDictId, id -> compressionDictionary);
+
+        // Update current dictionary if we don't have one or the new one has a higher ID (newer)
+        DictId currentId = currentDictId.get();
+        while ((currentId == null || newDictId.id > currentId.id)
+               && !currentDictId.compareAndSet(currentId, newDictId))
         {
-            current = currentDictionary.get();
+            currentId = currentDictId.get();
         }
     }
 
     @Override
     public synchronized void close()
     {
-        CompressionDictionary dictionary = currentDictionary.get();
+        DictId dictId = currentDictId.get();
         // Close current dictionary
-        if (dictionary != null)
+        if (dictId != null)
         {
-            try
+            CompressionDictionary dictionary = cache.getIfPresent(dictId);
+            if (dictionary != null)
             {
-                dictionary.close();
-            }
-            catch (Exception e)
-            {
-                logger.warn("Failed to close current compression dictionary", e);
+                try
+                {
+                    dictionary.close();
+                }
+                catch (Exception e)
+                {
+                    logger.warn("Failed to close current compression dictionary", e);
+                }
             }
         }
-        currentDictionary.set(null);
+        currentDictId.set(null);
 
         // Invalidate cache - this will trigger removalListener to close all cached dictionaries
         cache.invalidateAll();

@@ -179,15 +179,9 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public void add(CompressionDictionary compressionDictionary)
+    public void add(@Nullable CompressionDictionary compressionDictionary)
     {
         cache.add(compressionDictionary);
-    }
-
-    @Override
-    public void setCurrentIfNewer(@Nullable CompressionDictionary dictionary)
-    {
-        cache.setCurrentIfNewer(dictionary);
     }
 
     @Override
@@ -286,7 +280,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, dictionary);
-        cache.setCurrentIfNewer(dictionary);
+        cache.add(dictionary);
     }
 
     /**
