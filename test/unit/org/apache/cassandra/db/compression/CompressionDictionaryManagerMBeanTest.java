@@ -135,4 +135,21 @@ public class CompressionDictionaryManagerMBeanTest
         .as("MBean should be unregistered after CFS invalidation")
         .isFalse();
     }
+
+    @Test
+    public void testMBeanStatisticsMethods()
+    {
+        // Create manager with bookkeeping enabled
+        try (CompressionDictionaryManager manager = new CompressionDictionaryManager(cfsWithDict, true))
+        {
+            // Test statistics methods directly on the manager (which implements the MBean interface)
+            assertThat(manager.getSampleCount())
+            .as("Sample count should be non-negative")
+            .isGreaterThanOrEqualTo(0);
+
+            assertThat(manager.getTotalSampleSize())
+            .as("Total sample size should be non-negative")
+            .isGreaterThanOrEqualTo(0);
+        }
+    }
 }

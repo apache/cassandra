@@ -293,6 +293,18 @@ public class CompressionDictionarySchedulerTest
             // not used in test
         }
 
+        @Override
+        public long getSampleCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public long getTotalSampleSize()
+        {
+            return 0;
+        }
+
         // Test helper methods
         public void setReady(boolean ready)
         {

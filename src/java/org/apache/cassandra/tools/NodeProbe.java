@@ -2724,6 +2724,32 @@ public class NodeProbe implements AutoCloseable
         getDictionaryManagerProxy(keyspace, table).updateSamplingRate(samplingRate);
     }
 
+    /**
+     * Gets the number of samples collected so far during compression dictionary training.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the number of samples collected
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public long getCompressionDictionaryTrainingSampleCount(String keyspace, String table) throws IOException
+    {
+        return getDictionaryManagerProxy(keyspace, table).getSampleCount();
+    }
+
+    /**
+     * Gets the total size of samples collected so far during compression dictionary training.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the total sample size in bytes
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public long getCompressionDictionaryTrainingTotalSampleSize(String keyspace, String table) throws IOException
+    {
+        return getDictionaryManagerProxy(keyspace, table).getTotalSampleSize();
+    }
+
     private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
     {
         // Construct table-specific MBean name

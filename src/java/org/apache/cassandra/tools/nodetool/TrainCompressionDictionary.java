@@ -117,7 +117,7 @@ public class TrainCompressionDictionary extends AbstractCommand
                         "with this command to have chunk available for sampling)");
             long maxWaitMillis = TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds + 300); // Add 5 minutes for training
             long startTime = System.currentTimeMillis();
-            
+
             while (System.currentTimeMillis() - startTime < maxWaitMillis)
             {
                 String statusStr = probe.getCompressionDictionaryTrainingStatus(keyspace, table);
@@ -133,7 +133,14 @@ public class TrainCompressionDictionary extends AbstractCommand
                     System.exit(1);
                 }
 
-                out.print('.');
+                // Display meaningful statistics
+                long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
+                long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
+                long elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000;
+                double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
+
+                out.printf("\rStatus: %s | Samples: %d | Size: %.2f MiB | Elapsed: %ds",
+                           status, sampleCount, sampleSizeMB, elapsedSeconds);
 
                 Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
             }
@@ -172,9 +179,11 @@ public class TrainCompressionDictionary extends AbstractCommand
                 break;
             case SAMPLING:
                 out.printf("Trainer is collecting sample data for %s.%s%n", keyspace, table);
+                showStatistics(probe, out);
                 break;
             case TRAINING:
                 out.printf("Training is in progress for %s.%s%n", keyspace, table);
+                showStatistics(probe, out);
                 break;
             case COMPLETED:
                 out.printf("Training is completed for %s.%s%n", keyspace, table);
@@ -184,6 +193,23 @@ public class TrainCompressionDictionary extends AbstractCommand
                 break;
             default:
                 err.printf("Encountered unexpected training status for %s.%s: %s%n", keyspace, table, status);
+        }
+    }
+
+    private void showStatistics(NodeProbe probe, PrintStream out)
+    {
+        try
+        {
+            long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
+            long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
+            double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
+
+            out.printf("  Samples collected: %d%n", sampleCount);
+            out.printf("  Total sample size: %.2f MiB%n", sampleSizeMB);
+        }
+        catch (Exception e)
+        {
+            out.printf("  Unable to retrieve training statistics: %s%n", e.getMessage());
         }
     }
 }

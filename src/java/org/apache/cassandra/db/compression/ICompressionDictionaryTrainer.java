@@ -126,6 +126,20 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     void updateSamplingRate(int newSamplingRate);
 
     /**
+     * Gets the number of samples collected so far during training.
+     *
+     * @return the number of samples collected, or 0 if training hasn't started
+     */
+    long getSampleCount();
+
+    /**
+     * Gets the total size of samples collected so far during training.
+     *
+     * @return the total sample size in bytes, or 0 if training hasn't started
+     */
+    long getTotalSampleSize();
+
+    /**
      * Factory method to create appropriate trainer based on compression parameters.
      *
      * @param keyspaceName the keyspace name for logging

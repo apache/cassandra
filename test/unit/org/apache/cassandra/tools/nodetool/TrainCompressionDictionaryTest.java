@@ -344,4 +344,32 @@ public class TrainCompressionDictionaryTest extends CQLTester
               .failure()
               .errorContains("Invalid value for sampling-rate: -0.5. Must be in range (0, 1]");
     }
+
+    @Test
+    public void testStatusWithStatistics()
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+
+        // Add data and flush to make samples available
+        for (int i = 0; i < 50; i++)
+        {
+            execute("INSERT INTO %s (id, data) VALUES (?, ?)", i, "Sample data for statistics test " + i);
+        }
+        flush(keyspace());
+
+        // Start training asynchronously
+        invokeNodetool("traincompressiondictionary", "--async", keyspace(), table)
+        .assertOnCleanExit();
+
+        // Check status - it should show statistics if sampling is in progress
+        ToolRunner.ToolResult statusResult = invokeNodetool("traincompressiondictionary",
+                                                            "--status",
+                                                            keyspace(),
+                                                            table);
+        statusResult.assertOnCleanExit();
+
+        assertThat(statusResult.getStdout())
+        .as("Should show training status")
+        .contains("Samples collected:", "Total sample size:");
+    }
 }

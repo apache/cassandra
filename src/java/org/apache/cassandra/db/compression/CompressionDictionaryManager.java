@@ -239,6 +239,20 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         dictionaryTrainer.updateSamplingRate(samplingRate);
     }
 
+    @Override
+    public long getSampleCount()
+    {
+        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
+        return dictionaryTrainer != null ? dictionaryTrainer.getSampleCount() : 0;
+    }
+
+    @Override
+    public long getTotalSampleSize()
+    {
+        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
+        return dictionaryTrainer != null ? dictionaryTrainer.getTotalSampleSize() : 0;
+    }
+
     /**
      * Close all the resources. The method can be called multiple times.
      */

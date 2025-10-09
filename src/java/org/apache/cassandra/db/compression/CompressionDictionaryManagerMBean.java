@@ -49,4 +49,18 @@ public interface CompressionDictionaryManagerMBean
      * @throws IllegalArgumentException if sampling rate is invalid or trainer is not available
      */
     void updateSamplingRate(int samplingRate);
+
+    /**
+     * Gets the number of samples collected so far during training.
+     *
+     * @return the number of samples collected, or 0 if training hasn't started
+     */
+    long getSampleCount();
+
+    /**
+     * Gets the total size of samples collected so far during training.
+     *
+     * @return the total sample size in bytes, or 0 if training hasn't started
+     */
+    long getTotalSampleSize();
 }

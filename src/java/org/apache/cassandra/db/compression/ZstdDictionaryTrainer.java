@@ -321,10 +321,16 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         return combined;
     }
 
-    @VisibleForTesting
-    long getSampleCount()
+    @Override
+    public long getSampleCount()
     {
         return sampleCount.get();
+    }
+
+    @Override
+    public long getTotalSampleSize()
+    {
+        return totalSampleSize.get();
     }
 
     @VisibleForTesting

@@ -639,4 +639,47 @@ public class ZstdDictionaryTrainerTest
             trainer.addSample(sample);
         }
     }
+
+    @Test
+    public void testStatisticsMethods()
+    {
+        assertThat(trainer.getSampleCount())
+        .as("Initial sample count should be 0")
+        .isEqualTo(0);
+
+        assertThat(trainer.getTotalSampleSize())
+        .as("Initial total sample size should be 0")
+        .isEqualTo(0);
+
+        // Start training
+        trainer.start(true);
+
+        // Add some samples
+        byte[] sampleBytes = SAMPLE_DATA.getBytes();
+        int sampleSize = sampleBytes.length;
+        int numSamples = 5;
+
+        for (int i = 0; i < numSamples; i++)
+        {
+            trainer.addSample(ByteBuffer.wrap(sampleBytes));
+        }
+
+        assertThat(trainer.getSampleCount())
+        .as("Sample count should be updated after adding samples")
+        .isEqualTo(numSamples);
+
+        assertThat(trainer.getTotalSampleSize())
+        .as("Total sample size should match number of samples times sample size")
+        .isEqualTo((long) numSamples * sampleSize);
+
+        trainer.reset();
+
+        assertThat(trainer.getSampleCount())
+        .as("Sample count should be 0 after reset")
+        .isEqualTo(0);
+
+        assertThat(trainer.getTotalSampleSize())
+        .as("Total sample size should be 0 after reset")
+        .isEqualTo(0);
+    }
 }
