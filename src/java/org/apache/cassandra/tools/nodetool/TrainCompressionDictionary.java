@@ -26,7 +26,9 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.db.compression.ManualTrainingOptions;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -43,7 +45,7 @@ public class TrainCompressionDictionary extends AbstractCommand
     private String table;
 
     @Option(names = {"-d", "--max-sampling-duration"},
-    description = "Maximum time to collect samples before training dictionary (default: 600 seconds)")
+    description = "Maximum time to collect samples before training dictionary, in seconds. (default: 600)")
     private int maxSamplingDurationSeconds = 600;
 
     @Option(names = {"-r", "--sampling-rate"},
@@ -192,44 +194,46 @@ public class TrainCompressionDictionary extends AbstractCommand
         }
 
         TrainingStatus status = TrainingStatus.valueOf(statusStr);
+
         switch (status)
         {
             case NOT_STARTED:
-                out.printf("Trainer is not running for %s.%s%n", keyspace, table);
-                break;
             case SAMPLING:
-                out.printf("Trainer is collecting sample data for %s.%s%n", keyspace, table);
-                showStatistics(probe, out);
-                break;
             case TRAINING:
-                out.printf("Training is in progress for %s.%s%n", keyspace, table);
-                showStatistics(probe, out);
-                break;
             case COMPLETED:
-                out.printf("Training is completed for %s.%s%n", keyspace, table);
+                showStatistics(probe, out, status);
                 break;
             case FAILED:
-                err.printf("Training failed for %s.%s%n", keyspace, table);
+                showStatistics(probe, err, status);
                 break;
             default:
                 err.printf("Encountered unexpected training status for %s.%s: %s%n", keyspace, table, status);
         }
     }
 
-    private void showStatistics(NodeProbe probe, PrintStream out)
+    private void showStatistics(NodeProbe probe, PrintStream out, TrainingStatus status)
     {
         try
         {
-            long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
-            long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
-            double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
+            TableBuilder tableBuilder = new TableBuilder();
+            tableBuilder.add("keyspace", keyspace);
+            tableBuilder.add("table", table);
+            tableBuilder.add("status", status.name());
 
-            out.printf("  Samples collected: %d%n", sampleCount);
-            out.printf("  Total sample size: %.2f MiB%n", sampleSizeMB);
+            if (status == TrainingStatus.SAMPLING || status == TrainingStatus.TRAINING)
+            {
+                long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
+                long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
+
+                tableBuilder.add("samples collected", String.format("%d", sampleCount));
+                tableBuilder.add("total sample size", FileUtils.stringifyFileSize(totalSampleSize));
+            }
+
+            tableBuilder.printTo(out);
         }
         catch (Exception e)
         {
-            out.printf("  Unable to retrieve training statistics: %s%n", e.getMessage());
+            out.printf("Unable to retrieve training statistics: %s%n", e.getMessage());
         }
     }
 }
