@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.db.compression.ManualTrainingOptions;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.utils.Clock;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -135,9 +136,9 @@ public class TrainCompressionDictionary extends AbstractCommand
                             "with this command to have chunk available for sampling)");
             }
             long maxWaitMillis = TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds + 300); // Add 5 minutes for training
-            long startTime = System.currentTimeMillis();
+            long startTime = Clock.Global.currentTimeMillis();
 
-            while (System.currentTimeMillis() - startTime < maxWaitMillis)
+            while (Clock.Global.currentTimeMillis() - startTime < maxWaitMillis)
             {
                 String statusStr = probe.getCompressionDictionaryTrainingStatus(keyspace, table);
                 TrainingStatus status = TrainingStatus.valueOf(statusStr);
@@ -155,7 +156,7 @@ public class TrainCompressionDictionary extends AbstractCommand
                 // Display meaningful statistics
                 long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
                 long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
-                long elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000;
+                long elapsedSeconds = (Clock.Global.currentTimeMillis() - startTime) / 1000;
                 double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
 
                 out.printf("\rStatus: %s | Samples: %d | Size: %.2f MiB | Elapsed: %ds",
