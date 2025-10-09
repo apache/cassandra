@@ -224,7 +224,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                            cancelManualTraining();
                            if (throwable != null)
                            {
-                               logger.error("Manual dictionary training failed for {}.{}", keyspaceName, tableName, throwable);
+                               logger.error("Manual dictionary training failed for {}.{}: {}", keyspaceName, tableName, throwable.getMessage());
                            }
                            else
                            {
