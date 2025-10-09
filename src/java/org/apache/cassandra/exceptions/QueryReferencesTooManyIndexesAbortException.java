@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
 import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class QueryReferencesTooManyIndexesAbortException extends ReadAbortException
@@ -33,5 +37,39 @@ public class QueryReferencesTooManyIndexesAbortException extends ReadAbortExcept
         super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
         this.nodes = nodes;
         this.maxValue = maxValue;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        // Serialize parent fields first
+        super.serializeSpecificFields(out, version);
+        // Add QueryReferencesTooManyIndexesAbortException specific fields
+        out.writeUnsignedVInt32(nodes);
+        out.writeUnsignedVInt(maxValue);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return super.serializedSizeSpecificFields(version) +
+               TypeSizes.sizeofUnsignedVInt(nodes) +
+               TypeSizes.sizeofUnsignedVInt(maxValue);
+    }
+
+    static QueryReferencesTooManyIndexesAbortException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ReadFailureException.DeserializedFields fields = ReadFailureException.deserializeBaseFields(in, version);
+        int nodes = in.readUnsignedVInt32();
+        long maxValue = in.readUnsignedVInt();
+
+        return new QueryReferencesTooManyIndexesAbortException(message, nodes, maxValue, fields.dataPresent,
+                                                               fields.consistency, fields.received, fields.blockFor, fields.failures);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.QUERY_TOO_MANY_INDEXES_ABORT;
     }
 }

@@ -57,7 +57,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -569,7 +568,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
             if (key == null)
             {
                 key = statement.metadata().partitioner.decorateKey(pks.get(0));
-                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow, requestTime);
+                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow);
             }
             else if (!key.getKey().equals(pks.get(0)))
             {
@@ -590,11 +589,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                 if (slices.isEmpty())
                     continue;
 
-                for (Slice slice : slices)
-                {
-                    casRequest.addRangeDeletion(slice, statement, statementOptions, timestamp, nowInSeconds);
-                }
-
+                casRequest.addWriteFragment(statement, statementOptions, state.getClientState(), nowInSeconds);
             }
             else
             {
@@ -608,7 +603,8 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                     else if (columnsWithConditions != null)
                         Iterables.addAll(columnsWithConditions, statement.getColumnsWithConditions());
                 }
-                casRequest.addRowUpdate(clustering, statement, statementOptions, timestamp, nowInSeconds);
+
+                casRequest.addWriteFragment(statement, statementOptions, state.getClientState(), nowInSeconds);
             }
         }
 

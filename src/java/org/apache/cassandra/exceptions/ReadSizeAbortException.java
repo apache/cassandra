@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
 import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class ReadSizeAbortException extends ReadAbortException
@@ -28,5 +30,17 @@ public class ReadSizeAbortException extends ReadAbortException
     public ReadSizeAbortException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
         super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
+    }
+
+    static ReadSizeAbortException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ReadFailureException.DeserializedFields fields = ReadFailureException.deserializeBaseFields(in, version);
+        return new ReadSizeAbortException(message, fields.consistency, fields.received, fields.blockFor, fields.dataPresent, fields.failures);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.READ_SIZE_ABORT;
     }
 }

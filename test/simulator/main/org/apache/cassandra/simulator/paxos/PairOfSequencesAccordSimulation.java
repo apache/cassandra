@@ -55,6 +55,7 @@ import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
+import org.apache.cassandra.simulator.cluster.ReplicationConfig;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 
@@ -134,14 +135,16 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
                                            int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
                                            ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
                                            long seed, int[] primaryKeys,
-                                           long runForNanos, LongSupplier jitter)
+                                           long runForNanos, LongSupplier jitter,
+                                           ReplicationConfig replicationConfig)
     {
         super(simulated, cluster, clusterOptions,
               readRatio, concurrency, simulateKeyForSeconds, withinKeyConcurrency,
               serialConsistency,
               scheduler, debug,
               seed, primaryKeys,
-              runForNanos, jitter);
+              runForNanos, jitter,
+              replicationConfig);
         this.transactionalMode = transactionalMode;
         this.writeRatio = 1F - readRatio;
         HistoryValidator validator = new StrictSerializabilityValidator(primaryKeys);

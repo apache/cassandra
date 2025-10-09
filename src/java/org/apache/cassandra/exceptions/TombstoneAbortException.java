@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
 import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class TombstoneAbortException extends ReadAbortException
@@ -35,5 +39,39 @@ public class TombstoneAbortException extends ReadAbortException
         super(message, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
         this.nodes = nodes;
         this.tombstones = tombstones;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        // Serialize parent fields first
+        super.serializeSpecificFields(out, version);
+        // Add TombstoneAbortException specific fields
+        out.writeUnsignedVInt32(nodes);
+        out.writeUnsignedVInt(tombstones);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return super.serializedSizeSpecificFields(version) +
+               TypeSizes.sizeofUnsignedVInt(nodes) +
+               TypeSizes.sizeofUnsignedVInt(tombstones);
+    }
+
+    static TombstoneAbortException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ReadFailureException.DeserializedFields fields = ReadFailureException.deserializeBaseFields(in, version);
+        int nodes = in.readUnsignedVInt32();
+        long tombstones = in.readUnsignedVInt();
+
+        return new TombstoneAbortException(message, nodes, tombstones, fields.dataPresent,
+                                          fields.consistency, fields.received, fields.blockFor, fields.failures);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.TOMBSTONE_ABORT;
     }
 }

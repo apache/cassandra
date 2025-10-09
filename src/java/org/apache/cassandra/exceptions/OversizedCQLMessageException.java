@@ -24,4 +24,10 @@ public class OversizedCQLMessageException extends InvalidRequestException
     {
         super(message);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.OVERSIZED_MESSAGE;
+    }
 }

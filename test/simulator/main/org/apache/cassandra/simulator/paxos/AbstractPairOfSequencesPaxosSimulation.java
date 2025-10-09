@@ -53,6 +53,7 @@ import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.KeyspaceActions;
+import org.apache.cassandra.simulator.cluster.ReplicationConfig;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
@@ -88,6 +89,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
     final AtomicInteger failedWrites = new AtomicInteger();
     final long seed;
     final int[] primaryKeys;
+    final ReplicationConfig replicationConfig;
 
     public AbstractPairOfSequencesPaxosSimulation(SimulatedSystems simulated,
                                                   Cluster cluster,
@@ -96,7 +98,8 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
                                                   int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
                                                   ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
                                                   long seed, int[] primaryKeys,
-                                                  long runForNanos, LongSupplier jitter)
+                                                  long runForNanos, LongSupplier jitter,
+                                                  ReplicationConfig replicationConfig)
     {
         super(runForNanos < 0 ? STREAM_LIMITED : (clusterOptions.topologyChangeLimit <= 0 && clusterOptions.consensusChangeLimit <= 0) ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
               simulated, cluster, scheduler, runForNanos, jitter);
@@ -110,6 +113,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
         this.seed = seed;
         this.primaryKeys = primaryKeys.clone();
         Arrays.sort(this.primaryKeys);
+        this.replicationConfig = replicationConfig;
     }
 
     protected abstract String createTableStmt();
@@ -193,7 +197,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
     public ActionPlan plan()
     {
         ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, createTableStmt(), cluster,
-                                              clusterOptions, serialConsistency, this, primaryKeys, debug).plan(joinAll());
+                                              clusterOptions, serialConsistency, this, primaryKeys, debug, replicationConfig).plan(joinAll());
 
         plan = plan.encapsulate(ActionPlan.setUpTearDown(
             ActionList.of(

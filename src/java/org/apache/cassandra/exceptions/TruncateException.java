@@ -28,4 +28,10 @@ public class TruncateException extends RequestExecutionException
     {
         super(ExceptionCode.TRUNCATE_ERROR, msg);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.TRUNCATE_ERROR;
+    }
 }

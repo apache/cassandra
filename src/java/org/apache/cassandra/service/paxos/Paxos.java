@@ -21,6 +21,7 @@ package org.apache.cassandra.service.paxos;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -39,9 +40,13 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IReadResponse;
+import org.apache.cassandra.db.ReadKind;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -51,7 +56,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.IsBootstrappingException;
 import org.apache.cassandra.exceptions.ReadFailureException;
@@ -81,10 +85,10 @@ import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
@@ -96,6 +100,7 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.service.reads.tracked.TrackedDataResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -107,6 +112,8 @@ import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyMap;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -351,7 +358,7 @@ public class Paxos
     /**
      * Encapsulates the peers we will talk to for this operation.
      */
-    static class Participants implements ForRead<EndpointsForToken, Participants>
+    public static class Participants implements ForRead<EndpointsForToken, Participants>
     {
         final Keyspace keyspace;
 
@@ -497,6 +504,11 @@ public class Paxos
             return electorateLive.endpoint(i);
         }
 
+        Replica voterReplica(int i)
+        {
+            return electorateLive.get(i);
+        }
+
         void assureSufficientLiveNodes(boolean isWrite) throws UnavailableException
         {
             if (sizeOfConsensusQuorum > sizeOfPoll())
@@ -633,7 +645,9 @@ public class Paxos
             if (isFailure)
             {
                 mark(isWrite, m -> m.failures, consistency);
-                throw serverError != null ? new RequestFailureException(ExceptionCode.SERVER_ERROR, serverError, consistency, successes, required, failures)
+                throw serverError != null ? (isWrite
+                                            ? new WriteFailureException(consistency, successes, required, WriteType.CAS, failures)
+                                            : new ReadFailureException(serverError, consistency, successes, required, false, failures, null))
                                           : isWrite
                                             ? new WriteFailureException(consistency, successes, required, WriteType.CAS, failures)
                                             : new ReadFailureException(consistency, successes, required, false, failures);
@@ -704,7 +718,7 @@ public class Paxos
      * (since, if the CAS doesn't succeed, it means the current value do not match the conditions).
      */
     public static ConsensusAttemptResult cas(DecoratedKey partitionKey,
-                                             CASRequest request,
+                                             CQL3CasRequest request,
                                              ConsistencyLevel consistencyForConsensus,
                                              ConsistencyLevel consistencyForCommit,
                                              ClientState clientState,
@@ -750,6 +764,7 @@ public class Paxos
 
                 Proposal proposal;
                 boolean conditionMet = request.appliesTo(current);
+
                 if (!conditionMet)
                 {
                     if (getPaxosVariant() == v2_without_linearizable_reads_or_rejected_writes)
@@ -821,7 +836,7 @@ public class Paxos
                         // no need to commit a no-op; either it
                         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
                         //   2) did not reach a majority, was not agreed, and was not user visible as a result so we can ignore it
-                        if (!proposal.update.isEmpty())
+                        if (!proposal.isEmpty())
                             commit = commit(proposal.agreed(), participants, consistencyForConsensus, consistencyForCommit, true);
 
                         break done;
@@ -1123,15 +1138,43 @@ public class Paxos
                     PaxosPrepare.Success success = prepare.success();
 
                     Supplier<Participants> plan = () -> success.participants;
-                    DataResolver<?, ?> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, plan, NoopReadRepair.instance, requestTime);
-                    for (int i = 0 ; i < success.responses.size() ; ++i)
-                        resolver.preprocess(success.responses.get(i));
+                    List<Message<IReadResponse>> responses = success.responses;
 
-                    class WasRun implements Runnable { boolean v; public void run() { v = true; } }
-                    WasRun hadShortRead = new WasRun();
-                    PartitionIterator result = resolver.resolve(hadShortRead);
+                    // There should be only a single response from the coordinator that was selected to do the tracked read
+                    boolean isTracked = responses.get(0).payload.kind().isTracked();
 
-                    if (!isPromised && hadShortRead.v)
+                    PartitionIterator result = null;
+                    boolean hadShortRead = false;
+                    if (isTracked)
+                    {
+                        for (Message<IReadResponse> response : responses)
+                        {
+                            if (response.payload.kind() == ReadKind.TRACKED_DATA)
+                            {
+                                result = ((TrackedDataResponse) response.payload).makeIterator(query);
+                                break;
+                            }
+                        }
+                        checkState(result != null, "Should have found a data response");
+                    }
+                    else
+                    {
+                        DataResolver<EndpointsForToken, Participants> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, plan, NoopReadRepair.instance, requestTime);
+
+                        for (int i = 0 ; i < responses.size() ; ++i)
+                        {
+                            Message<IReadResponse> message = responses.get(i);
+                            resolver.preprocess(message.withPayload((ReadResponse)message.payload));
+                        }
+
+                        // SERIAL supports partition range reads which can result in short reads
+                        class WasRun implements Runnable { boolean v; public void run() { v = true; } }
+                        WasRun hadShortReadRunnable = new WasRun();
+                        result = resolver.resolve(hadShortReadRunnable);
+                        hadShortRead = hadShortReadRunnable.v;
+                    }
+
+                    if (!isPromised && hadShortRead)
                     {
                         // we need to propose an empty update to linearize our short read, but only had read success
                         // since we may continue to perform short reads, we ask our prepare not to accept an early
@@ -1141,7 +1184,7 @@ public class Paxos
                         break;
                     }
 
-                    return new BeginResult(success.ballot, success.participants, failedAttemptsDueToContention, result, !hadShortRead.v && success.isReadSafe, isPromised, success.supersededBy, false);
+                    return new BeginResult(success.ballot, success.participants, failedAttemptsDueToContention, result, !hadShortRead && success.isReadSafe, isPromised, success.supersededBy, false);
                 }
 
                 case MAYBE_FAILURE:
@@ -1168,7 +1211,7 @@ public class Paxos
         }
     }
 
-    public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)
+    public static boolean isInRangeAndShouldProcess(DecoratedKey key, TableMetadata table, boolean includesRead)
     {
         Keyspace keyspace = Keyspace.open(table.keyspace);
         // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
@@ -1322,7 +1365,7 @@ public class Paxos
 
     public static void setPaxosVariant(Config.PaxosVariant paxosVariant)
     {
-        Preconditions.checkNotNull(paxosVariant);
+        checkNotNull(paxosVariant);
         PAXOS_VARIANT = paxosVariant;
         DatabaseDescriptor.setPaxosVariant(paxosVariant);
     }

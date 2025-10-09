@@ -53,6 +53,30 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class CollectionSerializers
 {
+    /**
+     * A simple UTF-8 string serializer for use with collection serialization methods.
+     */
+    public static final IVersionedSerializer<String> STRING_SERIALIZER = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(String str, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUTF(str);
+        }
+
+        @Override
+        public String deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return in.readUTF();
+        }
+
+        @Override
+        public long serializedSize(String str, int version)
+        {
+            return org.apache.cassandra.db.TypeSizes.sizeof(str);
+        }
+    };
+
     public static <V> void serializeCollection(Collection<V> values, DataOutputPlus out, UnversionedSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(values.size());

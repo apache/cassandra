@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.simulator.test;
 
-import java.io.IOException;
-
 import org.junit.Test;
 
 import org.apache.cassandra.simulator.paxos.AccordSimulationRunner;
@@ -94,8 +92,13 @@ import org.apache.cassandra.simulator.paxos.AccordSimulationRunner;
 public class ShortAccordSimulationTest
 {
     @Test
-    public void simulationTest() throws IOException
+    public void simulationTest()
     {
-        AccordSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "--cluster-action-limit", "-1", "-c", "2", "-s", "30"});
+        AccordSimulationRunner.executeWithExceptionThrowing(new String[]{ "run",
+                                                                          "-n", "3..6",
+                                                                          "-t", "1000",
+                                                                          "--cluster-action-limit", "-1",
+                                                                          "-c", "2",
+                                                                          "-s", "30" });
     }
 }

@@ -50,6 +50,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.MAP;
@@ -303,9 +304,11 @@ public class TxnReferenceOperation
             size += columnMetadataSerializer.serializedSize(operation.receiver, operation.table);
             size += TxnReferenceValue.serializer.serializedSize(operation.value, tables);
 
+            size += TypeSizes.BOOL_SIZE; // for operation.key != null boolean
             if (operation.key != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.key);
 
+            size += TypeSizes.BOOL_SIZE; // for operation.field != null boolean
             if (operation.field != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.field);
 

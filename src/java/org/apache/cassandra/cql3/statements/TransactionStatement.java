@@ -344,13 +344,13 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new Keys(keySet);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector, long nowInSeconds)
     {
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx, state, options, keyCollector);
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx, state, options, keyCollector, nowInSeconds);
             minEpoch = Math.max(minEpoch, fragment.baseUpdate.metadata().epoch.getEpoch());
             fragments.add(fragment);
 
@@ -466,7 +466,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         else
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
-            List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector);
+            long nowInSeconds = options.getNowInSec(FBUtilities.nowInSeconds());
+            List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector, nowInSeconds);
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
             Keys keys = keyCollector.build();

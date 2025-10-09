@@ -31,5 +31,20 @@ import org.apache.cassandra.service.ClientState;
 public interface UpdatesCollector
 {
     PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency);
-    List<IMutation> toMutations(ClientState state, PotentialTxnConflicts allowPotentialTxnConflicts);
+
+    /**
+     * Builds mutations from the collected updates.
+     *
+     * @param state the client state
+     * @param allowPotentialTxnConflicts whether to allow potential transaction conflicts
+     * @param skipIndexValidation if true, skip index validation (used for CAS/transaction paths
+     *                            where validation happens later on the final materialized values)
+     * @return the list of mutations
+     */
+    List<IMutation> toMutations(ClientState state, PotentialTxnConflicts allowPotentialTxnConflicts, boolean skipIndexValidation);
+
+    default List<IMutation> toMutations(ClientState state, PotentialTxnConflicts allowPotentialTxnConflicts)
+    {
+        return toMutations(state, allowPotentialTxnConflicts, false);
+    }
 }

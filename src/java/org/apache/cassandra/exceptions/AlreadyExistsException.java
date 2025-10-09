@@ -17,6 +17,12 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
 public class AlreadyExistsException extends ConfigurationException
 {
     public final String ksName;
@@ -39,4 +45,29 @@ public class AlreadyExistsException extends ConfigurationException
         this(ksName, "", String.format("Cannot add existing keyspace \"%s\"", ksName));
     }
 
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        out.writeUTF(ksName);
+        out.writeUTF(cfName);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.sizeof(ksName) + TypeSizes.sizeof(cfName);
+    }
+
+    static AlreadyExistsException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        String ksName = in.readUTF();
+        String cfName = in.readUTF();
+        return new AlreadyExistsException(ksName, cfName, message);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.ALREADY_EXISTS;
+    }
 }

@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.io;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface UnversionedSerializer<T> extends AsymmetricUnversionedSerializer<T, T>
 {
 }

@@ -755,8 +755,6 @@ public class ReplicaPlans
 
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace, tk);
 
-        Replicas.temporaryAssertFull(liveAndDown.all()); // TODO CASSANDRA-14547
-
         if (consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL)
         {
             // TODO: we should cleanup our semantics here, as we're filtering ALL nodes to localDC which is unexpected for ReplicaPlan

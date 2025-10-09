@@ -42,6 +42,7 @@ import org.apache.cassandra.simulator.ActionListener;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
+import org.apache.cassandra.simulator.cluster.ReplicationConfig;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -164,14 +165,16 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
                                           int concurrency, IntRange simulateKeyForSeconds, IntRange withinKeyConcurrency,
                                           ConsistencyLevel serialConsistency, RunnableActionScheduler scheduler, Debug debug,
                                           long seed, int[] primaryKeys,
-                                          long runForNanos, LongSupplier jitter)
+                                          long runForNanos, LongSupplier jitter,
+                                          ReplicationConfig replicationConfig)
     {
         super(simulated, cluster, clusterOptions,
               readRatio, concurrency, simulateKeyForSeconds, withinKeyConcurrency,
               serialConsistency,
               scheduler, debug,
               seed, primaryKeys,
-              runForNanos, jitter);
+              runForNanos, jitter,
+              replicationConfig);
         this.transactionalMode = transactionalMode;
     }
 

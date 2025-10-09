@@ -66,6 +66,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONO
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_CONSENSUS_REQUEST_FORWARDING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
@@ -271,6 +272,12 @@ public class SimulationRunner
         @Option(names = { "--transactional-mode" }, description = { "Starting transactional mode for the created table", "[off|mixed_reads|full]" })
         protected String transactionalMode;
 
+        @Option(names = { "--replication-config" }, description = { "Replication configuration for the keyspace", "[simple|tracking|witnesses]" })
+        protected String replicationConfig;
+
+        @Option(names = { "--disable-consensus-forwarding" }, description = "Disable top-level CAS/consensus read forwarding")
+        protected boolean disableConsensusForwarding;
+
         protected void propagate(B builder)
         {
             checkArgumentAllowed(debugRf, 0, 1, 2);
@@ -347,6 +354,10 @@ public class SimulationRunner
             }
 
             Optional.ofNullable(transactionalMode).ifPresent(builder::transactionalMode);
+            Optional.ofNullable(replicationConfig).ifPresent(builder::replicationConfig);
+
+            if (disableConsensusForwarding)
+                DISABLE_CONSENSUS_REQUEST_FORWARDING.setBoolean(true);
         }
 
         @Override
@@ -498,6 +509,8 @@ public class SimulationRunner
 
     public static void checkArgumentAllowed(List<Integer> values, int... allowed)
     {
+        if (values == null || values.isEmpty())
+            return;
         values.forEach(v -> checkArgumentAllowed(v, allowed));
     }
 

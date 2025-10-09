@@ -29,6 +29,8 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -42,6 +44,7 @@ import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -71,6 +74,7 @@ public class PaxosRows
     private static final ColumnMetadata COMMIT = paxosColumn("most_recent_commit_at", TimeUUIDType.instance);
     private static final ColumnMetadata COMMIT_UPDATE = paxosColumn("most_recent_commit", BytesType.instance);
     private static final ColumnMetadata COMMIT_VERSION = paxosColumn("most_recent_commit_version", Int32Type.instance);
+    private static final ColumnMetadata COMMIT_MUTATION_ID = paxosColumn("most_recent_commit_mutation_id", BytesType.instance);
 
     private PaxosRows() {}
 
@@ -118,9 +122,22 @@ public class PaxosRows
 
         int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_40);
         PartitionUpdate update = getUpdate(row, COMMIT_UPDATE, version);
-        if (overrideTtlSeconds > 0) return new CommittedWithTTL(ballot, update, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
-        else if (ballotCell.isExpiring()) return new CommittedWithTTL(ballot, update, ballotCell.localDeletionTime());
-        else return new Committed(ballot, update);
+
+        // Read mutation ID if present
+        MutationId mutationId = getMutationId(row);
+        Mutation mutation = new Mutation(mutationId, update, PotentialTxnConflicts.ALLOW);
+
+        if (overrideTtlSeconds > 0) return new CommittedWithTTL(ballot, mutation, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
+        else if (ballotCell.isExpiring()) return new CommittedWithTTL(ballot, mutation, ballotCell.localDeletionTime());
+        else return new Committed(ballot, mutation);
+    }
+
+    private static MutationId getMutationId(Row row)
+    {
+        Cell cell = row.getCell(COMMIT_MUTATION_ID);
+        if (cell == null)
+            return MutationId.none();
+        return MutationId.fromByteBuffer(cell.buffer().duplicate());
     }
 
     public static TableId getTableId(Row row)

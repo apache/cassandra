@@ -48,17 +48,22 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.Dispatcher.RequestTime;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.db.ReadKind.TRACKED_DATA;
+import static org.apache.cassandra.db.ReadKind.TRACKED_SUMMARY;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
 public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
@@ -419,7 +424,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         };
     }
 
-    public abstract static class Request
+    public abstract static class Request implements EmbeddableSinglePartitionReadCommand
     {
         public final Id readId;
         public final ReadCommand command;
@@ -434,7 +439,23 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             this.summaryNodes = summaryNodes;
         }
 
+        @Override
+        public TableMetadata metadata()
+        {
+            return command.metadata();
+        }
+
+        @Override
+        public DecoratedKey partitionKey()
+        {
+            // The command could be a PartitionRangeRead in which case nothing should call partitionKey
+            // If something does it will generate a ClassCastException which is an acceptable way to signal the error
+            return ((SinglePartitionReadCommand)command).partitionKey();
+        }
+
         public abstract void executeLocally(Message<? extends Request> message, ClusterMetadata metadata);
+
+        public abstract Future<? extends IReadResponse> executeLocally(Request request, ClusterMetadata metadata, RequestTime requestTime);
     }
 
     public static class DataRequest extends Request
@@ -450,6 +471,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
+            // TODO This is 1000% the wrong deadline?
             Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(message.createdAtNanos());
             AsyncPromise<TrackedDataResponse> promise =
                 MutationTrackingService.instance
@@ -464,6 +486,14 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 }
                 MessagingService.instance().send(message.responseWith(response), message.from());
             });
+        }
+
+        @Override
+        public Future<? extends IReadResponse> executeLocally(Request request, ClusterMetadata metadata, RequestTime requestTime)
+        {
+            return MutationTrackingService.instance
+                                          .localReads()
+                                          .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, TrackedLocalReads.Completer.DEFAULT);
         }
 
         public static final IVersionedSerializer<DataRequest> serializer = new IVersionedSerializer<>()
@@ -504,9 +534,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                        TypeSizes.sizeof(request.consistencyLevel.code);
             }
         };
+
+        @Override
+        public ReadKind kind()
+        {
+            return TRACKED_DATA;
+        }
     }
 
-    public static class SummaryRequest extends Request
+    public static class SummaryRequest extends Request implements EmbeddableSinglePartitionReadCommand
     {
         public SummaryRequest(Id readId, ReadCommand command, int dataNode, int[] summaryNodes)
         {
@@ -517,6 +553,13 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
             ReadReconciliations.instance.handleSummaryRequest((SummaryRequest) message.payload);
+        }
+
+        @Override
+        public Future<? extends IReadResponse> executeLocally(Request request, ClusterMetadata metadata, RequestTime requestTime)
+        {
+            ReadReconciliations.instance.handleSummaryRequest((SummaryRequest) request);
+            return ImmediateFuture.success(null);
         }
 
         public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()
@@ -554,6 +597,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                        ((long) TypeSizes.INT_SIZE * request.summaryNodes.length);
             }
         };
+
+        @Override
+        public ReadKind kind()
+        {
+            return TRACKED_SUMMARY;
+        }
     }
 
     public static final IVerbHandler<Request> verbHandler = new AbstractReadCommandVerbHandler<>()

@@ -28,4 +28,10 @@ public class AuthenticationException extends RequestValidationException
     {
         super(ExceptionCode.BAD_CREDENTIALS, msg, e);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.BAD_CREDENTIALS;
+    }
 }

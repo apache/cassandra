@@ -34,7 +34,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -54,11 +53,10 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * Tests short read protection, the mechanism that ensures distributed queries at read consistency levels > ONE/LOCAL_ONE
+ * Base class for testing short read protection, the mechanism that ensures distributed queries at read consistency levels > ONE/LOCAL_ONE
  * avoid short reads that might happen when a limit is used and reconciliation accepts less rows than such limit.
  */
-@RunWith(Parameterized.class)
-public class ShortReadProtectionTest extends TestBaseImpl
+public abstract class ShortReadProtectionTestBase extends TestBaseImpl
 {
     private static final int NUM_NODES = 3;
     private static final int[] PAGE_SIZES = new int[]{ 1, 10 };
@@ -88,21 +86,22 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Parameterized.Parameter(3)
     public TransactionalMode transactionalMode;
 
-    @Parameterized.Parameter(4)
-    public ReplicationType replicationType;
-
-    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}, transactionalMode={3}, replication={4}")
+    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}, transactionalMode={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (TransactionalMode mode : ImmutableList.of(TransactionalMode.test_interop_read, TransactionalMode.off))
             for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
                 for (boolean flush : BOOLEANS)
-                        for (boolean paging : BOOLEANS)
-                            for (ReplicationType replication : ReplicationType.values())
-                                result.add(new Object[]{ readConsistencyLevel, flush, paging, mode, replication});
+                    for (boolean paging : BOOLEANS)
+                        result.add(new Object[]{ readConsistencyLevel, flush, paging, mode});
         return result;
     }
+
+    /**
+     * Returns the replication type for this test instance.
+     */
+    protected abstract ReplicationType getReplicationType();
 
     @BeforeClass
     public static void setupCluster() throws IOException
@@ -128,7 +127,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Before
     public void setupTester()
     {
-        tester = new Tester(readConsistencyLevel, flush, paging, transactionalMode, replicationType);
+        tester = new Tester(readConsistencyLevel, flush, paging, transactionalMode, getReplicationType());
     }
 
     @After

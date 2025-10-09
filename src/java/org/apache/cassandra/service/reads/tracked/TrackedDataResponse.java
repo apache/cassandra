@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadKind;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -40,7 +42,7 @@ import java.util.List;
 
 import com.google.common.base.Preconditions;
 
-public class TrackedDataResponse
+public class TrackedDataResponse implements IReadResponse
 {
     private final int serializationVersion;
     private final List<ByteBuffer> data;
@@ -169,4 +171,10 @@ public class TrackedDataResponse
             return size;
         }
     };
+
+    @Override
+    public ReadKind kind()
+    {
+        return ReadKind.TRACKED_DATA;
+    }
 }

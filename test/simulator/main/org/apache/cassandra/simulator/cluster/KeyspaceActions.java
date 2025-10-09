@@ -62,6 +62,7 @@ public class KeyspaceActions extends ClusterActions
     final String createTableCql;
     final ConsistencyLevel serialConsistency;
     final int[] primaryKeys;
+    final ReplicationConfig replicationConfig;
 
     final EnumSet<TopologyChange> topologyOps = EnumSet.noneOf(TopologyChange.class);
     final EnumSet<ConsensusChange> consensusOps = EnumSet.noneOf(ConsensusChange.class);
@@ -90,7 +91,8 @@ public class KeyspaceActions extends ClusterActions
                            ConsistencyLevel serialConsistency,
                            ClusterActionListener listener,
                            int[] primaryKeys,
-                           Debug debug)
+                           Debug debug,
+                           ReplicationConfig replicationConfig)
     {
         super(simulated, cluster, options, listener, debug);
         this.keyspace = keyspace;
@@ -98,6 +100,7 @@ public class KeyspaceActions extends ClusterActions
         this.createTableCql = createTableCql;
         this.primaryKeys = primaryKeys;
         this.serialConsistency = serialConsistency;
+        this.replicationConfig = replicationConfig;
 
         this.nodeLookup = simulated.snitch;
 
@@ -138,9 +141,12 @@ public class KeyspaceActions extends ClusterActions
     private String createKeyspaceCql(String keyspace)
     {
         String createKeyspaceCql = "CREATE KEYSPACE " + keyspace  + " WITH replication = {'class': 'NetworkTopologyStrategy'";
+        String[] formattedRfs = replicationConfig.formatReplicationFactorsPerDc(options.initialRf);
         for (int i = 0 ; i < options.initialRf.length ; ++i)
-            createKeyspaceCql += ", '" + snitch.nameOfDc(i) + "': " + options.initialRf[i];
-        createKeyspaceCql += "};";
+            createKeyspaceCql += ", '" + snitch.nameOfDc(i) + "': " + formattedRfs[i];
+        createKeyspaceCql += "}";
+        createKeyspaceCql += replicationConfig.asCqlKeyspaceClause();
+        createKeyspaceCql += ";";
         return createKeyspaceCql;
     }
 

@@ -98,14 +98,14 @@ public class ShortPaxosMigrationToAccordSimulationTest
     @Ignore
     public void casOnAccordSimulationTestPaxosStart() throws IOException
     {
-        PaxosSimulationRunner.main(new String[] { "run",
-                                                  "--transactional-mode", "off",
-                                                  "-n", "3..6",
-                                                  "-t", "1000",
-                                                  "--cluster-action-limit", "-1",
-                                                  "--consensus-action-limit", "1",
-                                                  "--consensus-actions", "ACCORD_MIGRATE",
-                                                  "-c", "2"});
+        PaxosSimulationRunner.executeWithExceptionThrowing(new String[]{ "run",
+                                                                         "--transactional-mode", "off",
+                                                                         "-n", "3..6",
+                                                                         "-t", "1000",
+                                                                         "--cluster-action-limit", "-1",
+                                                                         "--consensus-action-limit", "1",
+                                                                         "--consensus-actions", "ACCORD_MIGRATE",
+                                                                         "-c", "2" });
     }
 }
 

@@ -53,7 +53,7 @@ public class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> 
                                                              builder.readChance().select(random), builder.concurrency(), builder.primaryKeySeconds(), builder.withinKeyConcurrency(),
                                                              SERIAL, schedulers, builder.debug(), seed,
                                                              primaryKeys, builder.secondsToSimulate() >= 0 ? SECONDS.toNanos(builder.secondsToSimulate()) : -1,
-                                                             () -> jitter.get(random));
+                                                             () -> jitter.get(random), builder.replicationConfig());
               });
     }
 

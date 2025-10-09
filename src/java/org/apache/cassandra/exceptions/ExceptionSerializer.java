@@ -78,7 +78,7 @@ public class ExceptionSerializer
             return t.getLocalizedMessage();
     }
 
-    private static final IVersionedSerializer<StackTraceElement> stackTraceElementSerializer = new IVersionedSerializer<StackTraceElement>()
+    static final IVersionedSerializer<StackTraceElement> stackTraceElementSerializer = new IVersionedSerializer<StackTraceElement>()
     {
         @Override
         public void serialize(StackTraceElement t, DataOutputPlus out, int version) throws IOException

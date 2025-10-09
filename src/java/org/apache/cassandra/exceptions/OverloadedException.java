@@ -23,4 +23,10 @@ public class OverloadedException extends RequestExecutionException
     {
         super(ExceptionCode.OVERLOADED, reason);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.OVERLOADED;
+    }
 }

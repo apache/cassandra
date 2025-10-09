@@ -398,7 +398,8 @@ public class TokenPlacementModel
                 i++;
             }
 
-            return hasTransient ? KeyspaceParams.ntsTracked(args) : KeyspaceParams.nts(args);
+            ReplicationType replicationType = hasTransient ? ReplicationType.tracked : ReplicationType.untracked;
+            return KeyspaceParams.nts(replicationType, args);
         }
 
         private static Function<Lookup, Map<String, DCReplicas>> mapFunction(int dcs, int nodesPerDc, int transientsPerDc)
@@ -607,7 +608,9 @@ public class TokenPlacementModel
             Map<String, String> options = new HashMap<>();
             options.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
             options.put(SimpleStrategy.REPLICATION_FACTOR, dcReplicas().toString());
-            ReplicationType replicationType = dcReplicas().transientCount > 0 ? ReplicationType.tracked : ReplicationType.untracked;
+            ReplicationType replicationType = dcReplicas().transientCount > 0
+                                             ? ReplicationType.tracked
+                                             : ReplicationType.untracked;
             return KeyspaceParams.create(true, options, replicationType);
         }
 

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.simulator.test;
 
-import java.io.IOException;
-
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -97,17 +95,17 @@ public class ShortPaxosMigrationFromAccordSimulationTest
 {
     @Test
     @Ignore
-    public void casOnAccordSimulationTestAccordStart() throws IOException
+    public void casOnAccordSimulationTestAccordStart()
     {
-        PaxosSimulationRunner.main(new String[] { "run",
-                                                  "--transactional-mode", "full",
-                                                  "--seed", "0x2b091cc62b96a2eb",
-                                                  "-n", "3..6",
-                                                  "-t", "1000",
-                                                  "--cluster-action-limit", "-1",
-                                                  "--consensus-action-limit", "1",
-                                                  "--consensus-actions", "ACCORD_MIGRATE",
-                                                  "-c", "2"});
+        PaxosSimulationRunner.executeWithExceptionThrowing(new String[]{ "run",
+                                                                         "--transactional-mode", "full",
+                                                                         "--seed", "0x2b091cc62b96a2eb",
+                                                                         "-n", "3..6",
+                                                                         "-t", "1000",
+                                                                         "--cluster-action-limit", "-1",
+                                                                         "--consensus-action-limit", "1",
+                                                                         "--consensus-actions", "ACCORD_MIGRATE",
+                                                                         "-c", "2" });
     }
 }
 

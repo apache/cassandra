@@ -79,6 +79,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.paxos.Commit.Commitable;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Pair;
@@ -104,7 +105,7 @@ import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EM
  * is also a few static helper constructor methods for special cases ({@code emptyUpdate()},
  * {@code fullPartitionDelete} and {@code singleRowUpdate}).
  */
-public class PartitionUpdate extends AbstractBTreePartition
+public class PartitionUpdate extends AbstractBTreePartition implements Commitable
 {
     protected static final Logger logger = LoggerFactory.getLogger(PartitionUpdate.class);
 
@@ -614,6 +615,12 @@ public class PartitionUpdate extends AbstractBTreePartition
             return false;
 
         return super.equals(obj);
+    }
+
+    @Override
+    public CommitableKind commitableKind()
+    {
+        return CommitableKind.PARTITION_UPDATE;
     }
 
     /**

@@ -18,7 +18,13 @@
 
 package org.apache.cassandra.service.accord.exceptions;
 
+import java.io.IOException;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 
@@ -32,5 +38,36 @@ public class AccordReadExhaustedException extends ReadTimeoutException
     public AccordReadExhaustedException(int received, int blockFor, boolean dataPresent, String msg)
     {
         super(SERIAL, received, blockFor, dataPresent, msg);
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        // Only serialize the fields that vary - consistency is always SERIAL
+        out.writeUnsignedVInt32(received);
+        out.writeUnsignedVInt32(blockFor);
+        out.writeBoolean(dataPresent);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.sizeofUnsignedVInt(received) +
+               TypeSizes.sizeofUnsignedVInt(blockFor) +
+               TypeSizes.BOOL_SIZE;   // dataPresent
+    }
+
+    public static AccordReadExhaustedException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        int received = in.readUnsignedVInt32();
+        int blockFor = in.readUnsignedVInt32();
+        boolean dataPresent = in.readBoolean();
+        return new AccordReadExhaustedException(received, blockFor, dataPresent, message);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.ACCORD_READ_EXHAUSTED;
     }
 }

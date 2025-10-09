@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -46,16 +48,23 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -63,15 +72,19 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
@@ -309,6 +322,54 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return new Update(this.key, index, updateBuilder.build(), tables);
         }
 
+        public void completeToBuilder(PartitionUpdate.Builder updateBuilder, TxnData data, Ballot ballot, FilteredPartition current, ClientState clientState) throws InvalidRequestException
+        {
+            if (isComplete())
+            {
+                // No reference operations - add base update components directly
+                if (!baseUpdate.staticRow().isEmpty())
+                    updateBuilder.add(baseUpdate.staticRow());
+
+                for (Row row : baseUpdate)
+                    updateBuilder.add(row);
+
+                // Copy deletion info (partition deletion and range tombstones)
+                // Timestamps will be updated later in Proposal.of() via updateAllTimestamp()
+                DeletionTime partitionDeletion = baseUpdate.deletionInfo().getPartitionDeletion();
+                if (!partitionDeletion.isLive())
+                    updateBuilder.addPartitionDeletion(partitionDeletion);
+
+                Iterator<RangeTombstone> rangeIterator = baseUpdate.deletionInfo().rangeIterator(false);
+                while (rangeIterator.hasNext())
+                    updateBuilder.add(rangeIterator.next());
+
+                return;
+            }
+
+            // Create CAS-specific UpdateParameters with prefetched data and transaction timestamp
+            long transactionTimestamp = ballot.unixMicros();
+            Map<DecoratedKey, Partition> prefetchedRows = Collections.singletonMap(
+                baseUpdate.partitionKey(), current);
+
+            CasUpdateParameters up = new CasUpdateParameters(
+                baseUpdate.metadata(), clientState, QueryOptions.DEFAULT,
+                transactionTimestamp, (int)(transactionTimestamp / 1000), 0,
+                prefetchedRows, ballot.msb(), 0);
+
+            // Apply static operations
+            Row staticRow = applyUpdates(baseUpdate.staticRow(), referenceOps.getStatics(),
+                                       baseUpdate.partitionKey(), Clustering.STATIC_CLUSTERING, up, data);
+            if (!staticRow.isEmpty())
+                updateBuilder.add(staticRow);
+
+            // Apply regular operations
+            Row existing = baseUpdate.hasRows() ? Iterables.getOnlyElement(baseUpdate) : null;
+            Row row = applyUpdates(existing, referenceOps.getRegulars(),
+                                 baseUpdate.partitionKey(), referenceOps.getClustering(), up, data);
+            if (row != null)
+                updateBuilder.add(row);
+        }
+
         private static Columns columns(Columns current, List<TxnReferenceOperation> referenceOps)
         {
             if (referenceOps.isEmpty())
@@ -355,8 +416,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return up.buildRow();
         }
 
-        static final FragmentSerializer serializer = new FragmentSerializer();
-        static class FragmentSerializer
+        public static final FragmentSerializer serializer = new FragmentSerializer();
+        public static class FragmentSerializer
         {
             public void serialize(Fragment fragment, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
             {
@@ -382,6 +443,31 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 size += TxnReferenceOperations.serializer.serializedSize(fragment.referenceOps, tables, version);
                 return size;
             }
+        }
+    }
+
+    /**
+     * CAS-specific UpdateParameters for CAS-specific TimeUUID handling
+     */
+    private static class CasUpdateParameters extends UpdateParameters
+    {
+        private final long timeUuidMsb;
+        private long timeUuidNanos;
+
+        public CasUpdateParameters(TableMetadata metadata, ClientState state, QueryOptions options,
+                                  long timestamp, long nowInSec, int ttl,
+                                  Map<DecoratedKey, Partition> prefetchedRows,
+                                  long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        {
+            super(metadata, state, options, timestamp, nowInSec, ttl, prefetchedRows);
+            this.timeUuidMsb = timeUuidMsb;
+            this.timeUuidNanos = timeUuidNanos;
+        }
+
+        @Override
+        public byte[] nextTimeUUIDAsBytes()
+        {
+            return TimeUUID.toBytes(timeUuidMsb, TimeUUIDType.signedBytesToNativeLong(timeUuidNanos++));
         }
     }
 

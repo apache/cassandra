@@ -66,7 +66,6 @@ public class MutationTrackingTest extends TestBaseImpl
                                                  + "  %s%n"
                                                  + "APPLY BATCH";
 
-    @Ignore
     @Test
     public void testBasicWritePath() throws Throwable
     {
@@ -103,14 +102,12 @@ public class MutationTrackingTest extends TestBaseImpl
         }
     }
 
-    @Ignore
     @Test
     public void testWitnessPaxosV1Reads() throws Throwable
     {
         testWitnessPaxosReads("v1");
     }
 
-    @Ignore
     @Test
     public void testWitnessPaxosV2Reads() throws Throwable
     {
@@ -273,18 +270,16 @@ public class MutationTrackingTest extends TestBaseImpl
 
     }
 
-    @Ignore
     @Test
     public void testWitnessSerialPaxosV1WritesSkipped() throws Throwable
     {
         testWitnessWrites(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, "v1");
     }
 
-    @Ignore
     @Test
     public void testWitnessSerialPaxosV2WritesSkipped() throws Throwable
     {
-        testWitnessWrites(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, "v1");
+        testWitnessWrites(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, "v2");
     }
 
     @Test
@@ -322,71 +317,6 @@ public class MutationTrackingTest extends TestBaseImpl
             // Only two instances should have the row
             int rowsFound = 0;
             String singlePartitionSelectCQL = withKeyspace("SELECT * FROM %s.tbl");
-            for (IInvokableInstance instance : cluster)
-            {
-                Object[][] result = instance.executeInternal(singlePartitionSelectCQL);
-                assertTrue("Each node should have 0-1 rows", result.length == 0 || result.length == 1);
-                rowsFound += result.length;
-            }
-            assertEquals("Only two instances should have the row", 2, rowsFound);
-
-            cluster.get(1).runOnInstance(() -> {
-                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
-                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
-                CoordinatorLogId logId = getOnlyLogId(summary);
-
-                Offsets summaryIds = summaryIdSpace(summary.get(logId));
-                assertEquals(1, summaryIds.offsetCount());
-            });
-
-            Object[][] result = cluster.coordinator(1).execute(singlePartitionSelectCQL, ConsistencyLevel.ALL);
-            assertEquals(1, result.length);
-            String partitionRangeSelectCQL = withKeyspace("SELECT * FROM %s.tbl");
-            result = cluster.coordinator(1).execute(partitionRangeSelectCQL, ConsistencyLevel.ALL);
-            assertEquals(1, result.length);
-
-            // Read time reconciliation should not propagate the row to the witness node
-            rowsFound = 0;
-            for (IInvokableInstance instance : cluster)
-            {
-                result = instance.executeInternal(singlePartitionSelectCQL);
-                assertTrue("Each node should have 0-1 rows", result.length == 0 || result.length == 1);
-                rowsFound += result.length;
-            }
-            assertEquals("Only two instances should have the row", 2, rowsFound);
-        }
-    }
-
-    @Test
-    public void testWitnessWriteSkippedPath() throws Throwable
-    {
-        try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
-                                                            .with(Feature.GOSSIP)
-                                                            .set("mutation_tracking_enabled", "true")
-                                                            .set("transient_replication_enabled", "true"))
-                                      .start())
-        {
-
-            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
-                                              "{'class': 'SimpleStrategy', 'replication_factor': '3/1'} " +
-                                              "AND replication_type='tracked';"));
-
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
-
-            String keyspaceName = KEYSPACE;
-            cluster.get(1).runOnInstance(() -> {
-
-                KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                assertEquals(ReplicationType.tracked, keyspace.params.replicationType);
-            });
-
-            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.ALL);
-
-            // Only two instances should have the row
-            int rowsFound = 0;
-            String singlePartitionSelectCQL = withKeyspace("SELECT * FROM %s.tbl WHERE k = 1");
             for (IInvokableInstance instance : cluster)
             {
                 Object[][] result = instance.executeInternal(singlePartitionSelectCQL);

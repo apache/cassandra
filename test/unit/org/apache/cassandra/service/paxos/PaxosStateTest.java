@@ -286,7 +286,7 @@ public class PaxosStateTest
 
     private static void assertAcceptedMerge(Accepted expected, Accepted left, Accepted right)
     {
-        Committed empty = Committed.none(expected.update.partitionKey(), expected.update.metadata());
+        Committed empty = Committed.none(expected.partitionKey(), expected.metadata());
         Snapshot snapshotLeft = new Snapshot(null, null, left, empty);
         Snapshot snapshotRight = new Snapshot(null, null, right, empty);
         Accepted merged = Snapshot.merge(snapshotLeft, snapshotRight).accepted;

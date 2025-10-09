@@ -21,11 +21,15 @@ package org.apache.cassandra.db;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.IMutation.MAX_MUTATION_SIZE;
 
@@ -39,6 +43,13 @@ public class MutationExceededMaxSizeException extends InvalidRequestException
     {
         super(prepareMessage(mutation, serializationVersion, totalSize));
         this.mutationSize = totalSize;
+    }
+
+    // Constructor for deserialization
+    public MutationExceededMaxSizeException(String message, long mutationSize)
+    {
+        super(message);
+        this.mutationSize = mutationSize;
     }
 
     private static String prepareMessage(IMutation mutation, int version, long totalSize)
@@ -86,5 +97,29 @@ public class MutationExceededMaxSizeException extends InvalidRequestException
             stringBuilder.append(" and ").append(keys.size()).append(" more.");
 
         return stringBuilder.toString();
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.MUTATION_EXCEEDED_MAX_SIZE;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        out.writeUnsignedVInt(mutationSize);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.sizeofUnsignedVInt(mutationSize);
+    }
+
+    public static MutationExceededMaxSizeException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        long mutationSize = in.readUnsignedVInt();
+        return new MutationExceededMaxSizeException(message, mutationSize);
     }
 }
