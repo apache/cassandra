@@ -165,6 +165,25 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
     }
 
     @Override
+    public void onSSTableWriterSwitched()
+    {
+        if (aborted) return;
+
+        try
+        {
+            for (PerColumnIndexWriter w : perIndexWriters)
+            {
+                w.onSSTableWriterSwitched(stopwatch);
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.error(indexDescriptor.logMessage("Failed to flush segment on sstable writer switched"), t);
+            abort(t, true);
+        }
+    }
+
+    @Override
     public void complete()
     {
         if (aborted) return;
