@@ -2753,7 +2753,7 @@ public class NodeProbe implements AutoCloseable
     private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
     {
         // Construct table-specific MBean name
-        String mbeanName = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager,keyspace=" + keyspace + ",table=" + table;
+        String mbeanName = CompressionDictionaryManagerMBean.MBEAN_NAME + ",keyspace=" + keyspace + ",table=" + table;
         try
         {
             ObjectName objectName = new ObjectName(mbeanName);
