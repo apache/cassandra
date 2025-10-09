@@ -74,12 +74,12 @@ public class PaxosRowsTest
 
     static Commit emptyCommitFor(Ballot ballot, DecoratedKey key)
     {
-        return new Commit(ballot, PartitionUpdate.emptyUpdate(metadata, key));
+        return Commit.create(ballot, PartitionUpdate.emptyUpdate(metadata, key));
     }
 
     static Commit nonEmptyCommitFor(Ballot ballot, DecoratedKey key)
     {
-        return new Commit(ballot, nonEmptyUpdate(ballot, metadata, key));
+        return Commit.create(ballot, nonEmptyUpdate(ballot, metadata, key));
     }
 
     static PartitionUpdate nonEmptyUpdate(Ballot ballot, TableMetadata cfm, DecoratedKey key)

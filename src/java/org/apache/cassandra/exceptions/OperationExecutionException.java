@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.util.DataInputPlus;
 
 /**
  * Thrown when an operation problem has occured (e.g. division by zero with integer).
@@ -52,6 +54,24 @@ public final class OperationExecutionException extends FunctionExecutionExceptio
     public OperationExecutionException(char operator, List<String> argTypes, String msg)
     {
         super(OperationFcts.getFunctionNameFromOperator(operator), argTypes, msg);
+    }
+
+    static OperationExecutionException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        // Deserialize using parent's logic to get FunctionName, argTypes, and detail
+        FunctionExecutionException parent = FunctionExecutionException.deserializeFields(message, in, version);
+
+        // Extract operator from function name using OperationFcts
+        char operator = OperationFcts.getOperator(parent.functionName);
+
+        // Create OperationExecutionException with the extracted operator
+        return new OperationExecutionException(operator, parent.argTypes, parent.detail);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.OPERATION_EXECUTION;
     }
 
 }

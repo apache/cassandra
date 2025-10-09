@@ -36,9 +36,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IReadResponse;
+import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -54,6 +56,12 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
+import org.apache.cassandra.service.reads.tracked.TrackedRead.DataRequest;
+import org.apache.cassandra.service.reads.tracked.TrackedRead.Id;
+import org.apache.cassandra.service.reads.tracked.TrackedRead.SummaryRequest;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -64,14 +72,20 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher.RequestTime;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
+import static org.apache.cassandra.db.ReadKind.TRACKED_DATA;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
@@ -141,6 +155,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private static Runnable onLinearizabilityViolation;
 
+    private static final Future<? extends IReadResponse> NO_READ_RESPONSE = ImmediateFuture.success(null);
+
     public static final RequestHandler requestHandler = new RequestHandler();
     public static final RequestSerializer requestSerializer = new RequestSerializer();
     public static final ResponseSerializer responseSerializer = new ResponseSerializer();
@@ -179,12 +195,12 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Success extends WithRequestedBallot
     {
-        final List<Message<ReadResponse>> responses;
+        final List<Message<IReadResponse>> responses;
         final boolean isReadSafe; // read responses constitute a linearizable read (though short read protection would invalidate that)
         final @Nullable
         Ballot supersededBy; // if known and READ_SUCCESS
 
-        Success(Outcome outcome, Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, boolean isReadSafe, @Nullable Ballot supersededBy)
+        Success(Outcome outcome, Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, boolean isReadSafe, @Nullable Ballot supersededBy)
         {
             super(outcome, participants, ballot);
             this.responses = responses;
@@ -192,12 +208,12 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.supersededBy = supersededBy;
         }
 
-        static Success read(Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, @Nullable Ballot supersededBy)
+        static Success read(Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, @Nullable Ballot supersededBy)
         {
             return new Success(Outcome.READ_PERMITTED, ballot, participants, responses, true, supersededBy);
         }
 
-        static Success readOrWrite(Ballot ballot, Participants participants, List<Message<ReadResponse>> responses, boolean isReadConsistent)
+        static Success readOrWrite(Ballot ballot, Participants participants, List<Message<IReadResponse>> responses, boolean isReadConsistent)
         {
             return new Success(Outcome.PROMISED, ballot, participants, responses, isReadConsistent, null);
         }
@@ -327,8 +343,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private final Participants participants;
 
-    private final List<Message<ReadResponse>> readResponses;
+    private final List<Message<IReadResponse>> readResponses;
     private boolean haveReadResponseWithLatest;
+    private boolean haveTrackedDataResponseIfNeeded;
     private boolean haveQuorumOfPermissions; // permissions => SUCCESS or READ_SUCCESS
     private @Nonnull List<InetAddressAndPort> withLatest; // promised and have latest commit
     private @Nullable List<InetAddressAndPort> needLatest; // promised without having witnessed latest commit, nor yet been refreshed by us
@@ -361,7 +378,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         // no need to commit a no-op; either it
         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
         //   2) did not reach a majority, was not agreed, and was not user visible as a result so we can ignore it
-        if (latestAccepted.update.isEmpty())
+        if (latestAccepted.isEmpty())
             return false;
 
         // If we aren't newer than latestCommitted, then we're done
@@ -375,17 +392,17 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         return !latestAccepted.isReproposalOf(latestCommitted);
     }
 
-    static PaxosPrepare prepare(Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission) throws UnavailableException
+    static PaxosPrepare prepare(Participants participants, EmbeddableSinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission) throws UnavailableException
     {
         return prepare(null, participants, readCommand, isWrite, acceptEarlyReadPermission);
     }
 
-    static PaxosPrepare prepare(Ballot minimumBallot, Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission) throws UnavailableException
+    static PaxosPrepare prepare(Ballot minimumBallot, Participants participants, EmbeddableSinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission) throws UnavailableException
     {
         return prepareWithBallot(newBallot(minimumBallot, participants.consistencyForConsensus), participants, readCommand, isWrite, acceptEarlyReadPermission);
     }
 
-    static PaxosPrepare prepareWithBallot(Ballot ballot, Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission)
+    static PaxosPrepare prepareWithBallot(Ballot ballot, Participants participants, EmbeddableSinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission)
     {
         Tracing.trace("Preparing {} with read", ballot);
         Request request = new Request(ballot, participants.electorate, readCommand, isWrite, false);
@@ -411,22 +428,107 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     /**
      * Submit the message to our peers, and submit it for local execution if relevant
      */
-    static <R extends AbstractRequest<R>> void start(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, InetAddressAndPort, Response> selfHandler)
+    static <R extends AbstractRequest<R>> void start(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
     {
-        boolean executeOnSelf = false;
-        for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
+        if (send.payload.read != null && send.payload.read.metadata().replicationType().isTracked())
+            startTracked(prepare, participants, send, selfHandler);
+        else
+            startUntracked(prepare, participants, send, selfHandler);
+    }
+
+    private static <R extends AbstractRequest<R>> void startTracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
+    {
+        if (prepare.request.read == null)
+            prepare.haveTrackedDataResponseIfNeeded = true;
+        Message<R> selfMessage = null;
+        Message<R> summaryMessage = null;
+        Id readId = Id.nextId();
+        Replica localReplica = participants.lookup(FBUtilities.getBroadcastAddressAndPort());
+        Replica dataNode = localReplica != null && localReplica.isFull()
+                           ? localReplica
+                           : null;
+        int[] summaryHostIds = new int[participants.sizeOfPoll() - 1]; // all nodes except data node
+        int summaryIndex = 0;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (dataNode == null)
         {
-            InetAddressAndPort destination = participants.voter(i);
-            boolean isPending = participants.electorate.isPending(destination);
-            logger.trace("{} to {}", send.payload, destination);
-            if (shouldExecuteOnSelf(destination))
-                executeOnSelf = true;
-            else
-                MessagingService.instance().sendWithCallback(isPending ? withoutRead(send) : send, destination, prepare);
+            for (int i = 0, size = participants.sizeOfPoll() ; i < size ; i++)
+            {
+                Replica replica = participants.voterReplica(i);
+                if (!replica.isFull() || participants.electorate.isPending(replica.endpoint()))
+                    continue;
+                dataNode = replica;
+                break;
+            }
         }
 
-        if (executeOnSelf)
-            send.verb().stage.execute(() -> prepare.executeOnSelf(send.payload, selfHandler));
+        checkState(dataNode != null, "Couldn't find a data node to use");
+        int dataNodeId  = metadata.directory.peerId(dataNode.endpoint()).id();
+        for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
+        {
+            Replica replica = participants.voterReplica(i);
+            if (replica != dataNode && !participants.electorate.isPending(replica.endpoint()))
+                summaryHostIds[summaryIndex++] = metadata.directory.peerId(replica.endpoint()).id();
+        }
+
+        for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
+        {
+            Replica replica = participants.voterReplica(i);
+            InetAddressAndPort destination = replica.endpoint();
+            Message<R> toSendThisTime;
+
+            if (participants.electorate.isPending(destination))
+                toSendThisTime = withoutRead(send);
+            else if (replica == dataNode)
+                toSendThisTime = withTrackedDataRequest(send, readId, participants.consistencyLevel(), dataNodeId, summaryHostIds);
+            else
+            {
+                if (summaryMessage == null)
+                    summaryMessage = withTrackedSummaryRequest(send, readId, dataNodeId, summaryHostIds);
+                toSendThisTime = summaryMessage;
+            }
+
+            logger.trace("{} to {}", toSendThisTime.payload, destination);
+            if (shouldExecuteOnSelf(destination))
+                selfMessage = toSendThisTime;
+            else
+                MessagingService.instance().sendWithCallback(toSendThisTime, destination, prepare);
+        }
+
+        if (selfMessage != null)
+        {
+            Message<R> selfMessageFinal = selfMessage;
+            send.verb().stage.execute(() -> prepare.executeOnSelfAsync(selfMessageFinal.payload, new RequestTime(selfMessageFinal.createdAtNanos()), selfHandler));
+        }
+    }
+
+    private static <R extends AbstractRequest<R>> void startUntracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
+    {
+        prepare.haveTrackedDataResponseIfNeeded = true;
+        Message<R> selfMessage = null;
+
+        for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
+        {
+            Replica replica = participants.voterReplica(i);
+            checkState(!replica.isTransient(), "Transient replication only supported with mutation tracking");
+            InetAddressAndPort destination = replica.endpoint();
+            Message<R> toSendThisTime = send;
+
+            if (participants.electorate.isPending(destination))
+                toSendThisTime = withoutRead(send);
+
+            logger.trace("{} to {}", toSendThisTime.payload, destination);
+            if (shouldExecuteOnSelf(destination))
+                selfMessage = toSendThisTime;
+            else
+                MessagingService.instance().sendWithCallback(toSendThisTime, destination, prepare);
+        }
+
+        if (selfMessage != null)
+        {
+            Message<R> selfMessageFinal = selfMessage;
+            send.verb().stage.execute(() -> prepare.executeOnSelfAsync(selfMessageFinal.payload, new RequestTime(selfMessageFinal.createdAtNanos()), selfHandler));
+        }
     }
 
     // TODO: extend Sync?
@@ -448,6 +550,11 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             Thread.currentThread().interrupt();
             return new MaybeFailure(new Paxos.MaybeFailure(true, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, 0, emptyMap()), participants);
         }
+    }
+
+    private boolean isTracked()
+    {
+        return request.read != null && request.read.metadata().replicationType().isTracked();
     }
 
     private boolean isDone()
@@ -581,7 +688,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        if (!haveQuorumOfPermissions)
+        if (!haveQuorumOfPermissions || !haveTrackedDataResponseIfNeeded)
         {
             Committed newLatestCommitted = permitted.latestCommitted;
             if (newLatestCommitted.ballot.uuidTimestamp() < maxLowBound) newLatestCommitted = Committed.none(request.partitionKey, request.table);
@@ -656,9 +763,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
 
         haveQuorumOfPermissions |= withLatest() + needLatest() >= participants.sizeOfConsensusQuorum;
-        if (haveQuorumOfPermissions)
+        if (haveQuorumOfPermissions && haveTrackedDataResponseIfNeeded)
         {
-            if (request.read != null && readResponses.size() < participants.sizeOfReadQuorum)
+            if (request.read != null && !isTracked() && readResponses.size() < participants.sizeOfReadQuorum)
                 throw new IllegalStateException("Insufficient read responses: " + readResponses + "; need " + participants.sizeOfReadQuorum);
 
             if (!hasOnlyPromises && !hasProposalStability)
@@ -684,8 +791,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 refreshStaleParticipants();
                 // if an optimistic read is possible, and we are performing a read,
-                // we can safely answer immediately without waiting for the refresh
-                if (hasProposalStability && acceptEarlyReadPermission)
+                // we can safely answer immediately without waiting for the refresh.
+                // Check isDone() in case refreshStaleParticipants() completed synchronously
+                // and already signaled done via onRefreshSuccess() callback.
+                if (!isDone() && hasProposalStability && acceptEarlyReadPermission)
                     signalDone(Outcome.READ_PERMITTED);
             }
 
@@ -758,7 +867,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         // or in the case that we have an empty proposal accepted, since that will not be committed
         // in theory in this case we could now restart refreshStaleParticipants, but this would
         // unnecessarily complicate the logic so instead we accept that we will unnecessarily re-propose
-        if (latestAccepted != null && latestAccepted.update.isEmpty() && latestAccepted.isAfter(permitted.latestCommitted))
+        if (latestAccepted != null && latestAccepted.isEmpty() && latestAccepted.isAfter(permitted.latestCommitted))
             return false;
 
         // or in the case that both are older than the most recent repair low bound), in which case a topology change
@@ -786,7 +895,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        long gcGraceMicros = TimeUnit.SECONDS.toMicros(permitted.latestCommitted.update.metadata().params.gcGraceSeconds);
+        long gcGraceMicros = TimeUnit.SECONDS.toMicros(permitted.latestCommitted.metadata().params.gcGraceSeconds);
         // paxos repair uses stale ballots, so comparing against request.ballot time will not completely prevent false
         // positives, since compaction may have removed paxos metadata on some nodes and not others. It's also possible
         // clock skew has placed the ballot to repair in the future, so we use now or the ballot, whichever is higher.
@@ -843,8 +952,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
      *
      * Must be invoked while owning lock
      */
-    private void addReadResponse(ReadResponse response, InetAddressAndPort from)
+    private void addReadResponse(IReadResponse response, InetAddressAndPort from)
     {
+        if (response.kind() == TRACKED_DATA)
+            haveTrackedDataResponseIfNeeded = true;
         readResponses.add(Message.synthetic(from, PAXOS2_PREPARE_RSP, response));
     }
 
@@ -961,13 +1072,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     {
         final Ballot ballot;
         final Electorate electorate;
-        final SinglePartitionReadCommand read;
+        final EmbeddableSinglePartitionReadCommand read;
         final boolean isForWrite;
         final DecoratedKey partitionKey;
         final TableMetadata table;
         final boolean isForRecovery;
 
-        AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite, boolean isForRecovery)
+        AbstractRequest(Ballot ballot, Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isForWrite, boolean isForRecovery)
         {
             this.ballot = ballot;
             this.electorate = electorate;
@@ -991,6 +1102,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
         abstract R withoutRead();
 
+        abstract R asTrackedDataRequest(Id id, ConsistencyLevel consistencyLevel, int dataNode, int[] summaryNodes);
+
+        abstract R asTrackedSummaryRequest(Id id, int dataNode, int[] summaryNodes);
+
         public String toString()
         {
             return "Prepare(" + ballot + ')';
@@ -999,7 +1114,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Request extends AbstractRequest<Request>
     {
-        Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
+        Request(Ballot ballot, Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
             super(ballot, electorate, read, isWrite, isForRecovery);
         }
@@ -1017,6 +1132,18 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         public String toString()
         {
             return "Prepare(" + ballot + ')';
+        }
+
+        @Override
+        public Request asTrackedDataRequest(Id id, ConsistencyLevel consistencyLevel, int dataNode, int[] summaryNodes)
+        {
+            return new Request(ballot, electorate, new TrackedRead.DataRequest(id, (SinglePartitionReadCommand)read, dataNode, summaryNodes, consistencyLevel), isForWrite, isForRecovery);
+        }
+
+        @Override
+        public Request asTrackedSummaryRequest(Id id, int dataNode, int[] summaryNodes)
+        {
+            return new Request(ballot, electorate, new TrackedRead.SummaryRequest(id, (SinglePartitionReadCommand)read, dataNode, summaryNodes), isForWrite, isForRecovery);
         }
     }
 
@@ -1049,7 +1176,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         // a proposal that has been accepted but not committed, i.e. must be null or > latestCommit
         @Nullable final Accepted latestAcceptedButNotCommitted;
         final Committed latestCommitted;
-        @Nullable final ReadResponse readResponse;
+        @Nullable final IReadResponse readResponse;
         // latestAcceptedButNotCommitted and latestCommitted were the same before and after the read occurred, and no incomplete promise was witnessed
         final boolean hadProposalStability;
         // it would be great if we could get rid of this, but probably we need to preserve for migration purposes
@@ -1057,7 +1184,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Nullable final Ballot supersededBy;
         final Epoch electorateEpoch;
 
-        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
+        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable IReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
         {
             super(outcome);
             this.lowBound = lowBound;
@@ -1103,11 +1230,26 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
             try
             {
-                Response response = execute(message.payload, message.from());
+                Future<Response> response = execute(message.payload, new RequestTime(message.createdAtNanos()));
                 if (response == null)
+                {
                     MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                }
+                else if (response.isDone())
+                {
+                    // TODO This will probably require exception unwrapping to get the correct error handling up to the message handler
+                    // This also runs on the mutation stage and is waiting on distributed things which is sus
+                    MessagingService.instance().respond(getUnchecked(response), message);
+                }
                 else
-                    MessagingService.instance().respond(response, message);
+                {
+                    response.addCallback((success, failure) -> {
+                        if (failure != null)
+                            MessagingService.instance().respondWithFailure(RequestFailure.forException(failure), message);
+                        else
+                            MessagingService.instance().respond(success, message);
+                    });
+                }
             }
             catch (RetryOnDifferentSystemException e)
             {
@@ -1115,9 +1257,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        static Response execute(AbstractRequest<?> request, InetAddressAndPort from)
+        static Future<Response> execute(Request request, RequestTime requestTime)
         {
-            if (!isInRangeAndShouldProcess(from, request.partitionKey, request.table, request.read != null))
+            if (!isInRangeAndShouldProcess(request.partitionKey, request.table, request.read != null))
                 return null;
 
             long start = nanoTime();
@@ -1135,12 +1277,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     // Also need to know max HLC in order to accept this ballot
                     long maxHLC = keyMigrationState.maybePerformAccordToPaxosKeyMigration(request.isForWrite);
                     if (maxHLC >= request.ballot.unixMicros())
-                        return new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, request.ballot.flag()));
+                        return ImmediateFuture.success(new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, request.ballot.flag())));
                 }
 
                 try (PaxosState state = get(request.partitionKey, request.table))
                 {
-                    return execute(request, state, cm);
+                    // TODO this 1000% looks like the wrong way to propagate the deadline to TrackedRead
+                    return execute(requestTime, request, state, cm);
                 }
             }
             finally
@@ -1149,7 +1292,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        static Response execute(AbstractRequest<?> request, PaxosState state, ClusterMetadata cm)
+        static Future<Response> execute(RequestTime requestTime, AbstractRequest<?> request, PaxosState state, ClusterMetadata cm)
         {
             MaybePromise result = state.promiseIfNewer(request.ballot, request.isForWrite);
             switch (result.outcome)
@@ -1165,7 +1308,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
                     // TODO when 6.0 is the minimum supported version we can modify verifyElectorate to just return this epoch
                     Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
-                    ReadResponse readResponse = null;
+                    Future<? extends IReadResponse> readResponseFuture = NO_READ_RESPONSE;
 
                     // Check we cannot race with a proposal, i.e. that we have not made a promise that
                     // could be in the process of making a proposal. If a majority of nodes have made no such promise
@@ -1179,7 +1322,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     Ballot mostRecentCommit = result.before.accepted != null
                                               && result.before.accepted.ballot.compareTo(result.before.committed.ballot) > 0
-                                              && result.before.accepted.update.isEmpty()
+                                              && result.before.accepted.isEmpty()
                                               ? result.before.accepted.ballot : result.before.committed.ballot;
 
                     boolean hasProposalStability = mostRecentCommit.equals(result.before.promisedWrite)
@@ -1187,15 +1330,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     if (request.read != null)
                     {
-                        SinglePartitionReadCommand readCommand = request.read;
-                        // Allows txn recovery to read even if it would be blocked by migration away from Paxos
-                        if (request.isForRecovery)
-                            readCommand = readCommand.withTransactionalSettings(false, readCommand.nowInSec());
-                        try (ReadExecutionController executionController = readCommand.executionController();
-                             UnfilteredPartitionIterator iterator = readCommand.executeLocally(executionController, cm))
-                        {
-                            readResponse = readCommand.createResponse(iterator, executionController.getRepairedDataInfo());
-                        }
+                        readResponseFuture = request.read.isTracked() ? readTracked((TrackedRead.Request)request.read, requestTime, cm) : readUntracked((SinglePartitionReadCommand)request.read, request.isForRecovery);
 
                         if (hasProposalStability)
                         {
@@ -1212,20 +1347,56 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
-
+                    boolean hasProposalStabilityFinal = hasProposalStability;
+                    return readResponseFuture.map(readResponse -> new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStabilityFinal, gossipInfo, electorateEpoch, supersededBy));
                 case REJECT:
-                    return new Rejected(result.supersededBy());
+                    return ImmediateFuture.success(new Rejected(result.supersededBy()));
 
                 default:
                     throw new IllegalStateException();
             }
         }
+
+        private static Future<? extends IReadResponse> readTracked(TrackedRead.Request read, RequestTime requestTime, ClusterMetadata cm)
+        {
+            // TODO(accord): This doesn't honor reads for recovery when going down the tracked path which Accord needs
+            if (read.kind() == TRACKED_DATA)
+                return readTrackedData((DataRequest)read, requestTime, cm);
+            else
+            {
+                return readTrackedSummary((SummaryRequest)read, requestTime, cm);
+            }
+        }
+
+        private static Future<? extends IReadResponse> readTrackedSummary(SummaryRequest read, RequestTime requestTime, ClusterMetadata cm)
+        {
+            return read.executeLocally(read, cm, requestTime);
+        }
+
+        private static Future<? extends IReadResponse> readTrackedData(DataRequest read, RequestTime requestTime, ClusterMetadata cm)
+        {
+            return read.executeLocally(read, cm, requestTime);
+        }
+
+        private static Future<? extends IReadResponse> readUntracked(SinglePartitionReadCommand read, boolean isForRecovery)
+        {
+            // Allows txn recovery to read even if it would be blocked by migration away from Paxos
+            if (isForRecovery)
+                read = read.withTransactionalSettings(false, read.nowInSec());
+
+            ReadResponse readResponse;
+            try (ReadExecutionController executionController = read.executionController();
+                 UnfilteredPartitionIterator iterator = read.executeLocally(executionController))
+            {
+                readResponse = read.createResponse(iterator, executionController.getRepairedDataInfo());
+            }
+            return ImmediateFuture.success(readResponse);
+        }
     }
 
     static abstract class AbstractRequestSerializer<R extends AbstractRequest<R>, T> implements IVersionedSerializer<R>
     {
-        abstract R construct(T param, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery);
+        abstract R construct(T param, Ballot ballot, Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery);
         abstract R construct(T param, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery);
 
         @Override
@@ -1237,7 +1408,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if (request.read != null)
             {
 
-                ReadCommand.serializer.serialize(request.read, out, version);
+               EmbeddableSinglePartitionReadCommand.serializer.serialize(request.read, out, version);
             }
             else
             {
@@ -1255,7 +1426,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             byte flag = in.readByte();
             if ((flag & 1) != 0)
             {
-                SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) ReadCommand.serializer.deserialize(in, version);
+                EmbeddableSinglePartitionReadCommand readCommand = EmbeddableSinglePartitionReadCommand.serializer.deserialize(in, version);
                 boolean isForRecovery = false;
                 if (version >= MessagingService.VERSION_60)
                     isForRecovery = in.readBoolean();
@@ -1278,7 +1449,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             long size = Ballot.sizeInBytes()
                    + Electorate.serializer.serializedSize(request.electorate, version)
                    + 1 + (request.read != null
-                        ? ReadCommand.serializer.serializedSize(request.read, version)
+                        ? EmbeddableSinglePartitionReadCommand.serializer.serializedSize(request.read, version)
                         : request.table.id.serializedSize()
                             + DecoratedKey.serializer.serializedSize(request.partitionKey, version));
             if (version >= MessagingService.VERSION_60)
@@ -1289,7 +1460,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     public static class RequestSerializer extends AbstractRequestSerializer<Request, Object>
     {
-        Request construct(Object ignore, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
+        Request construct(Object ignore, Ballot ballot, Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
             return new Request(ballot, electorate, read, isWrite, isForRecovery);
         }
@@ -1329,7 +1500,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     Accepted.serializer.serialize(promised.latestAcceptedButNotCommitted, out, version);
                 Committed.serializer.serialize(promised.latestCommitted, out, version);
                 if (promised.readResponse != null)
-                    ReadResponse.serializer.serialize(promised.readResponse, out, version);
+                    IReadResponse.serializer.serialize(promised.readResponse, out, version);
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (version >= MessagingService.VERSION_60)
                     Epoch.messageSerializer.serialize(promised.electorateEpoch, out, version);
@@ -1351,7 +1522,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 long lowBound = in.readUnsignedVInt();
                 Accepted acceptedNotCommitted = (flags & 2) != 0 ? Accepted.serializer.deserialize(in, version) : null;
                 Committed committed = Committed.serializer.deserialize(in, version);
-                ReadResponse readResponse = (flags & 4) != 0 ? ReadResponse.serializer.deserialize(in, version) : null;
+                IReadResponse readResponse = (flags & 4) != 0 ? IReadResponse.serializer.deserialize(in, version) : null;
                 Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(in, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 Epoch electorateEpoch = version >= MessagingService.VERSION_60 ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
                 MaybePromise.Outcome outcome = (flags & 16) != 0 ? PERMIT_READ : PROMISE;
@@ -1376,7 +1547,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 size += VIntCoding.computeUnsignedVIntSize(permitted.lowBound)
                         + (permitted.latestAcceptedButNotCommitted == null ? 0 : Accepted.serializer.serializedSize(permitted.latestAcceptedButNotCommitted, version))
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
-                        + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
+                        + (permitted.readResponse == null ? 0 : IReadResponse.serializer.serializedSize(permitted.readResponse, version))
                         + serializedMapSize(permitted.gossipInfo, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer)
                         + (version >= MessagingService.VERSION_60 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
@@ -1392,6 +1563,22 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             return send;
 
         return send.withPayload(send.payload.withoutRead());
+    }
+
+    static <R extends AbstractRequest<R>> Message<R> withTrackedDataRequest(Message<R> send, Id id, ConsistencyLevel cl, int dataNode, int[] summaryNodes)
+    {
+        if (send.payload.read == null)
+            return send;
+
+        return send.withPayload(send.payload.asTrackedDataRequest(id, cl, dataNode, summaryNodes));
+    }
+
+    static <R extends AbstractRequest<R>> Message<R> withTrackedSummaryRequest(Message<R> send, Id id, int dataNode, int[] summaryNodes)
+    {
+        if (send.payload.read == null)
+            return send;
+
+        return send.withPayload(send.payload.asTrackedSummaryRequest(id, dataNode, summaryNodes));
     }
 
     public static void setOnLinearizabilityViolation(Runnable runnable)

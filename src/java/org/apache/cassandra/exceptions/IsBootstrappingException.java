@@ -23,4 +23,10 @@ public class IsBootstrappingException extends RequestExecutionException
     {
         super(ExceptionCode.IS_BOOTSTRAPPING, "Cannot read from a bootstrapping node");
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.IS_BOOTSTRAPPING;
+    }
 }

@@ -115,7 +115,7 @@ public class PaxosStateTrackerTest
 
     private static Commit commit(TableMetadata cfm, int k, Ballot ballot)
     {
-        return new Commit(ballot, update(cfm, k, ballot));
+        return Commit.create(ballot, update(cfm, k, ballot));
     }
 
     private static void savePaxosRepair(TableMetadata cfm, Range<Token> range, Ballot lowBound)

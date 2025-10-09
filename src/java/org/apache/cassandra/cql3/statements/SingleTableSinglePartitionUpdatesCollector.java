@@ -80,16 +80,16 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
      * Returns a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts)
+    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts, boolean skipIndexValidation)
     {
         // it is possible that a modification statement does not create any mutations
         // for example: DELETE FROM some_table WHERE part_key = 1 AND clust_key < 3 AND clust_key > 5
         if (builder == null)
             return Collections.emptyList();
-        return Collections.singletonList(createMutation(state, builder, potentialTxnConflicts));
+        return Collections.singletonList(createMutation(state, builder, potentialTxnConflicts, skipIndexValidation));
     }
 
-    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, PotentialTxnConflicts potentialTxnConflicts)
+    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, PotentialTxnConflicts potentialTxnConflicts, boolean skipIndexValidation)
     {
         IMutation mutation;
 
@@ -100,7 +100,8 @@ final class SingleTableSinglePartitionUpdatesCollector implements UpdatesCollect
         else
             mutation = new Mutation(MutationId.fixme(), builder.build(), potentialTxnConflicts);
 
-        mutation.validateIndexedColumns(state);
+        if (!skipIndexValidation)
+            mutation.validateIndexedColumns(state);
         mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
         return mutation;
     }

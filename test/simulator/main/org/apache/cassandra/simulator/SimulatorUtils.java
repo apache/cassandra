@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 
 import org.apache.cassandra.utils.concurrent.Threads;
+import picocli.CommandLine;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import picocli.CommandLine;

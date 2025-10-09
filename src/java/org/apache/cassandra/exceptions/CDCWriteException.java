@@ -23,4 +23,10 @@ public class CDCWriteException extends RequestExecutionException
     {
         super(ExceptionCode.CDC_WRITE_FAILURE, msg);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.CDC_WRITE_FAILURE;
+    }
 }

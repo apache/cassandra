@@ -208,6 +208,7 @@ public class Config
     public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
+    public int concurrent_tracked_cas_ops = 32;
     public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
 
     public int memtable_flush_writers = 0;

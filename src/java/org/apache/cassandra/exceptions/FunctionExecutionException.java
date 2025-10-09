@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 public class FunctionExecutionException extends RequestExecutionException
 {
@@ -49,5 +54,43 @@ public class FunctionExecutionException extends RequestExecutionException
         this.functionName = functionName;
         this.argTypes = argTypes;
         this.detail = msg;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        out.writeBoolean(functionName.keyspace != null);
+        if (functionName.keyspace != null)
+            out.writeUTF(functionName.keyspace);
+        out.writeUTF(functionName.name);
+        CollectionSerializers.serializeList(argTypes, out, version, CollectionSerializers.STRING_SERIALIZER);
+        out.writeUTF(detail);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        long size = TypeSizes.BOOL_SIZE; // keyspace present flag
+        if (functionName.keyspace != null)
+            size += TypeSizes.sizeof(functionName.keyspace);
+        size += TypeSizes.sizeof(functionName.name);
+        size += CollectionSerializers.serializedListSize(argTypes, version, CollectionSerializers.STRING_SERIALIZER);
+        size += TypeSizes.sizeof(detail);
+        return size;
+    }
+
+    static FunctionExecutionException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        String keyspace = in.readBoolean() ? in.readUTF() : null;
+        String name = in.readUTF();
+        List<String> argTypes = CollectionSerializers.deserializeList(in, version, CollectionSerializers.STRING_SERIALIZER);
+        String detail = in.readUTF();
+        return new FunctionExecutionException(new FunctionName(keyspace, name), argTypes, detail);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.FUNCTION_FAILURE;
     }
 }

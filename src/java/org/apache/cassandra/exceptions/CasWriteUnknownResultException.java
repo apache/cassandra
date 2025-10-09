@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
+
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CasWriteUnknownResultException extends RequestExecutionException
 {
@@ -32,5 +37,35 @@ public class CasWriteUnknownResultException extends RequestExecutionException
         this.consistency = consistency;
         this.received = received;
         this.blockFor = blockFor;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        out.writeByte(consistency.code);
+        out.writeUnsignedVInt32(received);
+        out.writeUnsignedVInt32(blockFor);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.BYTE_SIZE + // consistency
+               TypeSizes.sizeofUnsignedVInt(received) +
+               TypeSizes.sizeofUnsignedVInt(blockFor);
+    }
+
+    static CasWriteUnknownResultException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ConsistencyLevel consistency = ConsistencyLevel.fromCode(in.readUnsignedByte());
+        int received = in.readUnsignedVInt32();
+        int blockFor = in.readUnsignedVInt32();
+        return new CasWriteUnknownResultException(consistency, received, blockFor);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.CAS_WRITE_UNKNOWN;
     }
 }

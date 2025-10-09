@@ -237,10 +237,25 @@ public class Message<T> implements ResponseContext
             return out(verb, payload);
     }
 
+    public static <T> Message<T> out(Verb verb, T payload, boolean isUrgent, long expiresAtNanos)
+    {
+        assert !verb.isResponse();
+        if (isUrgent)
+            return outWithFlag(verb, payload, MessageFlag.URGENT, expiresAtNanos);
+        else
+            return out(verb, payload, expiresAtNanos);
+    }
+
     public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag)
     {
         assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
+    }
+
+    public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag, long expiresAtNanos)
+    {
+        assert !verb.isResponse();
+        return outWithParam(nextId(), verb, expiresAtNanos, payload, flag.addTo(0), null, null);
     }
 
     public static <T> Message<T> outWithParam(Verb verb, T payload, ParamType paramType, Object paramValue)

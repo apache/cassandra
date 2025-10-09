@@ -28,4 +28,10 @@ public class UnauthorizedException extends RequestValidationException
     {
         super(ExceptionCode.UNAUTHORIZED, msg, e);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.UNAUTHORIZED;
+    }
 }

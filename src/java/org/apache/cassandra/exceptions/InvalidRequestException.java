@@ -28,4 +28,10 @@ public class InvalidRequestException extends RequestValidationException
     {
         super(ExceptionCode.INVALID, msg, t);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.INVALID;
+    }
 }

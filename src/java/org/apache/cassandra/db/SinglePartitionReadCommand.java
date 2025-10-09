@@ -97,10 +97,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
+import static org.apache.cassandra.db.ReadKind.UNTRACKED;
+
 /**
  * A read command that selects a (part of a) single partition.
  */
-public class SinglePartitionReadCommand extends ReadCommand implements SinglePartitionReadQuery
+public class SinglePartitionReadCommand extends ReadCommand implements SinglePartitionReadQuery, EmbeddableSinglePartitionReadCommand
 {
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
@@ -125,7 +127,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          boolean trackWarnings,
                                          DataRange dataRange)
     {
-        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
+        super(serializedAtEpoch, ReadCommand.Kind.SINGLE_PARTITION, isDigest, digestVersion, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -1373,6 +1375,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public boolean isRangeRequest()
     {
         return false;
+    }
+
+    @Override
+    public ReadKind kind()
+    {
+        return UNTRACKED;
     }
 
     /*

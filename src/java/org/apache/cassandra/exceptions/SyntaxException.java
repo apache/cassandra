@@ -23,4 +23,10 @@ public class SyntaxException extends RequestValidationException
     {
         super(ExceptionCode.SYNTAX_ERROR, msg);
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.SYNTAX_ERROR;
+    }
 }

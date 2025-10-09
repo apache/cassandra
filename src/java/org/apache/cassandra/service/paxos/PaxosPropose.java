@@ -172,12 +172,10 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
      * or for the present status if the time elapses without a final result being reached.
      * @param waitForNoSideEffect if true, on failure we will wait until we can say with certainty there are no side effects
      *                            or until we know we will never be able to determine this with certainty
-     * @param isForRecovery if true the value being proposed is not a new value it is a value from an existing in flight proposal
-     *                    and will be allowed to proceed even if the key is migrating to a different consensus protocol
      */
     static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect)
     {
-        if (waitForNoSideEffect && proposal.update.isEmpty())
+        if (waitForNoSideEffect && proposal.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
 
         // to avoid unnecessary object allocations we extend PaxosPropose to implements Paxos.Async
@@ -211,7 +209,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     static <T extends Consumer<Status>> T propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, T onDone)
     {
-        if (waitForNoSideEffect && proposal.update.isEmpty())
+        if (waitForNoSideEffect && proposal.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
 
         PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, onDone);
@@ -416,7 +414,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
             try
             {
-                AcceptResult acceptResult = execute(message.payload.proposal, message.from());
+                AcceptResult acceptResult = execute(message.payload.proposal);
                 if (acceptResult == null)
                     MessagingService.instance().respondWithFailure(UNKNOWN, message);
                 else
@@ -429,9 +427,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             }
         }
 
-        public static AcceptResult execute(Proposal proposal, InetAddressAndPort from)
+        public static AcceptResult execute(Proposal proposal)
         {
-            if (!Paxos.isInRangeAndShouldProcess(from, proposal.update.partitionKey(), proposal.update.metadata(), false))
+            if (!Paxos.isInRangeAndShouldProcess(proposal.partitionKey(), proposal.metadata(), false))
                 return null;
 
             long start = nanoTime();
@@ -441,7 +439,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             }
             finally
             {
-                Keyspace.openAndGetStore(proposal.update.metadata()).metric.casPropose.addNano(nanoTime() - start);
+                Keyspace.openAndGetStore(proposal.metadata()).metric.casPropose.addNano(nanoTime() - start);
             }
         }
     }

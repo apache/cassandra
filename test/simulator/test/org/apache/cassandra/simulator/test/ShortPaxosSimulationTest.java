@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.simulator.test;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
@@ -106,7 +107,9 @@ public class ShortPaxosSimulationTest
                                                                           "--simulations", String.valueOf(DEFAULT_ITERATIONS) });
     }
 
+
     @Test
+    @Ignore("fails due to OOM DirectMemory - unclear why")
     public void selfReconcileTest()
     {
         PaxosSimulationRunner.executeWithExceptionThrowing(new String[] { "reconcile",

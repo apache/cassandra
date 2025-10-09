@@ -195,6 +195,13 @@ public class ClientState
         this.remoteAddress = null;
     }
 
+    private ClientState(boolean isInternal, boolean applyGuardrails)
+    {
+        this.isInternal = isInternal;
+        this.applyGuardrails = applyGuardrails;
+        this.remoteAddress = null;
+    }
+
     protected ClientState(InetSocketAddress remoteAddress)
     {
         this.isInternal = false;
@@ -235,6 +242,21 @@ public class ClientState
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
         return new ClientState((InetSocketAddress)remoteAddress);
+    }
+
+    /**
+     * @return a minimal ClientState for forwarded tracked Paxos requests (for guardrail application)
+     */
+    public static ClientState forForwardedCalls(boolean isInternal, boolean applyGuardrails, boolean isSuper)
+    {
+        return new ClientState(isInternal, applyGuardrails)
+        {
+            @Override
+            public boolean isSuper()
+            {
+                return isSuper;
+            }
+        };
     }
 
     /**

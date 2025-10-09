@@ -105,14 +105,14 @@ public class GuardrailColumnBlobValueSizeTest extends ColumnTypeSpecificValueThr
         // static column
         assertValid("INSERT INTO %s (k, s) VALUES ('1', ?) IF NOT EXISTS", allocate(1));
         assertValid("INSERT INTO %s (k, s) VALUES ('2', ?) IF NOT EXISTS", allocate(WARN_THRESHOLD));
-        assertValid("INSERT INTO %s (k, s) VALUES ('2', ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // not applied
-        assertWarns("s", "INSERT INTO %s (k, s) VALUES ('3', ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1));
+        assertWarns("s", "INSERT INTO %s (k, s) VALUES ('2', ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // not applied
+        assertWarns("s", "INSERT INTO %s (k, s) VALUES ('3', ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // applied
 
         // regular column
         assertValid("INSERT INTO %s (k, c, v) VALUES ('4', textAsBlob('0'), ?) IF NOT EXISTS", allocate(1));
         assertValid("INSERT INTO %s (k, c, v) VALUES ('5', textAsBlob('0'), ?) IF NOT EXISTS", allocate(WARN_THRESHOLD));
-        assertValid("INSERT INTO %s (k, c, v) VALUES ('5', textAsBlob('0'), ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // not applied
-        assertWarns("v", "INSERT INTO %s (k, c, v) VALUES ('6', textAsBlob('0'), ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1));
+        assertWarns("v", "INSERT INTO %s (k, c, v) VALUES ('5', textAsBlob('0'), ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // not applied
+        assertWarns("v", "INSERT INTO %s (k, c, v) VALUES ('6', textAsBlob('0'), ?) IF NOT EXISTS", allocate(WARN_THRESHOLD + 1)); // applied
     }
 
     @Override
@@ -127,17 +127,17 @@ public class GuardrailColumnBlobValueSizeTest extends ColumnTypeSpecificValueThr
         // clustering key, the CAS updates with values beyond the threshold are not applied, so they don't come to fail
         testNoThreshold("UPDATE %s SET v = textAsBlob('0') WHERE k = '0' AND c = ? IF EXISTS");
 
-        // static column, only the applied CAS updates can fire the guardrail
+        // static column, successful and failed updates should fire the guardrail
         assertValid("INSERT INTO %s (k, s) VALUES ('0', textAsBlob('0'))");
         testThreshold("s", "UPDATE %s SET s = ? WHERE k = '0' IF EXISTS");
         assertValid("DELETE FROM %s WHERE k = '0'");
-        testNoThreshold("UPDATE %s SET s = ? WHERE k = '0' IF EXISTS");
+        testThreshold("s", "UPDATE %s SET s = ? WHERE k = '0' IF EXISTS");
 
-        // regular column, only the applied CAS updates can fire the guardrail
+        // regular column, successful and failed updates should fire the guardrail
         assertValid("INSERT INTO %s (k, c) VALUES ('0', textAsBlob('0'))");
         testThreshold("v", "UPDATE %s SET v = ? WHERE k = '0' AND c = textAsBlob('0') IF EXISTS");
         assertValid("DELETE FROM %s WHERE k = '0' AND c = textAsBlob('0')");
-        testNoThreshold("UPDATE %s SET v = ? WHERE k = '0' AND c = textAsBlob('0') IF EXISTS");
+        testThreshold("v", "UPDATE %s SET v = ? WHERE k = '0' AND c = textAsBlob('0') IF EXISTS");
     }
 
     @Test
@@ -157,9 +157,9 @@ public class GuardrailColumnBlobValueSizeTest extends ColumnTypeSpecificValueThr
         assertValid("UPDATE %s SET v = textAsBlob('0') WHERE k = 0");
         assertValid("UPDATE %s SET v = ? WHERE k = 0 IF v = textAsBlob('0')", allocate(WARN_THRESHOLD));
 
-        // updates beyond the threshold fail only if the update is applied
+        // updates beyond the threshold fail, independently of whether they are applied
         assertValid("DELETE FROM %s WHERE k = 0");
-        assertValid("UPDATE %s SET v = ? WHERE k = 0 IF v = textAsBlob('0')", allocate(WARN_THRESHOLD + 1));
+        assertWarns("v", "UPDATE %s SET v = ? WHERE k = 0 IF v = textAsBlob('0')", allocate(WARN_THRESHOLD + 1));
         assertValid("UPDATE %s SET v = textAsBlob('0') WHERE k = 0");
         assertWarns("v", "UPDATE %s SET v = ? WHERE k = 0 IF v = textAsBlob('0')", allocate(WARN_THRESHOLD + 1));
     }

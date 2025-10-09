@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class RequestFailureException extends RequestExecutionException
+public abstract class RequestFailureException extends RequestExecutionException
 {
     public final ConsistencyLevel consistency;
     public final int received;

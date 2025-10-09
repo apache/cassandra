@@ -213,6 +213,7 @@ public enum CassandraRelevantProperties
     DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS("cassandra.diagnostic_snapshot_interval_nanos", "60000000000"),
     DISABLE_AUTH_CACHES_REMOTE_CONFIGURATION("cassandra.disable_auth_caches_remote_configuration"),
     /** properties to disable certain behaviours for testing */
+    DISABLE_CONSENSUS_REQUEST_FORWARDING("cassandra.disable_consensus_request_forwarding"),
     DISABLE_GOSSIP_ENDPOINT_REMOVAL("cassandra.gossip.disable_endpoint_removal"),
     DISABLE_PAXOS_AUTO_REPAIRS("cassandra.disable_paxos_auto_repairs"),
     DISABLE_PAXOS_STATE_FLUSH("cassandra.disable_paxos_state_flush"),

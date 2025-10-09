@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.reads.tracked;
 
+import org.apache.cassandra.db.IReadResponse;
+import org.apache.cassandra.db.ReadKind;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -29,7 +31,9 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TrackedSummaryResponse
+import static org.apache.cassandra.db.ReadKind.TRACKED_SUMMARY;
+
+public class TrackedSummaryResponse implements IReadResponse
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedSummaryResponse.class);
 
@@ -89,4 +93,10 @@ public class TrackedSummaryResponse
                    TypeSizes.INT_SIZE * (long) summary.summaryNodes.length;
         }
     };
+
+    @Override
+    public ReadKind kind()
+    {
+        return TRACKED_SUMMARY;
+    }
 }

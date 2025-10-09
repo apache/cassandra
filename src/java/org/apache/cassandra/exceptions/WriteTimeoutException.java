@@ -17,8 +17,13 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
+
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class WriteTimeoutException extends RequestTimeoutException
 {
@@ -35,5 +40,38 @@ public class WriteTimeoutException extends RequestTimeoutException
     {
         super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, msg);
         this.writeType = writeType;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        out.write(consistency.code);
+        out.writeUnsignedVInt32(received);
+        out.writeUnsignedVInt32(blockFor);
+        WriteType.serializer.serialize(writeType, out);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.BYTE_SIZE + // consistency
+               TypeSizes.sizeofUnsignedVInt(received) +
+               TypeSizes.sizeofUnsignedVInt(blockFor) +
+               WriteType.serializer.serializedSize(writeType);
+    }
+
+    static WriteTimeoutException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ConsistencyLevel consistency = ConsistencyLevel.fromCode(in.readUnsignedByte());
+        int received = in.readUnsignedVInt32();
+        int blockFor = in.readUnsignedVInt32();
+        WriteType writeType = WriteType.serializer.deserialize(in);
+        return new WriteTimeoutException(writeType, consistency, received, blockFor, message);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.WRITE_TIMEOUT;
     }
 }

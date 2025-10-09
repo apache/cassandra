@@ -60,13 +60,17 @@ public class TxnReferenceOperations
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TxnReferenceOperations that = (TxnReferenceOperations) o;
+
+        if (this.isEmpty() && that.isEmpty())
+            return true;
+
         return metadata.equals(that.metadata) && clusterings.equals(that.clusterings) && regulars.equals(that.regulars) && statics.equals(that.statics);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(metadata, clusterings, regulars, statics);
+        return Objects.hash(regulars, statics);
     }
 
     @Override
@@ -85,12 +89,35 @@ public class TxnReferenceOperations
         return regulars.isEmpty() && statics.isEmpty();
     }
 
+    /**
+     * Public accessors for CAS forwarding serialization support.
+     * These enable reuse of TxnReferenceOperations structure without exposing internal implementation.
+     */
+    public List<Clustering<?>> getClusterings()
+    {
+        return clusterings;
+    }
+
+    public List<TxnReferenceOperation> getRegulars()
+    {
+        return regulars;
+    }
+
+    public List<TxnReferenceOperation> getStatics()
+    {
+        return statics;
+    }
+
     static final ParameterisedVersionedSerializer<TxnReferenceOperations, TableMetadatas, Version> serializer = new ParameterisedVersionedSerializer<>()
     {
+        private static final int HAS_CONTENT    = 0x01;
+
         @Override
         public void serialize(TxnReferenceOperations operations, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeBoolean(!operations.isEmpty());
+            int flags = (!operations.isEmpty() ? HAS_CONTENT : 0);
+            out.write(flags);
+
             if (operations.isEmpty())
                 return;
 
@@ -105,7 +132,10 @@ public class TxnReferenceOperations
         @Override
         public TxnReferenceOperations deserialize(TableMetadatas tables, DataInputPlus in, Version version) throws IOException
         {
-            if (!in.readBoolean())
+            int flags = in.readUnsignedByte();
+            boolean hasContent    = (flags & HAS_CONTENT)    != 0;
+
+            if (!hasContent)
                 return TxnReferenceOperations.empty();
 
             TableMetadata metadata = tables.deserialize(in);
@@ -120,7 +150,7 @@ public class TxnReferenceOperations
         @Override
         public long serializedSize(TxnReferenceOperations operations, TableMetadatas tables, Version version)
         {
-            long size = TypeSizes.BOOL_SIZE;
+            long size = TypeSizes.BYTE_SIZE; // flags byte
             if (operations.isEmpty())
                 return size;
             size += tables.serializedSize(operations.metadata);
@@ -128,19 +158,8 @@ public class TxnReferenceOperations
             for (Clustering<?> clustering : operations.clusterings)
                 size += Clustering.serializer.serializedSize(clustering, version.messageVersion(), operations.metadata.comparator.subtypes());
             size += serializedListSize(operations.regulars, tables, TxnReferenceOperation.serializer);
-            size +=  serializedListSize(operations.statics, tables, TxnReferenceOperation.serializer);
+            size += serializedListSize(operations.statics, tables, TxnReferenceOperation.serializer);
             return size;
-        }
-
-        private TableMetadatas tables(TxnReferenceOperations operations)
-        {
-            TableMetadatas.Collector collector = new TableMetadatas.Collector();
-            collector.add(operations.metadata);
-            for (TxnReferenceOperation op : operations.regulars)
-                op.collect(collector);
-            for (TxnReferenceOperation op : operations.statics)
-                op.collect(collector);
-            return collector.build();
         }
     };
 }

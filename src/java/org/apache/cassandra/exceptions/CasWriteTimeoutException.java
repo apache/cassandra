@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.WriteType;
+import java.io.IOException;
 
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CasWriteTimeoutException extends WriteTimeoutException
 {
@@ -29,5 +33,34 @@ public class CasWriteTimeoutException extends WriteTimeoutException
     {
         super(writeType, consistency, received, blockFor, String.format("CAS operation timed out: received %d of %d required responses after %d contention retries", received, blockFor, contentions));
         this.contentions = contentions;
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        super.serializeSpecificFields(out, version);
+        out.writeUnsignedVInt32(contentions);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return super.serializedSizeSpecificFields(version) + TypeSizes.sizeofUnsignedVInt(contentions);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.CAS_WRITE_TIMEOUT;
+    }
+
+    static CasWriteTimeoutException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        ConsistencyLevel consistency = ConsistencyLevel.fromCode(in.readUnsignedByte());
+        int received = in.readUnsignedVInt32();
+        int blockFor = in.readUnsignedVInt32();
+        WriteType writeType = WriteType.serializer.deserialize(in);
+        int contentions = in.readUnsignedVInt32();
+        return new CasWriteTimeoutException(writeType, consistency, received, blockFor, contentions);
     }
 }

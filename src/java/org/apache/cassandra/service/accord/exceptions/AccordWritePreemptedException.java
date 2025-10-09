@@ -18,8 +18,14 @@
 
 package org.apache.cassandra.service.accord.exceptions;
 
+import java.io.IOException;
+
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 
@@ -34,5 +40,33 @@ public class AccordWritePreemptedException extends WriteTimeoutException
     public AccordWritePreemptedException(int received, int blockFor, String msg)
     {
         super(WriteType.CAS, SERIAL, received, blockFor, msg);
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        // Only serialize the fields that vary - consistency is always SERIAL, writeType is always CAS
+        out.writeUnsignedVInt32(received);
+        out.writeUnsignedVInt32(blockFor);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return TypeSizes.sizeofUnsignedVInt(received) +
+               TypeSizes.sizeofUnsignedVInt(blockFor);
+    }
+
+    public static AccordWritePreemptedException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        int received = in.readUnsignedVInt32();
+        int blockFor = in.readUnsignedVInt32();
+        return new AccordWritePreemptedException(received, blockFor, message);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.ACCORD_WRITE_PREEMPTED;
     }
 }

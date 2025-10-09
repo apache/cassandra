@@ -261,6 +261,7 @@ public final class SystemKeyspace
                 + "in_progress_read_ballot timeuuid,"
                 + "most_recent_commit blob,"
                 + "most_recent_commit_at timeuuid,"
+                + "most_recent_commit_mutation_id blob,"
                 + "most_recent_commit_version int,"
                 + "proposal blob,"
                 + "proposal_ballot timeuuid,"
@@ -1584,7 +1585,7 @@ public final class SystemKeyspace
         if (proposal instanceof AcceptedWithTTL)
         {
             long localDeletionTime = ((Commit.AcceptedWithTTL) proposal).localDeletionTime;
-            int ttlInSec = legacyPaxosTtlSec(proposal.update.metadata());
+            int ttlInSec = legacyPaxosTtlSec(proposal.metadata());
             long nowInSec = localDeletionTime - ttlInSec;
             String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = ?, proposal = ?, proposal_version = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
@@ -1594,8 +1595,8 @@ public final class SystemKeyspace
                                         proposal.ballot,
                                         PartitionUpdate.toBytes(proposal.update, MessagingService.current_version),
                                         MessagingService.current_version,
-                                        proposal.update.partitionKey().getKey(),
-                                        proposal.update.metadata().id.asUUID());
+                                        proposal.partitionKey().getKey(),
+                                        proposal.metadata().id.asUUID());
         }
         else
         {
@@ -1605,8 +1606,8 @@ public final class SystemKeyspace
                             proposal.ballot,
                             PartitionUpdate.toBytes(proposal.update, MessagingService.current_version),
                             MessagingService.current_version,
-                            proposal.update.partitionKey().getKey(),
-                            proposal.update.metadata().id.asUUID());
+                            proposal.partitionKey().getKey(),
+                            proposal.metadata().id.asUUID());
         }
     }
 
@@ -1614,12 +1615,14 @@ public final class SystemKeyspace
     {
         // We always erase the last proposal (with the commit timestamp to no erase more recent proposal in case the commit is old)
         // even though that's really just an optimization  since SP.beginAndRepairPaxos will exclude accepted proposal older than the mrc.
+        ByteBuffer mutationIdBytes = commit.mutation.id().isNone() ? null : commit.mutation.id().toByteBuffer();
+
         if (commit instanceof Commit.CommittedWithTTL)
         {
             long localDeletionTime = ((Commit.CommittedWithTTL) commit).localDeletionTime;
-            int ttlInSec = legacyPaxosTtlSec(commit.update.metadata());
+            int ttlInSec = legacyPaxosTtlSec(commit.metadata());
             long nowInSec = localDeletionTime - ttlInSec;
-            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
+            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ?, most_recent_commit_mutation_id = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
                             nowInSec,
                             commit.ballot.unixMicros(),
@@ -1627,19 +1630,21 @@ public final class SystemKeyspace
                             commit.ballot,
                             PartitionUpdate.toBytes(commit.update, MessagingService.current_version),
                             MessagingService.current_version,
-                            commit.update.partitionKey().getKey(),
-                            commit.update.metadata().id.asUUID());
+                            mutationIdBytes,
+                            commit.partitionKey().getKey(),
+                            commit.metadata().id.asUUID());
         }
         else
         {
-            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
+            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ?, most_recent_commit_mutation_id = ? WHERE row_key = ? AND cf_id = ?";
             executeInternal(cql,
                             commit.ballot.unixMicros(),
                             commit.ballot,
                             PartitionUpdate.toBytes(commit.update, MessagingService.current_version),
                             MessagingService.current_version,
-                            commit.update.partitionKey().getKey(),
-                            commit.update.metadata().id.asUUID());
+                            mutationIdBytes,
+                            commit.partitionKey().getKey(),
+                            commit.metadata().id.asUUID());
         }
     }
 

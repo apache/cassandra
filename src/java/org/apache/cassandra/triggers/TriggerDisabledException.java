@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.triggers;
 
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class TriggerDisabledException extends InvalidRequestException
@@ -25,5 +26,11 @@ public class TriggerDisabledException extends InvalidRequestException
     public TriggerDisabledException(String message)
     {
         super(message);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.TRIGGER_DISABLED;
     }
 }

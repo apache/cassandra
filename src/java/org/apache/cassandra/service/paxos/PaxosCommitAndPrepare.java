@@ -20,11 +20,12 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -34,8 +35,15 @@ import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Rejected;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.service.paxos.PaxosPrepare.Response;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
+import org.apache.cassandra.service.reads.tracked.TrackedRead.Id;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher.RequestTime;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_AND_PREPARE_REQ;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getKeyMigrationState;
@@ -50,21 +58,44 @@ public class PaxosCommitAndPrepare
     static PaxosPrepare commitAndPrepare(Agreed commit, Paxos.Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadSuccess)
     {
         Ballot ballot = newBallot(commit.ballot, participants.consistencyForConsensus);
-        Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite, true);
-        PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadSuccess, null);
 
         Tracing.trace("Committing {}; Preparing {}", commit.ballot, ballot);
-        Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request, participants.isUrgent());
+        /*
+         * For simplicity with tracked keyspaces do the commit as a regular commit synchronously and then separately do a regular prepare.
+         * CommitAndPrepare goes down the prepare path with a message containing the commit along with the prepare
+         * which means this node is the coordinator and would need to either re-use the original commit mutation id
+         * (which wasn't saved in the system table) or generate a new one which it might not be able to do without forwarding.
+         *
+         * All these things are tractable to do better, but for now doing something simple and correct.
+         */
+        if (readCommand.metadata().replicationType().isTracked())
+        {
+            /*
+             * Consistency for consensus is tricky to pick here. The goal of sending this commit is to unblock the prepare
+             * on nodes that are missing the commit. CommitAndPrepare is an outcome that occurs when prepare/propose already failed
+             * because enough nodes were missing a commmit so we need to try again. To keep things highly available we
+             * use the same consistency as consensus so that when we go to do the prepare there are enough nodes
+             * we know have the commit that this can succeed.
+             */
+            PaxosCommit.commit(commit, participants, participants.consistencyForConsensus, participants.consistencyForConsensus, isWrite);
+            return PaxosPrepare.prepareWithBallot(ballot, participants, readCommand, isWrite, acceptEarlyReadSuccess);
+        }
+        else
+        {
+            Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite, true);
+            PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadSuccess, null);
+            Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request, participants.isUrgent());
 
-        start(prepare, participants, message, RequestHandler::execute);
-        return prepare;
+            start(prepare, participants, message, RequestHandler::execute);
+            return prepare;
+        }
     }
 
     private static class Request extends PaxosPrepare.AbstractRequest<Request>
     {
         final Agreed commit;
 
-        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
+        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
             super(ballot, electorate, read, isWrite, isForRecovery);
             this.commit = commit;
@@ -81,6 +112,18 @@ public class PaxosCommitAndPrepare
             return new Request(commit, ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
+        @Override
+        public Request asTrackedDataRequest(Id id, ConsistencyLevel consistencyLevel, int dataNode, int[] summaryNodes)
+        {
+            return new Request(commit, ballot, electorate, new TrackedRead.DataRequest(id, (SinglePartitionReadCommand)read, dataNode, summaryNodes, consistencyLevel), isForWrite, isForRecovery);
+        }
+
+        @Override
+        public Request asTrackedSummaryRequest(Id id, int dataNode, int[] summaryNodes)
+        {
+            return new Request(commit, ballot, electorate, new TrackedRead.SummaryRequest(id, (SinglePartitionReadCommand)read, dataNode, summaryNodes), isForWrite, isForRecovery);
+        }
+
         public String toString()
         {
             return commit.toString("CommitAndPrepare(") + ", " + Ballot.toString(ballot) + ')';
@@ -89,7 +132,7 @@ public class PaxosCommitAndPrepare
 
     public static class RequestSerializer extends PaxosPrepare.AbstractRequestSerializer<Request, Agreed>
     {
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, EmbeddableSinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
             return new Request(param, ballot, electorate, read, isWrite, isForRecovery);
         }
@@ -128,32 +171,33 @@ public class PaxosCommitAndPrepare
         {
             ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
 
-            PaxosPrepare.Response response = execute(message.payload, message.from());
+            Future<Response> response = execute(message.payload, new RequestTime(message.createdAtNanos()));
             if (response == null)
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);
             else
-                MessagingService.instance().respond(response, message);
+                // TODO unwrap error for error handling in the verb
+                MessagingService.instance().respond(getUnchecked(response), message);
         }
 
-        private static PaxosPrepare.Response execute(Request request, InetAddressAndPort from)
+        private static Future<PaxosPrepare.Response> execute(Request request, RequestTime requestTime)
         {
             Agreed commit = request.commit;
-            if (!Paxos.isInRangeAndShouldProcess(from, commit.update.partitionKey(), commit.update.metadata(), request.read != null))
+            if (!Paxos.isInRangeAndShouldProcess(commit.partitionKey(), commit.metadata(), request.read != null))
                 return null;
 
             // This can be done outside the lock
             ClusterMetadata cm = ClusterMetadata.current();
-            KeyMigrationState keyMigrationState = getKeyMigrationState(cm, commit.update.metadata().id, commit.update.partitionKey());
+            KeyMigrationState keyMigrationState = getKeyMigrationState(cm, commit.metadata().id, commit.partitionKey());
             // Make sure the operation is safe and there is no Accord state that needs application
             // Also need to know max HLC in order to accept this ballot
             long maxHLC = keyMigrationState.maybePerformAccordToPaxosKeyMigration(true);
             if (maxHLC >= commit.ballot.unixMicros())
-                return new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, commit.ballot.flag()));
+                return ImmediateFuture.success(new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, commit.ballot.flag())));
 
             try (PaxosState state = PaxosState.get(commit))
             {
                 state.commit(commit);
-                return PaxosPrepare.RequestHandler.execute(request, state, cm);
+                return PaxosPrepare.RequestHandler.execute(requestTime, request, state, cm);
             }
         }
     }

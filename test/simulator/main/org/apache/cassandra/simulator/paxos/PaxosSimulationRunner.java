@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.inject.Inject;
 
 import org.apache.cassandra.config.Config;
@@ -30,7 +29,6 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
-
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;

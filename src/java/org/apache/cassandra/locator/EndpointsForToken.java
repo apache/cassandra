@@ -18,13 +18,19 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
@@ -167,4 +173,38 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
         return ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forToken(token);
     }
 
+    public static final IPartitionerDependentSerializer<EndpointsForToken> serializer = new Serializer();
+
+    public static class Serializer implements IPartitionerDependentSerializer<EndpointsForToken>
+    {
+        @Override
+        public void serialize(EndpointsForToken endpoints, DataOutputPlus out, int version) throws IOException
+        {
+            Token.compactSerializer.serialize(endpoints.token(), out, version);
+            out.writeUnsignedVInt32(endpoints.size());
+            for (Replica replica : endpoints)
+                Replica.serializer.serialize(replica, out, version);
+        }
+
+        @Override
+        public EndpointsForToken deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
+        {
+            Token token = Token.compactSerializer.deserialize(in, partitioner, version);
+            int size = in.readUnsignedVInt32();
+            EndpointsForToken.Builder builder = EndpointsForToken.builder(token, size);
+            for (int i = 0; i < size; i++)
+                builder.add(Replica.serializer.deserialize(in, partitioner, version));
+            return builder.build();
+        }
+
+        @Override
+        public long serializedSize(EndpointsForToken endpoints, int version)
+        {
+            long size = Token.compactSerializer.serializedSize(endpoints.token(), version);
+            size += TypeSizes.sizeofUnsignedVInt(endpoints.size());
+            for (Replica replica : endpoints)
+                size += Replica.serializer.serializedSize(replica, version);
+            return size;
+        }
+    }
 }

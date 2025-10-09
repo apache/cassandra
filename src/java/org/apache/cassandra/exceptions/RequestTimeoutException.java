@@ -19,7 +19,7 @@ package org.apache.cassandra.exceptions;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 
-public class RequestTimeoutException extends RequestExecutionException
+public abstract class RequestTimeoutException extends RequestExecutionException
 {
     public final ConsistencyLevel consistency;
     public final int received;

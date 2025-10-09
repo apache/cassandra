@@ -133,13 +133,16 @@ final class BatchUpdatesCollector implements UpdatesCollector
 
     /**
      * Returns a collection containing all the mutations.
-     * 
+     *
      * @param state state related to the client connection
-     * 
+     * @param potentialTxnConflicts whether to allow potential transaction conflicts
+     * @param skipIndexValidation if true, skip index validation (used for CAS/transaction paths
+     *                            where validation happens later on the final materialized values)
+     *
      * @return a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts)
+    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts, boolean skipIndexValidation)
     {
         List<IMutation> ms = new ArrayList<>();
         for (Map<ByteBuffer, IMutationBuilder> ksMap : mutationBuilders.values())
@@ -147,7 +150,8 @@ final class BatchUpdatesCollector implements UpdatesCollector
             for (IMutationBuilder builder : ksMap.values())
             {
                 IMutation mutation = builder.build(potentialTxnConflicts);
-                mutation.validateIndexedColumns(state);
+                if (!skipIndexValidation)
+                    mutation.validateIndexedColumns(state);
                 mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
                 ms.add(mutation);
             }

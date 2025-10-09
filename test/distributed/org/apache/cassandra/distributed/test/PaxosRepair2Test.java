@@ -438,7 +438,7 @@ public class PaxosRepair2Test extends TestBaseImpl
 
     private static int ballotDeletion(Commit commit)
     {
-        return (int) TimeUnit.MICROSECONDS.toSeconds(commit.ballot.unixMicros()) + SystemKeyspace.legacyPaxosTtlSec(commit.update.metadata());
+        return (int) TimeUnit.MICROSECONDS.toSeconds(commit.ballot.unixMicros()) + SystemKeyspace.legacyPaxosTtlSec(commit.metadata());
     }
 
     private static void backdateTimestamps(int seconds)

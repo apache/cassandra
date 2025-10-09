@@ -121,10 +121,22 @@ import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
+import org.apache.cassandra.service.paxos.CasForwardHandler;
+import org.apache.cassandra.service.paxos.CasForwardRequest;
+import org.apache.cassandra.service.paxos.CasForwardResponse;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
+import org.apache.cassandra.service.paxos.ConsensusReadForwardHandler;
+import org.apache.cassandra.service.paxos.ConsensusReadForwardRequest;
+import org.apache.cassandra.service.paxos.Paxos2CommitForwardHandler;
+import org.apache.cassandra.service.paxos.Paxos2CommitForwardRequest;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosCommitAndPrepare;
+import org.apache.cassandra.service.paxos.PaxosCommitForwardHandler;
+import org.apache.cassandra.service.paxos.PaxosCommitForwardRequest;
+import org.apache.cassandra.service.paxos.PrepareRefreshForwardHandler;
+import org.apache.cassandra.service.paxos.PrepareRefreshForwardRequest;
+import org.apache.cassandra.service.paxos.PrepareRefreshForwardResponse;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.service.paxos.PaxosPrepareRefresh;
 import org.apache.cassandra.service.paxos.PaxosPropose;
@@ -174,6 +186,7 @@ import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.concurrent.Stage.PAXOS_REPAIR;
 import static org.apache.cassandra.concurrent.Stage.READ;
 import static org.apache.cassandra.concurrent.Stage.REQUEST_RESPONSE;
+import static org.apache.cassandra.concurrent.Stage.TRACKED_CAS;
 import static org.apache.cassandra.concurrent.Stage.TRACING;
 import static org.apache.cassandra.net.ResponseHandlerSupplier.RESPONSE_HANDLER;
 import static org.apache.cassandra.net.Verb.Kind.CUSTOM;
@@ -227,6 +240,8 @@ public enum Verb
     PAXOS_PROPOSE_REQ      (34,  P2, writeTimeout,    MUTATION,          () -> Commit.serializer,                    () -> ProposeVerbHandler.instance,         PAXOS_PROPOSE_RSP   ),
     PAXOS_COMMIT_RSP       (95,  P2, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     PAXOS_COMMIT_REQ       (35,  P2, writeTimeout,    MUTATION,          () -> Agreed.serializer,                    () -> PaxosCommit.requestHandler,          PAXOS_COMMIT_RSP    ),
+    PAXOS_COMMIT_FORWARD_RSP (96, P2, writeTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
+    PAXOS_COMMIT_FORWARD_REQ (32,  P2, writeTimeout,  TRACKED_CAS,       () -> PaxosCommitForwardRequest.serializer, () -> PaxosCommitForwardHandler.instance,  PAXOS_COMMIT_FORWARD_RSP ),
 
     TRUNCATE_RSP           (79,  P0, truncateTimeout, REQUEST_RESPONSE,  () -> TruncateResponse.serializer,          RESPONSE_HANDLER                             ),
     TRUNCATE_REQ           (19,  P0, truncateTimeout, MUTATION,          () -> TruncateRequest.serializer,           () -> TruncateVerbHandler.instance,        TRUNCATE_RSP        ),
@@ -308,6 +323,16 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
     PAXOS2_UPDATE_LOW_BALLOT_RSP     (67, P2, repairTimeout, PAXOS_REPAIR,      () -> NoPayload.serializer,                    RESPONSE_HANDLER                                                            ),
     PAXOS2_UPDATE_LOW_BALLOT_REQ     (64, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosUpdateLowBallot.serializer,         () -> PaxosUpdateLowBallot.verbHandler,                      PAXOS2_UPDATE_LOW_BALLOT_RSP     ),
+    PAXOS2_COMMIT_FORWARD_RSP        (71, P2, writeTimeout,  REQUEST_RESPONSE,  () -> NoPayload.serializer,                    RESPONSE_HANDLER                                                                              ),
+    PAXOS2_COMMIT_FORWARD_REQ        (72, P2, writeTimeout,  TRACKED_CAS,       () -> Paxos2CommitForwardRequest.serializer,   () -> Paxos2CommitForwardHandler.instance,                   PAXOS2_COMMIT_FORWARD_RSP        ),
+
+    // CAS and consensus read forwarding for tracked keyspaces
+    CAS_FORWARD_RSP                  (73, P2, writeTimeout,  REQUEST_RESPONSE,  () -> CasForwardResponse.serializer,           RESPONSE_HANDLER                                                                              ),
+    CAS_FORWARD_REQ                  (74, P2, writeTimeout,  TRACKED_CAS,       () -> CasForwardRequest.serializer,            () -> CasForwardHandler.instance,                            CAS_FORWARD_RSP                  ),
+    CONSENSUS_READ_FORWARD_RSP       (75, P2, readTimeout,   REQUEST_RESPONSE,  () -> CasForwardResponse.serializer,           RESPONSE_HANDLER                                                                              ),
+    CONSENSUS_READ_FORWARD_REQ       (76, P2, readTimeout,   TRACKED_CAS,       () -> ConsensusReadForwardRequest.serializer,  () -> ConsensusReadForwardHandler.instance,                  CONSENSUS_READ_FORWARD_RSP       ),
+    PAXOS_PREPARE_REFRESH_FORWARD_RSP(77, P2, writeTimeout,  REQUEST_RESPONSE,  () -> PrepareRefreshForwardResponse.serializer,RESPONSE_HANDLER                                                                              ),
+    PAXOS_PREPARE_REFRESH_FORWARD_REQ(78, P2, writeTimeout,  TRACKED_CAS,       () -> PrepareRefreshForwardRequest.serializer, () -> PrepareRefreshForwardHandler.instance,                 PAXOS_PREPARE_REFRESH_FORWARD_RSP),
 
     // transactional cluster metadata
     TCM_COMMIT_RSP         (801, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         RESPONSE_HANDLER                                 ),

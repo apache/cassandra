@@ -398,6 +398,9 @@ public class TrackedWriteRequest
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
     {
         Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWrite.LeaderCallback);
+        // TODO: Why execute immediately before even sending the messages to the other nodes?
+        // Also this is already going to be on the mutation stage and the mutation stage can get backed up so don't we want
+        // to start on a stage that is less likley to get backed up?
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 

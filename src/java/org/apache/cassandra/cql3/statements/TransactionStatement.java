@@ -355,14 +355,14 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new Keys(keySet);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector, long nowInSeconds)
     {
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
             minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
-            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector));
+            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector, nowInSeconds));
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {
@@ -477,7 +477,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         else
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
-            List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector);
+            long nowInSeconds = options.getNowInSec(FBUtilities.nowInSeconds());
+            List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector, nowInSeconds);
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
             if (writeFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
             {

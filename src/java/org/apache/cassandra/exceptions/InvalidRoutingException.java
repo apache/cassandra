@@ -31,7 +31,7 @@ public class InvalidRoutingException extends InvalidRequestException
     public static final String RANGE_TEMPLATE = "Received a read request from %s for a range [%s,%s] that is not owned by the current replica as of %s: %s.";
 
     public static final String WRITE_TEMPLATE = "Received a mutation from %s for a token %s that is not owned by the current replica as of %s: %s.";
-    private InvalidRoutingException(String msg)
+    public InvalidRoutingException(String msg)
     {
         super(msg);
     }
@@ -58,5 +58,11 @@ public class InvalidRoutingException extends InvalidRequestException
                                                    IMutation mutation)
     {
         return new InvalidRoutingException(String.format(WRITE_TEMPLATE, from, token, epoch, mutation.getKeyspaceName()));
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.INVALID_ROUTING;
     }
 }

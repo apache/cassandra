@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.io.IOException;
+
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.MD5Digest;
 
 public class PreparedQueryNotFoundException extends RequestValidationException
@@ -35,5 +39,32 @@ public class PreparedQueryNotFoundException extends RequestValidationException
                              " (either the query was not prepared on this host (maybe the host has been restarted?)" +
                              " or you have prepared too many queries and it has been evicted from the internal cache)",
                              id);
+    }
+
+    @Override
+    protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
+    {
+        // MD5 digest is always 16 bytes
+        out.write(id.bytes);
+    }
+
+    @Override
+    protected long serializedSizeSpecificFields(int version)
+    {
+        return id.bytes.length; // MD5 is always 16 bytes
+    }
+
+    static PreparedQueryNotFoundException deserializeFields(String message, DataInputPlus in, int version) throws IOException
+    {
+        byte[] bytes = new byte[16]; // MD5 is always 16 bytes
+        in.readFully(bytes);
+        MD5Digest id = MD5Digest.wrap(bytes);
+        return new PreparedQueryNotFoundException(id);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.UNPREPARED;
     }
 }

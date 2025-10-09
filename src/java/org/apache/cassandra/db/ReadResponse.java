@@ -39,9 +39,10 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ReadKind.UNTRACKED;
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
-public abstract class ReadResponse
+public abstract class ReadResponse implements IReadResponse
 {
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
@@ -113,6 +114,12 @@ public abstract class ReadResponse
         }
         return String.format("<key %s not found (repaired_digest=%s repaired_digest_conclusive=%s)>",
                              key, ByteBufferUtil.bytesToHex(repairedDataDigest()), isRepairedDigestConclusive());
+    }
+
+    @Override
+    public ReadKind kind()
+    {
+        return UNTRACKED;
     }
 
     private String toDebugString(UnfilteredRowIterator partition, TableMetadata metadata)

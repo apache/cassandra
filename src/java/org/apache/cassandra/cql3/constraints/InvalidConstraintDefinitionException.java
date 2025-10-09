@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3.constraints;
 
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
@@ -28,5 +29,11 @@ public class InvalidConstraintDefinitionException extends InvalidRequestExceptio
     public InvalidConstraintDefinitionException(String msg)
     {
         super(msg);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.INVALID_CONSTRAINT_DEFINITION;
     }
 }

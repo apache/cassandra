@@ -117,8 +117,8 @@ public class Ballots
             long baseTable = latestBallotFromBaseTable(key, metadata);
             return new LatestBallots(
                 promised.unixMicros(),
-                accepted == null || accepted.update.isEmpty() ? 0L : accepted.ballot.unixMicros(),
-                accepted == null || accepted.update.isEmpty() ? 0L : accepted.update.stats().minTimestamp,
+                accepted == null || accepted.isEmpty() ? 0L : accepted.ballot.unixMicros(),
+                accepted == null || accepted.isEmpty() ? 0L : accepted.stats().minTimestamp,
                 latestBallot(committed.update.iterator()),
                 baseTable
             );

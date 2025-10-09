@@ -73,6 +73,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                                                   .set("mutation_tracking_enabled", "true")
                                                                    .set("partitioner", "OrderPreservingPartitioner")
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
@@ -110,6 +111,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .withTokenSupplier(new OPPTokensReplace())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                                                   .set("mutation_tracking_enabled", "true")
                                                                    .set("partitioner", "OrderPreservingPartitioner")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
                                            .start()))
@@ -171,6 +173,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                                                   .set("mutation_tracking_enabled", "true")
                                                                    .set("partitioner", "OrderPreservingPartitioner")
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
@@ -287,7 +290,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
 
     public static void populate(Cluster cluster) throws ExecutionException, InterruptedException
     {
-        cluster.schemaChange("create keyspace tr with replication = {'class':'NetworkTopologyStrategy', 'dc0':'3/1'}");
+        cluster.schemaChange("create keyspace tr with replication = {'class':'NetworkTopologyStrategy', 'dc0':'3/1'} AND replication_type='tracked'");
         cluster.schemaChange("create table tr.x (id varchar primary key) with read_repair = 'NONE'");
         for (int i = 0; i < 50; i++)
             cluster.coordinator(1).execute("insert into tr.x (id) values (?)", ConsistencyLevel.QUORUM, toStr(i));

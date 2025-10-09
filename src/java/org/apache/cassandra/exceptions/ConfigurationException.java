@@ -49,4 +49,10 @@ public class ConfigurationException extends RequestValidationException
         super(code, msg);
         logStackTrace = true;
     }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.CONFIG_ERROR;
+    }
 }

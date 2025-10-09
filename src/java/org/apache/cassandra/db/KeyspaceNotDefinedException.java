@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.exceptions.CassandraExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class KeyspaceNotDefinedException extends InvalidRequestException
@@ -24,5 +25,11 @@ public class KeyspaceNotDefinedException extends InvalidRequestException
     public KeyspaceNotDefinedException(String why)
     {
         super(why);
+    }
+
+    @Override
+    public CassandraExceptionCode getCassandraExceptionCode()
+    {
+        return CassandraExceptionCode.KEYSPACE_NOT_DEFINED;
     }
 }

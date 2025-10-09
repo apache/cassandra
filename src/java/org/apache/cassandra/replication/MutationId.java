@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -112,6 +113,29 @@ public class MutationId extends ShortMutationId
      * are meant to uniquely identify a mutation, and only offset determines the order within a log.
      */
     public static final Comparator<MutationId> comparator = ShortMutationId.comparator::compare;
+
+    public ByteBuffer toByteBuffer()
+    {
+        return ByteBuffer.allocate(16)
+                         .putLong(logId())
+                         .putLong(sequenceId())
+                         .flip();
+    }
+
+    public static MutationId fromByteBuffer(ByteBuffer buffer)
+    {
+        if (buffer.remaining() < 16)
+            throw new IllegalStateException();
+
+        int pos = buffer.position();
+        long logId = buffer.getLong(pos);
+        long sequenceId = buffer.getLong(pos + 8);
+
+        if (logId == MutationId.none().logId() && sequenceId == MutationId.none().sequenceId())
+            return MutationId.none();
+
+        return new MutationId(logId, sequenceId);
+    }
 
     public static class Serializer implements IVersionedSerializer<MutationId>
     {

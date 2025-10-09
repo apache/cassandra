@@ -2880,6 +2880,18 @@ public class DatabaseDescriptor
         conf.concurrent_accord_operations = concurrent_operations;
     }
 
+    public static int getConcurrentTrackedCasOps()
+    {
+        return conf.concurrent_tracked_cas_ops;
+    }
+
+    public static void setConcurrentTrackedCasOps(int concurrent_tracked_cas_ops)
+    {
+        if (concurrent_tracked_cas_ops < 0)
+            throw new IllegalArgumentException("Concurrent tracked CAS ops must be non-negative");
+        conf.concurrent_tracked_cas_ops = concurrent_tracked_cas_ops;
+    }
+
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;

@@ -68,6 +68,7 @@ import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.BallotGenerator;
+import org.apache.cassandra.simulator.cluster.ReplicationConfig;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.simulator.asm.DeterministicChanceSupplier;
@@ -224,6 +225,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
         protected String transactionalMode = "off";
+        protected ReplicationConfig replicationConfig = ReplicationConfig.SIMPLE;
         protected FutureActionSchedulerFactory futureActionSchedulerFactory;
         protected PerVerbFutureActionSchedulersFactory perVerbFutureActionSchedulersFactory;
         protected String memtableType = null;
@@ -643,6 +645,23 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> replicationConfig(ReplicationConfig config)
+        {
+            this.replicationConfig = config;
+            return this;
+        }
+
+        public Builder<S> replicationConfig(String config)
+        {
+            this.replicationConfig = ReplicationConfig.fromString(config);
+            return this;
+        }
+
+        public ReplicationConfig replicationConfig()
+        {
+            return replicationConfig;
+        }
+
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -901,6 +920,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                            "configurations", Map.of(
                                                "default", Map.of("class_name", "SkipListMemtable"))));
                              }
+
+                             // Enable mutation tracking and transient replication for tracked modes
+                             if (builder.replicationConfig.isTracked())
+                                 config.set("mutation_tracking_enabled", "true");
+                             if (builder.replicationConfig.withWitnesses())
+                                 config.set("transient_replication_enabled", "true");
 
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)

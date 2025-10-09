@@ -729,11 +729,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                     type.isUpdate()? "updates" : "deletions");
 
         Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options, clientState));
-        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow(), requestTime);
+        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
-        request.addRowUpdate(clustering, this, options, timestamp, nowInSeconds);
 
+        request.addWriteFragment(this, options, clientState, nowInSeconds);
         return request;
     }
 
@@ -913,6 +913,47 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
      * @param options value for prepared statement markers
      * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
      * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided.
+     * @param nowInSeconds the current time in seconds
+     * @param requestTime the request time
+     * @param skipIndexValidation if true, skip index validation (used for CAS/transaction paths
+     *                            where validation happens later on the final materialized values)
+     *
+     * @return list of the mutations
+     */
+    public List<? extends IMutation> getMutations(ClientState state,
+                                                  QueryOptions options,
+                                                  boolean local,
+                                                  long timestamp,
+                                                  long nowInSeconds,
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean skipIndexValidation)
+    {
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
+
+        if (keys.size() == 1)
+        {
+            SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            // local means this is test or internal things that are bypassing distributed system modification/checks
+            return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW, skipIndexValidation);
+        }
+        else
+        {
+            HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
+            SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            // local means this is test or internal things that are bypassing distributed system modification/checks
+            return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW, skipIndexValidation);
+        }
+    }
+
+    /**
+     * Convert statement into a list of mutations to apply on the server
+     *
+     * @param state the client state
+     * @param options value for prepared statement markers
+     * @param local if true, any requests (for collections) performed by getMutation should be done locally only.
+     * @param timestamp the current timestamp in microseconds to use if no timestamp is user provided.
      *
      * @return list of the mutations
      */
@@ -923,28 +964,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   long nowInSeconds,
                                                   Dispatcher.RequestTime requestTime)
     {
-        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
-
-        if (keys.size() == 1)
-        {
-            SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
-            // local means this is test or internal things that are bypassing distributed system modification/checks
-            return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
-        }
-        else
-        {
-            HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
-            SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
-            // local means this is test or internal things that are bypassing distributed system modification/checks
-            return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
-        }
+        return getMutations(state, options, local, timestamp, nowInSeconds, requestTime, false);
     }
 
-    public List<PartitionUpdate> getTxnUpdate(ClientState state, QueryOptions options)
+    public List<PartitionUpdate> getTxnUpdate(ClientState state, QueryOptions options, long nowInSeconds)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
+        // Skip index validation here because validation happens later on the final materialized values
+        // in CQL3CasRequest.makeUpdates()
+        List<? extends IMutation> mutations = getMutations(state, options, false, 0, nowInSeconds, new Dispatcher.RequestTime(0, 0), true);
+        // TODO: Temporary fix for CASSANDRA-20079
         if (mutations.isEmpty())
             return Collections.emptyList();
         List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
@@ -1004,22 +1032,22 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.allSubstitutions();
     }
 
-    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey, long nowInSeconds)
     {
         return getTxnWriteFragment(index, state, options, baseUpdate -> {
             Invariants.require(baseUpdate.partitionKey().equals(partitionKey.partitionKey()), "PartitionUpdate generated a partition key different than the one expected");
             return partitionKey;
-        });
+        }, nowInSeconds);
     }
 
-    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector, long nowInSeconds)
     {
-        return getTxnWriteFragment(index, state, options, baseUpdate -> keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()));
+        return getTxnWriteFragment(index, state, options, baseUpdate -> keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), nowInSeconds);
     }
 
-    private List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, java.util.function.Function<PartitionUpdate, PartitionKey> keyCollector)
+    private List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, java.util.function.Function<PartitionUpdate, PartitionKey> keyCollector, long nowInSeconds)
     {
-        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
+        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options, nowInSeconds);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
         if (baseUpdates.size() == 1)

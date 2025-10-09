@@ -41,14 +41,14 @@ public abstract class AbstractPaxosVerbHandler implements IVerbHandler<Commit>
     public void doVerb(Message<Commit> message)
     {
         Commit commit = message.payload;
-        DecoratedKey key = commit.update.partitionKey();
-        if (isOutOfRangeCommit(commit.update.metadata().keyspace, key))
+        DecoratedKey key = commit.partitionKey();
+        if (isOutOfRangeCommit(commit.metadata().keyspace, key))
         {
             StorageService.instance.incOutOfRangeOperationCount();
-            Keyspace.open(commit.update.metadata().keyspace).metric.outOfRangeTokenPaxosRequests.inc();
+            Keyspace.open(commit.metadata().keyspace).metric.outOfRangeTokenPaxosRequests.inc();
 
             // Log at most 1 message per second
-                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), commit.update.metadata().keyspace);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), commit.metadata().keyspace);
 
             sendFailureResponse(message);
         }
