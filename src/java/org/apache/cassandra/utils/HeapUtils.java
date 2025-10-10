@@ -24,7 +24,6 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
@@ -38,7 +37,6 @@ import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
-import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
 import static org.apache.cassandra.config.CassandraRelevantEnv.JAVA_HOME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -50,7 +48,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public final class HeapUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(HeapUtils.class);
-    private static final NoSpamLogStatement disabledStatement = NoSpamLogger.getStatement(logger, "Heap dump creation on uncaught exceptions is disabled.", 1L, TimeUnit.MINUTES);
 
     private static final Lock DUMP_LOCK = new ReentrantLock();
 
@@ -130,10 +127,6 @@ public final class HeapUtils
                     DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
 
                     return fullPath;
-                }
-                else
-                {
-                    disabledStatement.debug();
                 }
             }
             catch (Throwable e)
