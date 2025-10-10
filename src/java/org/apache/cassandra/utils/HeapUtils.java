@@ -128,10 +128,6 @@ public final class HeapUtils
 
                     return fullPath;
                 }
-                else
-                {
-                    logger.debug("Heap dump creation on uncaught exceptions is disabled.");
-                }
             }
             catch (Throwable e)
             {
