@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -43,6 +45,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private final String keyspaceName;
     private final String tableName;
+    private final ColumnFamilyStore columnFamilyStore;
     private volatile boolean mbeanRegistered;
     private volatile boolean isEnabled;
 
@@ -56,6 +59,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         this.keyspaceName = columnFamilyStore.keyspace.getName();
         this.tableName = columnFamilyStore.getTableName();
+        this.columnFamilyStore = columnFamilyStore;
 
         this.isEnabled = columnFamilyStore.metadata().params.compression.isDictionaryCompressionEnabled();
         this.cache = new CompressionDictionaryCache();
@@ -213,8 +217,29 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // Parse and validate training options
         ManualTrainingOptions trainingOptions = ManualTrainingOptions.fromStringMap(options);
 
-        trainer.start(true);
-        scheduler.scheduleManualTraining(trainingOptions, trainer);
+        if (trainingOptions.useExistingSSTables())
+        {
+            // SSTable-based training: sample from existing SSTables
+            Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
+            if (sstables.isEmpty())
+            {
+                throw new IllegalStateException("No SSTables available for training in table " + keyspaceName + '.' + tableName);
+            }
+
+            logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
+                       keyspaceName, tableName, sstables.size());
+
+            trainer.start(true);
+            scheduler.scheduleSSTableBasedTraining(trainingOptions, trainer, sstables, createTrainingConfig());
+        }
+        else
+        {
+            // Write-based training: sample from new writes
+            logger.info("Starting write-based training for {}.{}", keyspaceName, tableName);
+
+            trainer.start(true);
+            scheduler.scheduleManualTraining(trainingOptions, trainer);
+        }
     }
 
     @Override
@@ -278,11 +303,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private CompressionDictionaryTrainingConfig createTrainingConfig()
     {
+        CompressionParams compressionParams = columnFamilyStore.metadata().params.compression;
         return CompressionDictionaryTrainingConfig
                .builder()
                .maxDictionarySize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxDictionarySize())
                .maxTotalSampleSize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxTotalSampleSize())
                .samplingRate(DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate())
+               .chunkSize(compressionParams.chunkLength())
                .build();
     }
 

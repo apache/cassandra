@@ -29,14 +29,22 @@ import com.google.common.base.Preconditions;
 public class ManualTrainingOptions
 {
     public static final String MAX_SAMPLING_DURATION_SECONDS_KEY = "maxSamplingDurationSeconds";
+    public static final String USE_EXISTING_SSTABLES_KEY = "useExistingSSTables";
 
     private final int maxSamplingDurationSeconds;
+    private final boolean useExistingSSTables;
 
     public ManualTrainingOptions(int maxSamplingDurationSeconds)
+    {
+        this(maxSamplingDurationSeconds, false);
+    }
+
+    public ManualTrainingOptions(int maxSamplingDurationSeconds, boolean useExistingSSTables)
     {
         Preconditions.checkArgument(maxSamplingDurationSeconds > 0,
                                     "maxSamplingDurationSeconds must be positive, got: %s", maxSamplingDurationSeconds);
         this.maxSamplingDurationSeconds = maxSamplingDurationSeconds;
+        this.useExistingSSTables = useExistingSSTables;
     }
 
     /**
@@ -64,7 +72,9 @@ public class ManualTrainingOptions
             throw new IllegalArgumentException("Invalid maxSamplingDurationSeconds value: " + durationStr, e);
         }
 
-        return new ManualTrainingOptions(maxSamplingDurationSeconds);
+        boolean useExistingSSTables = Boolean.parseBoolean(options.getOrDefault(USE_EXISTING_SSTABLES_KEY, "false"));
+
+        return new ManualTrainingOptions(maxSamplingDurationSeconds, useExistingSSTables);
     }
 
     public int getMaxSamplingDurationSeconds()
@@ -72,11 +82,17 @@ public class ManualTrainingOptions
         return maxSamplingDurationSeconds;
     }
 
+    public boolean useExistingSSTables()
+    {
+        return useExistingSSTables;
+    }
+
     @Override
     public String toString()
     {
         return "ManualTrainingOptions{" +
                MAX_SAMPLING_DURATION_SECONDS_KEY + '=' + maxSamplingDurationSeconds +
+               ", " + USE_EXISTING_SSTABLES_KEY + '=' + useExistingSSTables +
                '}';
     }
 }

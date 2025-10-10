@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.Set;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+
 /**
  * Interface for managing scheduled tasks for compression dictionary operations.
  * <p>
@@ -41,6 +45,20 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
      * @throws IllegalStateException if training is already in progress
      */
     void scheduleManualTraining(ManualTrainingOptions options, ICompressionDictionaryTrainer trainer);
+
+    /**
+     * Schedules SSTable-based training that samples from existing SSTables.
+     *
+     * @param options parsed and validated training options
+     * @param trainer the trainer to use
+     * @param sstables the set of SSTables to sample from
+     * @param config the training configuration
+     * @throws IllegalStateException if training is already in progress
+     */
+    void scheduleSSTableBasedTraining(ManualTrainingOptions options,
+                                      ICompressionDictionaryTrainer trainer,
+                                      Set<SSTableReader> sstables,
+                                      CompressionDictionaryTrainingConfig config);
 
     /**
      * Cancel the in-progress manual training

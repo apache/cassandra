@@ -248,4 +248,74 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         DictId dictId = new DictId(Kind.ZSTD, Clock.Global.currentTimeMillis());
         return new ZstdCompressionDictionary(dictId, dictBytes);
     }
+
+    @Test
+    public void testSSTableBasedTraining()
+    {
+        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+        String table = createTable("CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+                                   "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb' : 4}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+
+        // Insert compressible data and flush to create SSTables
+        for (int i = 0; i < 1000; i++)
+        {
+            execute("INSERT INTO %s (pk, data) VALUES (?, ?)",
+                    "key" + i,
+                    REPEATED_DATA + " row " + i);
+            if (i % 200 == 0)
+                flush();
+        }
+        flush();
+
+        // Verify we have SSTables
+        assertThat(cfs.getLiveSSTables())
+        .as("Should have created SSTables")
+        .hasSizeGreaterThan(0);
+
+        // Train from existing SSTables using the new flag
+        manager.train(Map.of(
+            ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "30",
+            ManualTrainingOptions.USE_EXISTING_SSTABLES_KEY, "true"
+        ));
+
+        // Training should complete quickly since we're reading from existing SSTables
+        spinUntilTrue(() -> manager.getTrainingStatus().equals(TrainingStatus.COMPLETED.toString()), 10);
+
+        // Verify dictionary was trained and is available
+        spinUntilTrue(() -> manager.getCurrent() != null, 2);
+
+        CompressionDictionary currentDict = manager.getCurrent();
+
+        assertThat(currentDict.kind())
+        .as("Dictionary should be ZSTD type")
+        .isEqualTo(Kind.ZSTD);
+
+        assertThat(currentDict.rawDictionary().length)
+        .as("Dictionary should have content")
+        .isGreaterThan(0);
+
+        // Verify we can still read the data
+        assertRows(execute("SELECT pk, data FROM %s WHERE pk = ?", "key0"),
+                   row("key0", REPEATED_DATA + " row 0"));
+    }
+
+    @Test
+    public void testSSTableBasedTrainingWithoutSSTables()
+    {
+        String table = createTable("CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+                                   "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+
+        // Try to train without any SSTables
+        assertThatThrownBy(() -> manager.train(Map.of(
+            ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "30",
+            ManualTrainingOptions.USE_EXISTING_SSTABLES_KEY, "true"
+        )))
+        .as("Should fail when no SSTables are available")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("No SSTables available for training");
+    }
 }

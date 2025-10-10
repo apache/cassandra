@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -28,8 +32,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -109,6 +115,29 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             future.cancel(false);
         }
         scheduledManualTrainingTask = null;
+    }
+
+    @Override
+    public void scheduleSSTableBasedTraining(ManualTrainingOptions options,
+                                             ICompressionDictionaryTrainer trainer,
+                                             Set<SSTableReader> sstables,
+                                             CompressionDictionaryTrainingConfig config)
+    {
+        if (scheduledManualTrainingTask != null)
+        {
+            throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
+        }
+
+        logger.info("Starting SSTable-based dictionary training for {}.{} from {} SSTables",
+                    keyspaceName, tableName, sstables.size());
+
+        // Run the SSTableSamplingTask asynchronously
+        // Use a dummy scheduled task to track that training is in progress
+        SSTableSamplingTask task = new SSTableSamplingTask(sstables, trainer, config);
+        ScheduledExecutors.nonPeriodicTasks.submit(task);
+
+        // Set a placeholder task so status checks know training is in progress
+        scheduledManualTrainingTask = ScheduledExecutors.scheduledTasks.schedule(() -> {}, 1, TimeUnit.HOURS);
     }
 
     /**
@@ -202,6 +231,100 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                                logger.info("Manual dictionary training completed for {}.{}", keyspaceName, tableName);
                            }
                        });
+            }
+        }
+    }
+
+    /**
+     * Task that samples chunks from existing SSTables and triggers training.
+     * Similar to ManualTrainingTask but reads from disk instead of waiting for writes.
+     * Acquires references to SSTables to prevent them from being deleted during sampling.
+     */
+    private class SSTableSamplingTask implements Runnable
+    {
+        private final Set<SSTableReader> sstables;
+        private final ICompressionDictionaryTrainer trainer;
+        private final CompressionDictionaryTrainingConfig config;
+        private final List<Ref<SSTableReader>> sstableRefs;
+
+        private SSTableSamplingTask(Set<SSTableReader> sstables,
+                                    ICompressionDictionaryTrainer trainer,
+                                    CompressionDictionaryTrainingConfig config)
+        {
+            this.trainer = trainer;
+            this.config = config;
+
+            // Acquire references to all SSTables to prevent deletion during sampling
+            this.sstableRefs = new ArrayList<>();
+            Set<SSTableReader> referencedSSTables = new HashSet<>();
+
+            for (SSTableReader sstable : sstables)
+            {
+                Ref<SSTableReader> ref = sstable.tryRef();
+                if (ref != null)
+                {
+                    sstableRefs.add(ref);
+                    referencedSSTables.add(sstable);
+                }
+                else
+                {
+                    logger.debug("Couldn't acquire reference to SSTable {}. It may have been removed.",
+                                sstable.descriptor);
+                }
+            }
+
+            this.sstables = referencedSSTables;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                if (sstables.isEmpty())
+                {
+                    logger.warn("No SSTables available for sampling in {}.{}", keyspaceName, tableName);
+                    cancelManualTraining();
+                    return;
+                }
+
+                logger.info("Sampling chunks from {} SSTables for {}.{}",
+                            sstables.size(), keyspaceName, tableName);
+
+                // Sample chunks from SSTables and add to trainer
+                SSTableChunkSampler.sampleFromSSTables(sstables, trainer, config);
+
+                logger.info("Completed sampling for {}.{}, now training dictionary",
+                            keyspaceName, tableName);
+
+                // force=true for manual training
+                trainer.trainDictionaryAsync(true)
+                       .addCallback((dictionary, throwable) -> {
+                           cancelManualTraining();
+                           if (throwable != null)
+                           {
+                               logger.error("SSTable-based dictionary training failed for {}.{}",
+                                            keyspaceName, tableName, throwable);
+                           }
+                           else
+                           {
+                               logger.info("SSTable-based dictionary training completed for {}.{}",
+                                           keyspaceName, tableName);
+                           }
+                       });
+            }
+            catch (Exception e)
+            {
+                logger.error("Failed to sample from SSTables for {}.{}", keyspaceName, tableName, e);
+                cancelManualTraining();
+            }
+            finally
+            {
+                // Release all SSTable references
+                for (Ref<SSTableReader> ref : sstableRefs)
+                {
+                    ref.release();
+                }
             }
         }
     }

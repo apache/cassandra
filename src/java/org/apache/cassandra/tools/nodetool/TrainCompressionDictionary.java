@@ -57,6 +57,10 @@ public class TrainCompressionDictionary extends AbstractCommand
     description = "Show current training status instead of starting new training")
     private boolean showStatus = false;
 
+    @Option(names = {"-e", "--use-existing-sstables"},
+    description = "Train from existing SSTable chunks instead of sampling from writes")
+    private boolean useExistingSSTables = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -82,7 +86,14 @@ public class TrainCompressionDictionary extends AbstractCommand
         try
         {
             out.printf("Starting compression dictionary training for %s.%s...%n", keyspace, table);
-            out.printf("Will collect samples for up to %d seconds before training%n", maxSamplingDurationSeconds);
+            if (useExistingSSTables)
+            {
+                out.printf("Training from existing SSTables%n");
+            }
+            else
+            {
+                out.printf("Will collect samples for up to %d seconds before training%n", maxSamplingDurationSeconds);
+            }
             if (samplingRate != null)
             {
                 out.printf("Using sampling rate: %.2f (%.1f%%)%n", samplingRate, samplingRate * 100);
@@ -91,6 +102,7 @@ public class TrainCompressionDictionary extends AbstractCommand
             // Build options map
             Map<String, String> options = new HashMap<>();
             options.put(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, String.valueOf(maxSamplingDurationSeconds));
+            options.put(ManualTrainingOptions.USE_EXISTING_SSTABLES_KEY, String.valueOf(useExistingSSTables));
 
             probe.trainCompressionDictionary(keyspace, table, options);
 
@@ -112,9 +124,16 @@ public class TrainCompressionDictionary extends AbstractCommand
             }
 
             // Wait for completion (training will start automatically after sampling period)
-            out.println("Collecting samples and training. (Since the trainer samples chunk data on " +
-                        "writing to new SSTable, you might consider running nodetool 'flush' along " +
-                        "with this command to have chunk available for sampling)");
+            if (useExistingSSTables)
+            {
+                out.println("Sampling from existing SSTables and training.");
+            }
+            else
+            {
+                out.println("Collecting samples and training. (Since the trainer samples chunk data on " +
+                            "writing to new SSTable, you might consider running nodetool 'flush' along " +
+                            "with this command to have chunk available for sampling)");
+            }
             long maxWaitMillis = TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds + 300); // Add 5 minutes for training
             long startTime = System.currentTimeMillis();
 

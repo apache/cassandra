@@ -29,6 +29,7 @@ public class CompressionDictionaryTrainingConfig
     public final int maxTotalSampleSize;
     public final int acceptableTotalSampleSize;
     public final int samplingRate;
+    public final int chunkSize;
 
     private CompressionDictionaryTrainingConfig(Builder builder)
     {
@@ -36,6 +37,7 @@ public class CompressionDictionaryTrainingConfig
         this.maxTotalSampleSize = builder.maxTotalSampleSize;
         this.acceptableTotalSampleSize = builder.maxTotalSampleSize / 10 * 8;
         this.samplingRate = builder.samplingRate;
+        this.chunkSize = builder.chunkSize;
     }
 
     public static Builder builder()
@@ -48,6 +50,7 @@ public class CompressionDictionaryTrainingConfig
         private int maxDictionarySize = 65536; // 64KB default
         private int maxTotalSampleSize = 10 * 1024 * 1024; // 10MB total
         private int samplingRate = 100; // Sampling 1%
+        private int chunkSize = 64 * 1024; // 64KB default
 
         public Builder maxDictionarySize(int size)
         {
@@ -67,11 +70,18 @@ public class CompressionDictionaryTrainingConfig
             return this;
         }
 
+        public Builder chunkSize(int chunkSize)
+        {
+            this.chunkSize = chunkSize;
+            return this;
+        }
+
         public CompressionDictionaryTrainingConfig build()
         {
             Preconditions.checkArgument(maxDictionarySize > 0, "maxDictionarySize must be positive");
             Preconditions.checkArgument(maxTotalSampleSize > 0, "maxTotalSampleSize must be positive");
             Preconditions.checkArgument(samplingRate > 0, "samplingRate must be positive");
+            Preconditions.checkArgument(chunkSize > 0, "chunkSize must be positive");
             return new CompressionDictionaryTrainingConfig(this);
         }
     }
