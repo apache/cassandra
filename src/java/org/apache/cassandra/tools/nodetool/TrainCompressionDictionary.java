@@ -194,20 +194,13 @@ public class TrainCompressionDictionary extends AbstractCommand
         }
 
         TrainingStatus status = TrainingStatus.valueOf(statusStr);
-
-        switch (status)
+        if (status == TrainingStatus.FAILED)
         {
-            case NOT_STARTED:
-            case SAMPLING:
-            case TRAINING:
-            case COMPLETED:
-                showStatistics(probe, out, status);
-                break;
-            case FAILED:
-                showStatistics(probe, err, status);
-                break;
-            default:
-                err.printf("Encountered unexpected training status for %s.%s: %s%n", keyspace, table, status);
+            showStatistics(probe, err, status);
+        }
+        else
+        {
+            showStatistics(probe, out, status);
         }
     }
 

@@ -224,7 +224,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                            cancelManualTraining();
                            if (throwable != null)
                            {
-                               logger.error("Manual dictionary training failed for {}.{}: {}", keyspaceName, tableName, throwable.getMessage());
+                               logger.error("Manual dictionary training failed for {}.{}: {}",
+                                            keyspaceName, tableName, throwable.getMessage());
                            }
                            else
                            {
@@ -303,8 +304,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                            cancelManualTraining();
                            if (throwable != null)
                            {
-                               logger.error("SSTable-based dictionary training failed for {}.{}",
-                                            keyspaceName, tableName, throwable);
+                               logger.error("SSTable-based dictionary training failed for {}.{}: {}",
+                                            keyspaceName, tableName, throwable.getMessage());
                            }
                            else
                            {
