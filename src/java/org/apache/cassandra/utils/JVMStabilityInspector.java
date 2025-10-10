@@ -75,7 +75,7 @@ public final class JVMStabilityInspector
             if (t2 != t && (t2 instanceof FSError || t2 instanceof CorruptSSTableException))
                 logger.error("Exception in thread {}", thread, t2);
         }
-        JVMStabilityInspector.inspectThrowable(t);
+        inspectThrowable(t, JVMStabilityInspector::inspectDiskError, true);
     }
 
     /**
@@ -86,12 +86,12 @@ public final class JVMStabilityInspector
      */
     public static void inspectThrowable(Throwable t) throws OutOfMemoryError
     {
-        inspectThrowable(t, JVMStabilityInspector::inspectDiskError);
+        inspectThrowable(t, JVMStabilityInspector::inspectDiskError, false);
     }
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
-        inspectThrowable(t, JVMStabilityInspector::inspectCommitLogError);
+        inspectThrowable(t, JVMStabilityInspector::inspectCommitLogError, false);
     }
 
     private static void inspectDiskError(Throwable t)
@@ -102,7 +102,7 @@ public final class JVMStabilityInspector
             FileUtils.handleFSError((FSError) t);
     }
 
-    public static void inspectThrowable(Throwable t, Consumer<Throwable> fn) throws OutOfMemoryError
+    public static void inspectThrowable(Throwable t, Consumer<Throwable> fn, boolean isUncaughtException) throws OutOfMemoryError
     {
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
@@ -136,7 +136,18 @@ public final class JVMStabilityInspector
         }
 
         // Anything other than an OOM, we should try and heap dump to capture what's going on if configured to do so
-        HeapUtils.maybeCreateHeapDump();
+        if (isUncaughtException && DatabaseDescriptor.getDumpHeapOnUncaughtException())
+        {
+            try
+            {
+                // Avoid entering maybeCreateHeapDump unless the setting is enabled to avoid expensive lock
+                HeapUtils.maybeCreateHeapDump();
+            }
+            catch (Throwable sub)
+            {
+                t.addSuppressed(sub);
+            }
+        }
 
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
@@ -167,7 +178,7 @@ public final class JVMStabilityInspector
         }
 
         if (t.getCause() != null)
-            inspectThrowable(t.getCause(), fn);
+            inspectThrowable(t.getCause(), fn, isUncaughtException);
     }
 
     private static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
