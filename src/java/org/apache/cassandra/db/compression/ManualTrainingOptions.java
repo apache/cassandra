@@ -21,6 +21,8 @@ package org.apache.cassandra.db.compression;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Configuration options for manual compression dictionary training.
@@ -30,6 +32,10 @@ public class ManualTrainingOptions
 {
     public static final String MAX_SAMPLING_DURATION_SECONDS_KEY = "maxSamplingDurationSeconds";
     public static final String USE_EXISTING_SSTABLES_KEY = "useExistingSSTables";
+
+    public static final int DEFAULT_SAMPLING_DURATION_SECONDS = 600;
+
+    private static Logger logger = LoggerFactory.getLogger(ManualTrainingOptions.class);
 
     private final int maxSamplingDurationSeconds;
     private final boolean useExistingSSTables;
@@ -56,20 +62,29 @@ public class ManualTrainingOptions
      */
     public static ManualTrainingOptions fromStringMap(Map<String, String> options)
     {
-        if (options == null || !options.containsKey(MAX_SAMPLING_DURATION_SECONDS_KEY))
+        if (options == null)
         {
-            throw new IllegalArgumentException(MAX_SAMPLING_DURATION_SECONDS_KEY + " parameter is required for manual dictionary training");
+            return new ManualTrainingOptions(DEFAULT_SAMPLING_DURATION_SECONDS, false);
         }
 
-        String durationStr = options.get(MAX_SAMPLING_DURATION_SECONDS_KEY);
         int maxSamplingDurationSeconds;
-        try
+        String durationStr = options.get(MAX_SAMPLING_DURATION_SECONDS_KEY);
+        if (durationStr == null)
         {
-            maxSamplingDurationSeconds = Integer.parseInt(durationStr);
+            maxSamplingDurationSeconds = DEFAULT_SAMPLING_DURATION_SECONDS;
         }
-        catch (NumberFormatException e)
+        else
         {
-            throw new IllegalArgumentException("Invalid maxSamplingDurationSeconds value: " + durationStr, e);
+            try
+            {
+                maxSamplingDurationSeconds = Integer.parseInt(durationStr);
+            }
+            catch (NumberFormatException e)
+            {
+                logger.warn("Failed to parse {}:{}. Fallback to default value: {}",
+                            MAX_SAMPLING_DURATION_SECONDS_KEY, durationStr, DEFAULT_SAMPLING_DURATION_SECONDS);
+                maxSamplingDurationSeconds = DEFAULT_SAMPLING_DURATION_SECONDS;
+            }
         }
 
         boolean useExistingSSTables = Boolean.parseBoolean(options.getOrDefault(USE_EXISTING_SSTABLES_KEY, "false"));

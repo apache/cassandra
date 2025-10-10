@@ -45,8 +45,9 @@ public class TrainCompressionDictionary extends AbstractCommand
     private String table;
 
     @Option(names = {"-d", "--max-sampling-duration"},
-    description = "Maximum time to collect samples before training dictionary, in seconds. (default: 600)")
-    private int maxSamplingDurationSeconds = 600;
+    description = "Maximum time to collect samples before training dictionary, in seconds. " +
+                  "(default: " + ManualTrainingOptions.DEFAULT_SAMPLING_DURATION_SECONDS + ')')
+    private int maxSamplingDurationSeconds = ManualTrainingOptions.DEFAULT_SAMPLING_DURATION_SECONDS;
 
     @Option(names = {"-r", "--sampling-rate"},
     description = "Sampling rate as a double value in range (0, 1]. 1.0 means sample all data, 0.5 means sample 50%% of data")

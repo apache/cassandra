@@ -58,26 +58,19 @@ public class ManualTrainingOptionsTest
     @Test
     public void testFromStringMapMissingKey()
     {
-        Map<String, String> emptyOptions = Map.of();
-
-        assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(emptyOptions))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("maxSamplingDurationSeconds parameter is required");
-
-        assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("maxSamplingDurationSeconds parameter is required");
+        Map<String, String> invalidOptions = Map.of();
+        ManualTrainingOptions options = ManualTrainingOptions.fromStringMap(invalidOptions);
+        assertThat(options.getMaxSamplingDurationSeconds()).isEqualTo(ManualTrainingOptions.DEFAULT_SAMPLING_DURATION_SECONDS);
+        assertThat(options.useExistingSSTables()).isEqualTo(false);
     }
 
     @Test
     public void testFromStringMapInvalidValue()
     {
         Map<String, String> invalidOptions = Map.of(ManualTrainingOptions.MAX_SAMPLING_DURATION_SECONDS_KEY, "invalid");
-
-        assertThatThrownBy(() -> ManualTrainingOptions.fromStringMap(invalidOptions))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Invalid maxSamplingDurationSeconds value: invalid")
-        .hasCauseInstanceOf(NumberFormatException.class);
+        ManualTrainingOptions options = ManualTrainingOptions.fromStringMap(invalidOptions);
+        assertThat(options.getMaxSamplingDurationSeconds()).isEqualTo(ManualTrainingOptions.DEFAULT_SAMPLING_DURATION_SECONDS);
+        assertThat(options.useExistingSSTables()).isEqualTo(false);
     }
 
     @Test
