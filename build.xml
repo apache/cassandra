@@ -564,7 +564,7 @@
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.10.4"/>
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.7-2"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
+          <dependency groupId="com.google.guava" artifactId="guava" version="32.0.1-jre">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
             <exclusion groupId="org.codehaus.mojo" artifactId="animal-sniffer-annotations" />
             <exclusion groupId="com.google.guava" artifactId="listenablefuture" />
@@ -589,8 +589,8 @@
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
           <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.9"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.9"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.2.13"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.2.13"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-core" version="2.19.2"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.19.2"/>
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.19.2"/>
@@ -602,7 +602,7 @@
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
-          <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
+          <dependency groupId="com.konloch" artifactId="safeyaml" version="1.34.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
@@ -658,6 +658,7 @@
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-logback" version="3.1.5" />
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3">
             <exclusion groupId="org.hibernate" artifactId="hibernate-validator" />
+            <exclusion groupId="org.yaml" artifactId="snakeyaml" />
            </dependency>
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.4" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.8">
@@ -862,7 +863,7 @@
         <dependency groupId="com.fasterxml.jackson.datatype" artifactId="jackson-datatype-jsr310"/>
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
         <dependency groupId="com.boundary" artifactId="high-scale-lib"/>
-        <dependency groupId="org.yaml" artifactId="snakeyaml"/>
+        <dependency groupId="com.konloch" artifactId="safeyaml"/>
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="io.airlift" artifactId="airline"/>
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core"/>
