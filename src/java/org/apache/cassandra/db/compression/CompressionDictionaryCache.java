@@ -115,26 +115,8 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     @Override
     public synchronized void close()
     {
-        DictId dictId = currentDictId.get();
-        // Close current dictionary
-        if (dictId != null)
-        {
-            CompressionDictionary dictionary = cache.getIfPresent(dictId);
-            if (dictionary != null)
-            {
-                try
-                {
-                    dictionary.close();
-                }
-                catch (Exception e)
-                {
-                    logger.warn("Failed to close current compression dictionary", e);
-                }
-            }
-        }
         currentDictId.set(null);
-
-        // Invalidate cache - this will trigger removalListener to close all cached dictionaries
+        // Invalidate cache will trigger removalListener to close all cached dictionaries, including the currentDictionary
         cache.invalidateAll();
     }
 }
