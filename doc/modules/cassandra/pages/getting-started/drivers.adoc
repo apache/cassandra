@@ -11,6 +11,7 @@ functionality supported by a specific driver.
 == Python
 
 * https://github.com/datastax/python-driver[Datastax Python driver]
+* https://github.com/axonops/async-python-cassandra-client[Async Python Cassandra Client]
 
 == Ruby
 
