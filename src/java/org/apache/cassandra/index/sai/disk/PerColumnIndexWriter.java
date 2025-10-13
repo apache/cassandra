@@ -42,6 +42,12 @@ public interface PerColumnIndexWriter
     void complete(Stopwatch stopwatch) throws IOException;
 
     /**
+     * Called when current SSTable writer is switched during sharded compaction to free any in-memory resources associated
+     * with the SSTable for current index without waiting for full transaction to complete
+     */
+    void onSSTableWriterSwitched(Stopwatch stopwatch) throws IOException;
+    
+    /**
      * Aborts accumulating data. Allows to clean up resources on error.
      * <p> 
      * Note: Implementations should be idempotent, i.e. safe to call multiple times without producing undesirable side-effects.
