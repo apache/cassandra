@@ -46,7 +46,7 @@ public abstract class SegmentBuilder
     public static final long LAST_VALID_SEGMENT_ROW_ID = (Integer.MAX_VALUE / 2) - 1L;
     private static long testLastValidSegmentRowId = -1;
 
-    /** The number of column indexes being built globally. (Starts at one to avoid divide by zero.) */
+    /** The number of column indexes being built globally. */
     private static final AtomicInteger ACTIVE_BUILDER_COUNT = new AtomicInteger(0);
 
     /** Minimum flush size, dynamically updated as segment builds are started and completed/aborted. */

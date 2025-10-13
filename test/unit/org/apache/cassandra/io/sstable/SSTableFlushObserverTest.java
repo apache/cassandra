@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
@@ -72,6 +73,7 @@ import static org.assertj.core.api.Assertions.assertThatRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
 
 public class SSTableFlushObserverTest
 {
@@ -167,14 +169,15 @@ public class SSTableFlushObserverTest
                                                    BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(178L))));
 
                 writer.append(new RowIterator(cfm, key, Collections.singletonList(buildRow(expected.get(key)))));
-
+                writer.onSSTableWriterSwitched();
                 reader = writer.finish(true);
             }
             finally
             {
                 FileUtils.closeQuietly(writer);
             }
-
+            
+            Assert.assertTrue(observer.isWriterSwitched);
             Assert.assertTrue(observer.isComplete);
             Assert.assertEquals(expected.size(), observer.rows.size());
 
@@ -265,6 +268,7 @@ public class SSTableFlushObserverTest
         private boolean beginCalled;
         private boolean failOnBegin;
         private boolean abortCalled;
+        private boolean isWriterSwitched;
 
         @Override
         public void begin()
@@ -272,6 +276,12 @@ public class SSTableFlushObserverTest
             beginCalled = true;
             if (failOnBegin)
                 throw new RuntimeException("Failed to initialize");
+        }
+
+        @Override
+        public void onSSTableWriterSwitched()
+        {
+            isWriterSwitched = true;
         }
 
         @Override
