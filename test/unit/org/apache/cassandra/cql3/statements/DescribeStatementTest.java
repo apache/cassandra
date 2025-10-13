@@ -1147,6 +1147,44 @@ public class DescribeStatementTest extends CQLTester
     }
 
     @Test
+    public void testDescribeUserTypeWithFieldCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            // Create a user-defined type with field-level comments and security labels
+            String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (latitude double, longitude double)");
+
+            execute("COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Geographic location'");
+            execute("SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'GEODATA'");
+            execute("COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'Latitude in decimal degrees'");
+            execute("SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'SENSITIVE'");
+            execute("COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'Longitude in decimal degrees'");
+            execute("SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'SENSITIVE'");
+
+            String expectedTypeOutput = "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                       "    latitude double,\n" +
+                                       "    longitude double\n" +
+                                       ");\n" +
+                                       "COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Geographic location';\n" +
+                                       "COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'Latitude in decimal degrees';\n" +
+                                       "COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'Longitude in decimal degrees';\n" +
+                                       "SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'GEODATA';\n" +
+                                       "SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'SENSITIVE';\n" +
+                                       "SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'SENSITIVE';";
+
+            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
+            {
+                assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, describeKeyword + " TYPE " + type),
+                              row(KEYSPACE_PER_TEST, "type", type, expectedTypeOutput));
+            }
+        }
+        finally
+        {
+            // Cleanup is handled by the base test class
+        }
+    }
+
+    @Test
     public void testDescribeSchemaWithCommentsAndSecurityLabels() throws Throwable
     {
         try

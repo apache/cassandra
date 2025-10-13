@@ -292,6 +292,8 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st53=securityLabelOnColumnStatement  { $stmt = st53; }
     | st54=commentOnTypeStatement          { $stmt = st54; }
     | st55=securityLabelOnTypeStatement    { $stmt = st55; }
+    | st56=commentOnFieldStatement         { $stmt = st56; }
+    | st57=securityLabelOnFieldStatement   { $stmt = st57; }
     ;
 
 /*
@@ -1358,6 +1360,25 @@ securityLabelOnTypeStatement returns [SecurityLabelOnTypeStatement.Raw stmt]
     ;
 
 /**
+ * COMMENT ON FIELD <type>.<field> IS <comment>;
+ * COMMENT ON FIELD <keyspace>.<type>.<field> IS <comment>;
+ */
+commentOnFieldStatement returns [CommentOnFieldStatement.Raw stmt]
+    : K_COMMENT K_ON K_FIELD typeFieldRef=typeFieldReference K_IS (comment=STRING_LITERAL | K_NULL)
+      { $stmt = new CommentOnFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, comment != null ? $comment.text : ""); }
+    ;
+
+/**
+ * SECURITY LABEL [FOR <provider>] ON FIELD <type>.<field> IS <label>;
+ * SECURITY LABEL [FOR <provider>] ON FIELD <keyspace>.<type>.<field> IS <label>;
+ */
+securityLabelOnFieldStatement returns [SecurityLabelOnFieldStatement.Raw stmt]
+    @init { String provider = null; }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_FIELD typeFieldRef=typeFieldReference K_IS (label=STRING_LITERAL | K_NULL)
+      { $stmt = new SecurityLabelOnFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, label != null ? $label.text : "", provider); }
+    ;
+
+/**
  * DROP TABLE [IF EXISTS] <table>;
  */
 dropTableStatement returns [DropTableStatement.Raw stmt]
@@ -1872,6 +1893,13 @@ columnReference returns [QualifiedName table, ColumnIdentifier column]
       { $column = col; }
     | ksName[$table] '.' cfName[$table] '.' col=cident
       { $column = col; }
+    ;
+
+typeFieldReference returns [UTName typeName, FieldIdentifier field]
+    : ut=non_type_ident '.' fld=fident
+      { $typeName = new UTName(null, ut); $field = fld; }
+    | ks=noncol_ident '.' ut=non_type_ident '.' fld=fident
+      { $typeName = new UTName(ks, ut); $field = fld; }
     ;
 
 

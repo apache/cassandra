@@ -70,15 +70,30 @@ public class UserType extends TupleType implements SchemaElement
     public final String securityLabel;
     private final List<FieldIdentifier> fieldNames;
     private final List<String> stringFieldNames;
+    private final Map<FieldIdentifier, String> fieldComments;
+    private final Map<FieldIdentifier, String> fieldSecurityLabels;
     private final boolean isMultiCell;
     private final UserTypeSerializer serializer;
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
-        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, "", "");
+        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, "", "", Collections.emptyMap(), Collections.emptyMap());
     }
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell, String comment, String securityLabel)
+    {
+        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, comment, securityLabel, Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    public UserType(String keyspace,
+                    ByteBuffer name,
+                    List<FieldIdentifier> fieldNames,
+                    List<AbstractType<?>> fieldTypes,
+                    boolean isMultiCell,
+                    String comment,
+                    String securityLabel,
+                    Map<FieldIdentifier, String> fieldComments,
+                    Map<FieldIdentifier, String> fieldSecurityLabels)
     {
         super(fieldTypes, false);
         assert fieldNames.size() == fieldTypes.size();
@@ -88,6 +103,8 @@ public class UserType extends TupleType implements SchemaElement
         this.securityLabel = securityLabel;
         this.fieldNames = fieldNames;
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
+        this.fieldComments = Collections.unmodifiableMap(new HashMap<>(fieldComments));
+        this.fieldSecurityLabels = Collections.unmodifiableMap(new HashMap<>(fieldSecurityLabels));
         this.isMultiCell = isMultiCell;
 
         LinkedHashMap<String , TypeSerializer<?>> fieldSerializers = new LinkedHashMap<>(fieldTypes.size());
@@ -320,13 +337,13 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false, comment, securityLabel) : this;
+        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false, comment, securityLabel, fieldComments, fieldSecurityLabels) : this;
     }
 
     @Override
     public UserType unfreeze()
     {
-        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true, comment, securityLabel);
+        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true, comment, securityLabel, fieldComments, fieldSecurityLabels);
     }
 
     @Override
@@ -340,7 +357,7 @@ public class UserType extends TupleType implements SchemaElement
                 .map(subtype -> (subtype.isFreezable() && subtype.isMultiCell() ? subtype.freeze() : subtype))
                 .collect(Collectors.toList());
 
-        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell, comment, securityLabel);
+        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell, comment, securityLabel, fieldComments, fieldSecurityLabels);
     }
 
     @Override
@@ -455,7 +472,7 @@ public class UserType extends TupleType implements SchemaElement
         {
             return isMultiCell == udt.isMultiCell
                  ? udt
-                 : new UserType(keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell, udt.comment, udt.securityLabel);
+                 : new UserType(keyspace, name, udt.fieldNames(), udt.fieldTypes(), isMultiCell, udt.comment, udt.securityLabel, udt.fieldComments, udt.fieldSecurityLabels);
         }
 
         return new UserType(keyspace,
@@ -464,17 +481,67 @@ public class UserType extends TupleType implements SchemaElement
                             Lists.newArrayList(transform(fieldTypes(), t -> t.withUpdatedUserType(udt))),
                             isMultiCell(),
                             comment,
-                            securityLabel);
+                            securityLabel,
+                            fieldComments,
+                            fieldSecurityLabels);
     }
 
     public UserType withComment(String comment)
     {
-        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel);
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel, fieldComments, fieldSecurityLabels);
     }
 
     public UserType withSecurityLabel(String securityLabel)
     {
-        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel);
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel, fieldComments, fieldSecurityLabels);
+    }
+
+    public UserType withFieldComment(FieldIdentifier fieldName, String fieldComment)
+    {
+        if (fieldPosition(fieldName) == -1)
+            throw new IllegalArgumentException(String.format("Field '%s' doesn't exist in type '%s.%s'", fieldName, keyspace, getNameAsString()));
+
+        Map<FieldIdentifier, String> newFieldComments = new HashMap<>(fieldComments);
+        if (fieldComment == null || fieldComment.isEmpty())
+            newFieldComments.remove(fieldName);
+        else
+            newFieldComments.put(fieldName, fieldComment);
+
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel, newFieldComments, fieldSecurityLabels);
+    }
+
+    public UserType withFieldSecurityLabel(FieldIdentifier fieldName, String fieldSecurityLabel)
+    {
+        if (fieldPosition(fieldName) == -1)
+            throw new IllegalArgumentException(String.format("Field '%s' doesn't exist in type '%s.%s'", fieldName, keyspace, getNameAsString()));
+
+        Map<FieldIdentifier, String> newFieldSecurityLabels = new HashMap<>(fieldSecurityLabels);
+        if (fieldSecurityLabel == null || fieldSecurityLabel.isEmpty())
+            newFieldSecurityLabels.remove(fieldName);
+        else
+            newFieldSecurityLabels.put(fieldName, fieldSecurityLabel);
+
+        return new UserType(keyspace, name, fieldNames, fieldTypes(), isMultiCell(), comment, securityLabel, fieldComments, newFieldSecurityLabels);
+    }
+
+    public String fieldComment(FieldIdentifier fieldName)
+    {
+        return fieldComments.getOrDefault(fieldName, "");
+    }
+
+    public String fieldSecurityLabel(FieldIdentifier fieldName)
+    {
+        return fieldSecurityLabels.getOrDefault(fieldName, "");
+    }
+
+    public Map<FieldIdentifier, String> fieldComments()
+    {
+        return fieldComments;
+    }
+
+    public Map<FieldIdentifier, String> fieldSecurityLabels()
+    {
+        return fieldSecurityLabels;
     }
 
     @Override

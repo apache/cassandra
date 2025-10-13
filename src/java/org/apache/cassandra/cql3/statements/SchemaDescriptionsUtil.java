@@ -43,6 +43,7 @@ public class SchemaDescriptionsUtil
     private static final String TABLE_SCHEMA_ELEMENT = "TABLE";
     private static final String COLUMN_SCHEMA_ELEMENT = "COLUMN";
     private static final String TYPE_SCHEMA_ELEMENT = "TYPE";
+    private static final String FIELD_SCHEMA_ELEMENT = "FIELD";
 
     /**
      * Maximum length for comments and security labels.
@@ -150,18 +151,31 @@ public class SchemaDescriptionsUtil
     {
         String schemaElement = String.format("%s.%s", userType.keyspace, userType.getNameAsString());
         addDescription(builder, COMMENT_DESCRIPTION_TYPE, TYPE_SCHEMA_ELEMENT, schemaElement, userType.comment);
+
+        // Add comments on fields
+        for (int i = 0; i < userType.size(); i++)
+        {
+            appendCommentOnField(builder, userType, i);
+        }
     }
 
     /**
-     * Appends a SECURITY LABEL ON TYPE statement to the builder if the type has a security label.
+     * Appends SECURITY LABEL ON TYPE statement and COMMENT/SECURITY LABEL ON FIELD statements
+     * to the builder if the type or any of its fields have security labels or comments.
      *
      * @param builder the StringBuilder to append to
-     * @param userType the user-defined type containing the security label
+     * @param userType the user-defined type containing the security label and fields
      */
     public static void appendSecurityLabelOnType(StringBuilder builder, UserType userType)
     {
         String schemaElement = String.format("%s.%s", userType.keyspace, userType.getNameAsString());
         addDescription(builder, SECURITY_LABEL_DESCRIPTION_TYPE, TYPE_SCHEMA_ELEMENT, schemaElement, userType.securityLabel);
+
+        // Add security labels on fields
+        for (int i = 0; i < userType.size(); i++)
+        {
+            appendSecurityLabelOnField(builder, userType, i);
+        }
     }
 
     /* Helper methods */
@@ -203,6 +217,47 @@ public class SchemaDescriptionsUtil
     {
         String schemaElement = String.format("%s.%s.%s", tableMetadata.keyspace, tableMetadata.name, columnMetadata.name.toCQLString());
         addDescription(builder, descriptionType, COLUMN_SCHEMA_ELEMENT, schemaElement, description);
+    }
+
+    /**
+     * Appends a COMMENT ON FIELD statement to the builder if the field has a comment.
+     *
+     * @param builder the StringBuilder to append to
+     * @param userType the user-defined type containing the field
+     * @param fieldIndex the index of the field
+     */
+    private static void appendCommentOnField(StringBuilder builder, UserType userType, int fieldIndex)
+    {
+        String comment = userType.fieldComment(userType.fieldName(fieldIndex));
+        appendFieldDescription(builder, COMMENT_DESCRIPTION_TYPE, userType, fieldIndex, comment);
+    }
+
+    /**
+     * Appends a SECURITY LABEL ON FIELD statement to the builder if the field has a security label.
+     *
+     * @param builder the StringBuilder to append to
+     * @param userType the user-defined type containing the field
+     * @param fieldIndex the index of the field
+     */
+    private static void appendSecurityLabelOnField(StringBuilder builder, UserType userType, int fieldIndex)
+    {
+        String securityLabel = userType.fieldSecurityLabel(userType.fieldName(fieldIndex));
+        appendFieldDescription(builder, SECURITY_LABEL_DESCRIPTION_TYPE, userType, fieldIndex, securityLabel);
+    }
+
+    /**
+     * Helper method to append a field-level comment or security label statement.
+     *
+     * @param builder the StringBuilder to append to
+     * @param descriptionType the type of description (COMMENT or SECURITY LABEL)
+     * @param userType the user-defined type containing the field
+     * @param fieldIndex the index of the field
+     * @param description the comment or security label text
+     */
+    private static void appendFieldDescription(StringBuilder builder, String descriptionType, UserType userType, int fieldIndex, String description)
+    {
+        String schemaElement = String.format("%s.%s.%s", userType.keyspace, userType.getNameAsString(), userType.fieldName(fieldIndex).toString());
+        addDescription(builder, descriptionType, FIELD_SCHEMA_ELEMENT, schemaElement, description);
     }
 
     /**

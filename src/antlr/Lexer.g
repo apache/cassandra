@@ -211,6 +211,7 @@ K_TRIGGER:     T R I G G E R;
 K_STATIC:      S T A T I C;
 K_FROZEN:      F R O Z E N;
 K_FOR:         F O R;
+K_FIELD:       F I E L D;
 
 K_FUNCTION:    F U N C T I O N;
 K_FUNCTIONS:   F U N C T I O N S;

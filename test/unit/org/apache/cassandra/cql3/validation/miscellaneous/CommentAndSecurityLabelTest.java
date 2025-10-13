@@ -48,7 +48,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
     private static final String UPDATED_LABEL = "UPDATED_LABEL";
 
     enum ObjectType
-    {KEYSPACE, TABLE, COLUMN, TYPE}
+    {KEYSPACE, TABLE, COLUMN, TYPE, FIELD}
 
     @Test
     public void testCommentOnKeyspace()
@@ -141,10 +141,54 @@ public class CommentAndSecurityLabelTest extends CQLTester
     }
 
     @Test
+    public void testCommentOnField()
+    {
+        createKeyspaceWithName(KEYSPACE_NAME);
+        execute(String.format("CREATE TYPE %s.geo_position (latitude double, longitude double, altitude double)", KEYSPACE_NAME));
+        String fieldRef = String.format("%s.geo_position.latitude", KEYSPACE_NAME);
+        testCommentLifecycle(ObjectType.FIELD, KEYSPACE_NAME, fieldRef);
+    }
+
+    @Test
+    public void testSecurityLabelOnField()
+    {
+        createKeyspaceWithName(SECURITY_KEYSPACE);
+        execute(String.format("CREATE TYPE %s.patient_record (ssn text, diagnosis text, treatment text)", SECURITY_KEYSPACE));
+        String fieldRef = String.format("%s.patient_record.ssn", SECURITY_KEYSPACE);
+        testSecurityLabelLifecycle(ObjectType.FIELD, SECURITY_KEYSPACE, fieldRef);
+
+        // Test provider warning
+        ResultSet result = executeNet(String.format("SECURITY LABEL FOR healthcare_provider ON FIELD %s IS 'PHI'", fieldRef));
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertSecurityLabel(ObjectType.FIELD, SECURITY_KEYSPACE, fieldRef, "PHI");
+    }
+
+    @Test
+    public void testFieldWithUseKeyspace()
+    {
+        createKeyspaceWithName(KEYSPACE_NAME);
+        execute(String.format("CREATE TYPE %s.address (street text, city text, zip int)", KEYSPACE_NAME));
+        execute(String.format("USE %s", KEYSPACE_NAME));
+
+        // Test unqualified field reference with USE KEYSPACE context
+        setComment(ObjectType.FIELD, "address.street", "Street address");
+        setSecurityLabel(ObjectType.FIELD, "address.street", "PUBLIC");
+        setComment(ObjectType.FIELD, "address.city", "City name");
+        setSecurityLabel(ObjectType.FIELD, "address.city", "PUBLIC");
+
+        // Verify
+        assertComment(ObjectType.FIELD, KEYSPACE_NAME, "address.street", "Street address");
+        assertSecurityLabel(ObjectType.FIELD, KEYSPACE_NAME, "address.street", "PUBLIC");
+        assertComment(ObjectType.FIELD, KEYSPACE_NAME, "address.city", "City name");
+        assertSecurityLabel(ObjectType.FIELD, KEYSPACE_NAME, "address.city", "PUBLIC");
+    }
+
+    @Test
     public void testErrorCases()
     {
         createKeyspaceWithName(KEYSPACE_NAME);
         createTableWithName(KEYSPACE_NAME, TABLE_NAME);
+        execute(String.format("CREATE TYPE %s.test_type (field1 text, field2 int)", KEYSPACE_NAME));
 
         // Test non-existent keyspace
         String commentOnKeyspace = "COMMENT ON KEYSPACE nonexistent IS 'comment'";
@@ -161,6 +205,14 @@ public class CommentAndSecurityLabelTest extends CQLTester
         // Test non-existent type
         String commentOnType = String.format("COMMENT ON TYPE %s.nonexistent IS 'comment'", KEYSPACE_NAME);
         assertInvalidMessage("Type", commentOnType);
+
+        // Test non-existent type for field
+        String commentOnNonExistentType = String.format("COMMENT ON FIELD %s.nonexistent.field IS 'comment'", KEYSPACE_NAME);
+        assertInvalidMessage("doesn't exist", commentOnNonExistentType);
+
+        // Test non-existent field
+        String commentOnNonExistentField = String.format("COMMENT ON FIELD %s.test_type.nonexistent IS 'comment'", KEYSPACE_NAME);
+        assertInvalidMessage("doesn't exist", commentOnNonExistentField);
     }
 
     @Test
@@ -256,7 +308,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
     private String buildStatement(String statementType, ObjectType type, String objectName, String value)
     {
         String valueClause = value != null ? String.format("'%s'", value.replace("'", "''")) : "NULL";
-        return String.format("%s ON %s %s IS %s", statementType, type.name(), objectName, valueClause);
+        String typeKeyword = type.name();
+        return String.format("%s ON %s %s IS %s", statementType, typeKeyword, objectName, valueClause);
     }
 
     private String buildCommentStatement(ObjectType type, String objectName, String comment)
@@ -296,15 +349,15 @@ public class CommentAndSecurityLabelTest extends CQLTester
         String[] parts = objectName.split("\\.");
         if (parts.length == 2)
         {
-            return new String[]{ parts[0], parts[1] }; // table, column
+            return new String[]{ parts[0], parts[1] }; // table/type, column/field
         }
         else if (parts.length == 3)
         {
-            return new String[]{ parts[1], parts[2] }; // table, column (ignore keyspace part)
+            return new String[]{ parts[1], parts[2] }; // table/type, column/field (ignore keyspace part)
         }
         else
         {
-            throw new IllegalArgumentException("Invalid column reference format: " + objectName);
+            throw new IllegalArgumentException("Invalid reference format: " + objectName);
         }
     }
 
@@ -327,6 +380,11 @@ public class CommentAndSecurityLabelTest extends CQLTester
                 String typeName = extractObjectName(type, objectName);
                 UserType userType = getUserType(keyspace, typeName);
                 return isComment ? userType.comment : userType.securityLabel;
+            case FIELD:
+                String[] fieldParts = parseColumnReference(objectName);
+                UserType type1 = getUserType(keyspace, fieldParts[0]);
+                org.apache.cassandra.cql3.FieldIdentifier fieldId = org.apache.cassandra.cql3.FieldIdentifier.forUnquoted(fieldParts[1]);
+                return isComment ? type1.fieldComment(fieldId) : type1.fieldSecurityLabel(fieldId);
             default:
                 throw new IllegalArgumentException("Unsupported object type: " + type);
         }
