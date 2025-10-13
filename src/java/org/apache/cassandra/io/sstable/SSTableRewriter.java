@@ -277,6 +277,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
         currentlyOpenedEarlyAt = 0;
         bytesWritten += writer.getFilePointer();
+        writer.onSSTableWriterSwitched();
         writer = newWriter;
     }
 

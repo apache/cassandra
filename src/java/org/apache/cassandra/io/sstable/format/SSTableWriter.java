@@ -282,6 +282,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         txnProxy.prepareToCommit();
     }
 
+    // notify sstable flush observer about sstable writer switched
+    public final void onSSTableWriterSwitched()
+    {
+        observers.forEach(SSTableFlushObserver::onSSTableWriterSwitched);
+    }
+
     public final Throwable commit(Throwable accumulate)
     {
         try
