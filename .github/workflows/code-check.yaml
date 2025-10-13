@@ -1,0 +1,35 @@
+name: Ant Check
+
+on:
+    push:
+        branches:
+            - '**'
+
+jobs:
+    ant-check-jdk11:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+          - name: JDK 11
+            uses: actions/setup-java@v3
+            with:
+              java-version: '11'
+              distribution: 'temurin'
+          - name: Run Code Checks
+            run: .build/docker/check-code.sh 11
+
+    ant-check-jdk17:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v3
+          - name: JDK 17
+            uses: actions/setup-java@v3
+            with:
+              java-version: '17'
+              distribution: 'temurin'
+          - name: Run Code Checks
+            run: .build/docker/check-code.sh 17
