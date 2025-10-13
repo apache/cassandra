@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -94,6 +95,15 @@ public class QueryAnalyticsService implements QueryAnalyticsServiceMBean
             return;
         }
 
+        // Apply sampling: only process if random value is less than sampling ratio
+        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
+        double samplingRatio = config.getSamplingRatio();
+        if (ThreadLocalRandom.current().nextDouble() >= samplingRatio)
+        {
+            logger.debug("QueryAnalytics metric skipped due to sampling (ratio: {})", samplingRatio);
+            return;
+        }
+
         try
         {
             String partitionKey = command.partitionKey().toCQLString(command.metadata());
@@ -143,11 +153,24 @@ public class QueryAnalyticsService implements QueryAnalyticsServiceMBean
     }
 
     @Override
+    public void setQueryAnalyticsSamplingRatio(double samplingRatio) {
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(samplingRatio);
+        logger.info("QueryAnalytics sampling ratio set to: {}", samplingRatio);
+    }
+
+    @Override
+    public double getQueryAnalyticsSamplingRatio() {
+        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
+        return config != null ? config.getSamplingRatio() : QueryAnalyticsConfig.DEFAULT_SAMPLING_RATIO;
+    }
+
+    @Override
     public String getQueryAnalyticsConfiguration() {
         QueryAnalyticsConfig config = getQueryAnalyticsConfig();
         StringBuilder sb = new StringBuilder();
         sb.append("Query Analytics Configuration:\n");
         sb.append("  enabled: ").append(config.isQueryAnalyticsEnabled()).append("\n");
+        sb.append("  sampling_ratio: ").append(config.getSamplingRatio()).append("\n");
         
         if (config.getProducer() != null) {
             sb.append("  producer:\n");

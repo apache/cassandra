@@ -2845,6 +2845,16 @@ public class NodeProbe implements AutoCloseable
         return queryAnalyticsProxy.isQueryAnalyticsEnabled();
     }
     
+    public void setQueryAnalyticsSamplingRatio(double samplingRatio)
+    {
+        queryAnalyticsProxy.setQueryAnalyticsSamplingRatio(samplingRatio);
+    }
+    
+    public double getQueryAnalyticsSamplingRatio()
+    {
+        return queryAnalyticsProxy.getQueryAnalyticsSamplingRatio();
+    }
+    
     public String queryAnalyticsConfiguration()
     {
         return queryAnalyticsProxy.getQueryAnalyticsConfiguration();

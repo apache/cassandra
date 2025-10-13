@@ -1784,6 +1784,7 @@ drop_compact_storage_enabled: false
 # Query Analytics is currently being tested and is still not recommended for production use
 # query_analytics:
 #  enabled : false
+#  sampling_ratio: 0.01
 #  producer:
 #    - class_name: com.uber.cassandra.analytics.QueryAnalyticsProducerImp
 #      parameters:

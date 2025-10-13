@@ -98,6 +98,8 @@ public class SetQueryAnalyticsConfigTest
                       e.getMessage().contains("Unknown parameter: invalid_param"));
             assertTrue("Error message should list valid parameters", 
                       e.getMessage().contains("enabled"));
+            assertTrue("Error message should list sampling_ratio", 
+                      e.getMessage().contains("sampling_ratio"));
         }
     }
     
@@ -200,5 +202,65 @@ public class SetQueryAnalyticsConfigTest
         verify(mockOut, times(1)).println("Query Analytics enabled: false");
         verify(mockOut, never()).println(contains("WARNING"));
         verify(probe, never()).queryAnalyticsConfiguration(); // Should not check config when disabling
+    }
+    
+    @Test
+    public void testSetSamplingRatioValid()
+    {
+        // Test valid sampling ratio
+        cmd.args = Arrays.asList("sampling_ratio", "0.5");
+        cmd.execute(probe);
+        
+        verify(probe, times(1)).setQueryAnalyticsSamplingRatio(0.5);
+        verify(mockOut, times(1)).println("Query Analytics sampling ratio set to: 0.5");
+    }
+    
+    @Test
+    public void testSetSamplingRatioInvalid()
+    {
+        // Test negative value - configure mock to throw exception
+        doThrow(new IllegalArgumentException("Sampling ratio must be between 0.0 and 1.0, got: -0.1"))
+            .when(probe).setQueryAnalyticsSamplingRatio(-0.1);
+        
+        cmd.args = Arrays.asList("sampling_ratio", "-0.1");
+        try
+        {
+            cmd.execute(probe);
+            fail("Expected IllegalArgumentException for negative sampling ratio");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue("Error message should mention valid range", 
+                      e.getMessage().contains("between 0.0 and 1.0"));
+        }
+        
+        // Test value > 1.0 - configure mock to throw exception
+        doThrow(new IllegalArgumentException("Sampling ratio must be between 0.0 and 1.0, got: 1.5"))
+            .when(probe).setQueryAnalyticsSamplingRatio(1.5);
+        
+        cmd.args = Arrays.asList("sampling_ratio", "1.5");
+        try
+        {
+            cmd.execute(probe);
+            fail("Expected IllegalArgumentException for sampling ratio > 1.0");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue("Error message should mention valid range", 
+                      e.getMessage().contains("between 0.0 and 1.0"));
+        }
+        
+        // Test non-numeric format
+        cmd.args = Arrays.asList("sampling_ratio", "not_a_number");
+        try
+        {
+            cmd.execute(probe);
+            fail("Expected IllegalArgumentException for non-numeric sampling ratio");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue("Error message should mention invalid value", 
+                      e.getMessage().contains("Invalid sampling ratio value"));
+        }
     }
 }

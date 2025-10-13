@@ -75,6 +75,9 @@ public class QueryAnalyticsServiceTest extends TestCase
         QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
         config.setEnabled(true);
         
+        // Set sampling ratio to 1.0 for deterministic test behavior (specific sampling tests override this)
+        config.setSamplingRatio(1.0);
+        
         // Set up producer configuration
         ParameterizedClass producerConfig = new ParameterizedClass();
         producerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
@@ -269,7 +272,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
         config.setEnabled(true);
         config.setProducer(null);
-
+        
         QueryAnalyticsService.dataProducer = null;
         
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
@@ -479,6 +482,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         String configString = queryAnalyticsService.getQueryAnalyticsConfiguration();
         assertNotNull("Configuration should not be null", configString);
         assertTrue("Configuration should contain enabled status", configString.contains("enabled:"));
+        assertTrue("Configuration should contain sampling_ratio", configString.contains("sampling_ratio:"));
     }
     
     public void testMBeanConfigurationUpdatesPersist() throws IOException
@@ -549,5 +553,100 @@ public class QueryAnalyticsServiceTest extends TestCase
         } catch (Exception e) {
             fail("setup() should not throw exception when producer is null: " + e.getMessage());
         }
+    }
+    
+    public void testMBeanSetQueryAnalyticsSamplingRatio()
+    {
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        
+        // Test setting valid sampling ratio
+        queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.1);
+        assertEquals("Sampling ratio should be set to 0.1", 0.1, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
+        
+        queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.5);
+        assertEquals("Sampling ratio should be set to 0.5", 0.5, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
+        
+        queryAnalyticsService.setQueryAnalyticsSamplingRatio(1.0);
+        assertEquals("Sampling ratio should be set to 1.0", 1.0, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
+        
+        queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.0);
+        assertEquals("Sampling ratio should be set to 0.0", 0.0, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
+    }
+    
+    public void testMBeanSetQueryAnalyticsSamplingRatioInvalidValues()
+    {
+        // Test invalid sampling ratios
+        try {
+            DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(-0.1);
+            fail("Should throw IllegalArgumentException for negative sampling ratio");
+        } catch (IllegalArgumentException e) {
+            assertTrue("Exception should mention valid range", e.getMessage().contains("between 0.0 and 1.0"));
+        }
+        
+        try {
+            DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.1);
+            fail("Should throw IllegalArgumentException for sampling ratio > 1.0");
+        } catch (IllegalArgumentException e) {
+            assertTrue("Exception should mention valid range", e.getMessage().contains("between 0.0 and 1.0"));
+        }
+    }
+    
+    public void testSamplingLogicZeroRatio() throws IOException
+    {
+        // Set sampling ratio to 0.0 - should not send any metrics
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.0);
+        
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        
+        reset(mockDataProducer);
+        
+        // Try processing multiple metrics
+        for (int i = 0; i < 100; i++) {
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        }
+        
+        // With 0.0 sampling ratio, no metrics should be sent
+        verify(mockDataProducer, never()).produceDatapoint(any());
+    }
+    
+    public void testSamplingLogicFullRatio() throws IOException
+    {
+        // Set sampling ratio to 1.0 - should send all metrics
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.0);
+        
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        
+        reset(mockDataProducer);
+        
+        // Process 10 metrics
+        int numMetrics = 10;
+        for (int i = 0; i < numMetrics; i++) {
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        }
+        
+        // With 1.0 sampling ratio, all metrics should be sent
+        verify(mockDataProducer, times(numMetrics)).produceDatapoint(any());
+    }
+    
+    public void testSamplingLogicPartialRatio() throws IOException
+    {
+        // Set sampling ratio to 0.5 - should send approximately half the metrics
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.5);
+        
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        
+        reset(mockDataProducer);
+        
+        // Process many metrics to test statistical sampling
+        int numMetrics = 1000;
+        for (int i = 0; i < numMetrics; i++) {
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        }
+        
+        // With 0.5 sampling ratio and large sample size, we should get roughly half
+        // Allow for variance: expect between 40% and 60% of metrics to be sent
+        ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer, atLeast(400)).produceDatapoint(captor.capture());
+        verify(mockDataProducer, atMost(600)).produceDatapoint(captor.capture());
     }
 }

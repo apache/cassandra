@@ -39,7 +39,7 @@ public class SetQueryAnalyticsConfig extends NodeToolCmd
     @VisibleForTesting
     @Arguments(title = "<param> <value>", usage = "<param> <value>",
     description = "Query analytics param and value.\nPossible parameters are: " +
-                  "[enabled]",
+                  "[enabled, sampling_ratio]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -80,9 +80,18 @@ public class SetQueryAnalyticsConfig extends NodeToolCmd
                     }
                 }
                 break;
+            case "sampling_ratio":
+                try {
+                    double samplingRatioValue = Double.parseDouble(paramVal);
+                    probe.setQueryAnalyticsSamplingRatio(samplingRatioValue);
+                    out.println("Query Analytics sampling ratio set to: " + samplingRatioValue);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid sampling ratio value: " + paramVal + ". Must be a number between 0.0 and 1.0");
+                }
+                break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType + 
-                    ". Valid parameters: enabled");
+                    ". Valid parameters: enabled, sampling_ratio");
         }
     }
 }

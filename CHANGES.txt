@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-52475] Implement data sampling for QAN
  * [SO-53892] Disable simplestrategy guardrail should kick in after existence check
  * [SO-51564] addBaseTableRowForReadRebuild: from baseRow to viewRow mutations
  * [SO-52436] Create SSTable stream for MV backfill dir to remote/local MV replicas

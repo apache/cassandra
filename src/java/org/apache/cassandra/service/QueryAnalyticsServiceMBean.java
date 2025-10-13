@@ -30,6 +30,12 @@ public interface QueryAnalyticsServiceMBean
     // Check if the Query Analytics is enabled
     boolean isQueryAnalyticsEnabled();
     
+    // Set the Query Analytics sampling ratio (0.0 to 1.0)
+    void setQueryAnalyticsSamplingRatio(double samplingRatio);
+    
+    // Get the Query Analytics sampling ratio
+    double getQueryAnalyticsSamplingRatio();
+    
     // Get the Query Analytics configuration
     String getQueryAnalyticsConfiguration();
 }
