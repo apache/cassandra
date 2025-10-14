@@ -18,17 +18,21 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.List;
+import java.util.Set;
+
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.SSTableChunkSampler.SSTableChunkInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.junit.Test;
-
-import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SSTableChunkSamplerTest extends CQLTester
 {
@@ -166,5 +170,66 @@ public class SSTableChunkSamplerTest extends CQLTester
         {
             assertThat(count).isBetween(50, 150);
         }
+    }
+
+    @Test
+    public void testSampleFromSSTablesWithTrainerNotReady()
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'LZ4Compressor'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+
+        // Insert data and flush to create an SSTable
+        for (int i = 0; i < 100; i++)
+        {
+            execute("INSERT INTO %s (id, data) VALUES (?, ?)", i, "test data " + i);
+        }
+        flush();
+
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        assertThat(sstables).isNotEmpty();
+
+        CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
+                                                                                        .chunkSize(64 * 1024)
+                                                                                        .build();
+
+        // Create a mock trainer that is not ready to sample
+        ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class);
+        when(trainer.shouldSample()).thenReturn(false);
+        when(trainer.getTrainingStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
+
+        // Should throw IllegalStateException when trainer is not ready
+        assertThatThrownBy(() -> SSTableChunkSampler.sampleFromSSTables(sstables, trainer, config))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Trainer is not ready to accept samples");
+    }
+
+    @Test
+    public void testReadChunkThrowsOnInvalidPosition()
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'enabled': 'false'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+
+        // Insert data and flush to create an uncompressed SSTable
+        for (int i = 0; i < 100; i++)
+        {
+            execute("INSERT INTO %s (id, data) VALUES (?, ?)", i, "test data " + i);
+        }
+        flush();
+
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        assertThat(sstables).isNotEmpty();
+
+        SSTableReader sstable = sstables.iterator().next();
+        CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
+                                                                                        .chunkSize(64 * 1024)
+                                                                                        .build();
+
+        SSTableChunkInfo info = new SSTableChunkInfo(sstable, config);
+
+        // Try to read at a position beyond the data length - should throw IOException
+        long invalidPosition = info.dataLength + 1000;
+        assertThatThrownBy(() -> SSTableChunkSampler.readUncompressedChunk(info, invalidPosition))
+        .isInstanceOf(java.io.IOException.class)
+        .hasMessageContaining("Invalid read size");
     }
 }

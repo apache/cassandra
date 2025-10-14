@@ -118,5 +118,7 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         currentDictId.set(null);
         // Invalidate cache will trigger removalListener to close all cached dictionaries, including the currentDictionary
         cache.invalidateAll();
+        // Force synchronous cleanup to ensure removal listener executes immediately
+        cache.cleanUp();
     }
 }

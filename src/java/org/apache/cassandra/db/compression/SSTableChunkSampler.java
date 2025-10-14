@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -66,8 +67,8 @@ public class SSTableChunkSampler
                 this.metadata = sstable.getCompressionMetadata();
                 this.dataLength = metadata.dataLength;
                 this.chunkSize = metadata.chunkLength();
-                // Use the accurate chunk count from metadata (each offset is 8 bytes)
-                this.chunkCount = metadata.offHeapSize() >> 3;
+                // Use the logical chunk count from metadata (each offset is 8 bytes)
+                this.chunkCount = metadata.chunkOffsetsSize >> 3;
             }
             else
             {
@@ -92,11 +93,16 @@ public class SSTableChunkSampler
      */
     public static void sampleFromSSTables(Set<SSTableReader> sstables,
                                           ICompressionDictionaryTrainer trainer,
-                                          CompressionDictionaryTrainingConfig config)
+                                          CompressionDictionaryTrainingConfig config) throws IOException
     {
         if (sstables.isEmpty())
         {
             throw new IllegalArgumentException("No SSTables provided for sampling");
+        }
+
+        if (trainer.getTrainingStatus() != TrainingStatus.SAMPLING)
+        {
+            throw new IllegalStateException("Trainer is not ready to accept samples. Current status: " + trainer.getTrainingStatus());
         }
 
         // Build metadata for all SSTables
@@ -191,10 +197,10 @@ public class SSTableChunkSampler
      * </pre>
      */
     static SamplingStats sampleChunksFromSSTables(List<SSTableChunkInfo> sstableInfos,
-                                                   long totalChunks,
-                                                   long targetChunkCount,
-                                                   ICompressionDictionaryTrainer trainer,
-                                                   CompressionDictionaryTrainingConfig config)
+                                                  long totalChunks,
+                                                  long targetChunkCount,
+                                                  ICompressionDictionaryTrainer trainer,
+                                                  CompressionDictionaryTrainingConfig config) throws IOException
     {
         long totalSampleSize = 0;
         long sampleCount = 0;
@@ -233,9 +239,9 @@ public class SSTableChunkSampler
      * Samples a specified number of chunks from a single SSTable.
      */
     static SamplingStats sampleChunksFromSSTable(SSTableChunkInfo info,
-                                                  long chunksToSample,
-                                                  ICompressionDictionaryTrainer trainer,
-                                                  CompressionDictionaryTrainingConfig config)
+                                                 long chunksToSample,
+                                                 ICompressionDictionaryTrainer trainer,
+                                                 CompressionDictionaryTrainingConfig config) throws IOException
     {
         long totalSampleSize = 0;
         long sampleCount = 0;
@@ -253,30 +259,18 @@ public class SSTableChunkSampler
             }
 
             long position = chunkIndex * info.chunkSize;
+            ByteBuffer chunk = readChunk(info, position);
 
-            try
+            // Check if adding this sample would exceed the max total sample size
+            if (totalSampleSize + chunk.remaining() > config.maxTotalSampleSize)
             {
-                ByteBuffer chunk = readChunk(info, position);
-                if (chunk != null && chunk.hasRemaining())
-                {
-                    // Check if adding this sample would exceed the max total sample size
-                    if (totalSampleSize + chunk.remaining() > config.maxTotalSampleSize)
-                    {
-                        logger.debug("Next chunk would exceed max total sample size limit");
-                        break;
-                    }
+                logger.debug("Next chunk would exceed max total sample size limit");
+                break;
+            }
 
-                    trainer.addSample(chunk);
-                    totalSampleSize += chunk.remaining();
-                    sampleCount++;
-                }
-            }
-            catch (Exception e)
-            {
-                logger.warn("Failed to read chunk at position {} from SSTable {}: {}",
-                            position, info.sstable, e.getMessage());
-                // Continue with next sample
-            }
+            trainer.addSample(chunk);
+            totalSampleSize += chunk.remaining();
+            sampleCount++;
         }
 
         return new SamplingStats(sampleCount, totalSampleSize);
@@ -326,7 +320,8 @@ public class SSTableChunkSampler
     static Set<Long> floydRandomSampling(long total, long samples)
     {
         Set<Long> set = new HashSet<>();
-        for (long i = total - samples; i < total; i++)
+        long requested = Math.min(total, samples);
+        for (long i = total - requested; i < total; i++)
         {
             long randomIndex = ThreadLocalRandom.current().nextLong(i + 1);
             if (!set.add(randomIndex))
@@ -395,9 +390,8 @@ public class SSTableChunkSampler
 
         if (expectedChecksum != actualChecksum)
         {
-            logger.warn("Checksum mismatch for chunk at position {} in SSTable {}",
-                       position, sstableInfo.sstable);
-            return null;
+            throw new IOException(String.format("Checksum mismatch for chunk at position %d in SSTable %s (expected: %d, actual: %d)",
+                                                position, sstableInfo.sstable, expectedChecksum, actualChecksum));
         }
 
         // Reset for decompression
@@ -407,18 +401,9 @@ public class SSTableChunkSampler
         ICompressor compressor = metadata.compressor();
         ByteBuffer uncompressed = ByteBuffer.allocateDirect(metadata.chunkLength());
 
-        try
-        {
-            compressor.uncompress(compressed, uncompressed);
-            uncompressed.flip();
-            return uncompressed;
-        }
-        catch (IOException e)
-        {
-            logger.warn("Failed to decompress chunk at position {} in SSTable {}: {}",
-                       position, sstableInfo.sstable, e.getMessage());
-            return null;
-        }
+        compressor.uncompress(compressed, uncompressed);
+        uncompressed.flip();
+        return uncompressed;
     }
 
     /**
@@ -439,7 +424,8 @@ public class SSTableChunkSampler
 
         if (readSize <= 0)
         {
-            return null;
+            throw new IOException(String.format("Invalid read size %d at position %d (dataLength: %d) for SSTable %s",
+                                                readSize, position, sstableInfo.dataLength, sstableInfo.sstable));
         }
 
         ByteBuffer buffer = ByteBuffer.allocateDirect(readSize);
