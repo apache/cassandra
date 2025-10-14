@@ -60,6 +60,16 @@ public interface IVerifier extends Closeable
          */
         public final boolean quick;
 
+        /**
+         * To verify only SAI checksum
+         */
+        public final boolean onlySai;
+
+        /**
+         * To include SAI verification along with data files
+         */
+        public final boolean includeSai;
+
         public final Function<String, ? extends Collection<Range<Token>>> tokenLookup;
 
         private Options(boolean invokeDiskFailurePolicy,
@@ -68,14 +78,21 @@ public interface IVerifier extends Closeable
                         boolean mutateRepairStatus,
                         boolean checkOwnsTokens,
                         boolean quick,
+                        boolean onlySai,
+                        boolean includeSai,
                         Function<String, ? extends Collection<Range<Token>>> tokenLookup)
         {
+            if (onlySai && includeSai)
+                throw new IllegalArgumentException("onlySai and includeSai both cannot be true at a time.");
+
             this.invokeDiskFailurePolicy = invokeDiskFailurePolicy;
             this.extendedVerification = extendedVerification;
             this.checkVersion = checkVersion;
             this.mutateRepairStatus = mutateRepairStatus;
             this.checkOwnsTokens = checkOwnsTokens;
             this.quick = quick;
+            this.onlySai = onlySai;
+            this.includeSai = includeSai;
             this.tokenLookup = tokenLookup;
         }
 
@@ -89,6 +106,8 @@ public interface IVerifier extends Closeable
                    ", mutateRepairStatus=" + mutateRepairStatus +
                    ", checkOwnsTokens=" + checkOwnsTokens +
                    ", quick=" + quick +
+                   ", onlySai=" + onlySai +
+                   ", includeSai=" + includeSai +
                    '}';
         }
 
@@ -100,6 +119,8 @@ public interface IVerifier extends Closeable
             private boolean mutateRepairStatus = false; // mutating repair status can be dangerous
             private boolean checkOwnsTokens = false;
             private boolean quick = false;
+            private boolean onlySai = false;
+            private boolean includeSai = false;
             private Function<String, ? extends Collection<Range<Token>>> tokenLookup = StorageService.instance::getLocalAndPendingRanges;
 
             public Builder invokeDiskFailurePolicy(boolean param)
@@ -138,6 +159,18 @@ public interface IVerifier extends Closeable
                 return this;
             }
 
+            public Builder onlySai(boolean param)
+            {
+                this.onlySai = param;
+                return this;
+            }
+
+            public Builder includeSai(boolean param)
+            {
+                this.includeSai = param;
+                return this;
+            }
+
             public Builder tokenLookup(Function<String, ? extends Collection<Range<Token>>> tokenLookup)
             {
                 this.tokenLookup = tokenLookup;
@@ -146,7 +179,7 @@ public interface IVerifier extends Closeable
 
             public Options build()
             {
-                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick, tokenLookup);
+                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick, onlySai, includeSai, tokenLookup);
             }
         }
     }
