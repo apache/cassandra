@@ -901,7 +901,7 @@ public class CassandraDaemon
         {
             if (StorageService.instance.isSurveyMode())
             {
-                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
+                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.isAuthenticationRequired())
                 {
                     throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
                                                     "auth is enabled");

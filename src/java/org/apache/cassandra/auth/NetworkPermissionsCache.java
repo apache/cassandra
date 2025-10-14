@@ -36,7 +36,7 @@ public class NetworkPermissionsCache extends AuthCache<RoleResource, DCPermissio
               DatabaseDescriptor::getRolesCacheActiveUpdate,
               authorizer::authorize,
               authorizer.bulkLoader(),
-              () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
+              DatabaseDescriptor::isAuthenticationRequired);
 
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME_BASE + DEPRECATED_CACHE_NAME);
     }

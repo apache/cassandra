@@ -67,6 +67,29 @@ public interface IAuthenticator
     Set<? extends IResource> protectedResources();
 
     /**
+     * Additional set of IRoleManager.Options used by this authenticator and supported by CREATE ROLE and ALTER ROLE
+     * statements. These are in addition to any default options supported by the role manager.
+     *
+     * @return A set of IRoleManager.Options that this authenticator requires support for.
+     */
+    default Set<IRoleManager.Option> getSupportedRoleOptions()
+    {
+        return Set.of();
+    }
+
+    /**
+     * Additional set of IRoleManager.Options used by this authenticator that users are allowed to alter via
+     * ALTER ROLE statements. These are in addition to any default alterable options supported by the role manager.
+     * Alterable role options must also be supported role options.
+     *
+     * @return A set of supported role options that users are allowed to alter.
+     */
+    default Set<IRoleManager.Option> getAlterableRoleOptions()
+    {
+        return Set.of();
+    }
+
+    /**
      * Validates configuration of IAuthenticator implementation (if configurable).
      *
      * @throws ConfigurationException when there is a configuration error.

@@ -78,12 +78,15 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsAuthenticator.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
     private static final String VALIDATOR_CLASS_NAME = "validator_class_name";
-    private static final String CACHE_NAME = "IdentitiesCache";
+
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
     private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(MTLS);
     private final MutualTlsCertificateValidityPeriodValidator certificateValidityPeriodValidator;
     private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
+
+    @VisibleForTesting
+    static final String CACHE_NAME = "IdentitiesCache";
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
     public static final String METADATA_IDENTITY_KEY = "identity";
