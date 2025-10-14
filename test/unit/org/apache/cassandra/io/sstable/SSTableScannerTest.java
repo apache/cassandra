@@ -345,7 +345,12 @@ public class SSTableScannerTest
         // full range scan
         ISSTableScanner scanner = sstable.getScanner();
         for (int i = 4; i < 10; i++)
-            assertEquals(toKey(i), new String(scanner.next().partitionKey().getKey().array()));
+        {
+            try (UnfilteredRowIterator row = scanner.next())
+            {
+                assertEquals(toKey(i), new String(row.partitionKey().getKey().array()));
+            }
+        }
 
         scanner.close();
 

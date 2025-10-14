@@ -234,6 +234,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid re-initializing underlying iterator in LazilyInitializedUnfilteredRowIterator after closing (CASSANDRA-20972)
  * Flush SAI segment builder when current SSTable writer is switched (CASSANDRA-20752)
  * Throw RTE instead of FSError when RTE is thrown from FileUtis.write in TOCComponent (CASSANDRA-20917)
  * Represent complex settings as JSON on system_views.settings table (CASSANDRA-20827)

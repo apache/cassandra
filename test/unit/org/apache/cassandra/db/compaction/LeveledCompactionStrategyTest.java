@@ -51,6 +51,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -286,7 +287,12 @@ public class LeveledCompactionStrategyTest
         ISSTableScanner scanner = scanners.get(0);
         // scan through to the end
         while (scanner.hasNext())
-            scanner.next();
+        {
+            try (UnfilteredRowIterator ignored = scanner.next())
+            {
+                // just close the iterator
+            }
+        }
 
         // scanner.getCurrentPosition should be equal to total bytes of L1 sstables
         assertEquals(scanner.getCurrentPosition(), SSTableReader.getTotalUncompressedBytes(sstables));
