@@ -7903,6 +7903,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public long getMaxWaitTimeInTransportQueueMillis()
+    {
+        return DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+    }
+
+    @Override
+    public void setMaxWaitTimeInTransportQueueMillis(long maxWaitTimeMillis)
+    {
+        DatabaseDescriptor.setMaxWaitTimeInTransportQueue(maxWaitTimeMillis);
+    }
+
+    @Override
     public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName)
     {
         SEPExecutor internalQueueSEPTP = SharedExecutorPool.SHARED.getExecutor(queueName);

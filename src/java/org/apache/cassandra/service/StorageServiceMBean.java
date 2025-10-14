@@ -1232,6 +1232,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      TOOLING FOR FASTER MITIGATION PURPOSES ONLY  */
     public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName);
 
+    long getMaxWaitTimeInTransportQueueMillis();
+    void setMaxWaitTimeInTransportQueueMillis(long maxWaitTimeMillis);
+
     /* Get clear_snapshot_files_log_enabled */
     boolean getClearSnapshotFilesLogEnabled();
 

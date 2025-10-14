@@ -325,16 +325,34 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     }
 
     /**
-     * Checks if the item in the head of the queue has spent more than allowed time in the queue.
+     * Checks if the queue has capacity for new requests based on oldest task queue time.
+     *
+     * When max_wait_time_in_transport_queue is configured, this uses a threshold-based
+     * admission control: rejects new requests when oldest task time exceeds
+     * (max_wait_time * threshold), providing earlier backpressure than the actual timeout.
      */
     @Override
     public boolean hasQueueCapacity()
     {
         double threshold = DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold();
-        if (threshold <= 0)
+        long effectiveTimeout = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(TimeUnit.NANOSECONDS);
+        if (threshold <= 0 || effectiveTimeout <= 0)
             return true;
 
-        return requestExecutor.oldestTaskQueueTime() < (DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS) * threshold);
+        long oldestTaskTime = requestExecutor.oldestTaskQueueTime();
+        boolean hasCapacity = oldestTaskTime < effectiveTimeout * threshold;
+
+        if (!hasCapacity)
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 5, TimeUnit.SECONDS,
+                    "[QUEUE_DEBUG] Queue capacity exceeded - oldestTaskTime: {}ms, effectiveTimeout: {}ms, threshold: {}",
+                    oldestTaskTime,
+                    TimeUnit.NANOSECONDS.toMillis(effectiveTimeout),
+                    threshold);
+            ClientMetrics.instance.markHasNoTransportQueueCapacity();
+        }
+
+        return hasCapacity;
     }
 
     /**
@@ -344,16 +362,21 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure, RequestTime requestTime)
     {
         long queueTime = requestTime.timeSpentInQueueNanos();
+        long effectiveTimeout = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(TimeUnit.NANOSECONDS);
 
         // If we have already crossed the max timeout for all possible RPCs, we time out the query immediately.
         // We do not differentiate between query types here, since if we got into a situation when, say, we have a PREPARE
         // query that is stuck behind the EXECUTE query, we would rather time it out and catch up with a backlog, expecting
         // that the bursts are going to be short-lived.
         ClientMetrics.instance.queueTime(queueTime, TimeUnit.NANOSECONDS);
-        if (queueTime > DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS))
+
+        if (effectiveTimeout > 0 && queueTime > effectiveTimeout)
         {
             ClientMetrics.instance.markTimedOutBeforeProcessing();
-            Exception e = new OverloadedException("Query timed out before it could start");
+            Exception e = new OverloadedException(
+                    String.format("Query timed out before it could start. Queue time: %dms. Timeout: %dms.",
+                            queueTime,
+                            TimeUnit.NANOSECONDS.toMillis(effectiveTimeout)));
             ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e);
             return ErrorMessage.fromException(e);
         }
@@ -391,8 +414,8 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             case QUEUE_TIME:
             {
                 String message = String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
-                                               DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
-                                               DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS));
+                        DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
+                        TimeUnit.NANOSECONDS.toMillis(effectiveTimeout));
 
                 NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, message);
                 ClientWarn.instance.warn(message);

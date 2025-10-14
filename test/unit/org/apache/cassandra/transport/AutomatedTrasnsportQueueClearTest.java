@@ -104,7 +104,8 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
         // simulate expensive query by injecting the artificial delay
         DatabaseDescriptor.setInjectArtificialDelayMutationPath("1s");
         DatabaseDescriptor.setNativeTransportTimeout(Integer.MAX_VALUE);
-
+        DatabaseDescriptor.setMaxWaitTimeInTransportQueue(Integer.MAX_VALUE);
+        
         ExecutorService executor = Executors.newFixedThreadPool(1000);
 
         for (int i = 0; i < 1000; i++)
@@ -136,6 +137,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
 
         // force the queue to drain
         StorageService.instance.setNativeTransportTimeoutMillis(1000);
+        StorageService.instance.setMaxWaitTimeInTransportQueueMillis(1000);
         Thread.sleep(40000);
         int pendingQueue3 = nativeTransportSEPTP.getPendingTaskCount();
         System.out.println("TimedOutBeforeProcessing3: " + ClientMetrics.instance.timedOutBeforeProcessing.getCount() + ", pendingQueue3: " + pendingQueue3);
@@ -150,6 +152,7 @@ public class AutomatedTrasnsportQueueClearTest extends CQLTester
         // simulate expensive query by injecting the artificial delay
         DatabaseDescriptor.setInjectArtificialDelayMutationPath("1s");
         DatabaseDescriptor.setNativeTransportTimeout(Integer.MAX_VALUE);
+        DatabaseDescriptor.setMaxWaitTimeInTransportQueue(Integer.MAX_VALUE);
 
         ExecutorService executor = Executors.newFixedThreadPool(1000);
 

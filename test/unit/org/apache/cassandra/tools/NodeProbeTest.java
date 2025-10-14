@@ -65,7 +65,7 @@ public class NodeProbeTest extends CQLTester
         ToolResult toolResult = ToolRunner.invokeNodetool("upgradesstables", "-j", String.valueOf(jobs));
         toolResult.assertOnCleanExit();
         assertThat(toolResult.getStdout()).contains(format("jobs (%d) is bigger than configured concurrent_compactors (%d) on the host, using at most %d threads",
-                                                           jobs, compactors, compactors));
+                jobs, compactors, compactors));
 
         // Increase the number of concurrent compactors and verify that the new number of concurrent compactors is seen
         // by subsequent validations
@@ -77,5 +77,29 @@ public class NodeProbeTest extends CQLTester
     {
         assertThat(toolResult.getStdout()).isEmpty();
         toolResult.assertOnCleanExit();
+    }
+
+    /**
+     * Test the new transport queue configuration methods
+     */
+    @Test
+    public void testMaxWaitTimeInTransportQueue()
+    {
+        // Test getting the current max wait time
+        long originalMaxWaitInMillis = probe.getMaxWaitTimeInTransportQueueMillis();
+        // Test MaxWaitTime falls back to NativeTransport if not set explicitly.
+        assertThat(originalMaxWaitInMillis).isEqualTo(probe.getNativeTransportTimeoutMillis());
+
+        // Test setting a new max wait time
+        long newMaxWaitTimeInMillis = 5000L; // 5 seconds
+        probe.setMaxWaitTimeInTransportQueueMillis(newMaxWaitTimeInMillis);
+
+        // Verify the value was set correctly
+        long retrievedMaxWaitTimeInMillis = probe.getMaxWaitTimeInTransportQueueMillis();
+        assertThat(retrievedMaxWaitTimeInMillis).isEqualTo(newMaxWaitTimeInMillis);
+
+        // Restore original value
+        probe.setMaxWaitTimeInTransportQueueMillis(originalMaxWaitInMillis);
+        assertThat(probe.getMaxWaitTimeInTransportQueueMillis()).isEqualTo(originalMaxWaitInMillis);
     }
 }

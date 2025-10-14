@@ -62,6 +62,7 @@ public final class ClientMetrics
     private Meter protocolException;
     private Meter unknownException;
     private Timer queueTime;
+    public Meter hasNoTransportQueueCapacity;
 
     private ClientMetrics()
     {
@@ -104,6 +105,8 @@ public final class ClientMetrics
     }
 
     public void markTimedOutBeforeProcessing() { timedOutBeforeProcessing.mark(); }
+
+    public void markHasNoTransportQueueCapacity() { hasNoTransportQueueCapacity.mark(); }
 
     public void markProtocolException()
     {
@@ -149,6 +152,7 @@ public final class ClientMetrics
         requestDispatched = registerMeter("RequestDispatched");
 
         timedOutBeforeProcessing = registerMeter("TimedOutBeforeProcessing");
+        hasNoTransportQueueCapacity = registerMeter("HasNoTransportQueueCapacity");
         protocolException = registerMeter("ProtocolException");
         unknownException = registerMeter("UnknownException");
         queueTime = registerTimer("Queued");

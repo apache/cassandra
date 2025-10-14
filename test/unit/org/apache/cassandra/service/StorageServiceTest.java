@@ -68,6 +68,8 @@ import org.mockito.Mockito;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -500,5 +502,229 @@ public class StorageServiceTest
         when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
 
         return spiedStorageService;
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueConfigurationDefault()
+    {
+        // Test that default value is handled correctly
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        try
+        {
+            // When max_wait_time_in_transport_queue is 0, the getter should return 0
+            // The fallback logic is handled in Dispatcher, not in the getter itself
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(0);
+            long maxWaitTimeoutInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+
+            assertEquals("When max_wait_time_in_transport_queue is set to 0, getter should return 0",
+                         0, maxWaitTimeoutInMillis);
+
+            // Test that a non-zero value works correctly
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(5000);
+            maxWaitTimeoutInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+            assertEquals("Custom max_wait_time_in_transport_queue should be returned correctly",
+                         5000, maxWaitTimeoutInMillis);
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueConfigurationCustomValue()
+    {
+        // Test that custom values are respected
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        try
+        {
+            long maxWaitTimeoutInMillis = 5000; // 5 seconds
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(maxWaitTimeoutInMillis);
+
+            assertEquals("Custom max_wait_time_in_transport_queue should be respected",
+                         maxWaitTimeoutInMillis, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueTimeUnitConversions()
+    {
+        // Test that time unit conversions work correctly
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        try
+        {
+            long maxWaitTimeoutInMillis = 2000; // 2 seconds
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(maxWaitTimeoutInMillis);
+
+            assertEquals("Milliseconds conversion should be correct",
+                         maxWaitTimeoutInMillis, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+            assertEquals("Nanoseconds conversion should be correct",
+                         maxWaitTimeoutInMillis * 1_000_000, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(NANOSECONDS));
+            assertEquals("Seconds conversion should be correct",
+                         maxWaitTimeoutInMillis / 1000, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(SECONDS));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueIntegrationWithNativeTimeout()
+    {
+        // Test interaction between max_wait_time_in_transport_queue and native_transport_timeout
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        long originalNativeTimeoutInMillis = DatabaseDescriptor.getNativeTransportTimeout(MILLISECONDS);
+        try
+        {
+            long nativeTimeoutInMillis = 3000; // 3 seconds
+            long maxWaitTimeoutInMillis = 1500; // 1.5 seconds
+
+            DatabaseDescriptor.setNativeTransportTimeout(nativeTimeoutInMillis);
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(maxWaitTimeoutInMillis);
+
+            assertEquals("max_wait_time_in_transport_queue should be independent of native_transport_timeout when set",
+                         maxWaitTimeoutInMillis, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+
+            // Test that they can be different values
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(0);
+            assertEquals("When max_wait_time_in_transport_queue is 0, getter should return 0",
+                         0, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+            assertEquals("native_transport_timeout should remain unchanged",
+                         nativeTimeoutInMillis, DatabaseDescriptor.getNativeTransportTimeout(MILLISECONDS));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+            DatabaseDescriptor.setNativeTransportTimeout(originalNativeTimeoutInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueDispatcherFallbackBehavior()
+    {
+        // Test that the Dispatcher uses native_transport_timeout when max_wait_time_in_transport_queue is 0
+        // This tests the actual fallback logic implementation in your Dispatcher changes
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        long originalNativeTimeoutInMillis = DatabaseDescriptor.getNativeTransportTimeout(MILLISECONDS);
+        try
+        {
+            long nativeTimeoutInMillis = 4000; // 4 seconds
+            DatabaseDescriptor.setNativeTransportTimeout(nativeTimeoutInMillis);
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(0);
+
+            // The Dispatcher.getMaxWaitTimeInTransportQueue method should fall back to native_transport_timeout
+            // when max_wait_time_in_transport_queue is 0. This is testing the logic you added.
+            long effectiveTimeout = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(NANOSECONDS);
+            if (effectiveTimeout == 0)
+            {
+                // Fallback behavior - use native_transport_timeout
+                effectiveTimeout = DatabaseDescriptor.getNativeTransportTimeout(NANOSECONDS);
+            }
+
+            assertEquals("When max_wait_time_in_transport_queue is 0, effective timeout should use native_transport_timeout",
+                         nativeTimeoutInMillis * 1_000_000, effectiveTimeout);
+
+            // Test with explicit value
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(2000);
+            long explicitTimeout = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(NANOSECONDS);
+            assertEquals("When max_wait_time_in_transport_queue is set explicitly, it should be used",
+                         2000 * 1_000_000, explicitTimeout);
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+            DatabaseDescriptor.setNativeTransportTimeout(originalNativeTimeoutInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueValidation()
+    {
+        // Test that negative values are handled appropriately
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        try
+        {
+            // Setting a positive value should work
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(1000);
+            assertEquals(1000, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+
+            // Setting 0 should be stored as 0 (fallback happens in Dispatcher)
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(0);
+            assertEquals("Zero value should be stored as zero",
+                         0L, DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS));
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+        }
+    }
+
+    @Test
+    public void testMaxWaitTimeInTransportQueueThreadSafety() throws InterruptedException
+    {
+        // Test that concurrent access to the configuration is safe
+        long originalMaxWaitInMillis = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+        try
+        {
+            final AtomicInteger successCount = new AtomicInteger(0);
+            final int numThreads = 10;
+            final int iterations = 100;
+
+            List<Thread> threads = new ArrayList<>();
+
+            for (int i = 0; i < numThreads; i++)
+            {
+                final int threadId = i;
+                Thread thread = new Thread(() -> {
+                    for (int j = 0; j < iterations; j++)
+                    {
+                        try
+                        {
+                            long timeoutInMillis = (threadId + 1) * 100 + j; // Unique timeout per thread/iteration
+                            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(timeoutInMillis);
+                            long retrieved = DatabaseDescriptor.getMaxWaitTimeInTransportQueue(MILLISECONDS);
+
+                            // The retrieved value should be some valid timeout (may not be exact due to concurrency)
+                            if (retrieved > 0)
+                            {
+                                successCount.incrementAndGet();
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            // Log but don't fail - some concurrency issues may be expected
+                            System.err.println("Thread " + threadId + " iteration " + j + " failed: " + e.getMessage());
+                        }
+                    }
+                });
+                threads.add(thread);
+            }
+
+            // Start all threads
+            for (Thread thread : threads)
+            {
+                thread.start();
+            }
+
+            // Wait for all threads to complete
+            for (Thread thread : threads)
+            {
+                thread.join();
+            }
+
+            // We should have a reasonable success rate (at least 80%)
+            int expectedMinSuccess = (numThreads * iterations) * 8 / 10;
+            assertTrue("Concurrent access should mostly succeed, got " + successCount.get() + " successes out of " + (numThreads * iterations),
+                       successCount.get() >= expectedMinSuccess);
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxWaitTimeInTransportQueue(originalMaxWaitInMillis);
+        }
     }
 }

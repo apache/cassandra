@@ -1560,6 +1560,12 @@ public class Config
         logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
 
+    // The maximum time a request is allowed to wait in the native transport queue.
+    // If the request has been waiting in the queue for longer than this time, it will
+    // be rejected with an OverloadedException.
+    // Default to current behavior initially. Disabled by default.
+    public volatile DurationSpec.LongMillisecondsBound max_wait_time_in_transport_queue = new DurationSpec.LongMillisecondsBound("0ms");
+
     // WARNING!!! - DO NOT ENABLE THIS FOR PRODUCTION
     // This parameter is for testing purposes only. It is used to simulate expensive mutation queries.
     public volatile DurationSpec.LongMillisecondsBound inject_artificial_delay_mutation_path = new DurationSpec.LongMillisecondsBound("0ms");

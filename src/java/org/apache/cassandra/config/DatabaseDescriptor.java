@@ -610,6 +610,12 @@ public class DatabaseDescriptor
         else
             logger.info("Native transport rate-limiting disabled.");
 
+        if (conf.max_wait_time_in_transport_queue.toMilliseconds() == 0)
+        {
+            logger.info("max_wait_time_in_transport_queue set to 0, fall back to use native_transport_timeout.");
+            conf.max_wait_time_in_transport_queue = conf.native_transport_timeout;
+        }
+
         if (conf.commitlog_total_space == null)
         {
             final int preferredSizeInMiB = 8192;
@@ -2084,6 +2090,16 @@ public class DatabaseDescriptor
     public static void setNativeTransportTimeout(long dealine, TimeUnit timeUnit)
     {
         conf.native_transport_timeout = new DurationSpec.LongMillisecondsBound(dealine, timeUnit);
+    }
+
+    public static long getMaxWaitTimeInTransportQueue(TimeUnit timeUnit)
+    {
+        return conf.max_wait_time_in_transport_queue.to(timeUnit);
+    }
+
+    public static void setMaxWaitTimeInTransportQueue(long timeoutMillis)
+    {
+        conf.max_wait_time_in_transport_queue = new DurationSpec.LongMillisecondsBound(timeoutMillis);
     }
 
     public static boolean getEnforceNativeDeadlineForHints()

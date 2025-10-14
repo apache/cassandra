@@ -1591,8 +1591,9 @@
     <attribute name="showoutput" default="false"/>
 
     <sequential>
+      <!-- append=true merges coverage report from both default V5+ tests and forked PreV5Handlers JVMs, avoiding overwrite -->
       <condition property="additionalagent"
-                 value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile}"
+                 value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile},append=true"
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>

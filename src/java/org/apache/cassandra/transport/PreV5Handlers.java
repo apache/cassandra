@@ -262,7 +262,7 @@ public class PreV5Handlers
                 case QUEUE_TIME:
                     exception = new OverloadedException(String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
                                                                       DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
-                                                                      DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS)));
+                                                                      DatabaseDescriptor.getMaxWaitTimeInTransportQueue(TimeUnit.MILLISECONDS)));
                     break;
                 default:
                     exception = new IllegalArgumentException(String.format("Can't create an exception from %s", overload));

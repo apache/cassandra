@@ -2665,6 +2665,16 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setNativeTransportTimeoutMillis(deadlineMillis);
     }
 
+    public long getMaxWaitTimeInTransportQueueMillis()
+    {
+        return ssProxy.getMaxWaitTimeInTransportQueueMillis();
+    }
+
+    public void setMaxWaitTimeInTransportQueueMillis(long maxWaitTimeMillis)
+    {
+        ssProxy.setMaxWaitTimeInTransportQueueMillis(maxWaitTimeMillis);
+    }
+
     public boolean internalQueueCleanupEMERGENCYUSEONLY(String queueName)
     {
         return ssProxy.internalQueueCleanupEMERGENCYUSEONLY(queueName);

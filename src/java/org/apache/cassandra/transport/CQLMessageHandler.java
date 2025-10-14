@@ -304,7 +304,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             case QUEUE_TIME:
                 return new OverloadedException(String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
                                                              DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
-                                                             DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS)));
+                                                             DatabaseDescriptor.getMaxWaitTimeInTransportQueue(TimeUnit.MILLISECONDS)));
             default:
                 throw new IllegalArgumentException("Overload exception should not have been thrown with " + overload);
 

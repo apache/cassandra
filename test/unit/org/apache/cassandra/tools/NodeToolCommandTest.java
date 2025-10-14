@@ -82,4 +82,39 @@ public class NodeToolCommandTest
         Assert.assertEquals(options.get(RepairOption.INCREMENTAL_KEY), Boolean.toString(false));
     }
 
+    /**
+     * Test the new getmaxwaittimeintransportqueue command
+     */
+    @Test
+    public void testGetMaxWaitTimeInTransportQueueCommand() throws IOException
+    {
+        when(nodeProbe.getMaxWaitTimeInTransportQueueMillis()).thenReturn(3000L);
+
+        int result = new NodeTool(repairNodeFactory, output).execute(new String[]{"getmaxwaittimeintransportqueue"});
+        Assert.assertEquals(0, result);
+
+        verify(nodeProbe).getMaxWaitTimeInTransportQueueMillis();
+    }
+
+    /**
+     * Test the new setmaxwaittimeintransportqueue command
+     */
+    @Test
+    public void testSetMaxWaitTimeInTransportQueueCommand() throws IOException
+    {
+        int result = new NodeTool(repairNodeFactory, output).execute(new String[]{"setmaxwaittimeintransportqueue", "5000"});
+        Assert.assertEquals(0, result);
+
+        verify(nodeProbe).setMaxWaitTimeInTransportQueueMillis(5000L);
+    }
+
+    /**
+     * Test command validation - setmaxwaittimeintransportqueue requires an argument
+     */
+    @Test
+    public void testSetMaxWaitTimeInTransportQueueCommandRequiresArgument() throws IOException
+    {
+        int result = new NodeTool(repairNodeFactory, output).execute(new String[]{"setmaxwaittimeintransportqueue"});
+        Assert.assertNotEquals(0, result); // Should fail without argument
+    }
 }
