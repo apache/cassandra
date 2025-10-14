@@ -112,6 +112,7 @@ public class AuthConfigTest
     public void testNewInstanceForMutualTlsWithPasswordFallbackAuthenticator()
     {
         Config config = load("cassandra-mtls.yaml");
+        config.client_encryption_options.applyConfig();
         config.authenticator.class_name = "org.apache.cassandra.auth.MutualTlsWithPasswordFallbackAuthenticator";
         config.authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);

@@ -4881,7 +4881,6 @@ public class DatabaseDescriptor
     public static EncryptionContext getEncryptionContext()
     {
         return encryptionContext;
-
     }
 
     public static long getGCWarnThreshold()
