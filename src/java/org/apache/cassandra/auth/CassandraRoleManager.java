@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -91,29 +90,16 @@ import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
- * Responsible for the creation, maintenance and deletion of roles
- * for the purposes of authentication and authorization.
- * Role data is stored internally, using the roles and role_members tables
- * in the system_auth keyspace.
+ * Responsible for the creation, maintenance and deletion of roles for the purposes of authentication and
+ * authorization. Role data is stored internally, using the roles and role_members tables in the system_auth
+ * keyspace.
  *
- * Additionally, if org.apache.cassandra.auth.PasswordAuthenticator is used,
- * encrypted passwords are also stored in the system_auth.roles table. This
- * coupling between the IAuthenticator and IRoleManager implementations exists
- * because setting a role's password via CQL is done with a CREATE ROLE or
- * ALTER ROLE statement, the processing of which is handled by IRoleManager.
- * As IAuthenticator is concerned only with credentials checking and has no
- * means to modify passwords, PasswordAuthenticator depends on
- * CassandraRoleManager for those functions.
- *
- * Alternative IAuthenticator implementations may be used in conjunction with
- * CassandraRoleManager, but WITH PASSWORD = 'password' will not be supported
- * in CREATE/ALTER ROLE statements.
- *
- * Such a configuration could be implemented using a custom IRoleManager that
- * extends CassandraRoleManager and which includes Option.PASSWORD in the {@code Set<Option>}
- * returned from supportedOptions/alterableOptions. Any additional processing
- * of the password itself (such as storing it in an alternative location) would
- * be added in overridden createRole and alterRole implementations.
+ * Authenticators (implementations of {@link IAuthenticator}) can specify additional attributes to be stored.
+ * For example, {@link org.apache.cassandra.auth.PasswordAuthenticator}, stores encrypted passwords in the
+ * system_auth.roles table. This coupling between the IAuthenticator and IRoleManager implementations exists because
+ * setting a role's password via CQL is done with a CREATE ROLE or ALTER ROLE statement, the processing of which is
+ * handled by IRoleManager. Authenticators depend on CassandraRoleManager for those functions because IAuthenticator
+ * is concerned only with credentials checking and has no means to directly modify passwords.
  */
 public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerMBean
 {
@@ -123,8 +109,24 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
     public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
+    /**
+     * Role options which are supported for all authentication mechanisms. IAuthenticator implementations can declare
+     * additional supported role options via {@link IAuthenticator#getSupportedRoleOptions()}.
+     */
+    @VisibleForTesting
+    static final Set<Option> DEFAULT_SUPPORTED_ROLE_OPTIONS = Set.of(Option.LOGIN, Option.SUPERUSER);
+
+    /**
+     * User-alterable role options which are supported for all authentication mechanisms. IAuthenticator
+     * implementations can declare additional alterable role options via
+     * {@link IAuthenticator#getAlterableRoleOptions()}.
+     */
+    @VisibleForTesting
+    static final Set<Option> DEFAULT_ALTERABLE_ROLE_OPTIONS = Set.of();
+
     @VisibleForTesting
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD = "invalid_role_disconnect_task_period";
+
     @VisibleForTesting
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
 
@@ -191,17 +193,21 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public CassandraRoleManager(Map<String, String> parameters)
     {
-        Set<Option> allowedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                                     ? EnumSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD, Option.GENERATED_NAME)
-                                     : EnumSet.of(Option.LOGIN, Option.SUPERUSER);
+        Set<Option> supportedOptions = Stream.concat(
+                                           DEFAULT_SUPPORTED_ROLE_OPTIONS.stream(),
+                                           DatabaseDescriptor.getAuthenticator().getSupportedRoleOptions().stream()
+                                                             .filter(Objects::nonNull))
+                                             .collect(Collectors.toSet());
 
         if (Guardrails.roleNamePolicy.getGenerator() != NoOpGenerator.INSTANCE)
-            allowedOptions.add(Option.OPTIONS);
+            supportedOptions.add(Option.OPTIONS);
 
-        supportedOptions = ImmutableSet.copyOf(allowedOptions);
-        alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
-                           : ImmutableSet.<Option>of();
+        this.supportedOptions = Set.copyOf(supportedOptions);
+
+        alterableOptions = Stream.concat(DEFAULT_ALTERABLE_ROLE_OPTIONS.stream(),
+                                         DatabaseDescriptor.getAuthenticator().getAlterableRoleOptions().stream()
+                                                           .filter(Objects::nonNull))
+                                 .collect(Collectors.toUnmodifiableSet());
 
         // Inherit parsing and validation from existing config parser
         invalidClientDisconnectPeriodMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "0h")).toMilliseconds();
@@ -505,8 +511,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public Set<? extends IResource> protectedResources()
     {
-        return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
-                               DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
+        return Set.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
+                      DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
     }
 
     public void validateConfiguration() throws ConfigurationException

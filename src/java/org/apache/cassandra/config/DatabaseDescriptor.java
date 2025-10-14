@@ -2037,15 +2037,51 @@ public class DatabaseDescriptor
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
     }
 
+    /**
+     * Returns the authenticator configured for this node.
+     */
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
     }
 
+    /**
+     * Returns an authenticator configured for this node, if it is of the requested type.
+     * @param clazz The class of the requested authenticator: e.g. PasswordAuthenticator.class.
+     * @return An Optional of the configured authenticator, if it is of the requested type; otherwise
+     *         returns an empty Optional.
+     */
+    public static <T extends IAuthenticator> Optional<T> getAuthenticator(Class<T> clazz)
+    {
+        return hasAuthenticator(clazz) ? Optional.of(clazz.cast(authenticator)) : Optional.empty();
+    }
+
+    /**
+     * Sets the authenticator used by this node to authenticate clients.
+     */
     public static void setAuthenticator(IAuthenticator authenticator)
     {
         DatabaseDescriptor.authenticator = authenticator;
     }
+
+    /**
+     * Indicates if this node uses an authenticator that requires authentication.
+     */
+    public static boolean isAuthenticationRequired()
+    {
+        return authenticator.requireAuthentication();
+    }
+
+    /**
+     * Indicates if this node is configured with an authenticator of the specified type.
+     * @param clazz The class of the authenticator.
+     * @return True if this node has an authenticator of the specified type, false otherwise.
+     */
+    private static boolean hasAuthenticator(Class<? extends IAuthenticator> clazz)
+    {
+        return clazz.isAssignableFrom(authenticator.getClass());
+    }
+
 
     public static IAuthorizer getAuthorizer()
     {
