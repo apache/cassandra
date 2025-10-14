@@ -2684,10 +2684,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated(since = "4.0")
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return verify(extendedVerify, false, false, false, false, false, keyspaceName, tableNames);
+        return verify(extendedVerify, false, false, false, false, false, false, keyspaceName, tableNames);
     }
 
-    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         IVerifier.Options options = IVerifier.options().invokeDiskFailurePolicy(diskFailurePolicy)
@@ -2695,7 +2695,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                              .checkVersion(checkVersion)
                                              .mutateRepairStatus(mutateRepairStatus)
                                              .checkOwnsTokens(checkOwnsTokens)
-                                             .quick(quick).build();
+                                             .quick(quick)
+                                             .onlySai(onlySai).build();
         logger.info("Staring {} on {}.{} with options = {}", OperationType.VERIFY, keyspaceName, Arrays.toString(tableNames), options);
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {

@@ -234,6 +234,29 @@ public class ActiveCompactionsTest extends CQLTester
     }
 
     @Test
+    public void testSaiVerifyOne ()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX idx1 ON %s(a) USING 'sai'");
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+
+        for (int i = 0; i < 5; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (" + i + ", 2, 3, 4)");
+            flush();
+        }
+
+        SSTableReader sstable = Iterables.getFirst(getCurrentColumnFamilyStore().getLiveSSTables(), null);
+        MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
+        CompactionManager.instance.verifyOne(getCurrentColumnFamilyStore(), sstable, IVerifier.options().build(), mockActiveCompactions);
+        assertTrue(mockActiveCompactions.finished);
+        assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
+        assertFalse(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> false));
+        assertTrue(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> true));
+
+    }
+
+    @Test
     public void testSubmitCacheWrite() throws ExecutionException, InterruptedException
     {
         AutoSavingCache.Writer writer = CacheService.instance.keyCache.getWriter(100);

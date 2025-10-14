@@ -89,6 +89,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -110,6 +111,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -669,6 +671,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     public AllSSTableOpStatus performVerify(ColumnFamilyStore cfs, IVerifier.Options options) throws InterruptedException, ExecutionException
     {
         assert !cfs.isIndex();
+        StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        boolean skipSaiCheck = indexGroup == null || SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName());
+        if (options.onlySai && skipSaiCheck)
+        {
+            logger.info("Skipping table {} during SAI-only veriy becasue system keyspace or no SAI index.", cfs.getTableName());
+            return AllSSTableOpStatus.SUCCESSFUL;
+
+        }
+
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
@@ -1493,12 +1504,30 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     @VisibleForTesting
     void verifyOne(ColumnFamilyStore cfs, SSTableReader sstable, IVerifier.Options options, ActiveCompactionsTracker activeCompactions)
     {
+
+        StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        boolean skipSaiCheck = indexGroup == null || SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName());
+
+        // If this table shouldn’t be verified, we skip early
+        if (options.onlySai && skipSaiCheck)
+        {
+            logger.info("Skipping SAI validation for table {} (system keyspace or no SAI index).", cfs.getTableName());
+            return;
+        }
+
         CompactionInfo.Holder verifyInfo = null;
         try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
         {
             verifyInfo = verifier.getVerifyInfo();
             activeCompactions.beginCompaction(verifyInfo);
-            verifier.verify();
+
+            if (!options.onlySai)
+                verifier.verify();
+
+            if (!skipSaiCheck)
+                cfs.indexManager.validateSSTableAttachedIndexes(Collections.singleton(sstable), true, true);
+            else
+                logger.info("Skipping SAI validation for table {} (system keyspace or no SAI index).", cfs.getTableName());
         }
         finally
         {

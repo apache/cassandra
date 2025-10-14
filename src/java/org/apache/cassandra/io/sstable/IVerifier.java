@@ -60,6 +60,11 @@ public interface IVerifier extends Closeable
          */
         public final boolean quick;
 
+        /**
+         * To verify only SAI checksum
+         */
+        public final boolean onlySai;
+
         public final Function<String, ? extends Collection<Range<Token>>> tokenLookup;
 
         private Options(boolean invokeDiskFailurePolicy,
@@ -68,6 +73,7 @@ public interface IVerifier extends Closeable
                         boolean mutateRepairStatus,
                         boolean checkOwnsTokens,
                         boolean quick,
+                        boolean onlySai,
                         Function<String, ? extends Collection<Range<Token>>> tokenLookup)
         {
             this.invokeDiskFailurePolicy = invokeDiskFailurePolicy;
@@ -76,6 +82,7 @@ public interface IVerifier extends Closeable
             this.mutateRepairStatus = mutateRepairStatus;
             this.checkOwnsTokens = checkOwnsTokens;
             this.quick = quick;
+            this.onlySai = onlySai;
             this.tokenLookup = tokenLookup;
         }
 
@@ -89,6 +96,7 @@ public interface IVerifier extends Closeable
                    ", mutateRepairStatus=" + mutateRepairStatus +
                    ", checkOwnsTokens=" + checkOwnsTokens +
                    ", quick=" + quick +
+                   ", onlySai=" + onlySai +
                    '}';
         }
 
@@ -100,6 +108,7 @@ public interface IVerifier extends Closeable
             private boolean mutateRepairStatus = false; // mutating repair status can be dangerous
             private boolean checkOwnsTokens = false;
             private boolean quick = false;
+            private boolean onlySai = false;
             private Function<String, ? extends Collection<Range<Token>>> tokenLookup = StorageService.instance::getLocalAndPendingRanges;
 
             public Builder invokeDiskFailurePolicy(boolean param)
@@ -138,6 +147,12 @@ public interface IVerifier extends Closeable
                 return this;
             }
 
+            public Builder onlySai(boolean param)
+            {
+                this.onlySai = param;
+                return this;
+            }
+
             public Builder tokenLookup(Function<String, ? extends Collection<Range<Token>>> tokenLookup)
             {
                 this.tokenLookup = tokenLookup;
@@ -146,7 +161,7 @@ public interface IVerifier extends Closeable
 
             public Options build()
             {
-                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick, tokenLookup);
+                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick, onlySai, tokenLookup);
             }
         }
     }

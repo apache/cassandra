@@ -78,6 +78,11 @@ public class Verify extends AbstractCommand
             description = "Do a quick check - avoid reading all data to verify checksums")
     private boolean quick = false;
 
+    @Option(paramLabel = "sai_only",
+            names = { "-s", "--sai-only"},
+           description = "Verify only sai index")
+    private boolean onlySai = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -103,7 +108,7 @@ public class Verify extends AbstractCommand
         {
             try
             {
-                probe.verify(out, extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspace, tableNames);
+                probe.verify(out, extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, onlySai, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during verifying", e);
