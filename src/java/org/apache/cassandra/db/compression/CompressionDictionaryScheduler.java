@@ -31,10 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -85,41 +83,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @Override
-    public void scheduleManualTraining(ManualTrainingOptions options, ICompressionDictionaryTrainer trainer)
-    {
-        if (scheduledManualTrainingTask != null)
-        {
-            throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
-        }
-
-        int maxSamplingDurationSeconds = options.getMaxSamplingDurationSeconds();
-
-        logger.info("Starting manual dictionary training for {}.{} with max sampling duration: {} seconds",
-                    keyspaceName, tableName, maxSamplingDurationSeconds);
-
-        long deadlineMillis = Clock.Global.currentTimeMillis() + TimeUnit.SECONDS.toMillis(maxSamplingDurationSeconds);
-
-        ManualTrainingTask task = new ManualTrainingTask(deadlineMillis, trainer);
-
-        // Check every second whether it gets enough samples and completes training
-        scheduledManualTrainingTask = ScheduledExecutors.scheduledTasks
-                                      .scheduleWithFixedDelay(task, 1, 1, TimeUnit.SECONDS);
-    }
-
-    @Override
-    public void cancelManualTraining()
-    {
-        ScheduledFuture<?> future = scheduledManualTrainingTask;
-        if (future != null)
-        {
-            future.cancel(false);
-        }
-        scheduledManualTrainingTask = null;
-    }
-
-    @Override
-    public void scheduleSSTableBasedTraining(ManualTrainingOptions options,
-                                             ICompressionDictionaryTrainer trainer,
+    public void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
                                              Set<SSTableReader> sstables,
                                              CompressionDictionaryTrainingConfig config)
     {
@@ -138,6 +102,19 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
         // Set a placeholder task so status checks know training is in progress
         scheduledManualTrainingTask = ScheduledExecutors.scheduledTasks.schedule(() -> {}, 1, TimeUnit.HOURS);
+    }
+
+    /**
+     * Cancels the in-progress manual training task.
+     */
+    private void cancelManualTraining()
+    {
+        ScheduledFuture<?> future = scheduledManualTrainingTask;
+        if (future != null)
+        {
+            future.cancel(false);
+        }
+        scheduledManualTrainingTask = null;
     }
 
     /**
@@ -190,55 +167,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
         }
     }
 
-    private class ManualTrainingTask implements Runnable
-    {
-        private final long deadlineMillis;
-        private final ICompressionDictionaryTrainer trainer;
-        private boolean isTraining = false;
-
-        private ManualTrainingTask(long deadlineMillis, ICompressionDictionaryTrainer trainer)
-        {
-            this.deadlineMillis = deadlineMillis;
-            this.trainer = trainer;
-        }
-
-        @Override
-        public void run()
-        {
-            if (trainer.getTrainingStatus() == TrainingStatus.NOT_STARTED)
-            {
-                logger.warn("Trainer is not started. Stop training dictionary for table {}.{}", keyspaceName, tableName);
-                cancelManualTraining();
-                return;
-            }
-
-            long now = Clock.Global.currentTimeMillis();
-            // Force training if there are not enough samples, but we have hit the max sampling duration
-            boolean reachedDeadline = now >= deadlineMillis;
-            if (!isTraining && (trainer.isReady() || reachedDeadline))
-            {
-                // Set isTraining to only enter the branch once
-                isTraining = true;
-                trainer.trainDictionaryAsync(reachedDeadline)
-                       .addCallback((dictionary, throwable) -> {
-                           cancelManualTraining();
-                           if (throwable != null)
-                           {
-                               logger.error("Manual dictionary training failed for {}.{}: {}",
-                                            keyspaceName, tableName, throwable.getMessage());
-                           }
-                           else
-                           {
-                               logger.info("Manual dictionary training completed for {}.{}", keyspaceName, tableName);
-                           }
-                       });
-            }
-        }
-    }
-
     /**
      * Task that samples chunks from existing SSTables and triggers training.
-     * Similar to ManualTrainingTask but reads from disk instead of waiting for writes.
      * Acquires references to SSTables to prevent them from being deleted during sampling.
      */
     private class SSTableSamplingTask implements Runnable
@@ -270,7 +200,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 else
                 {
                     logger.debug("Couldn't acquire reference to SSTable {}. It may have been removed.",
-                                sstable.descriptor);
+                                 sstable.descriptor);
                 }
             }
 

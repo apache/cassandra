@@ -2686,16 +2686,16 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Triggers compression dictionary training for the specified table.
-     * 
+     * Samples chunks from existing SSTables and trains a dictionary.
+     *
      * @param keyspace the keyspace name
      * @param table the table name
-     * @param options options for the training process (currently unused, reserved for future extensions)
      * @throws IOException if there's an error accessing the MBean
-     * @throws IllegalArgumentException if table doesn't support dictionary compression  
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
      */
-    public void trainCompressionDictionary(String keyspace, String table, Map<String, String> options) throws IOException
+    public void trainCompressionDictionary(String keyspace, String table) throws IOException
     {
-        getDictionaryManagerProxy(keyspace, table).train(options);
+        getDictionaryManagerProxy(keyspace, table).train();
     }
 
     /**
@@ -2709,19 +2709,6 @@ public class NodeProbe implements AutoCloseable
     public String getCompressionDictionaryTrainingStatus(String keyspace, String table) throws IOException
     {
         return getDictionaryManagerProxy(keyspace, table).getTrainingStatus();
-    }
-
-    /**
-     * Updates the sampling rate for compression dictionary training.
-     *
-     * @param keyspace the keyspace name
-     * @param table the table name
-     * @param samplingRate the new sampling rate (1 = sample every time, 2 = sample every 2nd time, etc.)
-     * @throws IOException if there's an error accessing the MBean
-     */
-    public void updateCompressionDictionaryTrainingSamplingRate(String keyspace, String table, int samplingRate) throws IOException
-    {
-        getDictionaryManagerProxy(keyspace, table).updateSamplingRate(samplingRate);
     }
 
     /**

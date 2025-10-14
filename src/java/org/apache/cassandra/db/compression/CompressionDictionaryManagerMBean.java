@@ -18,20 +18,19 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Map;
-
 public interface CompressionDictionaryManagerMBean
 {
     String MBEAN_NAME = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager";
 
     /**
-     * Starts sampling and training for this table.
-     * 
-     * @param options options for the training process (currently unused, reserved for future extensions)
+     * Starts training from existing SSTables for this table.
+     * Samples chunks from all live SSTables and trains a compression dictionary.
+     * If no SSTables are available, automatically flushes the memtable first.
+     *
      * @throws UnsupportedOperationException if table doesn't support dictionary compression
-     * @throws IllegalStateException if training is already in progress for this table
+     * @throws IllegalStateException if training is already in progress for this table or no SSTables available after flush
      */
-    void train(Map<String, String> options);
+    void train();
 
     /**
      * Gets the current training status for this table.
@@ -40,15 +39,6 @@ public interface CompressionDictionaryManagerMBean
      * @return training status as string: "Not started", "In progress", "Completed", or "Failed"
      */
     String getTrainingStatus();
-
-    /**
-     * Updates the sampling rate for the trainer.
-     *
-     * @param samplingRate the new sampling rate. For exmaple, 1 = sample every time (100%);
-     *                     2 = expect sample 1/2 of data (50%), n = expect sample 1/n of data
-     * @throws IllegalArgumentException if sampling rate is invalid or trainer is not available
-     */
-    void updateSamplingRate(int samplingRate);
 
     /**
      * Gets the number of samples collected so far during training.

@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -113,8 +112,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
             if (needsNewTrainer)
             {
-                // The manual training should be cancelled if a new trainer is needed
-                scheduler.cancelManualTraining();
                 // Close existing trainer and create a new one
                 if (trainer != null)
                 {
@@ -201,7 +198,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public synchronized void train(Map<String, String> options)
+    public synchronized void train()
     {
         // Validate table supports dictionary compression
         if (!isEnabled)
@@ -214,32 +211,26 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             throw new IllegalStateException("Dictionary trainer is not available for table " + keyspaceName + '.' + tableName);
         }
 
-        // Parse and validate training options
-        ManualTrainingOptions trainingOptions = ManualTrainingOptions.fromStringMap(options);
-
-        if (trainingOptions.useExistingSSTables())
+        // SSTable-based training: sample from existing SSTables
+        Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
+        if (sstables.isEmpty())
         {
-            // SSTable-based training: sample from existing SSTables
-            Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
+            logger.info("No SSTables available for training in table {}.{}, flushing memtable first",
+                       keyspaceName, tableName);
+            columnFamilyStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+            sstables = columnFamilyStore.getLiveSSTables();
+
             if (sstables.isEmpty())
             {
-                throw new IllegalStateException("No SSTables available for training in table " + keyspaceName + '.' + tableName);
+                throw new IllegalStateException("No SSTables available for training in table " + keyspaceName + '.' + tableName + " after flush");
             }
-
-            logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
-                       keyspaceName, tableName, sstables.size());
-
-            trainer.start(true);
-            scheduler.scheduleSSTableBasedTraining(trainingOptions, trainer, sstables, createTrainingConfig());
         }
-        else
-        {
-            // Write-based training: sample from new writes
-            logger.info("Starting write-based training for {}.{}", keyspaceName, tableName);
 
-            trainer.start(true);
-            scheduler.scheduleManualTraining(trainingOptions, trainer);
-        }
+        logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
+                   keyspaceName, tableName, sstables.size());
+
+        trainer.start(true);
+        scheduler.scheduleSSTableBasedTraining(trainer, sstables, createTrainingConfig());
     }
 
     @Override
@@ -251,17 +242,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             return TrainingStatus.NOT_STARTED.toString();
         }
         return dictionaryTrainer.getTrainingStatus().toString();
-    }
-
-    @Override
-    public void updateSamplingRate(int samplingRate)
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        if (dictionaryTrainer == null)
-        {
-            throw new IllegalArgumentException("Dictionary trainer is not available for table " + keyspaceName + '.' + tableName);
-        }
-        dictionaryTrainer.updateSamplingRate(samplingRate);
     }
 
     @Override

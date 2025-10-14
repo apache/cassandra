@@ -18,312 +18,109 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
-import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
-import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class CompressionDictionarySchedulerTest
+public class CompressionDictionarySchedulerTest extends CQLTester
 {
-    private static final String TEST_NAME = "compression_dict_scheduler_test_";
-    private static final String KEYSPACE = TEST_NAME + "keyspace";
-    private static final String TABLE = "test_table";
+    private static final String KEYSPACE = "scheduler_test_ks";
+    private static final String TABLE = "scheduler_test_table";
 
     private CompressionDictionaryScheduler scheduler;
-    private TestDictionaryTrainer testTrainer;
-    private ZstdCompressionDictionary testDictionary;
-    private ICompressionDictionaryCache testCache;
-
-    @BeforeClass
-    public static void setUpClass() throws Exception
-    {
-        ServerTestUtils.prepareServerNoRegister();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
-    }
+    private ICompressionDictionaryCache cache;
 
     @Before
     public void setUp()
     {
-        testTrainer = new TestDictionaryTrainer();
-        testDictionary = createTestDictionary();
-        testCache = new CompressionDictionaryCache();
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, TABLE, testCache, true);
+        cache = new CompressionDictionaryCache();
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, TABLE, cache, true);
     }
 
     @After
-    public void tearDown() throws Exception
+    public void tearDown()
     {
         if (scheduler != null)
         {
             scheduler.close();
         }
-        if (testDictionary != null)
-        {
-            testDictionary.close();
-        }
-        if (testCache != null)
-        {
-            testCache.close();
-        }
     }
 
     @Test
-    public void testScheduleManualTraining()
+    public void testScheduleSSTableBasedTrainingWithNoSSTables()
     {
-        testManualTraining(false, new ManualTrainingOptions(600));
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
+                                   "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+
+        Set<SSTableReader> sstables = new HashSet<>();
+        CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
+
+        // Should not throw, but task will complete quickly with no SSTables
+        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config);
+        spinUntilTrue(() -> scheduler.scheduledManualTrainingTask() == null);
+        assertThat(manager.getCurrent()).isNull();
     }
 
     @Test
-    public void testScheduleManualTrainingWithCustomDuration()
+    public void testScheduleSSTableBasedTrainingWithSSTables()
     {
-        testManualTraining(true, new ManualTrainingOptions(1));
-    }
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
+                                   "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4'}");
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
-    @Test
-    public void testConcurrentTraining()
-    {
-        ManualTrainingOptions options = new ManualTrainingOptions(600);
+        createSSTables();
 
-        testTrainer.setReady(true);
-        testTrainer.setTrainingResult(ImmediateFuture.success(testDictionary));
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        assertThat(sstables).isNotEmpty();
 
-        // Schedule first training
-        scheduler.scheduleManualTraining(options, testTrainer);
+        CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
+        manager.trainer().start(true);
 
-        // Attempt to schedule second training should fail
-        assertThatThrownBy(() -> scheduler.scheduleManualTraining(options, testTrainer))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Training already in progress");
-    }
+        assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
+        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config);
 
-    @Test
-    public void testManualTrainingFailure()
-    {
-        ManualTrainingOptions options = new ManualTrainingOptions(600);
-
-        testTrainer.setReady(true);
-        testTrainer.setTrainingResult(ImmediateFuture.failure(new RuntimeException("Training failed")));
-
-        scheduler.scheduleManualTraining(options, testTrainer);
-
-        // Expect the trainer to fail
-        spinUntilTrue(() -> testTrainer.getTrainingStatus() == TrainingStatus.FAILED, 5);
-    }
-
-    @Test
-    public void testTrainerNotStarted()
-    {
-        ManualTrainingOptions options = new ManualTrainingOptions(600);
-
-        testTrainer.setTrainingStatus(TrainingStatus.NOT_STARTED);
-
-        scheduler.scheduleManualTraining(options, testTrainer);
+        // Task should be scheduled
         assertThat((Object) scheduler.scheduledManualTrainingTask()).isNotNull();
-
-        // Expect the manual training task to be cleaned up
-        spinUntilTrue(() -> scheduler.scheduledManualTrainingTask() == null, 5);
+        // A dictionary should be trained
+        spinUntilTrue(() -> manager.getCurrent() != null);
     }
 
-    private void testManualTraining(boolean expectForceTraining, ManualTrainingOptions trainOptions)
+    private void createSSTables()
     {
-        boolean ready = !expectForceTraining;
-        testTrainer.setReady(ready);
-        testTrainer.setTrainingResult(ImmediateFuture.success(testDictionary));
-        AtomicReference<CompressionDictionary> dictHolder = new AtomicReference<>();
-        testTrainer.setDictionaryTrainedListener(dictHolder::set);
-
-        assertThat(dictHolder.get())
-        .as("No dictionary is available before training")
-        .isNull();
-
-        scheduler.scheduleManualTraining(trainOptions, testTrainer);
-
-        // Wait until dictionary is trained and notified
-        spinUntilTrue(() -> dictHolder.get() == testDictionary, 5);
-        assertThat(testTrainer.isForceTrained).isEqualTo(expectForceTraining);
-
-        assertThat(testTrainer.getTrainDictionaryAsyncCallCount())
-        .as("trainDictionaryAsync should be called")
-        .isGreaterThan(0);
-    }
-
-    private static ZstdCompressionDictionary createTestDictionary()
-    {
-        byte[] dictBytes = "test dictionary data for scheduler testing".getBytes();
-        DictId dictId = new DictId(Kind.ZSTD, Clock.Global.currentTimeMillis());
-        return new ZstdCompressionDictionary(dictId, dictBytes);
-    }
-
-    /**
-     * Test implementation of dictionary trainer
-     */
-    private static class TestDictionaryTrainer implements ICompressionDictionaryTrainer
-    {
-        public volatile boolean isForceTrained = false;
-        private final AtomicInteger trainDictionaryAsyncCallCount = new AtomicInteger(0);
-        private volatile TrainingStatus trainingStatus = TrainingStatus.SAMPLING;
-        private volatile boolean ready = false;
-        private volatile Future<CompressionDictionary> trainingResult = null;
-        private volatile Consumer<CompressionDictionary> onDictionaryTrained = null;
-
-        @Override
-        public boolean shouldSample()
+        for (int file = 0; file < 10; file++)
         {
-            return true;
-        }
-
-        @Override
-        public void addSample(java.nio.ByteBuffer sample)
-        {
-            // No-op for testing
-        }
-
-        @Override
-        public CompressionDictionary trainDictionary(boolean force)
-        {
-            throw new RuntimeException("Not expected to be called in test");
-        }
-
-        @Override
-        public Future<CompressionDictionary> trainDictionaryAsync(boolean force)
-        {
-            trainDictionaryAsyncCallCount.incrementAndGet();
-            isForceTrained = force;
-            if (trainingResult != null)
+            int batchSize = 1000;
+            for (int i = 0; i < batchSize; i++)
             {
-                if (trainingResult.isDone() && trainingResult.cause() != null)
-                {
-                    trainingStatus = TrainingStatus.FAILED;
-                }
-                else
-                {
-                    trainingStatus = TrainingStatus.COMPLETED;
-                    try
-                    {
-                        onDictionaryTrained.accept(trainingResult.get());
-                    }
-                    catch (Exception e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-                return trainingResult;
+                int index = i + file * batchSize;
+                execute("INSERT INTO %s (id, data) VALUES (?, ?)", index, "test data " + index);
             }
-
-            return ImmediateFuture.success(createTestDictionary());
+            flush();
         }
+    }
 
-        @Override
-        public boolean isReady()
-        {
-            return ready;
-        }
-
-        @Override
-        public void reset()
-        {
-            trainingStatus = TrainingStatus.NOT_STARTED;
-            ready = false;
-        }
-
-        @Override
-        public TrainingStatus getTrainingStatus()
-        {
-            return trainingStatus;
-        }
-
-        @Override
-        public boolean start(boolean manualTraining)
-        {
-            if (trainingStatus == TrainingStatus.NOT_STARTED)
-            {
-                trainingStatus = TrainingStatus.SAMPLING;
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public Kind kind()
-        {
-            return Kind.ZSTD;
-        }
-
-        @Override
-        public boolean isCompatibleWith(CompressionParams newParams)
-        {
-            return true; // Simplified for testing
-        }
-
-        @Override
-        public void close()
-        {
-            trainingStatus = TrainingStatus.NOT_STARTED;
-        }
-
-        @Override
-        public void setDictionaryTrainedListener(Consumer<CompressionDictionary> listener)
-        {
-            this.onDictionaryTrained = listener;
-        }
-
-        @Override
-        public void updateSamplingRate(int newSamplingRate)
-        {
-            // not used in test
-        }
-
-        @Override
-        public long getSampleCount()
-        {
-            return 0;
-        }
-
-        @Override
-        public long getTotalSampleSize()
-        {
-            return 0;
-        }
-
-        // Test helper methods
-        public void setReady(boolean ready)
-        {
-            this.ready = ready;
-        }
-
-        public void setTrainingStatus(TrainingStatus status)
-        {
-            this.trainingStatus = status;
-        }
-
-        public void setTrainingResult(Future<CompressionDictionary> result)
-        {
-            this.trainingResult = result;
-        }
-
-        public int getTrainDictionaryAsyncCallCount()
-        {
-            return trainDictionaryAsyncCallCount.get();
-        }
+    private static CompressionDictionaryTrainingConfig createSampleAllTrainingConfig(ColumnFamilyStore cfs) {
+        return CompressionDictionaryTrainingConfig
+               .builder()
+               .maxDictionarySize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxDictionarySize())
+               .maxTotalSampleSize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxTotalSampleSize())
+               .samplingRate(1.0f)
+               .chunkSize(cfs.metadata().params.compression.chunkLength())
+               .build();
     }
 }
