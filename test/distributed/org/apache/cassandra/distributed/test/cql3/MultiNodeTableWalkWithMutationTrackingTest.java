@@ -50,13 +50,29 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
     protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
     {
         // The following seeds fail with full coverage, including table scans, token restrictions, and range queries.
+
+        // Unexpected results for query: SELECT * FROM ks1.tbl WHERE v1 = ({f0: false, f1: 0x375365d533e5ff, f2: -5629}, [00000000-0000-1200-9b00-000000000000]) LIMIT 991 ALLOW FILTERING
+        // No rows returned, 105 steps
 //        builder.withSeed(3448511221048049990L).withExamples(1);
+
+        // SELECT * FROM ks1.tbl WHERE v4 > {-4237118076428244729, -1815831816430314156} ALLOW FILTERING -- v4 frozen<set<bigint>>, on node2, fetch size 5000
+        // Timeout!, 22 steps
 //        builder.withSeed(3448511767874561358L).withExamples(1);
+
+        // Unexpected results for query: SELECT * FROM ks1.tbl WHERE v3 > '브ﭶ熒讘ꯄ謏??䎸锭商Ử豫羀펛葕䝆㛔' LIMIT 785 ALLOW FILTERING
+        // No rows returned, 52 steps
 //        builder.withSeed(3448512096918920638L).withExamples(1);
+
+        // Unexpected results for query: SELECT * FROM ks1.tbl WHERE pk0 <= -14 LIMIT 659 ALLOW FILTERING
+        // No rows returned, 117 steps
 //        builder.withSeed(3448512193316910104L).withExamples(1);
+
+        // Unexpected results for query: SELECT * FROM ks1.tbl WHERE v0 >= [{0}, {0, 514}, {-1715, 3, 1215135}] PER PARTITION LIMIT 140 LIMIT 10 ALLOW FILTERING
+        // Missing rows, likely related to CASSANDRA-20954
 //        builder.withSeed(3448512636059630802L).withExamples(1);
-//        builder.withSeed(3448508380521303242L).withExamples(1);
-//        builder.withSeed(3448510029028090569L).withExamples(1);
+
+        // Unexpected results for query: SELECT * FROM ks1.tbl WHERE s0 > [[00000000-0000-1700-a700-000000000000, 00000000-0000-1a00-9100-000000000000, 00000000-0000-1500-a800-000000000000]] PER PARTITION LIMIT 184 LIMIT 491 ALLOW FILTERING
+        // No rows returned, likely related to CASSANDRA-20954
 //        builder.withSeed(3448154736661599106L).withExamples(1);
 
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
@@ -87,15 +103,14 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
             preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
-                                  //.add(StatefulASTBase::fullTableScan)
+                                  .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   .addIf(State::hasPartitions, this::selectExisting)
-                                  //.addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
+                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  //.addAllIf(BaseState::allowRepair, StatefulASTBase::incrementalRepair, StatefulASTBase::previewRepair)
-                                  //.addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-                                  //.addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())
