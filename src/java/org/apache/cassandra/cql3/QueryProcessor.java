@@ -181,12 +181,9 @@ public class QueryProcessor implements QueryHandler
 
     public static long preparedStatementsCacheMemoryUsedBytes()
     {
-        long preparedStatementsCacheMemoryUsedBytes = 0;
-        for (Map.Entry<MD5Digest, Prepared> entry : preparedStatements.asMap().entrySet())
-        {
-            preparedStatementsCacheMemoryUsedBytes += getSizeOfPreparedStatementForCache(entry.getKey(), entry.getValue());
-        }
-        return preparedStatementsCacheMemoryUsedBytes;
+        return preparedStatements.policy().eviction()
+                                 .map(p -> p.weightedSize().orElse(0L))
+                                 .orElse(0L);
     }
 
     // Work around initialization dependency
