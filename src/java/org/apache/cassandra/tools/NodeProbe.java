@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+import javax.management.InstanceNotFoundException;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -2696,7 +2697,22 @@ public class NodeProbe implements AutoCloseable
      */
     public void trainCompressionDictionary(String keyspace, String table) throws IOException
     {
-        getDictionaryManagerProxy(keyspace, table).train();
+        CompressionDictionaryManagerMBean proxy = getDictionaryManagerProxy(keyspace, table);
+        try
+        {
+            proxy.train();
+        }
+        catch (Exception e)
+        {
+            if (e.getCause() instanceof InstanceNotFoundException)
+            {
+                throw new IOException("Table " + keyspace + '.' + table + " does not exist");
+            }
+            else
+            {
+                throw new IOException(e.getMessage());
+            }
+        }
     }
 
     /**
