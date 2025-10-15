@@ -316,7 +316,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         if (mbeanRegistered)
         {
             MBeanWrapper.instance.unregisterMBean(mbeanName(keyspaceName, tableName), OnException.IGNORE);
-            mbeanRegistered = true;
+            mbeanRegistered = false;
         }
     }
 

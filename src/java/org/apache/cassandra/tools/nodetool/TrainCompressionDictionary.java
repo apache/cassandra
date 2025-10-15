@@ -61,6 +61,7 @@ public class TrainCompressionDictionary extends AbstractCommand
             {
                 TrainingState trainingState = probe.getCompressionDictionaryTrainingState(keyspace, table);
                 TrainingStatus status = trainingState.getStatus();
+                displayProgress(trainingState, startTime, out, status);
                 if (TrainingStatus.COMPLETED == status)
                 {
                     out.printf("%nTraining completed successfully for %s.%s%n", keyspace, table);
@@ -84,16 +85,7 @@ public class TrainCompressionDictionary extends AbstractCommand
                     System.exit(1);
                 }
 
-                // Display meaningful statistics
-                long sampleCount = trainingState.getSampleCount();
-                long totalSampleSize = trainingState.getTotalSampleSize();
-                long elapsedSeconds = (Clock.Global.currentTimeMillis() - startTime) / 1000;
-                double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
-
-                out.printf("\rStatus: %s | Samples: %d | Size: %.2f MiB | Elapsed: %ds",
-                           status, sampleCount, sampleSizeMB, elapsedSeconds);
-
-                Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             }
 
             err.printf("%nTraining did not complete within expected timeframe (10 minutes).%n");
@@ -104,5 +96,17 @@ public class TrainCompressionDictionary extends AbstractCommand
             err.printf("Failed to trigger training: %s%n", e.getMessage());
             System.exit(1);
         }
+    }
+
+    private static void displayProgress(TrainingState trainingState, long startTime, PrintStream out, TrainingStatus status)
+    {
+        // Display meaningful statistics
+        long sampleCount = trainingState.getSampleCount();
+        long totalSampleSize = trainingState.getTotalSampleSize();
+        long elapsedSeconds = (Clock.Global.currentTimeMillis() - startTime) / 1000;
+        double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
+
+        out.printf("\rStatus: %s | Samples: %d | Size: %.2f MiB | Elapsed: %ds",
+                   status, sampleCount, sampleSizeMB, elapsedSeconds);
     }
 }
