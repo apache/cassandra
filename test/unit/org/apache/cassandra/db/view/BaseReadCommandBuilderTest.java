@@ -209,12 +209,12 @@ public class BaseReadCommandBuilderTest extends CQLTester
         assertTrue(stmt instanceof ModificationStatement);
         ModificationStatement modStmt = (ModificationStatement) stmt;
 
-        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view);
+        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view,
+                                                                    modStmt.buildPartitionKeyNames(options, state).get(0),
+                                                                    Iterables.getOnlyElement(modStmt.createClustering(options, state)));
         // build the read command
         int nowInSec = FBUtilities.nowInSeconds();
-        SinglePartitionReadCommand cmd = builder.buildBaseTableReadCommand(modStmt.buildPartitionKeyNames(options, state).get(0),
-                                                                           Iterables.getOnlyElement(modStmt.createClustering(options, state)),
-                                                                           nowInSec);
+        SinglePartitionReadCommand cmd = builder.buildBaseTableReadCommand(nowInSec);
 
         try (PartitionIterator iter = cmd.execute(ConsistencyLevel.ONE, state, Dispatcher.RequestTime.forImmediateExecution()))
         {
@@ -242,12 +242,12 @@ public class BaseReadCommandBuilderTest extends CQLTester
                                    SelectStatement selectStmt,
                                    View view)
     {
-        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view);
+        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view,
+                                                                    modStmt.buildPartitionKeyNames(options, state).get(0),
+                                                                    Iterables.getOnlyElement(modStmt.createClustering(options, state)));
         // build the read command
         int nowInSec = FBUtilities.nowInSeconds();
-        SinglePartitionReadCommand cmd = builder.buildBaseTableReadCommand(modStmt.buildPartitionKeyNames(options, state).get(0),
-                                                                           Iterables.getOnlyElement(modStmt.createClustering(options, state)),
-                                                                           nowInSec);
+        SinglePartitionReadCommand cmd = builder.buildBaseTableReadCommand(nowInSec);
         ReadQuery expected = selectStmt.getQuery(options, nowInSec);
         SinglePartitionReadCommand.Group group = (SinglePartitionReadCommand.Group) expected;
         assertEquals(1, group.queries.size());
@@ -260,14 +260,15 @@ public class BaseReadCommandBuilderTest extends CQLTester
                                   TableMetadata baseTableMetadata,
                                   TableMetadata viewMetadata)
     {
-        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view);
+        BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view,
+                                                                    modStmt.buildPartitionKeyNames(options, state).get(0),
+                                                                    Iterables.getOnlyElement(modStmt.createClustering(options, state)));
         // raw data for base read
         ByteBuffer basePartitionKey = selectStmt.getRestrictions().getPartitionKeys(options, state).get(0);
         Clustering<?> baseClusteringKey = selectStmt.getRestrictions().getClusteringColumns(options, state).iterator().next();
 
         // build the primary key map
-        Map<ColumnMetadata, ByteBuffer> primaryKey = builder.getViewRawDataMap(modStmt.buildPartitionKeyNames(options, state).get(0),
-                                                                               Iterables.getOnlyElement(modStmt.createClustering(options, state)));
+        Map<ColumnMetadata, ByteBuffer> primaryKey = builder.viewRawDataMap();
         assertEquals(viewMetadata.partitionKeyColumns().size() + viewMetadata.clusteringColumns().size(), primaryKey.size());
 
         // re-index the primaryKey by column name (ColumnIdentifier)

@@ -31,6 +31,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.view.BaseReadCommandBuilder;
+import org.apache.cassandra.db.view.ViewUpdateGenerator;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
@@ -75,6 +78,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 
 /*
@@ -544,15 +548,49 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private ResultMessage rebuildMVKey(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws InvalidRequestException
     {
+        checkTrue(type.isDelete(), "Can only use DELETE statements to rebuildMVKey");
+        checkFalse(restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation(),
+                   "Cannot use IN restrictions in rebuildMVKey");
+        checkTrue(restrictions.hasAllPKColumnsRestrictedByEqualities(), "rebuildMVKey requires all primary key restricted by equalities");
         ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
-        if (viewCfs == null)
-            throw new InvalidRequestException("Cannot find column family store for " + metadata);
+        Keyspace keyspace = Schema.instance.getKeyspaceInstance(keyspace());
+        if (keyspace == null)
+            throw new InvalidRequestException("Cannot find the keyspace " + keyspace() + " for " + metadata.name);
+        View view = keyspace.viewManager.getByName(viewCfs.name);
+        List<ByteBuffer> partitionKeys = buildPartitionKeyNames(options, queryState.getClientState());
+        if (partitionKeys.size() != 1)
+            throw new InvalidRequestException("rebuildMVKey can only be called with a single partition key");
+        Clustering<?> clusterings = Iterables.getOnlyElement(createClustering(options, queryState.getClientState()));
 
         // record time spent
         try (TableMetrics.TableTimer.Context c = viewCfs.metric.viewRebuildKeyTime.time())
         {
-            throw new InvalidRequestException("rebuildMVKey to be implemented");
+            int nowInSeconds = FBUtilities.nowInSeconds();
+            BaseReadCommandBuilder builder = new BaseReadCommandBuilder(view, partitionKeys.get(0), clusterings);
+            SinglePartitionReadCommand readCommand = builder.buildBaseTableReadCommand(nowInSeconds);
+            Row baseRow;
+            long readTimestamp = queryState.getTimestamp();
+            try (RowIterator iter = StorageProxy.readOne(readCommand, options.getConsistency(), requestTime))
+            {
+                baseRow = iter.hasNext() ? iter.next() : null;
+            }
+            ViewUpdateGenerator generator = new ViewUpdateGenerator(view, builder.buildBasePartitionKey(), nowInSeconds);
+            generator.addBaseTableRowForReadRebuild(baseRow, builder.buildBaseClusteringKey(), readTimestamp, builder.buildNonPrimaryKeyValue());
+            Collection<PartitionUpdate> updates = generator.generateViewUpdates();
+            List<Mutation> mutations = new ArrayList<>(updates.size());
+            for (PartitionUpdate update : updates)
+                mutations.add(new Mutation(update));
+            if (mutations.isEmpty())
+                throw new InvalidRequestException("No mutations were generated for rebuildMVKey");
+            StorageProxy.mutateWithTriggers(mutations, options.getConsistency(), false, requestTime);
+            logger.info("rebuildMVKey applied {} updates to view {}", updates.size(), viewCfs.name);
         }
+        catch (Exception e)
+        {
+            logger.error("rebuildMVKey failed: ", e);
+            throw e;
+        }
+        return null;
     }
 
     private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)

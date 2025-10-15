@@ -26,6 +26,9 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -44,6 +47,7 @@ import org.apache.cassandra.db.partitions.*;
  */
 public class ViewUpdateGenerator
 {
+    protected static final Logger logger = LoggerFactory.getLogger(ViewUpdateGenerator.class);
     private final View view;
     private final int nowInSec;
 
@@ -148,9 +152,11 @@ public class ViewUpdateGenerator
         {
             case REWRITE:
                 // updateActionForReadRebuild returns REWRITE only when baseRow is non-null
+                logger.debug("REWRITE view entry for base row: {}", baseRow);
                 createEntry(baseRow);
                 return;
             case DELETE_FROM_BASE_READ:
+                logger.debug("DELETE_FROM_BASE_READ view entry for base row: {}", baseRow);
                 deleteEntryFromBaseRead(baseRow, baseClustering, readTime, nonPKValue);
                 return;
         }
@@ -218,7 +224,7 @@ public class ViewUpdateGenerator
             {
                 ByteBuffer value = view.baseNonPKColumnsInViewPK.contains(view.getBaseColumn(viewColumn))
                                    ? nonPKValue
-                                   : ViewUtils.getValueForPK(view.getBaseColumn(viewColumn), baseRow, basePartitionKey);
+                                   : ViewUtils.getValueForPK(view.getBaseColumn(viewColumn), targetRow, basePartitionKey);
                 if (viewColumn.isPartitionKey())
                     currentViewEntryPartitionKey[viewColumn.position()] = value;
                 else

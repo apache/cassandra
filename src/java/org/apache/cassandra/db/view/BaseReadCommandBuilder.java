@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -42,15 +44,22 @@ public class BaseReadCommandBuilder
     private final TableMetadata baseMetadata;
     private final TableMetadata viewMetadata;
     private final View view;
+    private final Map<ColumnMetadata, ByteBuffer> viewRawDataMap;
 
-    public BaseReadCommandBuilder(View view)
+    public BaseReadCommandBuilder(View view, ByteBuffer viewPartitionKey, Clustering<?> viewClustering)
     {
         this.view = view;
         this.baseMetadata = view.getDefinition().baseTableMetadata();
         this.viewMetadata = view.getDefinition().metadata;
+        this.viewRawDataMap = getViewRawDataMap(viewPartitionKey, viewClustering);
     }
 
-    DecoratedKey buildBaseTablePartitionKey(Map<ColumnMetadata, ByteBuffer> viewRawDataMap)
+    Map<ColumnMetadata, ByteBuffer> viewRawDataMap()
+    {
+        return ImmutableMap.copyOf(viewRawDataMap);
+    }
+
+    public DecoratedKey buildBasePartitionKey()
     {
         List<ColumnMetadata> basePks = baseMetadata.partitionKeyColumns();
         ByteBuffer[] pkValues = new ByteBuffer[basePks.size()];
@@ -78,7 +87,7 @@ public class BaseReadCommandBuilder
         return baseMetadata.partitioner.decorateKey(partitionKey);
     }
 
-    Clustering<?> buildBaseClusteringKey(Map<ColumnMetadata, ByteBuffer> viewRawDataMap)
+    public Clustering<?> buildBaseClusteringKey()
     {
         List<ColumnMetadata> baseCks = baseMetadata.clusteringColumns();
         if (baseCks.isEmpty())
@@ -95,6 +104,15 @@ public class BaseReadCommandBuilder
             ckValues[i] = value;
         }
         return Clustering.make(ckValues);
+    }
+
+    public ByteBuffer buildNonPrimaryKeyValue()
+    {
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
+            return null;
+        ColumnMetadata baseNonPkColumn = view.baseNonPKColumnsInViewPK.get(0);
+        ColumnMetadata viewColumn = view.getViewColumn(baseNonPkColumn);
+        return viewRawDataMap.get(viewColumn);
     }
 
     Map<ColumnMetadata, ByteBuffer> getViewRawDataMap(ByteBuffer viewPartitionKey, Clustering<?> viewClustering)
@@ -118,12 +136,11 @@ public class BaseReadCommandBuilder
         return map;
     }
 
-    public SinglePartitionReadCommand buildBaseTableReadCommand(ByteBuffer viewPartitionKey, Clustering<?> viewClustering, int nowInSec)
+    public SinglePartitionReadCommand buildBaseTableReadCommand(int nowInSec)
     {
-        Map<ColumnMetadata, ByteBuffer> viewRawDataMap = getViewRawDataMap(viewPartitionKey, viewClustering);
-        DecoratedKey basePK = buildBaseTablePartitionKey(viewRawDataMap);
-        Clustering<?> baseClustering = buildBaseClusteringKey(viewRawDataMap);
-        ClusteringIndexNamesFilter baseClusteringFilter = new ClusteringIndexNamesFilter(FBUtilities.singleton(baseClustering, baseMetadata.comparator), false);
+        ClusteringIndexNamesFilter baseClusteringFilter = new ClusteringIndexNamesFilter(FBUtilities.singleton(buildBaseClusteringKey(),
+                                                                                                               baseMetadata.comparator),
+                                                                                         false);
         return SinglePartitionReadCommand.createUnfiltered(false,
                                                            0,
                                                            false,
@@ -132,7 +149,7 @@ public class BaseReadCommandBuilder
                                                            ColumnFilter.all(baseMetadata),
                                                            RowFilter.NONE,
                                                            DataLimits.NONE,
-                                                           basePK,
+                                                           buildBasePartitionKey(),
                                                            baseClusteringFilter,
                                                            null,
                                                            false);

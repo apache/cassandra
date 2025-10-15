@@ -260,6 +260,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public static final String SNAPSHOT_DROP_PREFIX = "dropped";
     static final String TOKEN_DELIMITER = ":";
 
+    private static boolean TEST_SKIP_VIEW_UPDATE = Boolean.parseBoolean(System.getProperty("cassandra.test.skip_view_update", "false"));
+
     static
     {
         try
@@ -1431,6 +1433,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
 
     {
+        if (TEST_SKIP_VIEW_UPDATE && metadata().isView())
+            return;
+
         long start = nanoTime();
         try
         {
