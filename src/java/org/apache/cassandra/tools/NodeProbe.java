@@ -89,6 +89,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
+import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
@@ -2699,42 +2700,18 @@ public class NodeProbe implements AutoCloseable
     }
 
     /**
-     * Gets the compression dictionary training status for the specified table.
+     * Gets the compression dictionary training state for the specified table.
+     * Returns an atomic snapshot of training status, progress, and failure details.
      *
      * @param keyspace the keyspace name
      * @param table the table name
-     * @return the training status as string
+     * @return the current training state
      * @throws IOException if there's an error accessing the MBean
      */
-    public String getCompressionDictionaryTrainingStatus(String keyspace, String table) throws IOException
+    public TrainingState getCompressionDictionaryTrainingState(String keyspace, String table) throws IOException
     {
-        return getDictionaryManagerProxy(keyspace, table).getTrainingStatus();
-    }
-
-    /**
-     * Gets the number of samples collected so far during compression dictionary training.
-     *
-     * @param keyspace the keyspace name
-     * @param table the table name
-     * @return the number of samples collected
-     * @throws IOException if there's an error accessing the MBean
-     */
-    public long getCompressionDictionaryTrainingSampleCount(String keyspace, String table) throws IOException
-    {
-        return getDictionaryManagerProxy(keyspace, table).getSampleCount();
-    }
-
-    /**
-     * Gets the total size of samples collected so far during compression dictionary training.
-     *
-     * @param keyspace the keyspace name
-     * @param table the table name
-     * @return the total sample size in bytes
-     * @throws IOException if there's an error accessing the MBean
-     */
-    public long getCompressionDictionaryTrainingTotalSampleSize(String keyspace, String table) throws IOException
-    {
-        return getDictionaryManagerProxy(keyspace, table).getTotalSampleSize();
+        CompositeData compositeData = getDictionaryManagerProxy(keyspace, table).getTrainingState();
+        return TrainingState.fromCompositeData(compositeData);
     }
 
     private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException

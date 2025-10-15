@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compression;
 
+import javax.management.openmbean.CompositeData;
+
 public interface CompressionDictionaryManagerMBean
 {
     String MBEAN_NAME = "org.apache.cassandra.db.compression:type=CompressionDictionaryManager";
@@ -26,31 +28,18 @@ public interface CompressionDictionaryManagerMBean
      * Starts training from existing SSTables for this table.
      * Samples chunks from all live SSTables and trains a compression dictionary.
      * If no SSTables are available, automatically flushes the memtable first.
+     * This operation runs synchronously and blocks until training completes.
      *
      * @throws UnsupportedOperationException if table doesn't support dictionary compression
-     * @throws IllegalStateException if training is already in progress for this table or no SSTables available after flush
+     * @throws IllegalStateException if no SSTables available after flush
      */
     void train();
 
     /**
-     * Gets the current training status for this table.
-     * Enables async polling for status/completion.
+     * Gets the current training state for this table.
+     * Returns a snapshot of {@link TrainingState} as JMX CompositeData.
      *
-     * @return training status as string: "Not started", "In progress", "Completed", or "Failed"
+     * @return CompositeData representing {@link TrainingState}
      */
-    String getTrainingStatus();
-
-    /**
-     * Gets the number of samples collected so far during training.
-     *
-     * @return the number of samples collected, or 0 if training hasn't started
-     */
-    long getSampleCount();
-
-    /**
-     * Gets the total size of samples collected so far during training.
-     *
-     * @return the total sample size in bytes, or 0 if training hasn't started
-     */
-    long getTotalSampleSize();
+    CompositeData getTrainingState();
 }

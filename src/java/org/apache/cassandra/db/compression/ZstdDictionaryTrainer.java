@@ -62,6 +62,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     private ZstdDictTrainer zstdTrainer;
     private volatile boolean closed = false;
     private volatile TrainingStatus currentTrainingStatus;
+    private volatile String failureMessage;
 
     public ZstdDictionaryTrainer(String keyspaceName, String tableName,
                                  CompressionDictionaryTrainingConfig config,
@@ -106,20 +107,22 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         boolean isReady = isReady();
         if (!force && !isReady)
         {
+            failureMessage = "Trainer is not ready";
             currentTrainingStatus = TrainingStatus.FAILED;
-            throw new IllegalStateException("Trainer is not ready");
+            throw new IllegalStateException(failureMessage);
         }
 
         long currentSampleCount = sampleCount.get();
         if (currentSampleCount < MIN_SAMPLES_REQUIRED) // minimum samples should be required even if force training
         {
+            failureMessage = String.format("Insufficient samples for training: %d (minimum required: %d)",
+                                          currentSampleCount, MIN_SAMPLES_REQUIRED);
             currentTrainingStatus = TrainingStatus.FAILED;
-            String errorMsg = String.format("Insufficient samples for training: %d (minimum required: %d)",
-                                            currentSampleCount, MIN_SAMPLES_REQUIRED);
-            throw new IllegalStateException(errorMsg);
+            throw new IllegalStateException(failureMessage);
         }
 
         currentTrainingStatus = TrainingStatus.TRAINING;
+        failureMessage = null; // Clear any previous failure message
         try
         {
             logger.debug("Training with sample count: {}, sample size: {}, isReady: {}",
@@ -135,8 +138,9 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         }
         catch (Exception e)
         {
+            failureMessage = "Failed to train Zstd dictionary: " + e.getMessage();
             currentTrainingStatus = TrainingStatus.FAILED;
-            throw new RuntimeException("Failed to train Zstd dictionary", e);
+            throw new RuntimeException(failureMessage, e);
         }
     }
 
@@ -151,9 +155,26 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public TrainingStatus getTrainingStatus()
+    public TrainingState getTrainingState()
     {
-        return currentTrainingStatus;
+        long currentSampleCount = sampleCount.get();
+        long currentTotalSampleSize = totalSampleSize.get();
+
+        switch (currentTrainingStatus)
+        {
+            case NOT_STARTED:
+                return TrainingState.notStarted();
+            case SAMPLING:
+                return TrainingState.sampling(currentSampleCount, currentTotalSampleSize);
+            case TRAINING:
+                return TrainingState.training(currentSampleCount, currentTotalSampleSize);
+            case COMPLETED:
+                return TrainingState.completed(currentSampleCount, currentTotalSampleSize);
+            case FAILED:
+                return TrainingState.failed(failureMessage, currentSampleCount, currentTotalSampleSize);
+            default:
+                throw new IllegalStateException("Unknown training status: " + currentTrainingStatus);
+        }
     }
 
     @Override
@@ -168,11 +189,13 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             reset();
             logger.info("Started dictionary training for {}.{}", keyspaceName, tableName);
             currentTrainingStatus = TrainingStatus.SAMPLING;
+            failureMessage = null; // Clear any previous failure message
             return true;
         }
         catch (Exception e)
         {
             logger.warn("Failed to create ZstdDictTrainer for {}.{}", keyspaceName, tableName, e);
+            failureMessage = "Failed to create ZstdDictTrainer: " + e.getMessage();
             currentTrainingStatus = TrainingStatus.FAILED;
         }
         return false;
@@ -319,18 +342,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         combined |= (dictId & 0xFFFFFFFFL);
 
         return combined;
-    }
-
-    @Override
-    public long getSampleCount()
-    {
-        return sampleCount.get();
-    }
-
-    @Override
-    public long getTotalSampleSize()
-    {
-        return totalSampleSize.get();
     }
 
     @VisibleForTesting

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compression;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import javax.annotation.Nullable;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -28,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
@@ -234,28 +234,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public String getTrainingStatus()
+    public CompositeData getTrainingState()
     {
         ICompressionDictionaryTrainer dictionaryTrainer = trainer;
         if (dictionaryTrainer == null)
         {
-            return TrainingStatus.NOT_STARTED.toString();
+            return TrainingState.notStarted().toCompositeData();
         }
-        return dictionaryTrainer.getTrainingStatus().toString();
-    }
-
-    @Override
-    public long getSampleCount()
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        return dictionaryTrainer != null ? dictionaryTrainer.getSampleCount() : 0;
-    }
-
-    @Override
-    public long getTotalSampleSize()
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        return dictionaryTrainer != null ? dictionaryTrainer.getTotalSampleSize() : 0;
+        return dictionaryTrainer.getTrainingState().toCompositeData();
     }
 
     /**

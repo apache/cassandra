@@ -100,9 +100,10 @@ public class SSTableChunkSampler
             throw new IllegalArgumentException("No SSTables provided for sampling");
         }
 
-        if (trainer.getTrainingStatus() != TrainingStatus.SAMPLING)
+        TrainingStatus status = trainer.getTrainingState().status;
+        if (status != TrainingStatus.SAMPLING)
         {
-            throw new IllegalStateException("Trainer is not ready to accept samples. Current status: " + trainer.getTrainingStatus());
+            throw new IllegalStateException("Trainer is not ready to accept samples. Current status: " + status);
         }
 
         // Build metadata for all SSTables

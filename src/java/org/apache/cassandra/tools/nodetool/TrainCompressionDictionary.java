@@ -23,12 +23,10 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 @Command(name = "traincompressiondictionary",
@@ -41,23 +39,9 @@ public class TrainCompressionDictionary extends AbstractCommand
     @Parameters(index = "1", description = "The table name", arity = "1")
     private String table;
 
-    @Option(names = {"-a", "--async"},
-    description = "Run training asynchronously without waiting for completion")
-    private boolean async = false;
-
-    @Option(names = {"-s", "--status"},
-    description = "Show current training status instead of starting new training")
-    private boolean showStatus = false;
-
     @Override
     public void execute(NodeProbe probe)
     {
-        if (showStatus)
-        {
-            showTrainingStatus(probe);
-            return;
-        }
-
         PrintStream out = probe.output().out;
         PrintStream err = probe.output().err;
 
@@ -68,14 +52,6 @@ public class TrainCompressionDictionary extends AbstractCommand
 
             probe.trainCompressionDictionary(keyspace, table);
 
-            if (async)
-            {
-                out.printf("Training started asynchronously for %s.%s%n", keyspace, table);
-                out.printf("Use 'nodetool traincompressiondictionary --status %s %s' to check progress.%n",
-                           keyspace, table);
-                return;
-            }
-
             // Wait for training completion (10 minutes timeout for SSTable-based training)
             out.println("Sampling from existing SSTables and training.");
             long maxWaitMillis = TimeUnit.MINUTES.toMillis(10);
@@ -83,8 +59,8 @@ public class TrainCompressionDictionary extends AbstractCommand
 
             while (Clock.Global.currentTimeMillis() - startTime < maxWaitMillis)
             {
-                String statusStr = probe.getCompressionDictionaryTrainingStatus(keyspace, table);
-                TrainingStatus status = TrainingStatus.valueOf(statusStr);
+                TrainingState trainingState = probe.getCompressionDictionaryTrainingState(keyspace, table);
+                TrainingStatus status = trainingState.getStatus();
                 if (TrainingStatus.COMPLETED == status)
                 {
                     out.printf("%nTraining completed successfully for %s.%s%n", keyspace, table);
@@ -93,12 +69,24 @@ public class TrainCompressionDictionary extends AbstractCommand
                 else if (TrainingStatus.FAILED == status)
                 {
                     err.printf("%nTraining failed for %s.%s%n", keyspace, table);
+                    try
+                    {
+                        String failureMessage = trainingState.getFailureMessage();
+                        if (failureMessage != null && !failureMessage.isEmpty())
+                        {
+                            err.printf("Reason: %s%n", failureMessage);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        // If we can't get the failure message, just continue without it
+                    }
                     System.exit(1);
                 }
 
                 // Display meaningful statistics
-                long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
-                long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
+                long sampleCount = trainingState.getSampleCount();
+                long totalSampleSize = trainingState.getTotalSampleSize();
                 long elapsedSeconds = (Clock.Global.currentTimeMillis() - startTime) / 1000;
                 double sampleSizeMB = totalSampleSize / (1024.0 * 1024.0);
 
@@ -108,65 +96,13 @@ public class TrainCompressionDictionary extends AbstractCommand
                 Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
             }
 
-            err.printf("%nTraining did not complete within expected timeframe (10 minutes). Use --status to check current state.%n");
+            err.printf("%nTraining did not complete within expected timeframe (10 minutes).%n");
             System.exit(1);
         }
         catch (Exception e)
         {
             err.printf("Failed to trigger training: %s%n", e.getMessage());
             System.exit(1);
-        }
-    }
-
-    private void showTrainingStatus(NodeProbe probe)
-    {
-        PrintStream out = probe.output().out;
-        PrintStream err = probe.output().err;
-        String statusStr = null;
-        try
-        {
-            statusStr = probe.getCompressionDictionaryTrainingStatus(keyspace, table);
-        }
-        catch (Exception e)
-        {
-            err.printf("Failed to get training status: %s%n", e.getMessage());
-            System.exit(1);
-        }
-
-        TrainingStatus status = TrainingStatus.valueOf(statusStr);
-        if (status == TrainingStatus.FAILED)
-        {
-            showStatistics(probe, err, status);
-        }
-        else
-        {
-            showStatistics(probe, out, status);
-        }
-    }
-
-    private void showStatistics(NodeProbe probe, PrintStream out, TrainingStatus status)
-    {
-        try
-        {
-            TableBuilder tableBuilder = new TableBuilder();
-            tableBuilder.add("keyspace", keyspace);
-            tableBuilder.add("table", table);
-            tableBuilder.add("status", status.name());
-
-            if (status == TrainingStatus.SAMPLING || status == TrainingStatus.TRAINING)
-            {
-                long sampleCount = probe.getCompressionDictionaryTrainingSampleCount(keyspace, table);
-                long totalSampleSize = probe.getCompressionDictionaryTrainingTotalSampleSize(keyspace, table);
-
-                tableBuilder.add("samples collected", String.format("%d", sampleCount));
-                tableBuilder.add("total sample size", FileUtils.stringifyFileSize(totalSampleSize));
-            }
-
-            tableBuilder.printTo(out);
-        }
-        catch (Exception e)
-        {
-            out.printf("Unable to retrieve training statistics: %s%n", e.getMessage());
         }
     }
 }

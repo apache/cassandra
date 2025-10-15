@@ -119,31 +119,16 @@ a compression dictionary:
 
 [source,bash]
 ----
-# Basic usage
 nodetool traincompressiondictionary <keyspace> <table>
-
-# With sampling options
-nodetool traincompressiondictionary <keyspace> <table> \
-  --max-sampling-duration 600 \
-  --sampling-rate 1.0 \
-  --async
-
-# Check training status
-nodetool traincompressiondictionary --status <keyspace> <table>
 ----
 
-*Training options*:
+The command trains a dictionary by sampling from existing SSTables. If no
+SSTables are available on disk (e.g., all data is in memtables), the command
+will automatically flush the memtable before sampling.
 
-* `--max-sampling-duration` (default: 600): Maximum time in seconds to
-collect samples before training begins.
-* `--sampling-rate` (default: 1.0): Sampling rate as a decimal between
-0 and 1. A value of 1.0 samples all data, 0.5 samples 50%.
-* `--async`: Run training asynchronously without waiting for completion.
-* `--status`: Display current training status (NOT_STARTED, SAMPLING,
-TRAINING, COMPLETED, FAILED).
-
-NOTE: Consider running `nodetool flush` before training to ensure
-recent writes are available for sampling from SSTable chunks.
+The training process completes synchronously and displays progress information
+including sample count, sample size, and elapsed time. Training typically
+completes within minutes for most workloads.
 
 ==== Automatic Dictionary Training
 

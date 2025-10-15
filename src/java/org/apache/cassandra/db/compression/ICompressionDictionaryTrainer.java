@@ -91,9 +91,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     void reset();
 
     /**
-     * @return the current training status
+     * Gets the current training state including status, progress, and failure details.
+     *
+     * @return the current training state as an atomic snapshot
      */
-    TrainingStatus getTrainingStatus();
+    TrainingState getTrainingState();
 
     /**
      * @return the compression algorithm kind this trainer supports
@@ -124,20 +126,6 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
      *                        2 = expect sample 1/2 of data (50%), n = expect sample 1/n of data
      */
     void updateSamplingRate(int newSamplingRate);
-
-    /**
-     * Gets the number of samples collected so far during training.
-     *
-     * @return the number of samples collected, or 0 if training hasn't started
-     */
-    long getSampleCount();
-
-    /**
-     * Gets the total size of samples collected so far during training.
-     *
-     * @return the total sample size in bytes, or 0 if training hasn't started
-     */
-    long getTotalSampleSize();
 
     /**
      * Factory method to create appropriate trainer based on compression parameters.

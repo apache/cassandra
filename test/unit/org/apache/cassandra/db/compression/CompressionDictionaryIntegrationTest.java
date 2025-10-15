@@ -186,13 +186,13 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         manager.train();
 
         // Training should complete quickly since we're reading from existing SSTables
-        spinUntilTrue(() -> manager.getTrainingStatus().equals(TrainingStatus.COMPLETED.toString()), 10);
+        spinUntilTrue(() -> TrainingState.fromCompositeData(manager.getTrainingState()).status == TrainingStatus.COMPLETED, 10);
 
         // Verify dictionary was trained and is available
         spinUntilTrue(() -> manager.getCurrent() != null, 2);
 
         CompressionDictionary currentDict = manager.getCurrent();
-
+        assertThat(currentDict).isNotNull();
         assertThat(currentDict.kind())
         .as("Dictionary should be ZSTD type")
         .isEqualTo(Kind.ZSTD);

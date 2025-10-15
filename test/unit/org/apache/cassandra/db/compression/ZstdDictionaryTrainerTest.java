@@ -95,7 +95,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainerInitialState()
     {
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Initial status should be NOT_STARTED")
         .isEqualTo(TrainingStatus.NOT_STARTED);
         assertThat(trainer.isReady())
@@ -113,13 +113,13 @@ public class ZstdDictionaryTrainerTest
         boolean started = trainer.start(false);
         if (started)
         {
-            assertThat(trainer.getTrainingStatus())
+            assertThat(trainer.getTrainingState().getStatus())
             .as("Status should be SAMPLING if auto-start enabled")
             .isEqualTo(TrainingStatus.SAMPLING);
         }
         else
         {
-            assertThat(trainer.getTrainingStatus())
+            assertThat(trainer.getTrainingState().getStatus())
             .as("Status should remain NOT_STARTED if auto-start disabled")
             .isEqualTo(TrainingStatus.NOT_STARTED);
         }
@@ -131,7 +131,7 @@ public class ZstdDictionaryTrainerTest
         assertThat(trainer.start(true))
         .as("Manual training should start successfully")
         .isTrue();
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should be SAMPLING after start")
         .isEqualTo(TrainingStatus.SAMPLING);
         assertThat(trainer.isReady())
@@ -165,7 +165,7 @@ public class ZstdDictionaryTrainerTest
         trainer.close(); // Should not throw
         trainer.close(); // Should not throw
 
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain NOT_STARTED after multiple closes")
         .isEqualTo(TrainingStatus.NOT_STARTED);
     }
@@ -176,15 +176,15 @@ public class ZstdDictionaryTrainerTest
         trainer.start(true);
         addSampleData(1000); // Add some samples
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Should have samples before reset")
         .isGreaterThan(0);
 
         trainer.reset();
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should be NOT_STARTED after reset")
         .isEqualTo(TrainingStatus.NOT_STARTED);
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Sample count should be 0 after reset")
         .isEqualTo(0);
         assertThat(trainer.isReady())
@@ -201,7 +201,7 @@ public class ZstdDictionaryTrainerTest
         assertThat(trainer.start(true))
         .as("Should not start after close")
         .isFalse();
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain NOT_STARTED")
         .isEqualTo(TrainingStatus.NOT_STARTED);
     }
@@ -257,17 +257,17 @@ public class ZstdDictionaryTrainerTest
     {
         trainer.start(true);
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Initial sample count should be 0")
         .isEqualTo(0);
 
         ByteBuffer sample = ByteBuffer.wrap(SAMPLE_DATA.getBytes());
         trainer.addSample(sample);
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Sample count should be 1 after adding one sample")
         .isEqualTo(1);
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should be SAMPLING")
         .isEqualTo(TrainingStatus.SAMPLING);
         assertThat(trainer.isReady())
@@ -282,7 +282,7 @@ public class ZstdDictionaryTrainerTest
         ByteBuffer sample = ByteBuffer.wrap(SAMPLE_DATA.getBytes());
         trainer.addSample(sample);
 
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain NOT_STARTED")
         .isEqualTo(TrainingStatus.NOT_STARTED);
         assertThat(trainer.isReady())
@@ -299,7 +299,7 @@ public class ZstdDictionaryTrainerTest
         ByteBuffer sample = ByteBuffer.wrap(SAMPLE_DATA.getBytes());
         trainer.addSample(sample);
 
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain NOT_STARTED after close")
         .isEqualTo(TrainingStatus.NOT_STARTED);
         assertThat(trainer.isReady())
@@ -313,7 +313,7 @@ public class ZstdDictionaryTrainerTest
         trainer.start(true);
         trainer.addSample(null); // Should not throw
 
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain SAMPLING")
         .isEqualTo(TrainingStatus.SAMPLING);
         assertThat(trainer.isReady())
@@ -328,7 +328,7 @@ public class ZstdDictionaryTrainerTest
         ByteBuffer empty = ByteBuffer.allocate(0);
         trainer.addSample(empty); // Should not throw
 
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should remain SAMPLING")
         .isEqualTo(TrainingStatus.SAMPLING);
         assertThat(trainer.isReady())
@@ -373,7 +373,7 @@ public class ZstdDictionaryTrainerTest
             trainer.addSample(largeSample);
         }
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Should have 5 samples")
         .isEqualTo(5);
         assertThat(trainer.isReady())
@@ -403,13 +403,13 @@ public class ZstdDictionaryTrainerTest
             trainer.addSample(sample);
         }
 
-        assertThat(trainer.getSampleCount()).isEqualTo(15);
+        assertThat(trainer.getTrainingState().getSampleCount()).isEqualTo(15);
         assertThat(trainer.isReady()).isTrue();
 
         // Training should succeed
         CompressionDictionary dictionary = trainer.trainDictionary(false);
         assertThat(dictionary).as("Dictionary should be created").isNotNull();
-        assertThat(trainer.getTrainingStatus()).isEqualTo(TrainingStatus.COMPLETED);
+        assertThat(trainer.getTrainingState().getStatus()).isEqualTo(TrainingStatus.COMPLETED);
     }
 
     @Test
@@ -419,7 +419,7 @@ public class ZstdDictionaryTrainerTest
         CompressionDictionary dictionary = future.get(5, TimeUnit.SECONDS);
 
         assertThat(dictionary).as("Dictionary should not be null").isNotNull();
-        assertThat(trainer.getTrainingStatus()).as("Status should be COMPLETED").isEqualTo(TrainingStatus.COMPLETED);
+        assertThat(trainer.getTrainingState().getStatus()).as("Status should be COMPLETED").isEqualTo(TrainingStatus.COMPLETED);
 
         // Verify callback was called
         assertThat(callbackResult.get()).as("Callback should have been called").isNotNull();
@@ -447,7 +447,7 @@ public class ZstdDictionaryTrainerTest
         assertThat(result.isDone() && result.cause() != null)
         .as("Result should be completed exceptionally")
         .isTrue();
-        assertThat(trainer.getTrainingStatus())
+        assertThat(trainer.getTrainingState().getStatus())
         .as("Status should be FAILED")
         .isEqualTo(TrainingStatus.FAILED);
         assertThat(dictRef.get())
@@ -643,11 +643,11 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testStatisticsMethods()
     {
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Initial sample count should be 0")
         .isEqualTo(0);
 
-        assertThat(trainer.getTotalSampleSize())
+        assertThat(trainer.getTrainingState().getTotalSampleSize())
         .as("Initial total sample size should be 0")
         .isEqualTo(0);
 
@@ -664,21 +664,21 @@ public class ZstdDictionaryTrainerTest
             trainer.addSample(ByteBuffer.wrap(sampleBytes));
         }
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Sample count should be updated after adding samples")
         .isEqualTo(numSamples);
 
-        assertThat(trainer.getTotalSampleSize())
+        assertThat(trainer.getTrainingState().getTotalSampleSize())
         .as("Total sample size should match number of samples times sample size")
         .isEqualTo((long) numSamples * sampleSize);
 
         trainer.reset();
 
-        assertThat(trainer.getSampleCount())
+        assertThat(trainer.getTrainingState().getSampleCount())
         .as("Sample count should be 0 after reset")
         .isEqualTo(0);
 
-        assertThat(trainer.getTotalSampleSize())
+        assertThat(trainer.getTrainingState().getTotalSampleSize())
         .as("Total sample size should be 0 after reset")
         .isEqualTo(0);
     }

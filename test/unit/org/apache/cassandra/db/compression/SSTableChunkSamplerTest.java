@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -193,9 +194,9 @@ public class SSTableChunkSamplerTest extends CQLTester
                                                                                         .build();
 
         // Create a mock trainer that is not ready to sample
-        ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class);
+        ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class, RETURNS_DEEP_STUBS);
         when(trainer.shouldSample()).thenReturn(false);
-        when(trainer.getTrainingStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
+        when(trainer.getTrainingState().getStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
 
         // Should throw IllegalStateException when trainer is not ready
         assertThatThrownBy(() -> SSTableChunkSampler.sampleFromSSTables(sstables, trainer, config))

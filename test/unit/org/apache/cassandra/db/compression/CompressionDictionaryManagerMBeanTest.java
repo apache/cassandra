@@ -142,12 +142,13 @@ public class CompressionDictionaryManagerMBeanTest
         // Create manager with bookkeeping enabled
         try (CompressionDictionaryManager manager = new CompressionDictionaryManager(cfsWithDict, true))
         {
+            TrainingState state = TrainingState.fromCompositeData(manager.getTrainingState());
             // Test statistics methods directly on the manager (which implements the MBean interface)
-            assertThat(manager.getSampleCount())
+            assertThat(state.getSampleCount())
             .as("Sample count should be non-negative")
             .isGreaterThanOrEqualTo(0);
 
-            assertThat(manager.getTotalSampleSize())
+            assertThat(state.getTotalSampleSize())
             .as("Total sample size should be non-negative")
             .isGreaterThanOrEqualTo(0);
         }

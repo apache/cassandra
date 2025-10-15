@@ -115,10 +115,10 @@ public class CompressionDictionaryManagerTest
         .isNotNull();
 
         // Manager should start in a valid state
-        String status = managerWithDict.getTrainingStatus();
-        assertThat(status)
+        TrainingState trainingState = TrainingState.fromCompositeData(managerWithDict.getTrainingState());
+        assertThat(trainingState.getStatus())
         .as("Training status should be valid")
-        .isEqualTo(TrainingStatus.NOT_STARTED.toString());
+        .isEqualTo(TrainingStatus.NOT_STARTED);
     }
 
     @Test
@@ -129,20 +129,20 @@ public class CompressionDictionaryManagerTest
         .isNotNull();
 
         // Should report NOT_STARTED since no trainer is created
-        String status = managerWithoutDict.getTrainingStatus();
-        assertThat(status)
+        TrainingState trainingState = TrainingState.fromCompositeData(managerWithoutDict.getTrainingState());
+        assertThat(trainingState.getStatus())
         .as("Should report NOT_STARTED for non-dictionary tables")
-        .isEqualTo(TrainingStatus.NOT_STARTED.toString());
+        .isEqualTo(TrainingStatus.NOT_STARTED);
     }
 
     @Test
     public void testMaybeReloadFromSchemaEnableDictionaryCompression()
     {
         // Start with manager for non-dictionary table
-        String initialStatus = managerWithoutDict.getTrainingStatus();
-        assertThat(initialStatus)
+        TrainingState initialTrainingState = TrainingState.fromCompositeData(managerWithoutDict.getTrainingState());
+        assertThat(initialTrainingState.getStatus())
         .as("Initially should not be training")
-        .isEqualTo(TrainingStatus.NOT_STARTED.toString());
+        .isEqualTo(TrainingStatus.NOT_STARTED);
 
         // Enable dictionary compression by switching to dict params
         CompressionParams dictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
@@ -228,8 +228,8 @@ public class CompressionDictionaryManagerTest
     public void testSchemaChangeWorkflow()
     {
         // Start with non-dictionary table
-        String initialStatus = managerWithoutDict.getTrainingStatus();
-        assertThat(initialStatus).isEqualTo(TrainingStatus.NOT_STARTED.toString());
+        TrainingState initialTrainingState = TrainingState.fromCompositeData(managerWithoutDict.getTrainingState());
+        assertThat(initialTrainingState.getStatus()).isEqualTo(TrainingStatus.NOT_STARTED);
         assertThat(managerWithoutDict.trainer()).isNull();
 
         // Enable dictionary compression
