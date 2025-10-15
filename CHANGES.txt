@@ -1,4 +1,5 @@
 5.1
+ * Avoid iterating all prepared statements when getting PreparedStatementsCacheSize metric (CASSANDRA-21038)
  * Reduce performance impact of TableMetadataRef.get and KeyspaceMetadataRef.get (CASSANDRA-20465)
  * Improve CMS initialization (CASSANDRA-21036)
  * Introducing comments and security labels for schema elements (CASSANDRA-20943)
