@@ -40,6 +40,7 @@ public class StorageCompatibilityModeTest
             {
                 case UPGRADING:
                 case NONE:
+                case CASSANDRA_5:
                     mode.validateSstableFormat(big);
                     mode.validateSstableFormat(trie);
                     break;

@@ -155,6 +155,7 @@ The most commonly used nodetool commands are:
     tablestats                          Print statistics on tables
     toppartitions                       Sample and print the most active partitions
     tpstats                             Print usage statistics of thread pools
+    traincompressiondictionary          Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.
     truncatehints                       Truncate all hints on the local node, or truncate hints for the endpoint(s) specified.
     updatecidrgroup                     Insert/Update a cidr group
     upgradesstables                     Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)
