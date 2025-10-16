@@ -104,7 +104,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "nonexistent_table");
         result.asserts()
               .failure()
-              .errorContains("Failed to trigger training");
+              .errorContains("Failed to trigger training")
+              .errorContains("does not exist or does not support dictionary compression");
     }
 
     @Test
@@ -135,6 +136,41 @@ public class TrainCompressionDictionaryTest extends CQLTester
               .errorContains("does not support dictionary compression");
     }
 
+
+    @Test
+    public void testAlterCompressionToZstdDictionary()
+    {
+        // Create table with LZ4 compression
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'LZ4Compressor'}");
+
+        // Training should fail on LZ4 table
+        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        result.asserts()
+              .failure()
+              .errorContains("Failed to trigger training")
+              .errorContains("does not exist or does not support dictionary compression");
+
+        // Alter table to use ZstdDictionaryCompressor
+        execute("ALTER TABLE %s WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+
+        // Training should fail with no sstables
+        result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        assertThat(result.getStderr())
+        .contains("Failed to trigger training: No SSTables available for training", "after flush");
+
+        // Write sstables
+        createSSTables(true);
+
+        // Training should now succeed
+        result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        result.assertOnCleanExit();
+
+        assertThat(result.getStdout())
+        .as("Should indicate training completed with new dictionary")
+        .contains("Training completed successfully")
+        .contains(keyspace())
+        .contains(table);
+    }
 
     @Test
     public void testHelpOutput()

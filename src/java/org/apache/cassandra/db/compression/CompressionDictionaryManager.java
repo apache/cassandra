@@ -77,11 +77,10 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             trainer.start(false);
         }
 
-        if (registerBookkeeping)
+        if (registerBookkeeping && isEnabled)
         {
-            MBeanWrapper.instance.registerMBean(this, mbeanName(keyspaceName, tableName));
+            registerMbean();
         }
-        mbeanRegistered = registerBookkeeping;
     }
 
     static String mbeanName(String keyspaceName, String tableName)
@@ -107,6 +106,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         scheduler.setEnabled(isEnabled);
         if (isEnabled)
         {
+            registerMbean();
             // Check if we need a new trainer due to compression parameter changes
             boolean needsNewTrainer = shouldCreateNewTrainer(newParams);
 
@@ -309,6 +309,15 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         return !trainer.isCompatibleWith(newParams);
+    }
+
+    private void registerMbean()
+    {
+        if (!mbeanRegistered)
+        {
+            MBeanWrapper.instance.registerMBean(this, mbeanName(keyspaceName, tableName));
+            mbeanRegistered = true;
+        }
     }
 
     private void unregisterMbean()

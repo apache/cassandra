@@ -2706,7 +2706,9 @@ public class NodeProbe implements AutoCloseable
         {
             if (e.getCause() instanceof InstanceNotFoundException)
             {
-                throw new IOException("Table " + keyspace + '.' + table + " does not exist");
+                String message = String.format("Table %s.%s does not exist or does not support dictionary compression",
+                                               keyspace, table);
+                throw new IOException(message);
             }
             else
             {
