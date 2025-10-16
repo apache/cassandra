@@ -83,7 +83,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
             partitionIterator.advance();
             return partitionIterator;
         }
-        catch (IOException | RuntimeException ex)
+        catch (Throwable ex)
         {
             if (partitionIterator != null)
             {
