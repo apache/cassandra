@@ -99,6 +99,7 @@ public class HintDataReappearingTest extends AbstractHintWindowTest
                         .set("use_creation_time_for_hint_ttl", preventReappearance ? "true" : "false")
                         .set("write_request_timeout", "30000ms")
                         .set("hints_flush_period", "1s")
+                        .set("enforce_native_deadline_for_hints", false)
                         .set("max_hints_file_size", "10MiB"))
                 .start(), 3))
         {

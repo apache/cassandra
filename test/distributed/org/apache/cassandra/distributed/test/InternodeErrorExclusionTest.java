@@ -68,8 +68,9 @@ public class InternodeErrorExclusionTest extends TestBaseImpl
                                                        .set("invalid_legacy_protocol_magic_no_spam_enabled", true))
                                       .start())
         {
-            causeException();
-            causeException();
+            int port = cluster.get(1).broadcastAddress().getPort();
+            causeException(port);
+            causeException(port);
             // we used no spam logger so the second message will not be emitted (the size is still 1).
             assertThat(cluster.get(1).logs().watchFor("Failed to properly handshake with peer localhost. Closing the channel. Invalid legacy protocol magic.").getResult()).hasSize(1);
         }

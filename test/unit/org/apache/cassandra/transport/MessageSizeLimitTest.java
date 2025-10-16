@@ -76,6 +76,7 @@ public class MessageSizeLimitTest extends NativeProtocolLimitsTestBase
     @Test(timeout = 30_000)
     public void checkThatThereIsNoStarvationForMultiFrameMessages() throws InterruptedException
     {
+        DatabaseDescriptor.setNativeTransportThrowOnOverload(false);
         runClientLogic((client) -> {}, true); // to create table
         AtomicInteger completedSuccessfully = new AtomicInteger(0);
         int threadsCount = 2;

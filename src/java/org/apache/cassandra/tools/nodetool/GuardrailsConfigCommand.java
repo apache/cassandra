@@ -354,6 +354,9 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         put("FieldsPerUDTFailThreshold", "fields_per_udt_fail_threshold");
         put("FieldsPerUDTWarnThreshold", "fields_per_udt_warn_threshold");
         put("FieldsPerUDTThreshold", "fields_per_udt_threshold");
+        put("DDLEnabled", "ddl_enabled");
+        put("DCLEnabled", "dcl_enabled");
+        put("SimpleStrategyEnabled", "simplestrategy_enabled");
     }};
 
     @VisibleForTesting

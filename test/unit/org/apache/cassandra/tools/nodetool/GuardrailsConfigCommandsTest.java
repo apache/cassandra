@@ -197,14 +197,22 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     }
 
     private static final String ALL_FLAGS_GETTER_OUTPUT =
-    "allow_filtering_enabled                   true\n" +
-    "compact_tables_enabled                    true\n" +
-    "drop_truncate_table_enabled               true\n" +
-    "group_by_enabled                          true\n" +
-    "read_before_write_list_operations_enabled true\n" +
-    "secondary_indexes_enabled                 true\n" +
-    "uncompressed_tables_enabled               true\n" +
-    "user_timestamps_enabled                   true\n";
+    "allow_filtering_enabled                   true \n" +
+    "alter_table_compaction_strategy_enabled   true \n" +
+    "bulk_load_enabled                         true \n" +
+    "compact_tables_enabled                    true \n" +
+    "counter_columns_enabled                   true \n" +
+    "dcl_enabled                               true \n" +
+    "ddl_enabled                               true \n" +
+    "drop_keyspace_enabled                     true \n" +
+    "drop_truncate_table_enabled               true \n" +
+    "group_by_enabled                          true \n" +
+    "guardrails_on_superuser_enabled           false\n" +
+    "read_before_write_list_operations_enabled true \n" +
+    "secondary_indexes_enabled                 true \n" +
+    "simplestrategy_enabled                    true \n" +
+    "uncompressed_tables_enabled               true \n" +
+    "user_timestamps_enabled                   true \n";
 
     private static final String ALL_THRESHOLDS_GETTER_OUTPUT =
     "collection_size_threshold                 [null, null]\n" +
@@ -215,6 +223,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "items_per_collection_threshold            [-1, -1]    \n" +
     "keyspaces_threshold                       [-1, -1]    \n" +
     "materialized_views_per_table_threshold    [-1, -1]    \n" +
+    "maximum_replication_factor_threshold      [-1, -1]    \n" +
     "minimum_replication_factor_threshold      [-1, -1]    \n" +
     "page_size_threshold                       [-1, -1]    \n" +
     "partition_keys_in_select_threshold        [-1, -1]    \n" +
@@ -238,6 +247,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "keyspaces_warn_threshold                    -1  \n" +
     "materialized_views_per_table_fail_threshold -1  \n" +
     "materialized_views_per_table_warn_threshold -1  \n" +
+    "maximum_replication_factor_fail_threshold   -1  \n" +
+    "maximum_replication_factor_warn_threshold   -1  \n" +
     "minimum_replication_factor_fail_threshold   -1  \n" +
     "minimum_replication_factor_warn_threshold   -1  \n" +
     "page_size_fail_threshold                    -1  \n" +
@@ -259,7 +270,10 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "write_consistency_levels_warned              []   \n";
 
     private static final String ALL_OTHER_GETTER_OUTPUT =
-    "data_disk_usage_max_disk_size                null \n";
+    "data_disk_usage_max_disk_size                null \n" +
+    "write_consistency_enforcement_hard           []   \n" +
+    "write_consistency_enforcement_none           []   \n" +
+    "write_consistency_enforcement_soft           []   \n";
 
 
     private static final String ALL_GUARDRAILS_GETTER_OUTPUT = removeMultipleSpaces(ALL_FLAGS_GETTER_OUTPUT +

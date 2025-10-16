@@ -62,7 +62,8 @@ public class FqlTombstoneHandlingTest extends TestBaseImpl
         String insertTemplate = withKeyspace("INSERT INTO %s." + tableName + " (k, c, s) VALUES ( ?, ?, ?) USING TIMESTAMP 2");
         String select = withKeyspace("SELECT * FROM %s." + tableName + " WHERE k = 0 AND c = 0");
 
-        com.datastax.driver.core.Cluster.Builder builder1 =com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
+        com.datastax.driver.core.Cluster.Builder builder1 =com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1")
+                                                           .withPort(CLUSTER.get(1).config().getInt("native_transport_port"));
 
         // Use the driver to write this initial row, since otherwise we won't hit the dispatcher
         try (com.datastax.driver.core.Cluster cluster1 = builder1.build(); Session session1 = cluster1.connect())
@@ -97,7 +98,7 @@ public class FqlTombstoneHandlingTest extends TestBaseImpl
         runner = ToolRunner.invokeClass("org.apache.cassandra.fqltool.FullQueryLogTool",
                                         "replay",
                                         "--keyspace", KEYSPACE,
-                                        "--target", "127.0.0.1",
+                                        "--target", "127.0.0.1:" + CLUSTER.get(1).config().getInt("native_transport_port"),
                                         "--", temporaryFolder.getRoot().getAbsolutePath());
         assertEquals(0, runner.getExitCode());
 

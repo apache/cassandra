@@ -112,6 +112,7 @@ public class AuditLogOptions extends BinLogOptions
             this.archiveCommand = opts.archive_command;
             this.block = opts.block;
             this.maxLogSize = opts.max_log_size;
+            this.roleFiltering = opts.role_filtering;
         }
 
         public Builder withEnabled(boolean enabled)

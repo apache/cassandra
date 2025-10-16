@@ -279,7 +279,6 @@ Uber specific changes:
  * [SO-40703] Add new JMX attribute in storaageservice mbean for unreachabletokenowners
  * Only reload compaction strategies if disk boundaries change (CASSANDRA-17874)
  * [SO-34092] Convert system_distributed.parent_repair_history/repair_history to LCS
- * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)
  * [SO-40218] Fix NPE when getautorepairconfig
  * [SO-40026] Enable the SampledQueryEventLogger on instance startup
