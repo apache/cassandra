@@ -262,8 +262,8 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         PartitionIndex completedPartitionIndex()
         {
             complete();
-            rowIndexFHBuilder.withLengthOverride(0);
-            partitionIndexFHBuilder.withLengthOverride(0);
+            rowIndexFHBuilder.withLengthOverride(NO_LENGTH_OVERRIDE);
+            partitionIndexFHBuilder.withLengthOverride(NO_LENGTH_OVERRIDE);
             try
             {
                 return PartitionIndex.load(partitionIndexFHBuilder, metadata.getLocal().partitioner, false);

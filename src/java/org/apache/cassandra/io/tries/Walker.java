@@ -75,7 +75,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
             bh = source.rebuffer(root);
             buf = bh.buffer();
         }
-        catch (RuntimeException ex)
+        catch (Throwable ex)
         {
             if (bh != null) bh.release();
             source.closeReader();

@@ -1,4 +1,5 @@
 5.0.6
+ * Fix range queries on early-open BTI files (CASSANDRA-20976)
  * Avoid re-initializing underlying iterator in LazilyInitializedUnfilteredRowIterator after closing (CASSANDRA-20972)
  * Flush SAI segment builder when current SSTable writer is switched (CASSANDRA-20752)
  * Throw RTE instead of FSError when RTE is thrown from FileUtis.write in TOCComponent (CASSANDRA-20917)
