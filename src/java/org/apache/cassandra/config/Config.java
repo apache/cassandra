@@ -860,8 +860,6 @@ public class Config
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
 
-    @Deprecated
-    public boolean audit_user_cache_enabled = true;  // set to false to disable audit user cache to audit all actions.
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
     public volatile SampledQueryEventLoggerOptions sampled_query_event_logging_options = new SampledQueryEventLoggerOptions();
