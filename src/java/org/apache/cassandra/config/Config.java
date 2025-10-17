@@ -593,6 +593,8 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound gc_log_threshold = new DurationSpec.IntMillisecondsBound("200ms");
     @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound gc_warn_threshold = new DurationSpec.IntMillisecondsBound("1s");
+    public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_log_threshold = new DurationSpec.IntMillisecondsBound("1s");
+    public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound("2s");
 
     // TTL for different types of trace events.
     @Replaces(oldName = "tracetype_query_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)
