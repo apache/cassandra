@@ -87,10 +87,11 @@ public final class SecurityLabelOnTableStatement extends AlterSchemaStatement
         if (null == table)
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
 
+        if (table.isView())
+            throw ire("Cannot set security label on materialized view '%s.%s'. Security labels should be set on the base table.", keyspaceName, tableName);
+
         if (provider != null)
-        {
             ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-        }
 
         TableParams newParams = table.params.unbuild().securityLabel(securityLabel).build();
         TableMetadata newTable = table.withSwapped(newParams);

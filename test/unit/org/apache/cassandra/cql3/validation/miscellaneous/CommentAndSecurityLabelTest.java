@@ -18,17 +18,17 @@
 
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
-import com.datastax.driver.core.ResultSet;
 import org.junit.Test;
 
+import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
@@ -207,7 +207,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
         assertInvalidMessage("Type", commentOnType);
 
         // Test non-existent type for field
-        String commentOnNonExistentType = String.format("COMMENT ON FIELD %s.nonexistent.field IS 'comment'", KEYSPACE_NAME);
+        String commentOnNonExistentType = String.format("COMMENT ON FIELD %s.nonexistent.somefield IS 'comment'", KEYSPACE_NAME);
         assertInvalidMessage("doesn't exist", commentOnNonExistentType);
 
         // Test non-existent field
@@ -290,6 +290,59 @@ public class CommentAndSecurityLabelTest extends CQLTester
         assertSecurityLabel(ObjectType.COLUMN, KEYSPACE_NAME, TABLE_NAME + ".name", "COLUMN_LABEL");
         assertComment(ObjectType.TYPE, KEYSPACE_NAME, "test_type", "Type comment via USE");
         assertSecurityLabel(ObjectType.TYPE, KEYSPACE_NAME, "test_type", "TYPE_LABEL");
+    }
+
+
+    @Test
+    public void testCommentAndSecurityLabelOnVirtualTableFails()
+    {
+        assertInvalidMessage("is not user-modifiable", "COMMENT ON TABLE system_views.settings IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON TABLE system_views.settings IS 'fail'");
+    }
+
+    @Test
+    public void testCommentAndSecurityLabelOnSystemTableFails()
+    {
+        assertInvalidMessage("is not user-modifiable", "COMMENT ON TABLE system.local IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON TABLE system.local IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "COMMENT ON COLUMN system.local.key IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON COLUMN system.local.key IS 'fail'");
+    }
+
+    @Test
+    public void testMaterializedViewFails() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        String mvFullName = KEYSPACE + ".test_mv";
+
+        // Create view using executeNet with fully qualified names (like GrantAndRevokeTest does)
+        executeNet("CREATE MATERIALIZED VIEW " + mvFullName + " AS SELECT * FROM " + KEYSPACE + "." + tableName +
+                   " WHERE pk IS NOT NULL AND ck IS NOT NULL PRIMARY KEY (ck, pk)");
+
+        // Wait for the view to be fully built before testing
+        waitForViewBuild("test_mv");
+
+        // Test that comment and security label statements fail
+        assertInvalidMessage("Cannot set comment on materialized view",
+                           "COMMENT ON TABLE " + mvFullName + " IS 'fail'");
+        assertInvalidMessage("Cannot set security label on materialized view",
+                           "SECURITY LABEL ON TABLE " + mvFullName + " IS 'fail'");
+    }
+
+    @Test
+    public void testCommentAndSecurityLabelOnSystemKeyspaceFails()
+    {
+        // Test comment and security label on system keyspaces
+        assertInvalidMessage("is not user-modifiable", "COMMENT ON KEYSPACE system IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON KEYSPACE system IS 'fail'");
+    }
+
+    @Test
+    public void testCommentAndSecurityLabelOnVirtualKeyspaceFails()
+    {
+        // Test comment and security label on virtual keyspaces
+        assertInvalidMessage("is not user-modifiable", "COMMENT ON KEYSPACE system_views IS 'fail'");
+        assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON KEYSPACE system_views IS 'fail'");
     }
 
     // Helper methods for setting comments and security labels

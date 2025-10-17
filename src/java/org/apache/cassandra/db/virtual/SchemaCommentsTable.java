@@ -59,7 +59,6 @@ final class SchemaCommentsTable extends AbstractSchemaMetadataTable
         super(keyspace, SchemaTableType.COMMENT);
     }
 
-
     @Override
     protected String extractKeyspaceMetadata(KeyspaceMetadata keyspace)
     {
@@ -82,5 +81,11 @@ final class SchemaCommentsTable extends AbstractSchemaMetadataTable
     protected String extractUdtMetadata(UserType udt)
     {
         return udt.comment;
+    }
+
+    @Override
+    protected String extractFieldMetadata(UserType udt, String fieldName)
+    {
+        return udt.fieldComment(org.apache.cassandra.cql3.FieldIdentifier.forUnquoted(fieldName));
     }
 }

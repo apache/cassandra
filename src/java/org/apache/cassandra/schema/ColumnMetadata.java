@@ -251,7 +251,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           @Nullable ColumnMask mask,
                           @Nonnull ColumnConstraints columnConstraints)
     {
-        this(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, null, null);
+        this(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public ColumnMetadata(String ksName,
@@ -263,8 +263,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           Kind kind,
                           @Nullable ColumnMask mask,
                           @Nonnull ColumnConstraints columnConstraints,
-                          @Nullable String comment,
-                          @Nullable String securityLabel)
+                          String comment,
+                          String securityLabel)
     {
         super(ksName, cfName, name, type, comment, securityLabel);
         this.uniqueId = uniqueId;
@@ -772,12 +772,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 out.writeVInt32(t.uniqueId);
             if (version.isAtLeast(Version.V8))
             {
-                out.writeBoolean(t.comment != null);
-                if (t.comment != null)
-                    out.writeUTF(t.comment);
-                out.writeBoolean(t.securityLabel != null);
-                if (t.securityLabel != null)
-                    out.writeUTF(t.securityLabel);
+                out.writeUTF(t.comment);
+                out.writeUTF(t.securityLabel);
             }
         }
 
@@ -805,14 +801,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             int uniqueId = NO_UNIQUE_ID;
             if (version.isAtLeast(Version.V7))
                 uniqueId = in.readVInt32();
-            String comment = null;
-            String securityLabel = null;
+            String comment = EMPTY_COMMENT;
+            String securityLabel = EMPTY_SECURITY_LABEL;
             if (version.isAtLeast(Version.V8))
             {
-                if (in.readBoolean())
-                    comment = in.readUTF();
-                if (in.readBoolean())
-                    securityLabel = in.readUTF();
+                comment = in.readUTF();
+                securityLabel = in.readUTF();
             }
             return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints, comment, securityLabel);
         }
@@ -838,7 +832,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
                    constraintsSize +
                    (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0) +
-                   (version.isAtLeast(Version.V8) ? (BOOL_SIZE + (t.comment != null ? sizeof(t.comment) : 0) + BOOL_SIZE + (t.securityLabel != null ? sizeof(t.securityLabel) : 0)) : 0);
+                   (version.isAtLeast(Version.V8) ? (sizeof(t.comment) + sizeof(t.securityLabel)) : 0);
         }
     }
 }

@@ -68,6 +68,9 @@ public enum Version
      */
     V7(7),
 
+    /**
+     *  - Comments and security labels for schema elements (keyspaces, tables, columns, UDTs, and UDT fields)
+     */
     V8(8),
 
     UNKNOWN(Integer.MAX_VALUE);

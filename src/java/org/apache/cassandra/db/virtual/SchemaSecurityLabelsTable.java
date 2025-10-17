@@ -82,4 +82,10 @@ final class SchemaSecurityLabelsTable extends AbstractSchemaMetadataTable
     {
         return udt.securityLabel;
     }
+
+    @Override
+    protected String extractFieldMetadata(UserType udt, String fieldName)
+    {
+        return udt.fieldSecurityLabel(org.apache.cassandra.cql3.FieldIdentifier.forUnquoted(fieldName));
+    }
 }

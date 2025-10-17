@@ -63,6 +63,8 @@ public class UserType extends TupleType implements SchemaElement
     private static final Logger logger = LoggerFactory.getLogger(UserType.class);
 
     private static final ConflictBehavior CONFLICT_BEHAVIOR = ConflictBehavior.get();
+    private static final String EMPTY_COMMENT = "";
+    private static final String EMPTY_SECURITY_LABEL = "";
 
     public final String keyspace;
     public final ByteBuffer name;
@@ -77,7 +79,7 @@ public class UserType extends TupleType implements SchemaElement
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
-        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, "", "", Collections.emptyMap(), Collections.emptyMap());
+        this(keyspace, name, fieldNames, fieldTypes, isMultiCell, EMPTY_COMMENT, EMPTY_SECURITY_LABEL, Collections.emptyMap(), Collections.emptyMap());
     }
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell, String comment, String securityLabel)
@@ -99,8 +101,8 @@ public class UserType extends TupleType implements SchemaElement
         assert fieldNames.size() == fieldTypes.size();
         this.keyspace = keyspace;
         this.name = name;
-        this.comment = comment;
-        this.securityLabel = securityLabel;
+        this.comment = comment == null ? EMPTY_COMMENT : comment;
+        this.securityLabel = securityLabel == null ? EMPTY_SECURITY_LABEL : securityLabel;
         this.fieldNames = fieldNames;
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
         this.fieldComments = Collections.unmodifiableMap(new HashMap<>(fieldComments));
@@ -132,7 +134,7 @@ public class UserType extends TupleType implements SchemaElement
             columnTypes.add(p.right);
         }
 
-        return new UserType(keyspace, name, columnNames, columnTypes, true, "", "");
+        return new UserType(keyspace, name, columnNames, columnTypes, true, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     @Override
@@ -532,16 +534,6 @@ public class UserType extends TupleType implements SchemaElement
     public String fieldSecurityLabel(FieldIdentifier fieldName)
     {
         return fieldSecurityLabels.getOrDefault(fieldName, "");
-    }
-
-    public Map<FieldIdentifier, String> fieldComments()
-    {
-        return fieldComments;
-    }
-
-    public Map<FieldIdentifier, String> fieldSecurityLabels()
-    {
-        return fieldSecurityLabels;
     }
 
     @Override

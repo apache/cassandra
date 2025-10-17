@@ -65,9 +65,10 @@ public class SchemaDescriptionsUtil
     {
         if (comment != null && comment.length() > MAX_METADATA_LENGTH)
         {
-            throw new InvalidRequestException(String.format("Comment length (%d) exceeds maximum allowed length (%d)",
-                                                           comment.length(),
-                                                           MAX_METADATA_LENGTH));
+            String msg = String.format("Comment length (%d) exceeds maximum allowed length (%d)",
+                                       comment.length(),
+                                       MAX_METADATA_LENGTH);
+            throw new InvalidRequestException(msg);
         }
     }
 
@@ -154,9 +155,7 @@ public class SchemaDescriptionsUtil
 
         // Add comments on fields
         for (int i = 0; i < userType.size(); i++)
-        {
             appendCommentOnField(builder, userType, i);
-        }
     }
 
     /**
@@ -173,9 +172,7 @@ public class SchemaDescriptionsUtil
 
         // Add security labels on fields
         for (int i = 0; i < userType.size(); i++)
-        {
             appendSecurityLabelOnField(builder, userType, i);
-        }
     }
 
     /* Helper methods */

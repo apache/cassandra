@@ -83,6 +83,9 @@ public final class CommentOnTableStatement extends AlterSchemaStatement
         if (null == table)
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
 
+        if (table.isView())
+            throw ire("Cannot set comment on materialized view '%s.%s'. Comments should be set on the base table.", keyspaceName, tableName);
+
         TableParams newParams = table.params.unbuild().comment(comment).build();
         TableMetadata newTable = table.withSwapped(newParams);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.tables.withSwapped(newTable));

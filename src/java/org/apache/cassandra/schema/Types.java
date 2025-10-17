@@ -43,7 +43,6 @@ import static java.util.stream.Collectors.toList;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 
-import static org.apache.cassandra.db.TypeSizes.BOOL_SIZE;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -55,6 +54,10 @@ public final class Types implements Iterable<UserType>
     public static final Serializer serializer = new Serializer();
 
     private static final Types NONE = new Types(ImmutableMap.of());
+    private static final String EMPTY_COMMENT = "";
+    private static final String EMPTY_SECURITY_LABEL = "";
+    private static final List<String> EMPTY_FIELD_COMMENTS = List.of();
+    private static final List<String> EMPTY_FIELD_SECURITY_LABELS = List.of();
 
     private final Map<ByteBuffer, UserType> types;
 
@@ -364,17 +367,28 @@ public final class Types implements Iterable<UserType>
 
         public void add(String name, List<String> fieldNames, List<String> fieldTypes)
         {
-            add(name, fieldNames, fieldTypes, "", "");
+            add(name, fieldNames, fieldTypes, EMPTY_COMMENT, EMPTY_SECURITY_LABEL, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
         }
 
         public void add(String name, List<String> fieldNames, List<String> fieldTypes, String comment, String securityLabel)
+        {
+            add(name, fieldNames, fieldTypes, comment, securityLabel, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+        }
+
+        public void add(String name,
+                        List<String> fieldNames,
+                        List<String> fieldTypes,
+                        String comment,
+                        String securityLabel,
+                        List<String> fieldComments,
+                        List<String> fieldSecurityLabels)
         {
             List<CQL3Type.Raw> rawFieldTypes =
                 fieldTypes.stream()
                           .map(CQLTypeParser::parseRaw)
                           .collect(toList());
 
-            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes, comment, securityLabel));
+            definitions.add(new RawUDT(name, fieldNames, rawFieldTypes, comment, securityLabel, fieldComments, fieldSecurityLabels));
         }
 
         private static final class RawUDT
@@ -384,19 +398,34 @@ public final class Types implements Iterable<UserType>
             final List<CQL3Type.Raw> fieldTypes;
             final String comment;
             final String securityLabel;
+            final List<String> fieldComments;
+            final List<String> fieldSecurityLabels;
 
             RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes)
             {
-                this(name, fieldNames, fieldTypes, "", "");
+                this(name, fieldNames, fieldTypes, EMPTY_COMMENT, EMPTY_SECURITY_LABEL, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
             }
 
             RawUDT(String name, List<String> fieldNames, List<CQL3Type.Raw> fieldTypes, String comment, String securityLabel)
+            {
+                this(name, fieldNames, fieldTypes, comment, securityLabel, EMPTY_FIELD_COMMENTS, EMPTY_FIELD_SECURITY_LABELS);
+            }
+
+            RawUDT(String name,
+                   List<String> fieldNames,
+                   List<CQL3Type.Raw> fieldTypes,
+                   String comment,
+                   String securityLabel,
+                   List<String> fieldComments,
+                   List<String> fieldSecurityLabels)
             {
                 this.name = name;
                 this.fieldNames = fieldNames;
                 this.fieldTypes = fieldTypes;
                 this.comment = comment;
                 this.securityLabel = securityLabel;
+                this.fieldComments = fieldComments;
+                this.fieldSecurityLabels = fieldSecurityLabels;
             }
 
             boolean referencesUserType(RawUDT other)
@@ -416,7 +445,18 @@ public final class Types implements Iterable<UserType>
                               .map(t -> t.prepareInternal(keyspace, types).getType())
                               .collect(toList());
 
-                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true, comment, securityLabel);
+                Map<FieldIdentifier, String> preparedFieldComments = new HashMap<>();
+                Map<FieldIdentifier, String> preparedFieldSecurityLabels = new HashMap<>();
+
+                for (int i = 0; i < preparedFieldNames.size(); i++)
+                {
+                    if (i < fieldComments.size() && !fieldComments.get(i).isEmpty())
+                        preparedFieldComments.put(preparedFieldNames.get(i), fieldComments.get(i));
+                    if (i < fieldSecurityLabels.size() && !fieldSecurityLabels.get(i).isEmpty())
+                        preparedFieldSecurityLabels.put(preparedFieldNames.get(i), fieldSecurityLabels.get(i));
+                }
+
+                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true, comment, securityLabel, preparedFieldComments, preparedFieldSecurityLabels);
             }
 
             @Override
@@ -476,7 +516,8 @@ public final class Types implements Iterable<UserType>
             for (UserType type : t.types.values())
             {
                 out.writeUTF(type.getNameAsString());
-                List<String> fieldNames = type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList());
+                List<FieldIdentifier> fieldIdentifiers = type.fieldNames();
+                List<String> fieldNames = fieldIdentifiers.stream().map(FieldIdentifier::toString).collect(toList());
                 List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());
                 out.writeInt(fieldNames.size());
                 for (String s : fieldNames)
@@ -486,12 +527,9 @@ public final class Types implements Iterable<UserType>
                     out.writeUTF(s);
                 if (version.isAtLeast(Version.V8))
                 {
-                    out.writeBoolean(type.comment != null);
-                    if (type.comment != null)
-                        out.writeUTF(type.comment);
-                    out.writeBoolean(type.securityLabel != null);
-                    if (type.securityLabel != null)
-                        out.writeUTF(type.securityLabel);
+                    out.writeUTF(type.comment);
+                    out.writeUTF(type.securityLabel);
+                    serializeFieldMetadata(type, fieldIdentifiers, out);
                 }
             }
         }
@@ -511,16 +549,17 @@ public final class Types implements Iterable<UserType>
                 List<String> fieldTypes = new ArrayList<>(fieldTypeSize);
                 for (int x = 0; x < fieldTypeSize; x++)
                     fieldTypes.add(in.readUTF());
-                String comment = "";
-                String securityLabel = "";
+                String comment = EMPTY_COMMENT;
+                String securityLabel = EMPTY_SECURITY_LABEL;
+                List<String> fieldComments = new ArrayList<>();
+                List<String> fieldSecurityLabels = new ArrayList<>();
                 if (version.isAtLeast(Version.V8))
                 {
-                    if (in.readBoolean())
-                        comment = in.readUTF();
-                    if (in.readBoolean())
-                        securityLabel = in.readUTF();
+                    comment = in.readUTF();
+                    securityLabel = in.readUTF();
+                    deserializeFieldMetadata(in, fieldComments, fieldSecurityLabels);
                 }
-                builder.add(name, fieldNames, fieldTypes, comment, securityLabel);
+                builder.add(name, fieldNames, fieldTypes, comment, securityLabel, fieldComments, fieldSecurityLabels);
             }
             return builder.build();
         }
@@ -531,8 +570,9 @@ public final class Types implements Iterable<UserType>
             for (UserType type : t.types.values())
             {
                 size += sizeof(type.getNameAsString());
-                List<String> fieldNames = type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList());
-                List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());
+                List<FieldIdentifier> fieldIdentifiers = type.fieldNames();
+                List<String> fieldNames = fieldIdentifiers.stream().map(FieldIdentifier::toString).collect(toList());
+                List<String> fieldTypes = type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList());;
                 size += sizeof(fieldNames.size());
                 for (String s : fieldNames)
                     size += sizeof(s);
@@ -541,9 +581,41 @@ public final class Types implements Iterable<UserType>
                     size += sizeof(s);
                 if (version.isAtLeast(Version.V8))
                 {
-                    size += BOOL_SIZE + (type.comment != null ? sizeof(type.comment) : 0);
-                    size += BOOL_SIZE + (type.securityLabel != null ? sizeof(type.securityLabel) : 0);
+                    size += sizeof(type.comment);
+                    size += sizeof(type.securityLabel);
+                    size += fieldMetadataSize(type, fieldIdentifiers);
                 }
+            }
+            return size;
+        }
+
+        private void serializeFieldMetadata(UserType type, List<FieldIdentifier> fieldIdentifiers, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(fieldIdentifiers.size());
+            for (FieldIdentifier fieldId : fieldIdentifiers)
+            {
+                out.writeUTF(type.fieldComment(fieldId));
+                out.writeUTF(type.fieldSecurityLabel(fieldId));
+            }
+        }
+
+        private void deserializeFieldMetadata(DataInputPlus in, List<String> fieldComments, List<String> fieldSecurityLabels) throws IOException
+        {
+            int fieldMetadataSize = in.readInt();
+            for (int x = 0; x < fieldMetadataSize; x++)
+            {
+                fieldComments.add(in.readUTF());
+                fieldSecurityLabels.add(in.readUTF());
+            }
+        }
+
+        private long fieldMetadataSize(UserType type, List<FieldIdentifier> fieldIdentifiers)
+        {
+            long size = sizeof(fieldIdentifiers.size());
+            for (FieldIdentifier fieldId : fieldIdentifiers)
+            {
+                size += sizeof(type.fieldComment(fieldId));
+                size += sizeof(type.fieldSecurityLabel(fieldId));
             }
             return size;
         }

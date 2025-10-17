@@ -630,7 +630,6 @@ public final class TableParams
         public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.comment);
-            out.writeUTF(t.securityLabel);
             out.writeDouble(t.bloomFilterFpChance);
             out.writeDouble(t.crcCheckChance);
             out.writeInt(t.gcGraceSeconds);
@@ -660,13 +659,14 @@ public final class TableParams
                 out.writeUnsignedVInt32(t.transactionalMigrationFrom.ordinal());
                 out.writeBoolean(t.pendingDrop);
             }
+            if (version.isAtLeast(Version.V8))
+                out.writeUTF(t.securityLabel);
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
         {
             TableParams.Builder builder = TableParams.builder();
             builder.comment(in.readUTF())
-                   .securityLabel(in.readUTF())
                    .bloomFilterFpChance(in.readDouble())
                    .crcCheckChance(in.readDouble())
                    .gcGraceSeconds(in.readInt())
@@ -692,13 +692,14 @@ public final class TableParams
                        .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readUnsignedVInt32()))
                        .pendingDrop(in.readBoolean());
             }
+            if (version.isAtLeast(Version.V8))
+                builder.securityLabel(in.readUTF());
             return builder.build();
         }
 
         public long serializedSize(TableParams t, Version version)
         {
             long size = sizeof(t.comment) +
-                   sizeof(t.securityLabel) +
                    sizeof(t.bloomFilterFpChance) +
                    sizeof(t.crcCheckChance) +
                    sizeof(t.gcGraceSeconds) +
@@ -723,6 +724,10 @@ public final class TableParams
                         sizeofUnsignedVInt(t.transactionalMode.ordinal()) +
                         sizeofUnsignedVInt(t.transactionalMigrationFrom.ordinal()) +
                         sizeof(t.pendingDrop);
+            }
+            if (version.isAtLeast(Version.V8))
+            {
+                size += sizeof(t.securityLabel);
             }
             return size;
         }

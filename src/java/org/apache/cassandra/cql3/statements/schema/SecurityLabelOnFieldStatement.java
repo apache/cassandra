@@ -94,9 +94,7 @@ public final class SecurityLabelOnFieldStatement extends AlterSchemaStatement
             throw ire("Field '%s' doesn't exist in type '%s.%s'", fieldName, keyspaceName, typeName);
 
         if (provider != null)
-        {
             ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-        }
 
         UserType newType = type.withFieldSecurityLabel(fieldName, securityLabel);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.types.withUpdatedUserType(newType));

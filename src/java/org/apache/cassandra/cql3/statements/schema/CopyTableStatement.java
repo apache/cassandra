@@ -119,7 +119,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
         if (null == sourceKeyspaceMeta)
             throw ire("Source Keyspace '%s' doesn't exist", sourceKeyspace);
 
-        TableMetadata sourceTableMeta = sourceKeyspaceMeta.getTableNullable(sourceTableName);
+        TableMetadata sourceTableMeta = sourceKeyspaceMeta.getTableOrViewNullable(sourceTableName);
 
         if (null == sourceTableMeta)
             throw ire("Souce Table '%s.%s' doesn't exist", sourceKeyspace, sourceTableName);
@@ -294,37 +294,25 @@ public final class CopyTableStatement extends AlterSchemaStatement
     private void maybeCopyComments(TableMetadata.Builder builder, TableMetadata sourceTableMeta)
     {
         if (!createLikeOptions.contains(CreateLikeOption.COMMENTS))
-        {
             return;
-        }
 
         if (!StringUtils.isEmpty(sourceTableMeta.params.comment))
-        {
             builder.comment(sourceTableMeta.params.comment);
-        }
 
         for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
-        {
             builder.alterColumnComment(columnMetadata.name, columnMetadata.comment);
-        }
     }
 
     private void maybeCopySecurityLabels(TableMetadata.Builder builder, TableMetadata sourceTableMeta)
     {
         if (!createLikeOptions.contains(CreateLikeOption.SECURITY_LABELS))
-        {
             return;
-        }
 
         if (!StringUtils.isEmpty(sourceTableMeta.params.securityLabel))
-        {
             builder.securityLabel(sourceTableMeta.params.securityLabel);
-        }
 
         for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
-        {
             builder.alterColumnSecurityLabel(columnMetadata.name, columnMetadata.securityLabel);
-        }
     }
 
     public final static class Raw extends CQLStatement.Raw

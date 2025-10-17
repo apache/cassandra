@@ -163,6 +163,24 @@ public class SchemaMetadataTableTest extends CQLTester
     }
 
     @Test
+    public void testUdtFieldMetadata()
+    {
+        createTestKeyspace(KS1);
+
+        execute("CREATE TYPE " + KS1 + ".address (street text, city text, zip int)");
+        setMetadata("FIELD", KS1 + ".address.street", "Street address");
+        setMetadata("FIELD", KS1 + ".address.city", "City name");
+        setMetadata("FIELD", KS1 + ".address.zip", "Postal code");
+
+        assertFieldMetadata("street", "Street address");
+        assertFieldMetadata("city", "City name");
+        assertFieldMetadata("zip", "Postal code");
+
+        setMetadata("FIELD", KS1 + ".address.street", "Updated street metadata");
+        assertFieldMetadata("street", "Updated street metadata");
+    }
+
+    @Test
     public void testPartitionKeyFiltering()
     {
         createTestKeyspace(KS1);
@@ -290,6 +308,13 @@ public class SchemaMetadataTableTest extends CQLTester
                    row(expectedMetadata));
     }
 
+    private void assertFieldMetadata(String field, String expectedMetadata)
+    {
+        assertRows(execute("SELECT " + columnName + " FROM vts." + tableName + " WHERE object_type = 'FIELD' AND keyspace_name = ? AND udt_name = ? AND field_name = ? ALLOW FILTERING",
+                           KS1, "address", field),
+                   row(expectedMetadata));
+    }
+
     @Test
     public void testMetadataLengthValidation() throws Throwable
     {
@@ -306,5 +331,24 @@ public class SchemaMetadataTableTest extends CQLTester
                                                 metadataType.equals("COMMENT") ? "Comment" : "Security label"),
                                  InvalidRequestException.class,
                                  setStatementPrefix + " KEYSPACE " + KS1 + " " + setStatementSuffix + " '" + invalidMetadata + "'");
+    }
+
+    @Test
+    public void testInvalidKeyspaceName() throws Throwable
+    {
+        String invalidKeyspace = "nonexistent_keyspace";
+        assertInvalidThrowMessage("Unknown keyspace: '" + invalidKeyspace + "'",
+                                 InvalidRequestException.class,
+                                 "SELECT * FROM vts." + tableName + " WHERE object_type = 'KEYSPACE' AND keyspace_name = '" + invalidKeyspace + "'");
+    }
+
+    @Test
+    public void testInvalidObjectType() throws Throwable
+    {
+        createTestKeyspace(KS1);
+        String invalidObjectType = "INVALID_TYPE";
+        assertInvalidThrowMessage("Unknown object type: '" + invalidObjectType + "'. Valid types are: [KEYSPACE, TABLE, COLUMN, UDT, FIELD]",
+                                 InvalidRequestException.class,
+                                 "SELECT * FROM vts." + tableName + " WHERE object_type = '" + invalidObjectType + "' AND keyspace_name = '" + KS1 + "'");
     }
 }

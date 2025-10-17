@@ -89,9 +89,7 @@ public final class SecurityLabelOnTypeStatement extends AlterSchemaStatement
             throw ire("Type '%s.%s' doesn't exist", keyspaceName, typeName);
 
         if (provider != null)
-        {
             ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-        }
 
         UserType newType = type.withSecurityLabel(securityLabel);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.types.withUpdatedUserType(newType));

@@ -88,10 +88,10 @@ public class CachingBenchTest extends CQLTester
     {
         createTable("CREATE TABLE %s(" +
                     "  key int," +
-                    "  col int," +
+                    "  column int," +
                     "  data int," +
                     "  extra text," +
-                    "  PRIMARY KEY(key, col)" +
+                    "  PRIMARY KEY(key, column)" +
                     ")"
                    );
 

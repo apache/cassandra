@@ -1492,7 +1492,7 @@ public class TableMetadata implements SchemaElement
         {
             ColumnMetadata column = columns.get(name.bytes);
             if (column == null)
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Column " + name + " is invalid");
 
             ColumnMetadata newColumn = column.withNewComment(comment);
 
@@ -1505,7 +1505,7 @@ public class TableMetadata implements SchemaElement
         {
             ColumnMetadata column = columns.get(name.bytes);
             if (column == null)
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Column " + name + " is invalid" );
 
             ColumnMetadata newColumn = column.withNewSecurityLabel(securityLabel);
 

@@ -84,18 +84,18 @@ public class OverflowTest extends CQLTester
     @Test
     public void testIdentifiers() throws Throwable
     {
-        createTable("CREATE TABLE %s (key_23 int PRIMARY KEY, ValUE int)");
+        createTable("CREATE TABLE %s (key_23 int PRIMARY KEY, CoLuMn int)");
 
-        execute("INSERT INTO %s (Key_23, value) VALUES (0, 0)");
-        execute("INSERT INTO %s (KEY_23, value) VALUES (0, 0)");
+        execute("INSERT INTO %s (Key_23, Column) VALUES (0, 0)");
+        execute("INSERT INTO %s (KEY_23, COLUMN) VALUES (0, 0)");
 
-        assertInvalid("INSERT INTO %s (key_23, value, value) VALUES (0, 0, 0)");
-        assertInvalid("INSERT INTO %s (key_23, value, VALUE) VALUES (0, 0, 0)");
-        assertInvalid("INSERT INTO %s (key_23, key_23, value) VALUES (0, 0, 0)");
-        assertInvalid("INSERT INTO %s (key_23, KEY_23, value) VALUES (0, 0, 0)");
+        assertInvalid("INSERT INTO %s (key_23, column, column) VALUES (0, 0, 0)");
+        assertInvalid("INSERT INTO %s (key_23, column, COLUMN) VALUES (0, 0, 0)");
+        assertInvalid("INSERT INTO %s (key_23, key_23, column) VALUES (0, 0, 0)");
+        assertInvalid("INSERT INTO %s (key_23, KEY_23, column) VALUES (0, 0, 0)");
 
         String tableName = createTableName();
-        assertInvalidThrow(SyntaxException.class, String.format("CREATE TABLE %s.%s (select int PRIMARY KEY, value int)", keyspace(), tableName));
+        assertInvalidThrow(SyntaxException.class, String.format("CREATE TABLE %s.%s (select int PRIMARY KEY, column int)", keyspace(), tableName));
     }
 
     /**

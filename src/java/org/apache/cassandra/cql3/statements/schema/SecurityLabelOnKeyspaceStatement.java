@@ -79,9 +79,7 @@ public final class SecurityLabelOnKeyspaceStatement extends AlterSchemaStatement
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
         if (provider != null)
-        {
             ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-        }
 
         KeyspaceParams newParams = keyspace.params.withSecurityLabel(securityLabel);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(newParams);

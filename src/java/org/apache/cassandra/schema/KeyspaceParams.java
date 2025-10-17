@@ -44,6 +44,8 @@ public final class KeyspaceParams
     public static final Serializer serializer = new Serializer();
 
     public static final boolean DEFAULT_DURABLE_WRITES = true;
+    private static final String EMPTY_COMMENT = "";
+    private static final String EMPTY_SECURITY_LABEL = "";
 
     /**
      * This determines durable writes for the {@link org.apache.cassandra.schema.SchemaConstants#SCHEMA_KEYSPACE_NAME}
@@ -76,7 +78,7 @@ public final class KeyspaceParams
 
     public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath)
     {
-        this(durableWrites, replication, fastPath, "", "");
+        this(durableWrites, replication, fastPath, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath, String comment, String securityLabel)
@@ -84,13 +86,13 @@ public final class KeyspaceParams
         this.durableWrites = durableWrites;
         this.replication = replication;
         this.fastPath = fastPath;
-        this.comment = comment;
-        this.securityLabel = securityLabel;
+        this.comment = comment == null ? EMPTY_COMMENT : comment;
+        this.securityLabel = securityLabel == null ? EMPTY_SECURITY_LABEL : securityLabel;
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, FastPathStrategy fastPath)
     {
-        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath, "", "");
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, Map<String, String> fastPath)
@@ -105,27 +107,27 @@ public final class KeyspaceParams
 
     public static KeyspaceParams local()
     {
-        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple(), "", "");
+        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public static KeyspaceParams simple(int replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public static KeyspaceParams simple(String replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), "", "");
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public static KeyspaceParams nts(Object... args)
     {
-        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), "", "");
+        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public KeyspaceParams withSwapped(ReplicationParams params)
@@ -186,21 +188,29 @@ public final class KeyspaceParams
         {
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
-            out.writeUTF(t.comment);
-            out.writeUTF(t.securityLabel);
             if (version.isAtLeast(MIN_ACCORD_VERSION))
                 FastPathStrategy.serializer.serialize(t.fastPath, out, version);
+            if (version.isAtLeast(Version.V8))
+            {
+                out.writeUTF(t.comment);
+                out.writeUTF(t.securityLabel);
+            }
         }
 
         public KeyspaceParams deserialize(DataInputPlus in, Version version) throws IOException
         {
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
-            String comment = in.readUTF();
-            String securityLabel = in.readUTF();
             FastPathStrategy fastPath = version.isAtLeast(MIN_ACCORD_VERSION)
                     ? FastPathStrategy.serializer.deserialize(in, version)
                     : FastPathStrategy.simple();
+            String comment = EMPTY_COMMENT;
+            String securityLabel = EMPTY_SECURITY_LABEL;
+            if (version.isAtLeast(Version.V8))
+            {
+                comment = in.readUTF();
+                securityLabel = in.readUTF();
+            }
             return new KeyspaceParams(durableWrites, params, fastPath, comment, securityLabel);
         }
 
@@ -208,8 +218,7 @@ public final class KeyspaceParams
         {
             return ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites) +
-                   TypeSizes.sizeof(t.comment) +
-                   TypeSizes.sizeof(t.securityLabel) +
+                   (version.isAtLeast(Version.V8) ? (TypeSizes.sizeof(t.comment) + TypeSizes.sizeof(t.securityLabel)) : 0) +
                    (version.isAtLeast(MIN_ACCORD_VERSION) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
         }
     }

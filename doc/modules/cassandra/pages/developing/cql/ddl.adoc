@@ -878,6 +878,23 @@ Example:
 COMMENT ON TYPE cycling.address IS 'User-defined type for storing address information';
 ----
 
+=== COMMENT ON FIELD
+
+Add or modify a comment on a field within a user-defined type:
+
+[source,cql]
+----
+COMMENT ON FIELD [keyspace_name.]type_name.field_name IS 'comment text';
+COMMENT ON FIELD [keyspace_name.]type_name.field_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+include::cassandra:example$CQL/comment_on_field.cql[]
+----
+
 NOTE: Comments can be removed by setting them to `NULL`. Comments are displayed when using `DESCRIBE` statements
 and are useful for documenting the purpose and structure of your schema elements.
 
@@ -954,6 +971,23 @@ Example:
 [source,cql]
 ----
 SECURITY LABEL ON TYPE cycling.address IS 'SENSITIVE';
+----
+
+=== SECURITY LABEL ON FIELD
+
+Add or modify a security label on a field within a user-defined type:
+
+[source,cql]
+----
+SECURITY LABEL ON FIELD [keyspace_name.]type_name.field_name IS 'label';
+SECURITY LABEL ON FIELD [keyspace_name.]type_name.field_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+include::cassandra:example$CQL/security_label_on_field.cql[]
 ----
 
 NOTE: Security labels can be removed by setting them to `NULL`. Security labels are displayed when using `DESCRIBE` statements

@@ -86,6 +86,9 @@ public final class CommentOnColumnStatement extends AlterSchemaStatement
         if (null == table)
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
 
+        if (table.isView())
+            throw ire("Cannot set comment on column in materialized view '%s.%s'. Comments should be set on the base table.", keyspaceName, tableName);
+
         ColumnMetadata column = table.getColumn(columnName);
         if (null == column)
             throw ire("Column '%s' doesn't exist in table '%s.%s'", columnName, keyspaceName, tableName);

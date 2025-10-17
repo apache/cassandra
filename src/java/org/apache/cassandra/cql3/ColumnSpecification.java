@@ -28,6 +28,8 @@ import java.util.Iterator;
 
 public class ColumnSpecification
 {
+    protected static final String EMPTY_COMMENT = "";
+    protected static final String EMPTY_SECURITY_LABEL = "";
     public final String ksName;
     public final String cfName;
     public final ColumnIdentifier name;
@@ -37,7 +39,7 @@ public class ColumnSpecification
 
     public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type)
     {
-        this(ksName, cfName, name, type, null, null);
+        this(ksName, cfName, name, type, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
     }
 
     public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type, String comment, String securityLabel)
@@ -46,8 +48,8 @@ public class ColumnSpecification
         this.cfName = cfName;
         this.name = name;
         this.type = type;
-        this.comment = comment;
-        this.securityLabel = securityLabel;
+        this.comment = comment == null ? EMPTY_COMMENT : comment;
+        this.securityLabel = securityLabel == null ? EMPTY_SECURITY_LABEL : securityLabel;
     }
 
     /**

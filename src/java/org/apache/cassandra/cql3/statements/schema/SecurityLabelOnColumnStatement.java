@@ -90,14 +90,15 @@ public final class SecurityLabelOnColumnStatement extends AlterSchemaStatement
         if (null == table)
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
 
+        if (table.isView())
+            throw ire("Cannot set security label on column in materialized view '%s.%s'. Security labels should be set on the base table.", keyspaceName, tableName);
+
         ColumnMetadata column = table.getColumn(columnName);
         if (null == column)
             throw ire("Column '%s' doesn't exist in table '%s.%s'", columnName, keyspaceName, tableName);
 
         if (provider != null)
-        {
             ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-        }
 
         TableMetadata newTable = table.unbuild().alterColumnSecurityLabel(columnName, securityLabel).build();
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.tables.withSwapped(newTable));

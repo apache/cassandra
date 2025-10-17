@@ -87,10 +87,10 @@ public class GcCompactionTest extends CQLTester
     {
         runCompactionTest("CREATE TABLE %s(" +
                           "  key int," +
-                          "  value int," +
+                          "  column int," +
                           "  data int," +
                           "  extra text," +
-                          "  PRIMARY KEY((key, value), data)" +
+                          "  PRIMARY KEY((key, column), data)" +
                           ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
                           "'provide_overlapping_tombstones' : 'row', " +
                           "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
@@ -113,10 +113,10 @@ public class GcCompactionTest extends CQLTester
     {
         runCompactionTest("CREATE TABLE %s(" +
                           "  key int," +
-                          "  value int," +
+                          "  column int," +
                           "  data int," +
                           "  extra text," +
-                          "  PRIMARY KEY(key, value)" +
+                          "  PRIMARY KEY(key, column)" +
                           ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
                           "'provide_overlapping_tombstones' : 'row', " +
                           "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
@@ -142,11 +142,11 @@ public class GcCompactionTest extends CQLTester
 
         runCompactionTest("CREATE TABLE %s(" +
                           "  key int," +
-                          "  value int," +
+                          "  column int," +
                           "  col2 int," +
                           "  data int," +
                           "  extra text," +
-                          "  PRIMARY KEY(key, value, data)" +
+                          "  PRIMARY KEY(key, column, data)" +
                           ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
                           "'provide_overlapping_tombstones' : 'row', " +
                           "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
@@ -160,7 +160,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -199,16 +199,16 @@ public class GcCompactionTest extends CQLTester
 
       createTable("CREATE TABLE %s(" +
                   "  key int," +
-                  "  value int," +
+                  "  column int," +
                   "  data int," +
-                  "  PRIMARY KEY ((key), value)" +
+                  "  PRIMARY KEY ((key), column)" +
                   ") WITH compaction = { 'class' : 'LeveledCompactionStrategy' };");
 
       assertEquals("LeveledCompactionStrategy", getCurrentColumnFamilyStore().getCompactionStrategyManager().getName());
 
       for (int i = 0; i < KEY_COUNT; ++i)
           for (int j = 0; j < CLUSTERING_COUNT; ++j)
-              execute("INSERT INTO %s (key, value, data) VALUES (?, ?, ?)", i, j, i * j + j);
+              execute("INSERT INTO %s (key, column, data) VALUES (?, ?, ?)", i, j, i * j + j);
 
       ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
       cfs.disableAutoCompaction();
@@ -259,11 +259,11 @@ public class GcCompactionTest extends CQLTester
         // partition-level deletions, 0 gc_grace
         createTable("CREATE TABLE %s(" +
                     "  key int," +
-                    "  value int," +
+                    "  column int," +
                     "  col2 int," +
                     "  data int," +
                     "  extra text," +
-                    "  PRIMARY KEY((key, value))" +
+                    "  PRIMARY KEY((key, column))" +
                     ") WITH gc_grace_seconds = 0;"
         );
 
@@ -271,7 +271,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
 
 
         Set<SSTableReader> readers = new HashSet<>();
@@ -327,7 +327,7 @@ public class GcCompactionTest extends CQLTester
     {
         createTable("CREATE TABLE %s(" +
                           "  key int," +
-                          "  value int," +
+                          "  column int," +
                           "  data int," +
                           "  extra text," +
                           "  PRIMARY KEY(key)" +
@@ -336,7 +336,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -367,16 +367,16 @@ public class GcCompactionTest extends CQLTester
     {
         createTable("CREATE TABLE %s(" +
                           "  key int," +
-                          "  value int," +
+                          "  column int," +
                           "  data int static," +
                           "  extra text," +
-                          "  PRIMARY KEY(key, value)" +
+                          "  PRIMARY KEY(key, column)" +
                           ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', 'provide_overlapping_tombstones' : 'cell'  };"
                           );
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -478,12 +478,12 @@ public class GcCompactionTest extends CQLTester
             if (delete_step > 0)
                 for (int j = i % delete_step; j < CLUSTERING_COUNT; j += delete_step)
                 {
-                    execute("DELETE FROM %s WHERE key = ? AND value = ?", i, j);
+                    execute("DELETE FROM %s WHERE key = ? AND column = ?", i, j);
                 }
             if (readd_step > 0)
                 for (int j = i % readd_step; j < CLUSTERING_COUNT; j += readd_step)
                 {
-                    execute("INSERT INTO %s (key, value, data, extra) VALUES (?, ?, ?, ?)", i, j, i-j, "readded " + i + ":" + j);
+                    execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i-j, "readded " + i + ":" + j);
                 }
         }
     }

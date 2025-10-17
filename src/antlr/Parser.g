@@ -1066,16 +1066,8 @@ copyTableStatement returns  [CopyTableStatement.Raw stmt]
     ;
 
 propertyOrOption[CopyTableStatement.Raw stmt]
-    : tableLikeSingleOption[stmt]
+    : likeOption[stmt]
     | property[stmt.attrs]
-    ;
-
-tableLikeSingleOption[CopyTableStatement.Raw stmt]
-    : likeOptionList[stmt]
-    ;
-
-likeOptionList[CopyTableStatement.Raw stmt]
-    : likeOption[stmt] (K_AND likeOption[stmt])*
     ;
 
 likeOption[CopyTableStatement.Raw stmt]
@@ -2483,7 +2475,11 @@ basic_unreserved_keyword returns [String str]
         | K_THEN
         | K_TRANSACTION
         | K_COMMENT
+        | K_COMMENTS
         | K_SECURITY
         | K_LABEL
+        | K_LABELS
+        | K_FIELD
+        | K_COLUMN
         ) { $str = $k.text; }
     ;
