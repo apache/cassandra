@@ -287,22 +287,52 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 if (state.compareAndSet(prev, new State(duration, bytes, prev)))
                     break;
             }
-            
-            if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
-                logger.warn(sb.toString());
-            else if (duration > getGcLogThresholdInMs())
-                logger.info(sb.toString());
-            else if (logger.isTraceEnabled())
-                logger.trace(sb.toString());
 
-            if (duration > this.getStatusThresholdInMs())
-                StatusLogger.log();
+            if (isConcurrentPhase(info.getGcCause(), info.getGcName()))
+            {
+                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+                // TODO: trigger StatusLogger if concurrent phases take too long?
+            }
+            else
+            {
+                if (getGcConcurrentPhaseWarnThresholdInMs() != 0 && duration > getGcConcurrentPhaseWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcConcurrentPhaseLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+                if (duration > this.getStatusThresholdInMs())
+                    StatusLogger.log();
+            }
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
                 LifecycleTransaction.rescheduleFailedDeletions();
         }
     }
+
+    static boolean isConcurrentPhase(String cause, String name) {
+        // Mostly taken from: https://github.com/Netflix/spectator/blob/v1.7.x/spectator-ext-gc/src/main/java/com/netflix/spectator/gc/GcLogger.java
+        // So far the only indicator known is that the cause will be reported as "No GC"
+        // when using CMS.
+        //
+        // For ZGC, behavior was changed in JDK17: https://bugs.openjdk.java.net/browse/JDK-8265136
+        // For ZGC in older versions, there is no way to accurately get the amount of time
+        // in STW pauses.
+        //
+        // For G1, a new bean is added in JDK20 to indicate time spent in concurrent phases:
+        // https://bugs.openjdk.org/browse/JDK-8297247
+
+        return "No GC".equals(cause)                // CMS
+               || "G1 Concurrent GC".equals(name)   // G1 in JDK20+
+               || name.endsWith(" Cycles");         // Shenandoah, ZGC
+    }
+
 
     public State getTotalSinceLastCheck()
     {
@@ -405,6 +435,40 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                                                + gcWarnThresholdInMs);
 
         DatabaseDescriptor.setGCLogThreshold((int) threshold);
+    }
+
+    public int getGcConcurrentPhaseWarnThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold();
+    }
+
+    public void setGcConcurrentPhaseWarnThresholdInMs(int threshold)
+    {
+        long gcConcurrentPhaseLogThresholdInMs = getGcConcurrentPhaseLogThresholdInMs();
+        if (threshold < 0)
+            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
+        if (threshold != 0 && threshold <= gcConcurrentPhaseLogThresholdInMs)
+            throw new IllegalArgumentException("Threshold must be greater than gcConcurrentPhaseLogThresholdInMs which is currently "
+                                               + gcConcurrentPhaseLogThresholdInMs);
+        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
+    }
+
+    public int getGcConcurrentPhaseLogThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseLogThreshold();
+    }
+
+    public void setGcConcurrentPhaseLogThresholdInMs(int threshold)
+    {
+        if (threshold <= 0)
+            throw new IllegalArgumentException("Threshold must be greater than 0");
+
+        long gcConcurrentPhaseWarnThresholdInMs = getGcConcurrentPhaseWarnThresholdInMs();
+        if (gcConcurrentPhaseWarnThresholdInMs != 0 && threshold > gcConcurrentPhaseWarnThresholdInMs)
+            throw new IllegalArgumentException("Threshold must be less than gcConcurrentPhaseWarnThresholdInMs which is currently "
+                                               + gcConcurrentPhaseWarnThresholdInMs);
+
+        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
     }
 
     public long getGcLogThresholdInMs()

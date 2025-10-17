@@ -4698,6 +4698,27 @@ public class DatabaseDescriptor
         conf.gc_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
+    public static int getGCConcurrentPhaseLogThreshold()
+    {
+        return conf.gc_concurrent_phase_log_threshold.toMilliseconds();
+    }
+
+    public static void setGCConcurrentPhaseLogThreshold(int threshold)
+    {
+        conf.gc_concurrent_phase_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+
+    public static int getGCConcurrentPhaseWarnThreshold()
+    {
+        return conf.gc_concurrent_phase_warn_threshold.toMilliseconds();
+    }
+
+    public static void setGCConcurrentPhaseWarnThreshold(int threshold)
+    {
+        conf.gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
     public static boolean isCDCEnabled()
     {
         return conf.cdc_enabled;
