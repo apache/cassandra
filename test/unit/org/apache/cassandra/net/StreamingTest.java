@@ -50,8 +50,6 @@ import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStrea
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 
-
-// TODO: test failure due to exception, timeout, etc
 public class StreamingTest
 {
     private static final SocketFactory factory = new SocketFactory();
