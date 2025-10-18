@@ -399,7 +399,6 @@
         <!-- Set up jdk specific properties -->
         <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
           <compilerarg value="-Xlint:-options"/>
-           <compilerarg value="-Xlint:unchecked"/>
         </javac>
         <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
         <taskdef name="SetSystemProperty" classname="org.apache.cassandra.anttasks.SetSystemProperty" classpath="${test.classes}"/>
@@ -534,7 +533,6 @@
             <classpath>
                 <path refid="cassandra.classpath"/>
             </classpath>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
