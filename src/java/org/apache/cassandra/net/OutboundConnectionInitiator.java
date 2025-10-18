@@ -517,9 +517,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         }
 
         boolean isSuccess() { return outcome == Outcome.SUCCESS; }
-        public SuccessType success() 
+        public Success success()
         { 
-            if (outcome == Outcome.SUCCESS && this instanceof SuccessType t)
+            if ( this instanceof Success t)
                 return t;
             return null;
         }
