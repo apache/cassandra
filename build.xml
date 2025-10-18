@@ -571,7 +571,6 @@
                 <pathelement location="${stress.build.classes}" />
             </classpath>
             <src path="${stress.test.src}"/>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -588,7 +587,6 @@
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
         <copy todir="${stress.build.classes}">
             <fileset dir="${stress.build.resources}" />
@@ -630,7 +628,6 @@
                 <pathelement location="${fqltool.build.classes}" />
             </classpath>
             <src path="${fqltool.test.src}"/>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -647,7 +644,6 @@
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -690,7 +686,6 @@
                      <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
             </classpath>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -709,7 +704,6 @@
                 </fileset>
             </classpath>
             <compilerarg value="-XDignore.symbol.file"/>
-             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
