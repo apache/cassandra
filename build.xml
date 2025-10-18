@@ -1047,7 +1047,6 @@
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
      <compilerarg line="${jdk11plus-javac-exports}"/>
-     
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
