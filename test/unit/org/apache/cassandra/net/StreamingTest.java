@@ -104,6 +104,10 @@ public class StreamingTest
         if (result.isSuccess()) {
             Result<Result.StreamingSuccess> nowResult = result.getNow();
             Assert.assertNull(nowResult.success());
+            Assert.assertEquals(Result.Outcome.INCOMPATIBLE, nowResult.outcome);
+            Assert.assertEquals(current_version, nowResult.incompatible().closestSupportedVersion);
+            Assert.assertEquals(current_version, nowResult.incompatible().maxMessagingVersion);
+
         } else {
             Assert.assertTrue(false);
         }
@@ -116,6 +120,8 @@ public class StreamingTest
         if (result.isSuccess()) {
             Result<Result.StreamingSuccess> nowResult = result.getNow();
             Assert.assertNotNull(nowResult.success().channel);
+            Assert.assertEquals(Result.Outcome.SUCCESS, nowResult.outcome);
+            Assert.assertEquals(current_version, nowResult.success().messagingVersion);
         } else {
             Assert.assertTrue(false);
         }
