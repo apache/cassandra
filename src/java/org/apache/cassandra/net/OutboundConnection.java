@@ -1118,7 +1118,7 @@ public class OutboundConnection
                     case SUCCESS:
                         // it is expected that close, if successful, has already cancelled us; so we do not need to worry about leaking connections
                         assert !state.isClosed();
-                        if (result.success() instanceof MessagingSuccess success )
+                        if (result.success() instanceof MessagingSuccess success)
                         {
                             debug.onConnect(success.messagingVersion, settings);
                             state.disconnected().maintenance.cancel(false);

@@ -34,7 +34,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -104,7 +103,7 @@ public class StreamingTest
         Future<Result<Result.StreamingSuccess>> result = streamingConnect(new AcceptVersions(current_version + 1, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
         if (result.isSuccess()) {
             Result<Result.StreamingSuccess> nowResult = result.getNow();
-            Assert.assertNull(nowResult.success().channel);
+            Assert.assertNull(nowResult.success());
         } else {
             Assert.assertTrue(false);
         }
