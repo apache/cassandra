@@ -1929,7 +1929,7 @@ unlogged_batch_across_partitions_warn_threshold: 10
 # Min unit: ms
 # gc_warn_threshold: 1000ms
 
-# GC Concurrent phase greater than 200 ms will be logged at INFO level
+# GC Concurrent phase greater than 1000 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # Min unit: ms
 # gc_concurrent_phase_log_threshold: 1000ms
