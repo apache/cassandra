@@ -88,7 +88,7 @@ public class PartitionIndex implements SharedCloseable
         this.root = trieRoot;
     }
 
-    private PartitionIndex(PartitionIndex src)
+    protected PartitionIndex(PartitionIndex src)
     {
         this(src.fh, src.root, src.keyCount, src.first, src.last);
     }
@@ -439,7 +439,7 @@ public class PartitionIndex implements SharedCloseable
         }
         catch (Throwable t)
         {
-            logger.warn("Failed to dump trie to {} due to exception {}", fileName, t);
+            logger.warn("Failed to dump trie to {} due to exception", fileName, t);
         }
     }
 
