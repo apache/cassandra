@@ -1,5 +1,5 @@
 NAME
-        nodetool traincompressiondictionary - Manually trigger compression
+        nodetool compressiondictionary train - Manually trigger compression
         dictionary training for a table. If no SSTables are available, the
         memtable will be flushed first.
 
@@ -7,7 +7,7 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pp | --print-port)] [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] traincompressiondictionary
+                [(-u <username> | --username <username>)] compressiondictionary train
                 [(-f | --force)] [--] <keyspace> <table>
 
 OPTIONS

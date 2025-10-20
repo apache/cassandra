@@ -114,12 +114,12 @@ supports both manual and automatic training approaches.
 
 ==== Manual Dictionary Training
 
-Use the `nodetool traincompressiondictionary` command to manually train
+Use the `nodetool compressiondictionary train` command to manually train
 a compression dictionary:
 
 [source,bash]
 ----
-nodetool traincompressiondictionary <keyspace> <table>
+nodetool compressiondictionary train <keyspace> <table>
 ----
 
 The command trains a dictionary by sampling from existing SSTables. If no
@@ -135,7 +135,7 @@ To force training even with insufficient samples, use the `--force` or `-f` opti
 
 [source,bash]
 ----
-nodetool traincompressiondictionary --force <keyspace> <table>
+nodetool compressiondictionary train --force <keyspace> <table>
 ----
 
 This can be useful for testing or when you want to train a dictionary from
@@ -387,7 +387,7 @@ versions.
 according to `compression_dictionary_cache_size`. Memory overhead is
 typically minimal (default 64KB per dictionary × cache size).
 * *Dictionary Training Overhead*: Manual training via
-`nodetool traincompressiondictionary` samples SSTable chunk data and
+`nodetool compressiondictionary train` samples SSTable chunk data and
 performs CPU-intensive dictionary training. Consider running training
 during off-peak hours.
 * *Automatic Training Impact*: When

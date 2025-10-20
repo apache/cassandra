@@ -45,7 +45,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         createSSTables(true);
 
         // Test training command with --force since we have limited test data
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", "--force", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -65,7 +65,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
 
         // Test training, the command should run flush before sampling
         // Use --force since we have limited test data
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       "--force",
                                                       keyspace(),
                                                       table);
@@ -80,7 +81,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
     public void testTrainCommandWithNoSSTables()
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       keyspace(),
                                                       table);
         assertThat(result.getStderr())
@@ -90,7 +92,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
     @Test
     public void testInvalidKeyspace()
     {
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       "nonexistent_keyspace",
                                                       "nonexistent_table");
         result.asserts()
@@ -101,7 +104,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
     @Test
     public void testInvalidTable()
     {
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       keyspace(),
                                                       "nonexistent_table");
         result.asserts()
@@ -116,7 +120,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
         // Create table without dictionary compression
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'LZ4Compressor'}");
 
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       keyspace(),
                                                       table);
         result.asserts()
@@ -130,7 +135,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
         // Create table with Zstd but without dictionary compression
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdCompressor'}");
 
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary",
+                                                      "train",
                                                       keyspace(),
                                                       table);
         result.asserts()
@@ -146,7 +152,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'LZ4Compressor'}");
 
         // Training should fail on LZ4 table
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", keyspace(), table);
         result.asserts()
               .failure()
               .errorContains("Failed to trigger training")
@@ -156,7 +162,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         execute("ALTER TABLE %s WITH compression = {'class': 'ZstdDictionaryCompressor'}");
 
         // Training should fail with no sstables
-        result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        result = invokeNodetool("compressiondictionary", "train", keyspace(), table);
         assertThat(result.getStderr())
         .contains("Failed to trigger training: No SSTables available for training", "after flush");
 
@@ -164,7 +170,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         createSSTables(true);
 
         // Training should now succeed (use --force since we have limited test data)
-        result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
+        result = invokeNodetool("compressiondictionary", "train", "--force", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -177,12 +183,12 @@ public class TrainCompressionDictionaryTest extends CQLTester
     @Test
     public void testHelpOutput()
     {
-        ToolRunner.ToolResult result = invokeNodetool("help", "traincompressiondictionary");
+        ToolRunner.ToolResult result = invokeNodetool("help", "compressiondictionary", "train");
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
         .as("Should show command help")
-        .contains("nodetool traincompressiondictionary - Manually trigger compression")
+        .contains("nodetool compressiondictionary train - Manually trigger compression")
         .contains("dictionary training for a table")
         .contains("keyspace name")
         .contains("table name")
@@ -198,7 +204,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         createSSTables(true);
 
         // Test training command with -f flag
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "-f", keyspace(), table);
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", "-f", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -217,7 +223,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
         createSSTables(true);
 
         // Test training command with --force flag
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", "--force", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -231,13 +237,13 @@ public class TrainCompressionDictionaryTest extends CQLTester
     public void testCommandLineArgumentParsing()
     {
         // Test missing required arguments
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary");
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train");
         result.asserts()
               .failure()
               .stdoutContains("Missing required parameter");
 
         // Test missing table argument
-        result = invokeNodetool("traincompressiondictionary", keyspace());
+        result = invokeNodetool("compressiondictionary", "train", keyspace());
         result.asserts()
               .failure()
               .stdoutContains("Missing required parameter");
