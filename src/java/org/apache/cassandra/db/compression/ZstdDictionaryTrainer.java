@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdDictTrainer;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
@@ -37,6 +38,8 @@ import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Zstd implementation of dictionary trainer with lifecycle management.
@@ -142,6 +145,57 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             failureMessage = "Failed to train Zstd dictionary: " + e.getMessage();
             currentTrainingStatus = TrainingStatus.FAILED;
             throw new RuntimeException(failureMessage, e);
+        }
+    }
+
+    @Override
+    public Future<CompressionDictionary> trainDictionaryAsync(boolean force)
+    {
+        DictionaryTrainingTask task = new DictionaryTrainingTask(force);
+        ScheduledExecutors.nonPeriodicTasks.execute(task);
+        return task;
+    }
+
+    /**
+     * Async task for training dictionary that handles failures without routing through JVMStabilityInspector.
+     * Follows the pattern used by repair tasks (ValidationTask, SyncTask, etc.):
+     * - Extends AsyncFuture and implements Runnable
+     * - Never throws exceptions from run()
+     * - Calls trySuccess()/tryFailure() to complete the future
+     *
+     * This ensures validation failures are handled cleanly without ERROR logging to JVMStabilityInspector,
+     * while unexpected errors are still properly logged.
+     */
+    private class DictionaryTrainingTask extends AsyncFuture<CompressionDictionary> implements Runnable
+    {
+        private final boolean force;
+
+        DictionaryTrainingTask(boolean force)
+        {
+            this.force = force;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                CompressionDictionary dict = trainDictionary(force);
+                trySuccess(dict);
+            }
+            catch (IllegalStateException e)
+            {
+                logger.debug("Dictionary training validation failed for {}.{}: {}",
+                             keyspaceName, tableName, e.getMessage());
+                tryFailure(e);
+            }
+            catch (Throwable t)
+            {
+                // Unexpected failures - log at error level for visibility
+                logger.error("Unexpected error during dictionary training for {}.{}",
+                             keyspaceName, tableName, t);
+                tryFailure(t);
+            }
         }
     }
 
