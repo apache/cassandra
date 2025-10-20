@@ -290,9 +290,9 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
             if (isConcurrentPhase(info.getGcCause(), info.getGcName()))
             {
-                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
+                if (getGcConcurrentPhaseWarnThresholdInMs() != 0 && duration > getGcConcurrentPhaseWarnThresholdInMs())
                     logger.warn(sb.toString());
-                else if (duration > getGcLogThresholdInMs())
+                else if (duration > getGcConcurrentPhaseLogThresholdInMs())
                     logger.info(sb.toString());
                 else if (logger.isTraceEnabled())
                     logger.trace(sb.toString());
@@ -300,9 +300,9 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             }
             else
             {
-                if (getGcConcurrentPhaseWarnThresholdInMs() != 0 && duration > getGcConcurrentPhaseWarnThresholdInMs())
+                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
                     logger.warn(sb.toString());
-                else if (duration > getGcConcurrentPhaseLogThresholdInMs())
+                else if (duration > getGcLogThresholdInMs())
                     logger.info(sb.toString());
                 else if (logger.isTraceEnabled())
                     logger.trace(sb.toString());
