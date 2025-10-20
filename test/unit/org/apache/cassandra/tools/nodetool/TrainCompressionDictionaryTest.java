@@ -44,8 +44,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
 
         createSSTables(true);
 
-        // Test training command
-        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        // Test training command with --force since we have limited test data
+        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -64,7 +64,9 @@ public class TrainCompressionDictionaryTest extends CQLTester
         createSSTables(false);
 
         // Test training, the command should run flush before sampling
+        // Use --force since we have limited test data
         ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary",
+                                                      "--force",
                                                       keyspace(),
                                                       table);
         result.assertOnCleanExit();
@@ -161,8 +163,8 @@ public class TrainCompressionDictionaryTest extends CQLTester
         // Write sstables
         createSSTables(true);
 
-        // Training should now succeed
-        result = invokeNodetool("traincompressiondictionary", keyspace(), table);
+        // Training should now succeed (use --force since we have limited test data)
+        result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
         result.assertOnCleanExit();
 
         assertThat(result.getStdout())
@@ -183,7 +185,46 @@ public class TrainCompressionDictionaryTest extends CQLTester
         .contains("nodetool traincompressiondictionary - Manually trigger compression")
         .contains("dictionary training for a table")
         .contains("keyspace name")
-        .contains("table name");
+        .contains("table name")
+        .contains("-f", "--force");
+    }
+
+    @Test
+    public void testForceOptionShortForm()
+    {
+        // Create a table with dictionary compression enabled
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+
+        createSSTables(true);
+
+        // Test training command with -f flag
+        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "-f", keyspace(), table);
+        result.assertOnCleanExit();
+
+        assertThat(result.getStdout())
+        .as("Should indicate training completed with force option")
+        .contains("Training completed successfully")
+        .contains(keyspace())
+        .contains(table);
+    }
+
+    @Test
+    public void testForceOptionLongForm()
+    {
+        // Create a table with dictionary compression enabled
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+
+        createSSTables(true);
+
+        // Test training command with --force flag
+        ToolRunner.ToolResult result = invokeNodetool("traincompressiondictionary", "--force", keyspace(), table);
+        result.assertOnCleanExit();
+
+        assertThat(result.getStdout())
+        .as("Should indicate training completed with force option")
+        .contains("Training completed successfully")
+        .contains(keyspace())
+        .contains(table);
     }
 
     @Test

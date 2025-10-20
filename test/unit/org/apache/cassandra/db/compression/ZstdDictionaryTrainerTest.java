@@ -366,7 +366,7 @@ public class ZstdDictionaryTrainerTest
     {
         trainer.start(true);
 
-        // Add sufficient data size but only 5 samples (less than minimum 10)
+        // Add sufficient data size but only 5 samples (less than minimum 11)
         for (int i = 0; i < 5; i++)
         {
             ByteBuffer largeSample = ByteBuffer.wrap(new byte[testConfig.acceptableTotalSampleSize / 5]);
@@ -380,15 +380,18 @@ public class ZstdDictionaryTrainerTest
         .as("Should not be ready with insufficient sample count")
         .isFalse();
 
-        // Trying to train without force should fail
+        // Trying to train without force should fail with detailed message
         assertThatThrownBy(() -> trainer.trainDictionary(false))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Trainer is not ready");
+        .hasMessageContaining("Trainer is not ready")
+        .hasMessageContaining("insufficient samples collected")
+        .hasMessageContaining("have 5/11 samples")
+        .hasMessageContaining("Use --force to train anyway");
 
-        // Force training should fail with insufficient samples
+        // Force training should fail with insufficient samples (below absolute minimum)
         assertThatThrownBy(() -> trainer.trainDictionary(true))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("Insufficient samples for training: 5 (minimum required: 10)");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Insufficient samples for training: 5 (minimum required: 11)");
     }
 
     @Test
@@ -602,6 +605,90 @@ public class ZstdDictionaryTrainerTest
         .as("Sample rate should be approximately 20%")
         .isGreaterThan(iterations / 10) // at least 10%
         .isLessThan(iterations / 2);    // at most 50%
+    }
+
+    @Test
+    public void testTrainDictionaryNotInitialized()
+    {
+        // Try to train without starting
+        assertThatThrownBy(() -> trainer.trainDictionary(false))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Trainer is not ready")
+        .hasMessageContaining("trainer not initialized")
+        .hasMessageContaining("call start() first");
+    }
+
+    @Test
+    public void testTrainDictionaryClosed()
+    {
+        trainer.start(true);
+        addSampleData(testConfig.acceptableTotalSampleSize);
+        trainer.close();
+
+        // Try to train after closing
+        assertThatThrownBy(() -> trainer.trainDictionary(false))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Trainer is not ready")
+        .hasMessageContaining("trainer is closed");
+    }
+
+    @Test
+    public void testTrainDictionaryInsufficientSampleSize()
+    {
+        trainer.start(true);
+
+        // Add enough samples (15) but with insufficient total size
+        for (int i = 0; i < 15; i++)
+        {
+            ByteBuffer smallSample = ByteBuffer.wrap(new byte[10]);
+            trainer.addSample(smallSample);
+        }
+
+        assertThat(trainer.getTrainingState().getSampleCount())
+        .as("Should have 15 samples")
+        .isEqualTo(15);
+        assertThat(trainer.getTrainingState().getTotalSampleSize())
+        .as("Total sample size should be small")
+        .isLessThan(testConfig.acceptableTotalSampleSize);
+        assertThat(trainer.isReady())
+        .as("Should not be ready with insufficient sample size")
+        .isFalse();
+
+        // Trying to train without force should fail with detailed message
+        assertThatThrownBy(() -> trainer.trainDictionary(false))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Trainer is not ready")
+        .hasMessageContaining("insufficient sample size")
+        .hasMessageContaining("have 150 bytes/8 KiB")
+        .hasMessageContaining("Use --force to train anyway");
+    }
+
+    @Test
+    public void testTrainDictionaryInsufficientBothSampleCountAndSize()
+    {
+        trainer.start(true);
+
+        // Add only 3 samples with small size
+        for (int i = 0; i < 3; i++)
+        {
+            ByteBuffer smallSample = ByteBuffer.wrap(new byte[10]);
+            trainer.addSample(smallSample);
+        }
+
+        assertThat(trainer.getTrainingState().getSampleCount())
+        .as("Should have 3 samples")
+        .isEqualTo(3);
+        assertThat(trainer.isReady())
+        .as("Should not be ready with insufficient samples and size")
+        .isFalse();
+
+        // Trying to train without force should fail with detailed message showing both issues
+        assertThatThrownBy(() -> trainer.trainDictionary(false))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Trainer is not ready")
+        .hasMessageContaining("insufficient samples collected")
+        .hasMessageContaining("have 3/11 samples, 30 bytes/8 KiB")
+        .hasMessageContaining("Use --force to train anyway");
     }
 
     private Future<CompressionDictionary> startTraining(boolean manualTraining, boolean forceTrain, int sampleSize) throws Exception

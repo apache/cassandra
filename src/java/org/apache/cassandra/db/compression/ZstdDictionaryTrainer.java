@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
 
@@ -55,7 +56,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     private volatile int samplingRate;
 
     // Minimum number of samples required by ZSTD library
-    private static final int MIN_SAMPLES_REQUIRED = 10;
+    private static final int MIN_SAMPLES_REQUIRED = 11;
 
     private volatile Consumer<CompressionDictionary> dictionaryTrainedListener;
     // TODO: manage the samples in this class for auto-train (follow-up). The ZstdDictTrainer cannot be re-used for multiple training runs.
@@ -107,7 +108,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         boolean isReady = isReady();
         if (!force && !isReady)
         {
-            failureMessage = "Trainer is not ready";
+            failureMessage = buildNotReadyMessage();
             currentTrainingStatus = TrainingStatus.FAILED;
             throw new IllegalStateException(failureMessage);
         }
@@ -116,7 +117,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         if (currentSampleCount < MIN_SAMPLES_REQUIRED) // minimum samples should be required even if force training
         {
             failureMessage = String.format("Insufficient samples for training: %d (minimum required: %d)",
-                                          currentSampleCount, MIN_SAMPLES_REQUIRED);
+                                           currentSampleCount, MIN_SAMPLES_REQUIRED);
             currentTrainingStatus = TrainingStatus.FAILED;
             throw new IllegalStateException(failureMessage);
         }
@@ -126,7 +127,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         try
         {
             logger.debug("Training with sample count: {}, sample size: {}, isReady: {}",
-                        currentSampleCount, totalSampleSize.get(), isReady);
+                         currentSampleCount, totalSampleSize.get(), isReady);
             byte[] dictBytes = zstdTrainer.trainSamples();
             long zstdDictId = Zstd.getDictIdFromDict(dictBytes);
             DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
@@ -144,6 +145,62 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         }
     }
 
+    /**
+     * Builds a detailed message explaining why the trainer is not ready.
+     *
+     * @return error message with details about what conditions are not met
+     */
+    private String buildNotReadyMessage()
+    {
+        StringBuilder message = new StringBuilder("Trainer is not ready");
+
+        if (closed)
+        {
+            message.append(": trainer is closed");
+            return message.toString();
+        }
+
+        if (currentTrainingStatus == TrainingStatus.TRAINING)
+        {
+            message.append(": training is already in progress");
+            return message.toString();
+        }
+
+        if (zstdTrainer == null)
+        {
+            message.append(": trainer not initialized (call start() first)");
+            return message.toString();
+        }
+
+        long currentSampleCount = sampleCount.get();
+        long currentTotalSampleSize = totalSampleSize.get();
+
+        // Check both sample count and total sample size
+        boolean hasEnoughSamples = currentSampleCount >= MIN_SAMPLES_REQUIRED;
+        boolean hasEnoughSampleSize = currentTotalSampleSize >= config.acceptableTotalSampleSize;
+
+        if (!hasEnoughSamples && !hasEnoughSampleSize)
+        {
+            message.append(String.format(": insufficient samples collected (have %d/%d samples, %s/%s). Use --force to train anyway.",
+                                         currentSampleCount, MIN_SAMPLES_REQUIRED,
+                                         FileUtils.stringifyFileSize(currentTotalSampleSize, true),
+                                         FileUtils.stringifyFileSize(config.acceptableTotalSampleSize, true)));
+        }
+        else if (!hasEnoughSamples)
+        {
+            message.append(String.format(": insufficient sample count (have %d/%d samples). Use --force to train anyway.",
+                                         currentSampleCount, MIN_SAMPLES_REQUIRED));
+        }
+        else if (!hasEnoughSampleSize)
+        {
+            message.append(String.format(": insufficient sample size (have %s/%s). Use --force to train anyway.",
+                                         FileUtils.stringifyFileSize(currentTotalSampleSize, true),
+                                         FileUtils.stringifyFileSize(config.acceptableTotalSampleSize, true)));
+        }
+
+        return message.toString();
+    }
+
     @Override
     public boolean isReady()
     {
@@ -151,7 +208,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
                && !closed
                && zstdTrainer != null
                && totalSampleSize.get() >= config.acceptableTotalSampleSize
-               && sampleCount.get() > MIN_SAMPLES_REQUIRED;
+               && sampleCount.get() >= MIN_SAMPLES_REQUIRED;
     }
 
     @Override

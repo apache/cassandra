@@ -210,7 +210,7 @@ public class CompressionDictionaryManagerTest
     @Test
     public void testTrainManualWithNonDictionaryTable()
     {
-        assertThatThrownBy(() -> managerWithoutDict.train())
+        assertThatThrownBy(() -> managerWithoutDict.train(false))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support dictionary compression");
     }
@@ -219,7 +219,7 @@ public class CompressionDictionaryManagerTest
     public void testTrainManualWithDictionaryTable()
     {
         // Should throw because no SSTables exist
-        assertThatThrownBy(() -> managerWithDict.train())
+        assertThatThrownBy(() -> managerWithDict.train(false))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("No SSTables available for training");
     }

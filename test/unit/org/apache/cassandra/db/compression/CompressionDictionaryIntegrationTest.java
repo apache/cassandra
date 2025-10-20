@@ -71,13 +71,13 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training")
-        .isThrownBy(() -> manager.train());
+        .isThrownBy(() -> manager.train(false));
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         manager.maybeReloadFromSchema(nonDictParams);
 
-        assertThatThrownBy(() -> manager.train())
+        assertThatThrownBy(() -> manager.train(false))
         .as("Should disallow manual training when using lz4")
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support dictionary compression");
@@ -96,7 +96,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         assertThatNoException()
         .as("Should allow manual training after switching back to dictionary compression")
-        .isThrownBy(() -> manager.train());
+        .isThrownBy(() -> manager.train(false));
     }
 
     @Test
@@ -183,7 +183,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .hasSizeGreaterThan(0);
 
         // Train from existing SSTables
-        manager.train();
+        manager.train(true);
 
         // Training should complete quickly since we're reading from existing SSTables
         spinUntilTrue(() -> TrainingState.fromCompositeData(manager.getTrainingState()).status == TrainingStatus.COMPLETED, 10);
@@ -215,7 +215,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
         // Try to train without any SSTables
-        assertThatThrownBy(() -> manager.train())
+        assertThatThrownBy(() -> manager.train(false))
         .as("Should fail when no SSTables are available")
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("No SSTables available for training");

@@ -130,6 +130,17 @@ The training process completes synchronously and displays progress information
 including sample count, sample size, and elapsed time. Training typically
 completes within minutes for most workloads.
 
+By default, training will only proceed if enough samples have been collected.
+To force training even with insufficient samples, use the `--force` or `-f` option:
+
+[source,bash]
+----
+nodetool traincompressiondictionary --force <keyspace> <table>
+----
+
+This can be useful for testing or when you want to train a dictionary from
+limited data during initial setup.
+
 ==== Automatic Dictionary Training
 
 Enable automatic training in `cassandra.yaml`:

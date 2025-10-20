@@ -198,7 +198,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public synchronized void train()
+    public synchronized void train(boolean force)
     {
         // Validate table supports dictionary compression
         if (!isEnabled)
@@ -230,7 +230,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                    keyspaceName, tableName, sstables.size());
 
         trainer.start(true);
-        scheduler.scheduleSSTableBasedTraining(trainer, sstables, createTrainingConfig());
+        scheduler.scheduleSSTableBasedTraining(trainer, sstables, createTrainingConfig(), force);
     }
 
     @Override

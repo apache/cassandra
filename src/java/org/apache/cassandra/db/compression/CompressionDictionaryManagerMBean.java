@@ -30,10 +30,12 @@ public interface CompressionDictionaryManagerMBean
      * If no SSTables are available, automatically flushes the memtable first.
      * This operation runs synchronously and blocks until training completes.
      *
+     * @param force force the dictionary training even if there are not enough samples;
+     *              otherwise, dictionary training won't start if the trainer is not ready
      * @throws UnsupportedOperationException if table doesn't support dictionary compression
      * @throws IllegalStateException if no SSTables available after flush
      */
-    void train();
+    void train(boolean force);
 
     /**
      * Gets the current training state for this table.

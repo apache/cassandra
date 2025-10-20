@@ -8,9 +8,12 @@ SYNOPSIS
                 [(-pp | --print-port)] [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] traincompressiondictionary
-                [--] <keyspace> <table>
+                [(-f | --force)] [--] <keyspace> <table>
 
 OPTIONS
+        -f, --force
+            Force the dictionary training even if there are not enough samples
+
         -h <host>, --host <host>
             Node hostname or ip address
 
@@ -39,3 +42,4 @@ OPTIONS
 
         <table>
             The table name
+

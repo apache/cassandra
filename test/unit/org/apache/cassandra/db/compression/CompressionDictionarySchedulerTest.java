@@ -70,7 +70,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
 
         // Should not throw, but task will complete quickly with no SSTables
-        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config);
+        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
         spinUntilTrue(() -> scheduler.scheduledManualTrainingTask() == null);
         assertThat(manager.getCurrent()).isNull();
     }
@@ -92,7 +92,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         manager.trainer().start(true);
 
         assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
-        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config);
+        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
 
         // Task should be scheduled
         assertThat((Object) scheduler.scheduledManualTrainingTask()).isNotNull();

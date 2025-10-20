@@ -85,7 +85,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     @Override
     public void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
                                              Set<SSTableReader> sstables,
-                                             CompressionDictionaryTrainingConfig config)
+                                             CompressionDictionaryTrainingConfig config,
+                                             boolean force)
     {
         if (scheduledManualTrainingTask != null)
         {
@@ -97,7 +98,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
         // Run the SSTableSamplingTask asynchronously
         // Use a dummy scheduled task to track that training is in progress
-        SSTableSamplingTask task = new SSTableSamplingTask(sstables, trainer, config);
+        SSTableSamplingTask task = new SSTableSamplingTask(sstables, trainer, config, force);
         ScheduledExecutors.nonPeriodicTasks.submit(task);
 
         // Set a placeholder task so status checks know training is in progress
@@ -177,13 +178,16 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
         private final ICompressionDictionaryTrainer trainer;
         private final CompressionDictionaryTrainingConfig config;
         private final List<Ref<SSTableReader>> sstableRefs;
+        private final boolean force;
 
         private SSTableSamplingTask(Set<SSTableReader> sstables,
                                     ICompressionDictionaryTrainer trainer,
-                                    CompressionDictionaryTrainingConfig config)
+                                    CompressionDictionaryTrainingConfig config,
+                                    boolean force)
         {
             this.trainer = trainer;
             this.config = config;
+            this.force = force;
 
             // Acquire references to all SSTables to prevent deletion during sampling
             this.sstableRefs = new ArrayList<>();
@@ -228,8 +232,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 logger.info("Completed sampling for {}.{}, now training dictionary",
                             keyspaceName, tableName);
 
-                // force=true for manual training
-                trainer.trainDictionaryAsync(true)
+                // Use the force parameter from the task
+                trainer.trainDictionaryAsync(force)
                        .addCallback((dictionary, throwable) -> {
                            cancelManualTraining();
                            if (throwable != null)

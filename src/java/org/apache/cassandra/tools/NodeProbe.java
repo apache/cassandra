@@ -2692,15 +2692,16 @@ public class NodeProbe implements AutoCloseable
      *
      * @param keyspace the keyspace name
      * @param table the table name
+     * @param force force the dictionary training even if there are not enough samples
      * @throws IOException if there's an error accessing the MBean
      * @throws IllegalArgumentException if table doesn't support dictionary compression
      */
-    public void trainCompressionDictionary(String keyspace, String table) throws IOException
+    public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
     {
         CompressionDictionaryManagerMBean proxy = getDictionaryManagerProxy(keyspace, table);
         try
         {
-            proxy.train();
+            proxy.train(force);
         }
         catch (Exception e)
         {

@@ -43,11 +43,13 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
      * @param trainer the trainer to use
      * @param sstables the set of SSTables to sample from
      * @param config the training configuration
+     * @param force force the dictionary training even if there are not enough samples
      * @throws IllegalStateException if training is already in progress
      */
     void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
                                       Set<SSTableReader> sstables,
-                                      CompressionDictionaryTrainingConfig config);
+                                      CompressionDictionaryTrainingConfig config,
+                                      boolean force);
 
     /**
      * Sets the enabled state of the scheduler. When disabled, refresh tasks will not execute.

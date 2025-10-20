@@ -27,6 +27,7 @@ import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.Clock;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 @Command(name = "traincompressiondictionary",
@@ -39,6 +40,9 @@ public class TrainCompressionDictionary extends AbstractCommand
     @Parameters(index = "1", description = "The table name", arity = "1")
     private String table;
 
+    @Option(names = { "-f", "--force" }, description = "Force the dictionary training even if there are not enough samples")
+    private boolean force = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -50,7 +54,7 @@ public class TrainCompressionDictionary extends AbstractCommand
             out.printf("Starting compression dictionary training for %s.%s...%n", keyspace, table);
             out.printf("Training from existing SSTables (flushing first if needed)%n");
 
-            probe.trainCompressionDictionary(keyspace, table);
+            probe.trainCompressionDictionary(keyspace, table, force);
 
             // Wait for training completion (10 minutes timeout for SSTable-based training)
             out.println("Sampling from existing SSTables and training.");
