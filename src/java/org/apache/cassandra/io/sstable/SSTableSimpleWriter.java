@@ -66,8 +66,26 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
      */
     protected SSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
+        this(null, directory, metadata, columns, maxSSTableSizeInMiB);
+    }
+
+    /**
+     * Create a SSTable writer for sorted input data.
+     * When a positive {@param maxSSTableSizeInMiB} is defined, the writer outputs a sequence of SSTables,
+     * whose sizes do not exceed the specified value.
+     *
+     * @param owner owner of sstables this writer creates
+     * @param directory directory to store the sstable files
+     * @param metadata table metadata
+     * @param columns columns to update
+     * @param maxSSTableSizeInMiB defines the max SSTable size if the value is positive.
+     *                            Any non-positive value indicates the sstable size is unlimited.
+     */
+    protected SSTableSimpleWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
+    {
         super(directory, metadata, columns);
         this.maxSSTableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
+        this.owner = owner;
     }
 
     @Override

@@ -70,11 +70,17 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
+        this(null, directory, metadata, columns, maxSSTableSizeInMiB);
+    }
+
+    SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
+    {
         super(directory, metadata, columns);
         this.maxSStableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
         this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
         this.helper = new SerializationHelper(this.header);
         diskWriter.start();
+        this.owner = owner;
     }
 
     @Override
