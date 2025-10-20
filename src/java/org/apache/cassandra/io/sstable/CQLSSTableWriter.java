@@ -56,15 +56,18 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
@@ -413,6 +416,7 @@ public class CQLSSTableWriter implements Closeable
         private boolean buildIndexes = true;
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
         private boolean openSSTableOnProduced = false;
+        private CompressionDictionary compressionDictionary = null;
 
         protected Builder()
         {
@@ -665,6 +669,18 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Use specific compression dictionary upon writing the data.
+         *
+         * @param compressionDictionary compression dictionary to use
+         * @return this builder
+         */
+        public Builder withCompressionDictionary(CompressionDictionary compressionDictionary)
+        {
+            this.compressionDictionary = compressionDictionary;
+            return this;
+        }
+
         public CQLSSTableWriter build()
         {
             if (directory == null)
@@ -729,8 +745,26 @@ public class CQLSSTableWriter implements Closeable
                     Schema.instance.submit(SchemaTransformations.addTable(tableMetadata, true));
                 }
 
+                if (compressionDictionary != null)
+                {
+                    CompressionParams compressionParams = tableMetadata.params.compression;
+
+                    if (!compressionParams.isDictionaryCompressionEnabled())
+                    {
+                        throw new IllegalStateException("Table's compressor can not accept any dictionary: " + compressionParams.asMap());
+                    }
+
+                    IDictionaryCompressor compressor = (IDictionaryCompressor) compressionParams.getSstableCompressor();
+                    if (!compressor.canConsumeDictionary(compressionDictionary))
+                    {
+                        throw new IllegalStateException("Provided dictionary can not be consumed by table's compressor. " +
+                                                        "Provided dictionary type: " + compressionDictionary.kind() +
+                                                        "; expected dictionary type by the compressor: " + compressor.acceptableDictionaryKind());
+                    }
+                }
+
                 ColumnFamilyStore cfs = null;
-                if (buildIndexes && !indexStatements.isEmpty())
+                if ((buildIndexes && !indexStatements.isEmpty()) || compressionDictionary != null)
                 {
                     KeyspaceMetadata keyspaceMetadata = ClusterMetadata.current().schema.getKeyspaceMetadata(keyspaceName);
                     Keyspace keyspace = Keyspace.mockKS(keyspaceMetadata);
@@ -764,8 +798,8 @@ public class CQLSSTableWriter implements Closeable
 
                 TableMetadataRef ref = tableMetadata.ref;
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB)
-                                                     : new SSTableSimpleUnsortedWriter(directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB);
+                                                     ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB)
+                                                     : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB);
 
                 if (format != null)
                     writer.setSSTableFormatType(format);
@@ -775,6 +809,11 @@ public class CQLSSTableWriter implements Closeable
                     StorageAttachedIndexGroup saiGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
                     if (saiGroup != null)
                         writer.addIndexGroup(saiGroup);
+                }
+
+                if (compressionDictionary != null && cfs != null)
+                {
+                    writer.setCompressionDictionary(compressionDictionary);
                 }
 
                 if (sstableProducedListener != null)

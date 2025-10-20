@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -58,6 +59,11 @@ import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
+import org.apache.cassandra.db.compression.CompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
+import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
+import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
+import org.apache.cassandra.db.compression.ZstdDictionaryTrainer;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -84,10 +90,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaDriverUtils;
 import org.apache.cassandra.utils.OutputHandler;
-import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.db.compression.CompressionDictionary.Kind.ZSTD;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1671,7 +1678,7 @@ public abstract class CQLSSTableWriterTest
 
         writer.addRow(1, 4);
 
-        Assertions.assertThatThrownBy(() -> writer.addRow(2, 11))
+        assertThatThrownBy(() -> writer.addRow(2, 11))
         .describedAs("Should throw when adding a row that violates constraints")
         .isInstanceOf(ConstraintViolationException.class)
         .hasMessageContaining("Column value does not satisfy value constraint for column 'v1'. It should be v1 < 5");
@@ -1687,6 +1694,111 @@ public abstract class CQLSSTableWriterTest
             UntypedResultSet.Row row = resultSet.one();
             assertEquals(1, row.getInt("k"));
             assertEquals(4, row.getInt("v1"));
+        }
+    }
+
+    @Test
+    public void testWritingWithZstdDictionaryWhenUsingInvalidCompressor()
+    {
+        // the compressor is not dictionary-aware so we will fail
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 text,"
+                              + "  PRIMARY KEY (k)"
+                              + ") WITH compression = {'class': 'ZstdCompressor'}";
+
+        assertThatThrownBy(() -> CQLSSTableWriter.builder()
+                                                 .inDirectory(dataDir)
+                                                 .forTable(schema)
+                                                 .using("INSERT INTO " + keyspace + '.' + table + " (k, v1) VALUES (?, ?)")
+                                                 // does not matter, we will fail anyway
+                                                 .withCompressionDictionary(new ZstdCompressionDictionary(new DictId(ZSTD, 1), new byte[0]))
+                                                 .build())
+        .hasMessage("Table's compressor can not accept any dictionary: {chunk_length_in_kb=16, class=org.apache.cassandra.io.compress.ZstdCompressor}")
+        .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void testWritingWithZstdDictionary() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 text,"
+                              + "  PRIMARY KEY (k)"
+                              + ") WITH compression = {'class': 'ZstdDictionaryCompressor'}";
+
+        CompressionDictionary dictionary = DictionaryHelper.trainDictionary(keyspace, table);
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + keyspace + '.' + table + " (k, v1) VALUES (?, ?)")
+                                                  .withCompressionDictionary(dictionary)
+                                                  .build();
+
+        for (int i = 0; i < 500; i++)
+        {
+            writer.addRow(i, DictionaryHelper.INSTANCE.getRandomSample());
+        }
+
+        writer.close();
+
+        loadSSTables(dataDir, keyspace, table);
+
+        if (verifyDataAfterLoading)
+        {
+            UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+            assertNotNull(resultSet);
+            Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+            for (int i = 0; i < 500; i++)
+            {
+                UntypedResultSet.Row row = iter.next();
+                assertEquals(i, row.getInt("k"));
+                assertNotNull(row.getString("v1"));
+            }
+        }
+    }
+
+    /**
+     * Simple generator of random data for Zstd compression dictionary and dictionary trainer.
+     */
+    private static class DictionaryHelper
+    {
+        public static final DictionaryHelper INSTANCE = new DictionaryHelper();
+        private static final Random random = new Random();
+
+        private static final String[] dates = new String[] {"2025-10-20","2025-10-19","2025-10-18","2025-10-17","2025-10-16"};
+        private static final String[] times = new String[] {"11:00:01","11:00:02","11:00:03","11:00:04","11:00:05"};
+        private static final String[] levels = new String[] {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"};
+        private static final String[] services = new String[] {"com.example.UserService", "com.example.DatabasePool", "com.example.PaymentService", "com.example.OrderService"};
+
+        private String getRandomSample()
+        {
+            return dates[random.nextInt(dates.length)] + ' ' +
+                   times[random.nextInt(times.length)] + ' ' +
+                   levels[random.nextInt(levels.length)] + ' ' +
+                   services[random.nextInt(services.length)] + ' ' +
+                   UUID.randomUUID(); // message
+        }
+
+        private static CompressionDictionary trainDictionary(String keyspace, String table)
+        {
+            CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig
+                                                         .builder()
+                                                         .maxDictionarySize(65536)
+                                                         .maxTotalSampleSize(1024 * 1024) // 1MB total
+                                                         .build();
+
+            try (ZstdDictionaryTrainer trainer = new ZstdDictionaryTrainer(keyspace, table, config, 3))
+            {
+                trainer.start(true);
+                for (int i = 0; i < 25000; i++)
+                {
+                    trainer.addSample(UTF8Type.instance.fromString(DictionaryHelper.INSTANCE.getRandomSample()));
+                }
+
+                return trainer.trainDictionary(false);
+            }
         }
     }
 
