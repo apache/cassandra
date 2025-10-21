@@ -29,14 +29,15 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
@@ -48,6 +49,7 @@ import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -76,7 +78,7 @@ import static org.apache.cassandra.net.MessagingService.current_version;
 public class CassandraStreamReader implements IStreamReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReader.class);
-    private static final String logMessageTemplate = "[Stream #{}] Received streamed SSTable {} from {} containing key(s) outside valid ranges {}. Example: {}";
+    private static final String logMessageTemplate = "[Stream #{}] Received streamed SSTable {} from {} containing key outside valid ranges {}";
     protected final TableId tableId;
     protected final long estimatedKeys;
     protected final Collection<SSTableReader.PartitionPositionBounds> sections;
@@ -173,7 +175,7 @@ public class CassandraStreamReader implements IStreamReader
     {
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
-    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
+    protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
@@ -181,10 +183,14 @@ public class CassandraStreamReader implements IStreamReader
 
         StreamReceiver streamReceiver = session.getAggregator(tableId);
         Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
-        LifecycleNewTracker lifecycleNewTracker = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).createLifecycleNewTracker();
+        ILifecycleTransaction txn = createTxn();
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
+        return new SSTableTxnSingleStreamWriter(txn, writer);
+    }
 
-        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, format, sstableLevel, totalSize, lifecycleNewTracker, getHeader(cfs.metadata()));
-        return writer;
+    private ILifecycleTransaction createTxn()
+    {
+        return LifecycleTransaction.offline(OperationType.STREAM);
     }
 
     protected long totalSize()
@@ -209,8 +215,6 @@ public class CassandraStreamReader implements IStreamReader
         private final DeserializationHelper helper;
 
         private final List<Range<Token>> ownedRanges;
-        private final boolean outOfRangeTokenLogging;
-        private final boolean outOfRangeTokenRejection;
         private final StreamSession session;
         private final SSTableMultiWriter writer;
 
@@ -229,13 +233,11 @@ public class CassandraStreamReader implements IStreamReader
             this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
             this.version = version;
-            this.session = session;
-            this.writer = writer;
-
             ownedRanges = Range.normalize(StorageService.instance.getLocalAndPendingRanges(metadata.keyspace));
             lastCheckedRangeIndex = 0;
-            outOfRangeTokenLogging = DatabaseDescriptor.getLogOutOfTokenRangeRequests();
-            outOfRangeTokenRejection = DatabaseDescriptor.getRejectOutOfTokenRangeRequests();
+
+            this.session = session;
+            this.writer = writer;
         }
 
         public UnfilteredRowIterator newPartition() throws IOException
@@ -248,12 +250,9 @@ public class CassandraStreamReader implements IStreamReader
         protected void readKey() throws IOException
         {
             key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-
             lastCheckedRangeIndex = verifyKeyInOwnedRanges(key,
                                                            ownedRanges,
-                                                           lastCheckedRangeIndex,
-                                                           outOfRangeTokenLogging,
-                                                           outOfRangeTokenRejection);
+                                                           lastCheckedRangeIndex);
         }
 
         protected void readPartition() throws IOException
@@ -344,9 +343,7 @@ public class CassandraStreamReader implements IStreamReader
 
         private int verifyKeyInOwnedRanges(final DecoratedKey key,
                                            List<Range<Token>> ownedRanges,
-                                           int lastCheckedRangeIndex,
-                                           boolean outOfRangeTokenLogging,
-                                           boolean outOfRangeTokenRejection)
+                                           int lastCheckedRangeIndex)
         {
             if (lastCheckedRangeIndex < ownedRanges.size())
             {
@@ -362,14 +359,8 @@ public class CassandraStreamReader implements IStreamReader
             }
 
             StorageMetrics.totalOpsForInvalidToken.inc();
-
-            if (outOfRangeTokenLogging)
-                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, session.planId(), writer.getFilename(), session.peer, ownedRanges, key);
-
-            if (outOfRangeTokenRejection)
-                throw new StreamReceivedOutOfTokenRangeException(ownedRanges, key, writer.getFilename());
-
-            return lastCheckedRangeIndex;
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, session.planId(), writer.getFilename(), session.peer, ownedRanges);
+            throw new StreamReceivedOutOfTokenRangeException(ownedRanges, key, writer.getFilename());
         }
     }
 }

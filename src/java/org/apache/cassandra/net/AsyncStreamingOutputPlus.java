@@ -214,9 +214,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     private long writeFileToChannelZeroCopyUnthrottled(FileChannel file) throws IOException
     {
         final long length = file.size();
-
-        if (logger.isTraceEnabled())
-            logger.trace("Writing {} bytes", length);
+        logger.trace("Writing {} bytes", length);
 
         ChannelPromise promise = beginFlush(length, 0, length);
         final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, 0, length);

@@ -69,6 +69,16 @@ public class RoleOptionsTest
         assertInvalidOptions(opts, "Properties 'PASSWORD' and 'HASHED_PASSWORD' are mutually exclusive");
 
         opts = new RoleOptions();
+        opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, true);
+        opts.setOption(IRoleManager.Option.HASHED_PASSWORD, "$2a$10$JSJEMFm6GeaW9XxT5JIheuEtPvat6i7uKbnTcxX3c1wshIIsGyUtG");
+        assertInvalidOptions(opts, "Properties 'HASHED_PASSWORD' and 'GENERATED_PASSWORD' are mutually exclusive");
+
+        opts = new RoleOptions();
+        opts.setOption(IRoleManager.Option.PASSWORD, "abc");
+        opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, true);
+        assertInvalidOptions(opts, "Properties 'PASSWORD' and 'GENERATED_PASSWORD' are mutually exclusive");
+
+        opts = new RoleOptions();
         opts.setOption(IRoleManager.Option.LOGIN, true);
         opts.setOption(IRoleManager.Option.SUPERUSER, false);
         opts.setOption(IRoleManager.Option.PASSWORD, "test");
@@ -230,7 +240,7 @@ public class RoleOptionsTest
 
             }
 
-            public void setup()
+            public void setup(boolean asyncRoleSetup)
             {
 
             }

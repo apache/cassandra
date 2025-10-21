@@ -30,11 +30,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CoordinatorState extends AbstractState<CoordinatorState.State, TimeUUID>
 {
@@ -56,12 +54,32 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
     // API to split function calls for phase changes from getting the state
     public final Phase phase = new Phase();
 
-    public CoordinatorState(Clock clock, int cmd, String keyspace, RepairOption options)
+    public CoordinatorState(SharedContext ctx, int cmd, String keyspace, RepairOption options)
     {
-        super(clock, nextTimeUUID(), State.class);
+        super(ctx.clock(), ctx.timeUUID().get(), State.class);
         this.cmd = cmd;
         this.keyspace = Objects.requireNonNull(keyspace);
         this.options = Objects.requireNonNull(options);
+    }
+
+    public String getType()
+    {
+        if (options.isPreview())
+        {
+            switch (options.getPreviewKind())
+            {
+                case ALL: return "preview full";
+                case REPAIRED: return "preview repaired";
+                case UNREPAIRED: return "preview unrepaired";
+                case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
+                default: throw new AssertionError("Unknown preview kind: " + options.getPreviewKind());
+            }
+        }
+        else if (options.isIncremental())
+        {
+            return "incremental";
+        }
+        return "full";
     }
 
     public Collection<SessionState> getSessions()

@@ -25,6 +25,9 @@ import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.openhft.chronicle.core.util.WeakIdentityHashMap;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.utils.Clock;
@@ -34,16 +37,17 @@ import org.apache.cassandra.utils.concurrent.BlockingQueues;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.apache.cassandra.utils.concurrent.Semaphore.Standard;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @SuppressWarnings("unused")
-@Shared(scope = SIMULATION, inner = INTERFACES)
+@Shared(scope = SIMULATION, ancestors = INTERFACES)
 public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, Closeable
 {
+    Semaphore newSemaphore(int count);
+    Semaphore newFairSemaphore(int count);
     WaitQueue newWaitQueue();
     CountDownLatch newCountDownLatch(int count);
     Condition newOneTimeCondition();
@@ -68,6 +72,26 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     public static class IfInterceptibleThread extends None implements InterceptorOfGlobalMethods
     {
         static LongConsumer threadLocalRandomCheck;
+
+        @Override
+        public Semaphore newSemaphore(int count)
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newSemaphore(count);
+
+            return Semaphore.newSemaphore(count);
+        }
+
+        @Override
+        public Semaphore newFairSemaphore(int count)
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newFairSemaphore(count);
+
+            return Semaphore.newFairSemaphore(count);
+        }
 
         @Override
         public WaitQueue newWaitQueue()
@@ -356,6 +380,16 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     @SuppressWarnings("unused")
     public static class Global
     {
+        private static class LoggerHandle
+        {
+            private static final Logger logger = LoggerFactory.getLogger(Global.class);
+        }
+
+        private static Logger logger()
+        {
+            return LoggerHandle.logger;
+        }
+
         private static InterceptorOfGlobalMethods methods;
 
         public static WaitQueue newWaitQueue()
@@ -370,12 +404,12 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static Semaphore newSemaphore(int count)
         {
-            return new Standard(count, false);
+            return methods.newSemaphore(count);
         }
 
         public static Semaphore newFairSemaphore(int count)
         {
-            return new Standard(count, true);
+            return methods.newFairSemaphore(count);
         }
 
         public static Condition newOneTimeCondition()
@@ -405,8 +439,7 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static void uncaughtException(Thread thread, Throwable throwable)
         {
-            System.err.println(thread);
-            throwable.printStackTrace(System.err);
+            logger().error("Exception in thread {}", thread, throwable);
             methods.uncaughtException(thread, throwable);
         }
 

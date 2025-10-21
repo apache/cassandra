@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.sstable;
 
+
+import com.google.common.io.Files;
 import org.junit.After;
 import org.junit.Before;
 
@@ -26,18 +28,26 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class CQLSSTableWriterClientTest extends CQLSSTableWriterTest
 {
+    private File testDirectory;
     private IPartitioner oldPartitioner;
 
     @Before
-    public void setUp()
+    public void setup()
     {
+        // setting this to true will execute a CQL query to table
+        // and this path is not enabled in client mode
+        verifyDataAfterLoading = false;
+
+        this.testDirectory = new File(Files.createTempDir());
         DatabaseDescriptor.clientInitialization(true,
                                                 () -> {
                                                     Config config = new Config();
-                                                    config.data_file_directories = new String[]{ dataDir.absolutePath() };
+                                                    config.data_file_directories = new String[]{ testDirectory.absolutePath() };
                                                     return config;
                                                 });
         CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.setBoolean(true);
@@ -48,6 +58,7 @@ public class CQLSSTableWriterClientTest extends CQLSSTableWriterTest
     @After
     public void tearDown()
     {
+        FileUtils.deleteRecursive(this.testDirectory);
         if (oldPartitioner != null)
             DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }

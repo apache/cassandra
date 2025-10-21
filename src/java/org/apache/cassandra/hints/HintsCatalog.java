@@ -20,7 +20,12 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -30,10 +35,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
@@ -83,6 +88,11 @@ final class HintsCatalog
         }
     }
 
+    Collection<HintsStore> storesCollection()
+    {
+        return stores.values();
+    }
+
     Stream<HintsStore> stores()
     {
         return stores.values().stream();
@@ -108,6 +118,11 @@ final class HintsCatalog
     HintsStore getNullable(UUID hostId)
     {
         return stores.get(hostId);
+    }
+
+    void deleteAllHintsUnsafe()
+    {
+        stores.values().forEach(HintsStore::deleteAllHintsUnsafe);
     }
 
     /**
@@ -161,6 +176,10 @@ final class HintsCatalog
                 logger.error("Unable to sync directory {}", hintsDirectory.absolutePath(), e);
                 FileUtils.handleFSErrorAndPropagate(e);
             }
+        }
+        else if (!NativeLibrary.isEnabled())
+        {
+            return;
         }
         else if (DatabaseDescriptor.isClientInitialized())
         {

@@ -20,14 +20,13 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -39,15 +38,18 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -70,7 +72,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *     message is received, {@link RequestCallback#onResponse(Message)} method will be invoked on the
  *     provided callback - in case of a success response. In case of a failure response (see {@link Verb#FAILURE_RSP}),
  *     or if a response doesn't arrive within verb's configured expiry time,
- *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailureReason)} will be invoked instead.
+ *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailure)} will be invoked instead.
  *  2. To send a response back, or a message that expects no response, use {@link #send(Message, InetAddressAndPort)}
  *     method.
  *
@@ -219,13 +221,24 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_3014(11),
         VERSION_40(12),
         // c14227 TTL overflow, 'uint' timestamps
-        VERSION_50(13);
+        VERSION_50(13),
+        // TCM, index hints
+        VERSION_51(14);
+
+        public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
 
         public final int value;
 
         Version(int value)
         {
             this.value = value;
+        }
+
+        public static Version current()
+        {
+            // this enum is leveraged in yaml config so can not touch DatabaseDescriptor to figure out
+            // what the "current" is, so need to leverage MessagingService's field as it uses DatabaseDescriptor
+            return current;
         }
 
         public static List<Version> supportedVersions()
@@ -237,6 +250,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
             return Collections.unmodifiableList(versions);
         }
+
     }
     // Maintance Note:
     // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class
@@ -249,12 +263,14 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
+    public static final int VERSION_51 = 14; // TCM, index hints
     public static final int minimum_version = VERSION_40;
-    public static final int maximum_version = VERSION_50;
+    public static final int maximum_version = VERSION_51;
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+    public static final Version current = currentVersion();
+    public static final int current_version = current.value;
     static AcceptVersions accept_messaging;
     static AcceptVersions accept_streaming;
     static
@@ -270,22 +286,28 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             accept_streaming = new AcceptVersions(current_version, current_version);
         }
     }
-    static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
+    static final int minVersion = Version.values()[0].value;
+    static final int maxOrdinalVersion = Version.values().length - 1;
 
     /**
      * This is an optimisation to speed up the translation of the serialization
      * version to the {@link Version} enum ordinal.
+     * We expect values for new versions to be incremented sequentally
      *
      * @param version the serialization version
      * @return a {@link Version} ordinal value
      */
     public static int getVersionOrdinal(int version)
     {
-        Integer ordinal = versionOrdinalMap.get(version);
-        if (ordinal == null)
-            throw new IllegalStateException("Unkown serialization version: " + version);
+        int result = version - minVersion;
+        if (result < 0 || result > maxOrdinalVersion)
+            throw new IllegalStateException("Unknown serialization version: " + version);
+        return result;
+    }
 
-        return ordinal;
+    private static Version currentVersion()
+    {
+        return DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
     }
 
     private static class MSHandle
@@ -348,9 +370,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                promise.tryFailure(new FailureResponseException(from, failureReason));
+                promise.tryFailure(new FailureResponseException(from, failure));
             }
 
             @Override
@@ -367,11 +389,11 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         private final InetAddressAndPort from;
         private final RequestFailureReason failureReason;
 
-        public FailureResponseException(InetAddressAndPort from, RequestFailureReason failureReason)
+        public FailureResponseException(InetAddressAndPort from, RequestFailure failureReason)
         {
-            super(String.format("Failure from %s: %s", from, failureReason.name()));
+            super(String.format("Failure from %s: %s", from, failureReason.reason.name()), failureReason.failure);
             this.from = from;
-            this.failureReason = failureReason;
+            this.failureReason = failureReason.reason;
         }
 
         public InetAddressAndPort from()
@@ -394,12 +416,14 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param cb      callback interface which is used to pass the responses or
      *                suggest that a timeout occurred to the invoker of the send().
      */
-    public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb)
+    @Override
+    public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
     {
         sendWithCallback(message, to, cb, null);
     }
 
-    public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb, ConnectionType specifyConnection)
+    @Override
+    public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
     {
         callbacks.addWithExpiration(cb, message, to);
         if (cb.invokeOnFailure() && !message.callBackOnFailure())
@@ -432,7 +456,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param message messages to be sent.
      * @param to      endpoint to which the message needs to be sent
      */
-    public void send(Message message, InetAddressAndPort to)
+    @Override
+    public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
     {
         send(message, to, null);
     }
@@ -444,13 +469,50 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param message messages to be sent.
      * @param response
      */
+    @Override
     public <V> void respond(V response, Message<?> message)
     {
         send(message.responseWith(response), message.respondTo());
     }
 
+    public <RSP> Future<RSP> sendWithResponse(InetAddressAndPort to, Message<?> msg)
+    {
+        Promise<RSP> future = AsyncPromise.uncancellable();
+        MessagingService.instance().sendWithCallback(msg, to,
+                                                     new RequestCallback<RSP>()
+                                                     {
+                                                         @Override
+                                                         public void onResponse(Message<RSP> msg)
+                                                         {
+                                                             future.setSuccess(msg.payload);
+                                                         }
+
+                                                         @Override
+                                                         public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                                                         {
+                                                             future.setFailure(new RuntimeException(failure.toString()));
+                                                         }
+                                                     });
+
+        return future;
+    }
+
+    public void respondWithFailure(RequestFailureReason reason, Message<?> message)
+    {
+        Message<?> r = Message.failureResponse(message.id(), message.expiresAtNanos(), new RequestFailure(reason, null));
+        if (r.header.hasFlag(MessageFlag.URGENT))
+            r = r.withFlag(MessageFlag.URGENT);
+        send(r, message.respondTo());
+    }
+
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)
     {
+        if (isShuttingDown)
+        {
+            logger.warn("Cannot send the message {} to {}, as messaging service is shutting down", message, to);
+            return;
+        }
+
         if (logger.isTraceEnabled())
         {
             logger.trace("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPort(), message.verb(), message.id(), to);
@@ -467,7 +529,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         // expire the callback if the message failed to enqueue (failed to establish a connection or exceeded queue capacity)
         while (true)
         {
-            OutboundConnections connections = getOutbound(to);
+            OutboundConnections connections = getOutbound(to, true);
             try
             {
                 connections.enqueue(message, specifyConnection);
@@ -659,10 +721,10 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         socketFactory.awaitTerminationUntil(deadlineNanos);
     }
 
-    private OutboundConnections getOutbound(InetAddressAndPort to)
+    private OutboundConnections getOutbound(InetAddressAndPort to, boolean tryRegister)
     {
         OutboundConnections connections = channelManagers.get(to);
-        if (connections == null)
+        if (connections == null && tryRegister)
             connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING));
         return connections;
     }
@@ -699,5 +761,53 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public void waitUntilListening() throws InterruptedException
     {
         inboundSockets.open().await();
+    }
+
+    public void waitUntilListeningUnchecked()
+    {
+        try
+        {
+            inboundSockets.open().await();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Returns the endpoints for the given keyspace that are known to be alive and have a connection whose
+     * messaging version is older than the given version. To be used for example when we want to be sure a message
+     * can be serialized to all endpoints, according to their negotiated version at connection time.
+     *
+     * @param version a messaging version
+     * @return a set of alive endpoints in the given keyspace with messaging version below the given version
+     */
+    public Set<InetAddressAndPort> endpointsWithConnectionsOnVersionBelow(int version)
+    {
+        Set<InetAddressAndPort> nodes = new HashSet<>();
+        for (InetAddressAndPort node : ClusterMetadata.current().directory.allAddresses())
+        {
+            if (hasConnectionWithVersionBelow(node, version))
+                nodes.add(node);
+        }
+        return nodes;
+    }
+
+    private boolean hasConnectionWithVersionBelow(InetAddressAndPort node, int version)
+    {
+        OutboundConnections connections = getOutbound(node, false);
+
+        if (connections == null)
+            return false;
+
+        for (ConnectionType type : ConnectionType.MESSAGING_TYPES)
+        {
+            OutboundConnection connection = connections.connectionFor(type);
+            if (connection != null && connection.messagingVersion() < version)
+                return true;
+        }
+
+        return false;
     }
 }

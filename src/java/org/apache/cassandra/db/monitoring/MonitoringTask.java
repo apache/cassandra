@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.monitoring;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,9 +33,19 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.logging.LoggingSupport;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import org.apache.cassandra.utils.logging.SlowQueriesAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MONITORING_MAX_OPERATIONS;
@@ -47,8 +58,9 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  * We also log timed out operations, see CASSANDRA-7392.
  * Since CASSANDRA-12403 we also log queries that were slow.
  */
-class MonitoringTask
+public class MonitoringTask
 {
+    private static final String SLOW_OPERATIONS_LOGGER_NAME = "slow_queries";
     private static final String LINE_SEPARATOR = CassandraRelevantProperties.LINE_SEPARATOR.getString();
     private static final Logger logger = LoggerFactory.getLogger(MonitoringTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
@@ -70,6 +82,8 @@ class MonitoringTask
     private final ScheduledFuture<?> reportingTask;
     private final OperationsQueue failedOperationsQueue;
     private final OperationsQueue slowOperationsQueue;
+    private Logger slowOperationsLogger = logger;
+    private boolean slowOperationsLoggedToVirtualTable;
     private long approxLastLogTimeNanos;
 
 
@@ -97,6 +111,15 @@ class MonitoringTask
                                                                                      reportIntervalMillis,
                                                                                      reportIntervalMillis,
                                                                                      TimeUnit.MILLISECONDS);
+
+        LoggingSupport support = LoggingSupportFactory.getLoggingSupport();
+        if (support.getLogger(SLOW_OPERATIONS_LOGGER_NAME).isPresent())
+        {
+            if (support.getAppender(SlowQueriesAppender.class, SlowQueriesAppender.APPENDER_NAME).isPresent())
+                slowOperationsLoggedToVirtualTable = true;
+
+            slowOperationsLogger = LoggerFactory.getLogger(SLOW_OPERATIONS_LOGGER_NAME);
+        }
     }
 
     public void cancel()
@@ -169,14 +192,30 @@ class MonitoringTask
         if (!slowOperations.isEmpty())
         {
             long approxElapsedNanos = approxCurrentTimeNanos - approxLastLogTimeNanos;
-            noSpamLogger.info("Some operations were slow, details available at debug level (debug.log)");
+            noSpamLogger.info("Some operations were slow, details available at debug level (debug.log) or " +
+                              "system_views.slow_queries virtual table (when enabled).");
 
-            if (logger.isDebugEnabled())
-                logger.debug("{} operations were slow in the last {} msecs:{}{}",
-                             slowOperations.num(),
-                             NANOSECONDS.toMillis(approxElapsedNanos),
-                             LINE_SEPARATOR,
-                             slowOperations.getLogMessage());
+            if (slowOperationsLogger.isDebugEnabled())
+            {
+                if (slowOperationsLoggedToVirtualTable)
+                {
+                    // This is the crux of the patch for appending to vtable.
+                    // Because we can send only Strings to debug method (or objects, on which toString()
+                    // would be eventually called), we need to log a string in such a way that we can
+                    // get Operation object(s) back "on the other side" when dealing with vtables and custom appenders
+                    // as appenders work with LoggingEvent where message is just a string.
+                    // It would be very hard / tricky / error-prone to parse customly crafted log message
+                    // which appears in logs when no vtable appender is used.
+                    slowOperationsLogger.debug(Operation.serialize(slowOperations.getOperations()));
+                }
+                else
+                    slowOperationsLogger.debug("{} operations were slow in the last {} msecs:{}{}",
+                                               slowOperations.num(),
+                                               NANOSECONDS.toMillis(approxElapsedNanos),
+                                               LINE_SEPARATOR,
+                                               slowOperations.getLogMessage());
+            }
+
             return true;
         }
         return false;
@@ -274,6 +313,12 @@ class MonitoringTask
             return operations.size() + numDropped;
         }
 
+        private Collection<Operation> getOperations()
+        {
+            return operations.values();
+        }
+
+        @JsonIgnore
         String getLogMessage()
         {
             if (isEmpty())
@@ -307,9 +352,16 @@ class MonitoringTask
      * same name (CQL query text) is reported and store the average, min and max
      * times.
      */
-    protected abstract static class Operation
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "id")
+    @JsonSubTypes({ @JsonSubTypes.Type(value = SlowOperation.class) })
+    @VisibleForTesting
+    public abstract static class Operation
     {
+        @JsonProperty
+        String id = getClass().getName();
+
         /** The operation that was reported as slow or timed out */
+        @JsonIgnore
         final Monitorable operation;
 
         /** The number of times the operation was reported */
@@ -319,24 +371,50 @@ class MonitoringTask
         long totalTimeNanos;
 
         /** The maximum time spent by this operation */
-        long maxTime;
+        long maxTimeNanos;
 
         /** The minimum time spent by this operation */
-        long minTime;
+        long minTimeNanos;
 
         /** The name of the operation, i.e. the SELECT query CQL,
          * this is set lazily as it takes time to build the query CQL */
         private String name;
+
+        /**
+         * creation time of this Operation object, in ms,
+         * this is different from operation's creationTimeNanos
+         * which does not follow wall clock and is useless for
+         * reporting purposes e.g. in virtual tables
+         */
+        private final long timestampMs;
+
+        // optional keyspace and table this operation acts on
+        // used upon deserialization
+        private String keyspace;
+        private String table;
+        private boolean crossNode;
 
         Operation(Monitorable operation, long failedAtNanos)
         {
             this.operation = operation;
             numTimesReported = 1;
             totalTimeNanos = failedAtNanos - operation.creationTimeNanos();
-            minTime = totalTimeNanos;
-            maxTime = totalTimeNanos;
+            minTimeNanos = totalTimeNanos;
+            maxTimeNanos = totalTimeNanos;
+            timestampMs = Clock.Global.currentTimeMillis() - (Clock.Global.nanoTime() - operation.creationTimeNanos()) / 1_000_000;
         }
 
+        void add(Operation operation)
+        {
+            numTimesReported++;
+            totalTimeNanos += operation.totalTimeNanos;
+            maxTimeNanos = Math.max(maxTimeNanos, operation.maxTimeNanos);
+            minTimeNanos = Math.min(minTimeNanos, operation.minTimeNanos);
+        }
+
+        public abstract String getLogMessage();
+
+        @JsonProperty
         public String name()
         {
             if (name == null)
@@ -344,15 +422,96 @@ class MonitoringTask
             return name;
         }
 
-        void add(Operation operation)
+        @JsonProperty
+        public String keyspace()
         {
-            numTimesReported++;
-            totalTimeNanos += operation.totalTimeNanos;
-            maxTime = Math.max(maxTime, operation.maxTime);
-            minTime = Math.min(minTime, operation.minTime);
+            if (operation != null)
+            {
+                String monitored = operation.monitoredOnKeyspace();
+                if (monitored != null)
+                    return monitored;
+            }
+            return keyspace;
         }
 
-        public abstract String getLogMessage();
+        public void setKeyspace(String keyspace)
+        {
+            this.keyspace = keyspace;
+        }
+
+        public void setTable(String table)
+        {
+            this.table = table;
+        }
+
+        @JsonProperty
+        public String table()
+        {
+            if (operation != null)
+            {
+                String monitored = operation.monitoredOnTable();
+                if (monitored != null)
+                    return monitored;
+            }
+            return table;
+        }
+
+        @JsonProperty
+        public boolean isCrossNode()
+        {
+            if (operation != null)
+                return operation.isCrossNode();
+
+            return crossNode;
+        }
+
+        @JsonProperty
+        public int numTimesReported()
+        {
+            return numTimesReported;
+        }
+
+        @JsonProperty
+        public long totalTimeNanos()
+        {
+            return totalTimeNanos;
+        }
+
+        @JsonProperty
+        public long maxTimeNanos()
+        {
+            return maxTimeNanos;
+        }
+
+        @JsonProperty
+        public long minTimeNanos()
+        {
+            return minTimeNanos;
+        }
+
+        @JsonIgnore
+        public long averageTime()
+        {
+            return totalTimeNanos / numTimesReported;
+        }
+
+        @JsonProperty
+        public long timestampMs()
+        {
+            return timestampMs;
+        }
+
+        public static String serialize(Collection<Operation> operations)
+        {
+            return JsonUtils.writeAsJsonString(operations);
+        }
+
+        private static final TypeReference<List<Operation>> TYPE_REFERENCE = new TypeReference<>() {};
+
+        public static List<Operation> deserialize(String message) throws Throwable
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.readValue(message, TYPE_REFERENCE);
+        }
     }
 
     /**
@@ -378,8 +537,8 @@ class MonitoringTask
                                      name(),
                                      numTimesReported,
                                      NANOSECONDS.toMillis(totalTimeNanos / numTimesReported),
-                                     NANOSECONDS.toMillis(minTime),
-                                     NANOSECONDS.toMillis(maxTime),
+                                     NANOSECONDS.toMillis(minTimeNanos),
+                                     NANOSECONDS.toMillis(maxTimeNanos),
                                      NANOSECONDS.toMillis(operation.timeoutNanos()),
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
         }
@@ -388,13 +547,21 @@ class MonitoringTask
     /**
      * An operation (query) that was reported as slow.
      */
-    private final static class SlowOperation extends Operation
+    @VisibleForTesting
+    public final static class SlowOperation extends Operation
     {
-        SlowOperation(Monitorable operation, long failedAt)
+        // purely for deserialization purposes
+        public SlowOperation()
+        {
+            this(Monitorable.NO_OP, 0);
+        }
+
+        public SlowOperation(Monitorable operation, long failedAt)
         {
             super(operation, failedAt);
         }
 
+        @JsonIgnore
         public String getLogMessage()
         {
             if (numTimesReported == 1)
@@ -408,8 +575,8 @@ class MonitoringTask
                                      name(),
                                      numTimesReported,
                                      NANOSECONDS.toMillis(totalTimeNanos/ numTimesReported),
-                                     NANOSECONDS.toMillis(minTime),
-                                     NANOSECONDS.toMillis(maxTime),
+                                     NANOSECONDS.toMillis(minTimeNanos),
+                                     NANOSECONDS.toMillis(maxTimeNanos),
                                      NANOSECONDS.toMillis(operation.slowTimeoutNanos()),
                                      operation.isCrossNode() ? "msec/cross-node" : "msec");
         }

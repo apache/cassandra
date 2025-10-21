@@ -43,6 +43,9 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
     final Cloner cloner;
     final UpdateTransaction indexer;
     public long dataSize;
+
+    public long keySize;
+
     long heapSize;
     public long colUpdateTimeDelta = Long.MAX_VALUE;
 
@@ -54,12 +57,14 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
         this.indexer = indexer;
         this.heapSize = 0;
         this.dataSize = 0;
+        this.keySize = 0;
     }
 
     public BTreePartitionData mergePartitions(BTreePartitionData current, final PartitionUpdate update)
     {
         if (current == null)
         {
+            keySize = update.partitionKey.getKeyLength();
             current = BTreePartitionData.EMPTY;
             onAllocatedOnHeap(BTreePartitionData.UNSHARED_HEAP_SIZE);
         }

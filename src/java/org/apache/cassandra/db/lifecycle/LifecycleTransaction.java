@@ -21,9 +21,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
@@ -32,6 +34,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +69,7 @@ import static org.apache.cassandra.db.lifecycle.Helpers.prepareForObsoletion;
 import static org.apache.cassandra.db.lifecycle.Helpers.select;
 import static org.apache.cassandra.db.lifecycle.Helpers.selectFirst;
 import static org.apache.cassandra.db.lifecycle.Helpers.setReplaced;
+import static org.apache.cassandra.db.lifecycle.View.replaceSSTables;
 import static org.apache.cassandra.db.lifecycle.View.updateCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateLiveSet;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -125,7 +129,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public final Tracker tracker;
+    private final Tracker tracker;
     // The transaction logs keep track of new and old sstable files
     private final LogTransaction log;
     // the original readers this transaction was opened over, and that it guards
@@ -161,7 +165,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     /**
      * construct a Transaction for use in an offline operation
      */
-    public static LifecycleTransaction offline(OperationType operationType, Iterable<SSTableReader> readers)
+    public static LifecycleTransaction offline(OperationType operationType, Collection<SSTableReader> readers)
     {
         // if offline, for simplicity we just use a dummy tracker
         Tracker dummy = Tracker.newDummyTracker();
@@ -184,6 +188,11 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         this(tracker, new LogTransaction(operationType, tracker), readers);
     }
 
+    LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers, TimeUUID id)
+    {
+        this(tracker, new LogTransaction(operationType, tracker, id), readers);
+    }
+
     LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<? extends SSTableReader> readers)
     {
         this.tracker = tracker;
@@ -196,20 +205,22 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public LogTransaction log()
-    {
-        return log;
-    }
-
-    @Override //LifecycleNewTracker
+    @Override
     public OperationType opType()
     {
         return log.type();
     }
 
+    @Override
     public TimeUUID opId()
     {
         return log.id();
+    }
+
+    @VisibleForTesting
+    public Tracker tracker()
+    {
+        return tracker;
     }
 
     public void doPrepare()
@@ -282,7 +293,15 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // replace all updated readers with a version restored to its original state
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
-        accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+
+        Map<SSTableReader, SSTableReader> replacementMap = Collections.emptyMap();
+        if (!isOffline())
+            replacementMap = getReplacementMap(logged.update, restored);
+        if (!replacementMap.isEmpty())
+            accumulate = tracker.apply(replaceSSTables(logged.update, restored, replacementMap, tracker.maybeGetSSTableIntervalTreeLatencyMetrics()), accumulate);
+        else
+            accumulate = tracker.apply(updateLiveSet(logged.update, restored, tracker.maybeGetSSTableIntervalTreeLatencyMetrics()), accumulate);
+
         accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
@@ -296,6 +315,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         logged.clear();
         staged.clear();
         return accumulate;
+    }
+
+    void takeOwnership(ILifecycleTransaction txn)
+    {
+        LifecycleTransaction ltn = (LifecycleTransaction)txn;
+        if (!ltn.obsoletions.isEmpty() || !ltn.originals.isEmpty() || !ltn.logged.isEmpty())
+            throw new IllegalStateException("takeOwnership is only supported in add-only transactions (streams)");
+        log.takeOwnership(ltn.log);
     }
 
     private Throwable runOnCommitHooks(Throwable accumulate)
@@ -347,8 +374,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
     private Throwable checkpoint(Throwable accumulate)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("Checkpointing staged {}", staged);
+        logger.trace("Checkpointing staged {}", staged);
 
         if (staged.isEmpty())
             return accumulate;
@@ -362,8 +388,15 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // ensure any new readers are in the compacting set, since we aren't done with them yet
         // and don't want anyone else messing with them
         // apply atomically along with updating the live set of readers
-        tracker.apply(compose(updateCompacting(emptySet(), fresh),
-                              updateLiveSet(toUpdate, staged.update)));
+        Map<SSTableReader, SSTableReader> replacementMap = Collections.emptyMap();
+        if (!isOffline())
+            replacementMap = getReplacementMap(toUpdate, staged.update);
+        if (!replacementMap.isEmpty())
+            tracker.apply(compose(updateCompacting(emptySet(), fresh),
+                                  replaceSSTables(toUpdate, staged.update, replacementMap, tracker.maybeGetSSTableIntervalTreeLatencyMetrics())));
+        else
+            tracker.apply(compose(updateCompacting(emptySet(), fresh),
+                                  updateLiveSet(toUpdate, staged.update, tracker.maybeGetSSTableIntervalTreeLatencyMetrics())));
 
         // log the staged changes and our newly marked readers
         marked.addAll(fresh);
@@ -378,6 +411,38 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return accumulate;
     }
 
+    // Match the SSTableReaders from the existing ones to the new one to be added (with same ranges)
+    // Returns the map of toRemove <-> toAdd. Return empty map if such 1-1 replacement doesn't exist
+    private static Map<SSTableReader, SSTableReader> getReplacementMap(final Set<SSTableReader> remove, final Collection<SSTableReader> add)
+    {
+        if (remove.size() != add.size())
+            return Collections.emptyMap();
+
+        List<SSTableReader> toAdds = new ArrayList<>(add);
+        List<SSTableReader> toRemoves = new ArrayList<>(remove);
+        // sort the SSTableReader list by (first, last, descriptor.id). The view is per cfs so id will be unique
+        Comparator<SSTableReader> comp = Comparator.comparing((SSTableReader s) -> s.getFirst())
+                                                   .thenComparing(s -> s.getLast())
+                                                   .thenComparing(SSTableReader.idComparator);
+        toRemoves.sort(comp);
+        toAdds.sort(comp);
+
+        Map<SSTableReader, SSTableReader> replacementMap = Maps.newHashMapWithExpectedSize(toAdds.size());
+        // toAdd and toRemove have the same size
+        for (int i = 0; i < toAdds.size(); i++)
+        {
+            SSTableReader toRemove = toRemoves.get(i);
+            SSTableReader toAdd = toAdds.get(i);
+            // optimization: here we don't check the descriptor. If we're able to match those to be removed with those
+            // to be added, we ensure that the pairs have the same (first, last) range
+            if (toRemove.getFirst().equals(toAdd.getFirst()) && toRemove.getLast().equals(toAdd.getLast()))
+                replacementMap.put(toRemove, toAdd);
+            else
+                // stop and return empty map if toAdd and toRemove can't match
+                return Collections.emptyMap();
+        }
+        return replacementMap;
+    }
 
     /**
      * update a reader: if !original, this is a reader that is being introduced by this transaction;
@@ -577,13 +642,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     // convenience method for callers that know only one sstable is involved in the transaction
+    // overridden to avoid defensive copying
     public SSTableReader onlyOne()
     {
         assert originals.size() == 1;
         return getFirst(originals, null);
     }
-
-    // LifecycleNewTracker
 
     @Override
     public void trackNew(SSTable table)
@@ -596,7 +660,6 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         log.untrackNew(table);
     }
-
     public static boolean removeUnfinishedLeftovers(ColumnFamilyStore cfs)
     {
         return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());

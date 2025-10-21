@@ -21,12 +21,11 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOError;
 import java.io.IOException;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
 
 @Command(name = "replaybatchlog", description = "Kick off batchlog replay and wait for finish")
-public class ReplayBatchlog extends NodeTool.NodeToolCmd
+public class ReplayBatchlog extends AbstractCommand
 {
     protected void execute(NodeProbe probe)
     {

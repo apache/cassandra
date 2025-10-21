@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 
 public final class InternodeInboundTable extends AbstractVirtualTable
 {
@@ -112,9 +113,8 @@ public final class InternodeInboundTable extends AbstractVirtualTable
 
     private void addRow(SimpleDataSet dataSet, InetAddressAndPort addressAndPort, InboundMessageHandlers handlers)
     {
-        String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(addressAndPort);
-        String rack = DatabaseDescriptor.getEndpointSnitch().getRack(addressAndPort);
-        dataSet.row(addressAndPort.getAddress(), addressAndPort.getPort(), dc, rack)
+        Location location = DatabaseDescriptor.getLocator().location(addressAndPort);
+        dataSet.row(addressAndPort.getAddress(), addressAndPort.getPort(), location.datacenter, location.rack)
                .column(USING_BYTES, handlers.usingCapacity())
                .column(USING_RESERVE_BYTES, handlers.usingEndpointReserveCapacity())
                .column(CORRUPT_FRAMES_RECOVERED, handlers.corruptFramesRecovered())

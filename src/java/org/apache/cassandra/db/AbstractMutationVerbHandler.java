@@ -24,58 +24,177 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 public abstract class AbstractMutationVerbHandler<T extends IMutation> implements IVerbHandler<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractMutationVerbHandler.class);
-    private static final String logMessageTemplate = "Receiving mutation(s) for token(s) neither owned nor pending. Example: from {} for token {} in keyspace {}";
+    private static final String logMessageTemplate = "Received mutation from {} for token {} outside valid range for keyspace {}";
 
-    @Override
     public void doVerb(Message<T> message) throws IOException
     {
-        processMessage(message, message.from());
+        processMessage(message, message.respondTo());
     }
 
-    public void processMessage(Message<T> message, InetAddressAndPort respondTo)
+    protected void processMessage(Message<T> message, InetAddressAndPort respondTo)
     {
-        boolean outOfRangeTokenLogging = DatabaseDescriptor.getLogOutOfTokenRangeRequests();
-        boolean outOfRangeTokenRejection = DatabaseDescriptor.getRejectOutOfTokenRangeRequests();
-
-        DecoratedKey key = message.payload.key();
-        boolean isOutOfRangeMutation = isOutOfRangeMutation(message.payload.getKeyspaceName(), key);
-        if (isOutOfRangeMutation)
+        if (message.epoch().isAfter(Epoch.EMPTY))
         {
-            StorageService.instance.incOutOfRangeOperationCount();
-            Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
-
-            if (outOfRangeTokenLogging)
-                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, 
-                                 respondTo, key.getToken(), message.payload.getKeyspaceName());
+            ClusterMetadata metadata = ClusterMetadata.current();
+            metadata = checkTokenOwnership(metadata, message, respondTo);
+            metadata = checkSchemaVersion(metadata, message, respondTo);
         }
-        if (outOfRangeTokenRejection && isOutOfRangeMutation)
-            sendFailureResponse(message, respondTo);
-        else
+
+        try
+        {
             applyMutation(message, respondTo);
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            logger.debug("Responding with retry on different system");
+            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
+        }
     }
 
     abstract void applyMutation(Message<T> message, InetAddressAndPort respondToAddress);
 
-    private void sendFailureResponse(Message<T> respondTo, InetAddressAndPort respondToAddress)
+    private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
-        MessagingService.instance().send(respondTo.failureResponse(RequestFailureReason.UNKNOWN), respondToAddress);
+        String keyspace = message.payload.getKeyspaceName();
+        DecoratedKey key = message.payload.key();
 
+        VersionedEndpoints.ForToken forToken = writePlacements(metadata, keyspace, key);
+
+        if (message.epoch().isAfter(metadata.epoch))
+        {
+            // If replica detects that coordinator has made an out-of-range request, it has to catch up blockingly,
+            // since coordinator's routing may be more recent.
+            if (!forToken.get().containsSelf())
+            {
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+                forToken = writePlacements(metadata, keyspace, key);
+            }
+            // Otherwise, coordinator and the replica agree about the placement of the givent token, so catch-up can be async
+            else
+            {
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, respondTo, message.epoch());
+            }
+        }
+
+        if (!forToken.get().containsSelf())
+        {
+            StorageService.instance.incOutOfRangeOperationCount();
+            Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, respondTo, key.getToken(), message.payload.getKeyspaceName());
+            throw InvalidRoutingException.forWrite(respondTo, key.getToken(), metadata.epoch, message.payload);
+        }
+
+        if (forToken.lastModified().isAfter(message.epoch()))
+        {
+            TCMMetrics.instance.coordinatorBehindPlacements.mark();
+            throw new CoordinatorBehindException(String.format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. Current coordinator epoch is %s",
+                                                               forToken.lastModified(), message.epoch()));
+        }
+
+        return metadata;
     }
 
-    private static boolean isOutOfRangeMutation(String keyspace, DecoratedKey key)
+    private ClusterMetadata checkSchemaVersion(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
-        return !StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken());
+        if (SchemaConstants.isSystemKeyspace(message.payload.getKeyspaceName()) || message.epoch().is(metadata.epoch))
+            return metadata;
+        String keyspace = message.payload.getKeyspaceName();
+        Keyspace ks = metadata.schema.getKeyspace(keyspace);
+        if (ks != null)
+        {
+            if (message.epoch().isAfter(metadata.epoch))
+            {
+                // coordinator is ahead - check each partition update if the schema is ahead of the schema we have for the table
+                for (PartitionUpdate pu : message.payload.getPartitionUpdates())
+                {
+                    Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                    if (remoteSchemaEpoch != null && remoteSchemaEpoch.isAfter(metadata.epoch))
+                    {
+                        // the partition update was serialized after the epoch we currently know, catch up and
+                        // make sure we've seen the epoch it has seen, otherwise fail request.
+                        metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+                        if (pu.serializedAtEpoch.isAfter(metadata.epoch))
+                            throw new IllegalStateException(String.format("Coordinator %s is still ahead after fetching log, our epoch = %s, their epoch = %s",
+                                                                          respondTo,
+                                                                          metadata.epoch, message.epoch()));
+                    }
+                }
+            }
+            else if (message.epoch().isBefore(metadata.schema.lastModified()))
+            {
+                // coordinator might not have seen the latest schema change - check each modified table individually
+                for (PartitionUpdate pu : message.payload.getPartitionUpdates())
+                {
+                    // coordinator could be behind, check local tables
+                    ColumnFamilyStore cfs = ks.getColumnFamilyStore(pu.metadata().id);
+                    if (cfs != null)
+                    {
+                        Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                        if (remoteSchemaEpoch != null && remoteSchemaEpoch.isBefore(cfs.metadata().epoch))
+                        {
+                            TCMMetrics.instance.coordinatorBehindSchema.mark();
+                            throw new CoordinatorBehindException(String.format("Coordinator %s is behind, our epoch = %s, their epoch = %s",
+                                                                               respondTo,
+                                                                               metadata.epoch, message.epoch()));
+                        }
+                    }
+                    else
+                    {
+                        TCMMetrics.instance.coordinatorBehindSchema.mark();
+                        throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing table %s.%s, our epoch = %s, their epoch = %s",
+                                                                           respondTo,
+                                                                           pu.metadata().keyspace,
+                                                                           pu.metadata().name,
+                                                                           metadata.epoch, message.epoch()));
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (message.epoch().isBefore(metadata.schema.lastModified()))
+            {
+                TCMMetrics.instance.coordinatorBehindSchema.mark();
+                throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing keyspace %s, our epoch = %s, their epoch = %s",
+                                                                   respondTo,
+                                                                   keyspace,
+                                                                   metadata.epoch, message.epoch()));
+            }
+            else
+            {
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+            }
+        }
+
+        return metadata;
+    }
+
+    private static VersionedEndpoints.ForToken writePlacements(ClusterMetadata metadata, String keyspace, DecoratedKey key)
+    {
+        return metadata.placements.get(metadata.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forToken(key.getToken());
     }
 }

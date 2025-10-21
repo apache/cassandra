@@ -19,25 +19,21 @@ package org.apache.cassandra.tools.nodetool;
 
 import com.google.common.math.DoubleMath;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "getinterdcstreamthroughput", description = "Print the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system" +
                                                             "in rounded megabits. For precise number, please, use option -d")
-public class GetInterDCStreamThroughput extends NodeToolCmd
+public class GetInterDCStreamThroughput extends AbstractCommand
 {
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput in MiB/s")
+    @Option(names = { "-e", "--entire-sstable-throughput" }, description = "Print entire SSTable streaming throughput in MiB/s")
     private boolean entireSSTableThroughput;
 
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-m", "--mib" }, description = "Print the throughput cap for inter-datacenter streaming in MiB/s")
+    @Option(names = { "-m", "--mib" }, description = "Print the throughput cap for inter-datacenter streaming in MiB/s")
     private boolean interDCStreamThroughputMiB;
 
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-d", "--precise-mbit" }, description = "Print the throughput cap for inter-datacenter streaming in precise Mbits (double)")
+    @Option(names = { "-d", "--precise-mbit" }, description = "Print the throughput cap for inter-datacenter streaming in precise Mbits (double)")
     private boolean interDCStreamThroughputDoubleMbit;
 
     @Override

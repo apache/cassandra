@@ -61,7 +61,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
             {
                 PrimaryKey peeked = range.peek();
     
-                int cmp = candidateKey.compareTo(peeked);
+                int cmp = candidateKey.compareTo(peeked, false);
 
                 if (cmp == 0)
                 {
@@ -91,7 +91,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
                 // Consume the remaining values equal to the candidate key:
                 candidate.next();
             }
-            while (candidate.hasNext() && candidate.peek().compareTo(candidateKey) == 0);
+            while (candidate.hasNext() && candidate.peek().compareTo(candidateKey, false) == 0);
         }
 
         return candidateKey;

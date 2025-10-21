@@ -73,7 +73,10 @@ public final class AuthConfig
         IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
 
         if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
-            throw new ConfigurationException(conf.authenticator.class_name + " can't be used with " + conf.authorizer, false);
+        {
+            throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
+                                             authenticator.getClass().getName() + " to enable authentication", false);
+        }
 
         DatabaseDescriptor.setAuthorizer(authorizer);
 
@@ -82,7 +85,7 @@ public final class AuthConfig
         IRoleManager roleManager = authInstantiate(conf.role_manager, CassandraRoleManager.class);
 
         if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
-            throw new ConfigurationException("CassandraRoleManager must be used with PasswordAuthenticator", false);
+            throw new ConfigurationException(authenticator.getClass().getName() + " requires " + CassandraRoleManager.class.getName(), false);
 
         DatabaseDescriptor.setRoleManager(roleManager);
 
@@ -132,6 +135,8 @@ public final class AuthConfig
             return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
         }
 
+        // for now, this has to stay and can not be replaced by ParameterizedClass.newInstance as above
+        // due to that failing for simulator dtests. See CASSANDRA-20450 for more information.
         try
         {
             return defaultCls.newInstance();

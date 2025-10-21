@@ -34,6 +34,8 @@ public class StatsKeyspace
     public long readCount;
     public long writeCount;
     public int pendingFlushes;
+    public long spaceUsedLive;
+    public long spaceUsedTotal;
     private double totalReadTime;
     private double totalWriteTime;
 
@@ -41,6 +43,12 @@ public class StatsKeyspace
     {
         this.probe = probe;
         this.name = keyspaceName;
+    }
+
+    public void initialize()
+    {
+        spaceUsedLive = (long) probe.getColumnFamilyMetric(name, null, "LiveDiskSpaceUsed");
+        spaceUsedTotal = (long) probe.getColumnFamilyMetric(name, null, "TotalDiskSpaceUsed");
     }
 
     public void add(ColumnFamilyStoreMBean table)

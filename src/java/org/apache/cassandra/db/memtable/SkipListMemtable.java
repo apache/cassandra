@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
@@ -97,6 +98,15 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         return partitions.isEmpty();
     }
 
+    @Override
+    public Token lastToken()
+    {
+        Iterator<PartitionPosition> iterator = partitions.keySet().iterator();
+        if (iterator.hasNext())
+            return iterator.next().getToken();
+        return null;
+    }
+
     /**
      * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
      * OpOrdering.
@@ -104,15 +114,14 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
-        Cloner cloner = allocator.cloner(opGroup);
-        AtomicBTreePartition previous = partitions.get(update.partitionKey());
-
         long initialSize = 0;
+        Cloner cloner = allocator.cloner(opGroup);
+        AtomicBTreePartition previous = assumeMissing ? null : partitions.get(update.partitionKey());
         if (previous == null)
         {
-            final DecoratedKey cloneKey = cloner.clone(update.partitionKey());
+            DecoratedKey cloneKey = cloner.clone(update.partitionKey());
             AtomicBTreePartition empty = new AtomicBTreePartition(metadata, cloneKey, allocator);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = partitions.putIfAbsent(cloneKey, empty);
@@ -262,7 +271,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
                     heavilyContendedRowCount++;
             }
 
-            if (heavilyContendedRowCount > 0)
+            if (heavilyContendedRowCount > 0 && logger.isTraceEnabled())
                 logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), SkipListMemtable.this);
         }
         else

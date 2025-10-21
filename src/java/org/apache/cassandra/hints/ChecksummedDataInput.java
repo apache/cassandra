@@ -27,6 +27,7 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * A {@link RandomAccessReader} wrapper that calculates the CRC in place.
@@ -241,7 +242,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     @Override
     public void close()
     {
-        FileUtils.clean(buffer);
+        MemoryUtil.clean(buffer);
         channel.close();
     }
 

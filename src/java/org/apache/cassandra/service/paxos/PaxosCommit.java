@@ -29,10 +29,11 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -43,13 +44,12 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
 
 import static java.util.Collections.emptyMap;
-import static org.apache.cassandra.exceptions.RequestFailureReason.NODE_DOWN;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_REMOTE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.service.StorageProxy.shouldHint;
 import static org.apache.cassandra.service.StorageProxy.submitHint;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Agreed;
 import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newConditionAsConsumer;
 
 // Does not support EACH_QUORUM, as no such thing as EACH_SERIAL
@@ -175,15 +175,17 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     void start(Participants participants, boolean async)
     {
         boolean executeOnSelf = false;
-        Message<Agreed> commitMessage = Message.out(PAXOS_COMMIT_REQ, commit);
-        Message<Mutation> mutationMessage = ENABLE_DC_LOCAL_COMMIT && consistencyForConsensus.isDatacenterLocal()
-                                            ? Message.out(PAXOS2_COMMIT_REMOTE_REQ, commit.makeMutation()) : null;
+        Message<Agreed> commitMessage = Message.out(PAXOS_COMMIT_REQ, commit, participants.isUrgent());
+
+        Message<Mutation> mutationMessage = null;
+        if (ENABLE_DC_LOCAL_COMMIT && consistencyForConsensus.isDatacenterLocal())
+            mutationMessage = Message.out(PAXOS2_COMMIT_REMOTE_REQ, commit.makeMutation(), participants.isUrgent());
 
         for (int i = 0, mi = participants.allLive.size(); i < mi ; ++i)
             executeOnSelf |= isSelfOrSend(commitMessage, mutationMessage, participants.allLive.endpoint(i));
 
         for (int i = 0, mi = participants.allDown.size(); i < mi ; ++i)
-            onFailure(participants.allDown.endpoint(i), NODE_DOWN);
+            onFailure(participants.allDown.endpoint(i), RequestFailure.NODE_DOWN);
 
         if (executeOnSelf)
         {
@@ -212,14 +214,15 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     private static boolean isInLocalDc(InetAddressAndPort destination)
     {
-        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination));
+        Locator locator = DatabaseDescriptor.getLocator();
+        return locator.local().sameDatacenter(locator.location(destination));
     }
 
     /**
      * Record a failure or timeout, and maybe submit a hint to {@code from}
      */
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         if (logger.isTraceEnabled())
             logger.trace("{} {} from {}", commit, reason, from);

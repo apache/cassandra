@@ -51,7 +51,7 @@ public class PaxosTableRepairsTest
 
         public MockRepair(DecoratedKey key)
         {
-            super(key, null);
+            super(key, null, -1);
         }
 
         public State restart(State state, long waitUntil)

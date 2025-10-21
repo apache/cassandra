@@ -190,6 +190,12 @@ public final class ByteSourceInverse
         return getUnsignedFixedLengthAsLong(byteSource, 8) ^ LONG_SIGN_BIT;
     }
 
+    public static void skipBytes(ByteSource byteSource, int bytesToSkip)
+    {
+        for (int i = 0; i < bytesToSkip; i++)
+            getAndCheckByte(byteSource, i, bytesToSkip);
+    }
+
     /**
      * Converts the given {@link ByteSource} to a {@code byte}.
      *
@@ -297,6 +303,17 @@ public final class ByteSourceInverse
         return byteSource == null ? null : readBytes(unescape(byteSource));
     }
 
+    public static int getUnescapedBytesCount(ByteSource.Peekable byteSource)
+    {
+        return byteSource == null ? 0 : countBytes(unescape(byteSource));
+    }
+
+    public static void skipUnescapedBytes(ByteSource.Peekable byteSource)
+    {
+        // read and ignore the result
+        getUnescapedBytesCount(byteSource);
+    }
+
     /**
      * As above, but converts the result to a ByteSource.
      */
@@ -383,6 +400,18 @@ public final class ByteSourceInverse
             buf = Arrays.copyOf(buf, readBytes);
         }
         return buf;
+    }
+
+    public static int countBytes(ByteSource byteSource)
+    {
+        Preconditions.checkNotNull(byteSource);
+
+        int readBytes = 0;
+        while (byteSource.next() != ByteSource.END_OF_STREAM)
+        {
+            readBytes++;
+        }
+        return readBytes;
     }
 
     /**

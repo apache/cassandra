@@ -49,7 +49,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCallbacks
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("Messaging");
+    public static final String TYPE_NAME = "Messaging";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
     private static final Logger logger = LoggerFactory.getLogger(MessagingMetrics.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
     
@@ -113,7 +114,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
 
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)
     {
-        String dcName = DatabaseDescriptor.getEndpointSnitch().getDatacenter(from);
+        String dcName = DatabaseDescriptor.getLocator().location(from).datacenter;
         DCLatencyRecorder dcUpdater = dcLatency.get(dcName);
         if (dcUpdater == null)
             dcUpdater = dcLatency.computeIfAbsent(dcName, k -> new DCLatencyRecorder(Metrics.timer(factory.createMetricName(dcName + "-Latency")), allLatency));

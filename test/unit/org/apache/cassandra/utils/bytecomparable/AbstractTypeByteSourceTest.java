@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.*;
 import org.junit.Assert;
 import org.junit.Test;
@@ -909,11 +909,11 @@ public class AbstractTypeByteSourceTest
                 {
                     for (byte[] bytes : bytesValues)
                     {
-                        ByteBuffer tupleData = TupleType.buildValue(UTF8Type.instance.decompose(utf8),
-                                                                    decimal != null ? DecimalType.instance.decompose(decimal) : null,
-                                                                    varint != null ? IntegerType.instance.decompose(varint) : null,
-                                                                    // We could also use the wrapped bytes directly
-                                                                    BytesType.instance.decompose(ByteBuffer.wrap(bytes)));
+                        ByteBuffer tupleData = tt.pack(UTF8Type.instance.decompose(utf8),
+                                                       decimal != null ? DecimalType.instance.decompose(decimal) : null,
+                                                       varint != null ? IntegerType.instance.decompose(varint) : null,
+                                                       // We could also use the wrapped bytes directly
+                                                       BytesType.instance.decompose(ByteBuffer.wrap(bytes)));
                         tuplesData.add(tupleData);
                     }
                 }

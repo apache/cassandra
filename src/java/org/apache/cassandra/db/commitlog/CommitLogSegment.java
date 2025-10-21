@@ -67,7 +67,7 @@ public abstract class CommitLogSegment
 {
     private final static long idBase;
 
-    private CDCState cdcState = CDCState.PERMITTED;
+    private volatile CDCState cdcState = CDCState.PERMITTED;
     public enum CDCState
     {
         PERMITTED,
@@ -387,7 +387,7 @@ public abstract class CommitLogSegment
         }
         catch (IOException e)
         {
-            if (!CommitLog.instance.handleCommitError("Failed to sync CDC Index: " + desc.cdcIndexFileName(), e))
+            if (!CommitLog.handleCommitError("Failed to sync CDC Index: " + desc.cdcIndexFileName(), e))
                 throw new RuntimeException(e);
         }
     }

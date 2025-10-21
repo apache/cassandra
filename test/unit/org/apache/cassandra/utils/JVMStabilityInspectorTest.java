@@ -30,10 +30,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.service.DiskErrorsHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.assertj.core.api.Assertions;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.StorageService;
 
 import static java.util.Arrays.asList;
@@ -59,7 +59,7 @@ public class JVMStabilityInspectorTest
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         Config.CommitFailurePolicy oldCommitPolicy = DatabaseDescriptor.getCommitFailurePolicy();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
         try
         {
             CassandraDaemon daemon = new CassandraDaemon();
@@ -114,7 +114,7 @@ public class JVMStabilityInspectorTest
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
             DatabaseDescriptor.setCommitFailurePolicy(oldCommitPolicy);
             StorageService.instance.registerDaemon(null);
-            FileUtils.setFSErrorHandler(null);
+            DiskErrorsHandlerService.set(DiskErrorsHandler.NoOpDiskErrorHandler.NO_OP);
         }
     }
 

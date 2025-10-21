@@ -44,8 +44,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -166,8 +166,15 @@ public class PartitionDenylist
 
     private boolean checkDenylistNodeAvailability()
     {
-        boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(SystemDistributedKeyspace.PartitionDenylistTable,
-                                                                                 DatabaseDescriptor.getDenylistConsistencyLevel());
+        TableMetadata denyListTable = ClusterMetadata.current().schema.getKeyspaceMetadata(SystemDistributedKeyspace.NAME)
+                                                              .getTableOrViewNullable(SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE);
+        if (denyListTable == null)
+        {
+            logger.warn("Partition denylist table metadata not found");
+            return false;
+        }
+
+        boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(denyListTable, DatabaseDescriptor.getDenylistConsistencyLevel());
         if (!sufficientNodes)
         {
             AVAILABILITY_LOGGER.warn("Attempting to load denylist and not enough nodes are available for a {} refresh. Reload the denylist when unavailable nodes are recovered to ensure your denylist remains in sync.",
@@ -296,7 +303,8 @@ public class PartitionDenylist
                !SchemaConstants.TRACE_KEYSPACE_NAME.equals(keyspace) &&
                !SchemaConstants.VIRTUAL_SCHEMA.equals(keyspace) &&
                !SchemaConstants.VIRTUAL_VIEWS.equals(keyspace) &&
-               !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace);
+               !SchemaConstants.AUTH_KEYSPACE_NAME.equals(keyspace) &&
+               !SchemaConstants.METADATA_KEYSPACE_NAME.equals(keyspace);
     }
 
     public boolean isKeyPermitted(final String keyspace, final String table, final ByteBuffer key)
@@ -433,13 +441,13 @@ public class PartitionDenylist
 
             final Set<ByteBuffer> keys = new HashSet<>();
             final NavigableSet<Token> tokens = new TreeSet<>();
-
+            ClusterMetadata metadata = ClusterMetadata.current();
             int processed = 0;
             for (final UntypedResultSet.Row row : results)
             {
                 final ByteBuffer key = row.getBlob("key");
                 keys.add(key);
-                tokens.add(StorageService.instance.getTokenMetadata().partitioner.getToken(key));
+                tokens.add(metadata.tokenMap.partitioner().getToken(key));
 
                 processed++;
                 if (processed >= limit)

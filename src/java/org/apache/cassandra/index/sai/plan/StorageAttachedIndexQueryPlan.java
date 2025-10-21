@@ -70,12 +70,12 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
 
-        RowFilter preIndexFilter = filter;
+        RowFilter indexFilter = filter;
         RowFilter postIndexFilter = filter;
 
         for (RowFilter.Expression expression : filter)
         {
-            // We ignore any expressions here (currently IN and user-defined expressions) where we don't have a way to
+            // We ignore any expressions here (user-defined expressions and SAI unsupported operators) where we don't have a way to
             // translate their #isSatifiedBy method, they will be included in the filter returned by 
             // QueryPlan#postIndexQueryFilter(). If strict filtering is not allowed, we must reject the query until the
             // expression(s) in question are compatible with #isSatifiedBy.
@@ -83,13 +83,13 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
             // Note: For both the pre- and post-filters we need to check that the expression exists before removing it
             // because the without method assert if the expression doesn't exist. This can be the case if we are given
             // a duplicate expression - a = 1 and a = 1. The without method removes all instances of the expression.
-            if (expression.operator().isIN() || expression.isUserDefined())
+            if (!Expression.supportsOperator(expression.operator()) || expression.isUserDefined())
             {
                 if (!filter.isStrict())
                     throw new InvalidRequestException(String.format(UNSUPPORTED_NON_STRICT_OPERATOR, expression.operator()));
 
-                if (preIndexFilter.getExpressions().contains(expression))
-                    preIndexFilter = preIndexFilter.without(expression);
+                if (indexFilter.getExpressions().contains(expression))
+                    indexFilter = indexFilter.without(expression);
                 continue;
             }
 
@@ -98,7 +98,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 
             for (StorageAttachedIndex index : indexes)
             {
-                if (index.supportsExpression(expression.column(), expression.operator()))
+                if (index.supportsExpression(expression) && !filter.indexHints.excludes(index))
                 {
                     selectedIndexesBuilder.add(index);
                 }
@@ -109,7 +109,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         if (selectedIndexes.isEmpty())
             return null;
 
-        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, preIndexFilter, selectedIndexes);
+        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, indexFilter, selectedIndexes);
     }
 
     @Override
@@ -121,10 +121,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     @Override
     public long getEstimatedResultRows()
     {
-        // this is temporary (until proper QueryPlan is integrated into Cassandra)
-        // and allows us to priority storage-attached indexes if any in the query since they
-        // are going to be more efficient, to query and intersect, than built-in indexes.
-        return Long.MIN_VALUE;
+        return DatabaseDescriptor.getPrioritizeSAIOverLegacyIndex() ? Long.MIN_VALUE : Long.MAX_VALUE;
     }
 
     @Override

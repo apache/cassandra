@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.db.Keyspace;
@@ -37,39 +36,33 @@ import org.apache.cassandra.utils.NoSpamLogger;
 public abstract class AbstractPaxosVerbHandler implements IVerbHandler<Commit>
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractPaxosVerbHandler.class);
-    private static final String logMessageTemplate = "Receiving Paxos operation(s) for token(s) neither owned nor pending. Example: from {} for token {} in {}.{}";
+    private static final String logMessageTemplate = "Received paxos request from {} for token {} outside valid range for keyspace {}";
 
-    @Override
     public void doVerb(Message<Commit> message)
     {
-        boolean outOfRangeTokenLogging = DatabaseDescriptor.getLogOutOfTokenRangeRequests();
-        boolean outOfRangeTokenRejection = DatabaseDescriptor.getRejectOutOfTokenRangeRequests();
-
         Commit commit = message.payload;
         DecoratedKey key = commit.update.partitionKey();
-        boolean isOutOfRangeCommit = isOutOfRangeCommit(commit.update.metadata().keyspace, key);
-        if (isOutOfRangeCommit)
+        if (isOutOfRangeCommit(commit.update.metadata().keyspace, key))
         {
             StorageService.instance.incOutOfRangeOperationCount();
             Keyspace.open(commit.update.metadata().keyspace).metric.outOfRangeTokenPaxosRequests.inc();
 
             // Log at most 1 message per second
-            if (outOfRangeTokenLogging)
-                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate,
-                                 message.from(), key.getToken(), commit.update.metadata().keyspace, commit.update.metadata().name);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), commit.update.metadata().keyspace);
 
-        }
-        if (outOfRangeTokenRejection && isOutOfRangeCommit)
             sendFailureResponse(message);
+        }
         else
+        {
             processMessage(message);
+        }
     }
 
     abstract void processMessage(Message<Commit> message);
 
     private static void sendFailureResponse(Message<?> respondTo)
     {
-        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
+        Message reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
         MessagingService.instance().send(reply, respondTo.from());
     }
 

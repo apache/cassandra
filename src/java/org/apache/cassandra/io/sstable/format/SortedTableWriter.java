@@ -35,7 +35,7 @@ import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.Threshold;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
@@ -88,9 +88,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private long lastEarlyOpenLength;
     private final Supplier<Double> crcCheckChanceSupplier;
 
-    public SortedTableWriter(Builder<P, I, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public SortedTableWriter(Builder<P, I, ?, ?> builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
-        super(builder, lifecycleNewTracker, owner);
+        super(builder, txn, owner);
 
         TableMetadataRef ref = builder.getTableMetadataRef();
         crcCheckChanceSupplier = () -> ref.getLocal().params.crcCheckChance;
@@ -252,15 +252,15 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         if (first == null)
             first = lastWrittenKey;
 
-        if (logger.isTraceEnabled())
-            logger.trace("wrote {} at {}", key, endPosition);
+        logger.trace("wrote {} at {}", key, endPosition);
 
         return createRowIndexEntry(key, partitionLevelDeletion, finishResult);
     }
 
     protected void onStartPartition(DecoratedKey key)
     {
-        notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
+        if (hasObservers())
+            notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
     }
 
     protected void onStaticRow(Row row)
@@ -270,20 +270,27 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     protected void onRow(Row row)
     {
-        notifyObservers(o -> o.nextUnfilteredCluster(row));
+        if (hasObservers())
+            notifyObservers(o -> o.nextUnfilteredCluster(row));
     }
 
     protected void onRangeTombstoneMarker(RangeTombstoneMarker marker)
     {
-        notifyObservers(o -> o.nextUnfilteredCluster(marker));
+        if (hasObservers())
+            notifyObservers(o -> o.nextUnfilteredCluster(marker));
     }
 
     protected abstract AbstractRowIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException;
 
     protected final void notifyObservers(Consumer<SSTableFlushObserver> action)
     {
-        if (observers != null && !observers.isEmpty())
+        if (hasObservers())
             observers.forEach(action);
+    }
+
+    private boolean hasObservers()
+    {
+        return observers != null && !observers.isEmpty();
     }
 
     @Override

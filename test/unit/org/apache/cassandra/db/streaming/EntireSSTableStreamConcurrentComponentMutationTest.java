@@ -52,10 +52,12 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
@@ -87,6 +89,7 @@ import org.apache.cassandra.utils.Throwables;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
@@ -130,7 +133,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         Token start = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(0));
         Token end = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(100));
@@ -228,16 +231,18 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         streaming.get(3, TimeUnit.MINUTES);
         concurrentMutations.get(3, TimeUnit.MINUTES);
 
-        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
+        session.prepareReceiving(new StreamSummary(sstable.metadata().id, emptyList(), 1, 5104));
         StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null);
 
         try (DataInputBuffer in = new DataInputBuffer(serializedFile.nioBuffer(), false))
         {
             CassandraStreamHeader header = CassandraStreamHeader.serializer.deserialize(in, MessagingService.current_version);
             CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(messageHeader, header, session);
-            SSTableReader streamedSSTable = Iterables.getOnlyElement(reader.read(in).finished());
-
+            StreamingLifecycleTransaction stt = new StreamingLifecycleTransaction();
+            SSTableTxnSingleStreamWriter writer = (SSTableTxnSingleStreamWriter) reader.read(in);
+            SSTableReader streamedSSTable = Iterables.getOnlyElement(writer.transferOwnershipTo(stt));
             SSTableUtils.assertContentEquals(sstable, streamedSSTable);
+            stt.abort();
         }
     }
 
@@ -321,10 +326,10 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     private StreamSession setupStreamingSessionForTest()
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED, null));
+        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, emptyList(), emptyList(), StreamSession.State.INITIALIZED, null));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);

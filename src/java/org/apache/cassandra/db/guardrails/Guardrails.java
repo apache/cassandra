@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -143,6 +144,17 @@ public final class Guardrails implements GuardrailsMBean
                  "Table Properties");
 
     /**
+     * Guardrail warning about, ignoring or rejecting the usage of certain keyspace properties.
+     */
+    public static final Values<String> keyspaceProperties =
+    new Values<>("keyspace_properties",
+                 null,
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesWarned(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesIgnored(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesDisallowed(),
+                 "Keyspace Properties");
+
+    /**
      * Guardrail disabling user-provided timestamps.
      */
     public static final EnableFlag userTimestampsEnabled =
@@ -183,6 +195,15 @@ public final class Guardrails implements GuardrailsMBean
                     null,
                     state -> CONFIG_PROVIDER.getOrCreate(state).getDropKeyspaceEnabled(),
                     "DROP KEYSPACE functionality");
+
+    /**
+     * Guardrail disabling bulk loading of SSTables
+     */
+    public static final EnableFlag bulkLoadEnabled =
+    (EnableFlag) new EnableFlag("bulk_load_enabled",
+                   "Bulk loading of SSTables might potentially destabilize the node.",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getBulkLoadEnabled(),
+                   "Bulk loading of SSTables").throwOnNullClientState(true);
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -351,7 +372,7 @@ public final class Guardrails implements GuardrailsMBean
                                     what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
-     * Guardrail on the size of a collection.
+     * Guardrail on the size of a simple type column.
      */
     public static final MaxThreshold columnValueSize =
     new MaxThreshold("column_value_size",
@@ -361,6 +382,45 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, what, value, threshold) ->
                      format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+
+    /**
+     * Guardrail on the size of an ascii type column.
+     */
+    public static final MaxThreshold columnAsciiValueSize =
+    new MaxThreshold("column_ascii_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnAsciiValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnAsciiValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a blob type column.
+     */
+    public static final MaxThreshold columnBlobValueSize =
+    new MaxThreshold("column_blob_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnBlobValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnBlobValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+
+    /**
+     * Guardrail on the size of a text and varchar type column.
+     */
+    public static final MaxThreshold columnTextAndVarcharValueSize =
+    new MaxThreshold("column_text_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
 
     /**
      * Guardrail on the size of a collection.
@@ -373,6 +433,45 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, what, value, threshold) ->
                      format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a map collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionMapSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_map_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold)),
+    collectionSize);
+
+    /**
+     * Guardrail on the size of a set collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionSetSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_set_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold))
+    , collectionSize);
+
+    /**
+     * Guardrail on the size of a list collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionListSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_list_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold)),
+    collectionSize);
 
     /**
      * Guardrail on the number of items of a collection.
@@ -454,6 +553,11 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, value) ->
                      isWarning ? "Replica disk usage exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold");
+    /**
+     * Guardrail on passwords for CREATE / ALTER ROLE statements.
+     */
+    public static final PasswordGuardrail password =
+    new PasswordGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordValidatorConfig());
 
     static
     {
@@ -493,8 +597,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampWarnThreshold()),
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                    format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
-                           what, value, isWarning ? "warning" : "failure", threshold));
+                     format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     public static final MinThreshold minimumAllowableTimestamp =
     new MinThreshold("minimum_timestamp",
@@ -751,6 +855,93 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public Set<String> getKeyspacePropertiesWarned()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesWarned();
+    }
+
+    @Override
+    public String getKeyspacePropertiesWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesWarned());
+    }
+
+    public void setKeyspacePropertiesWarned(String... properties)
+    {
+        setKeyspacePropertiesWarned(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarned(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesWarned(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarnedCSV(String properties)
+    {
+        setKeyspacePropertiesWarned(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesDisallowed()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesDisallowed();
+    }
+
+    @Override
+    public String getKeyspacePropertiesDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesDisallowed());
+    }
+
+    public void setKeyspacePropertiesDisallowed(String... properties)
+    {
+        setKeyspacePropertiesDisallowed(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowed(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesDisallowed(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowedCSV(String properties)
+    {
+        setKeyspacePropertiesDisallowed(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesIgnored()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesIgnored();
+    }
+
+    @Override
+    public String getKeyspacePropertiesIgnoredCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesIgnored());
+    }
+
+    public void setKeyspacePropertiesIgnored(String... properties)
+    {
+        setKeyspacePropertiesIgnored(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnored(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesIgnored(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnoredCSV(String properties)
+    {
+        setKeyspacePropertiesIgnored(fromCSV(properties));
+    }
+    
+    @Override
     public boolean getUserTimestampsEnabled()
     {
         return DEFAULT_CONFIG.getUserTimestampsEnabled();
@@ -856,6 +1047,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropKeyspaceEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
+    }
+
+    @Override
+    public boolean getBulkLoadEnabled()
+    {
+        return DEFAULT_CONFIG.getBulkLoadEnabled();
+    }
+
+    @Override
+    public void setBulkLoadEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setBulkLoadEnabled(enabled);
     }
 
     @Override
@@ -966,6 +1169,66 @@ public final class Guardrails implements GuardrailsMBean
 
     @Override
     @Nullable
+    public String getColumnAsciiValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnAsciiValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnAsciiValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnAsciiValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnAsciiValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnAsciiValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getColumnBlobValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnBlobValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnBlobValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnBlobValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnBlobValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnBlobValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getColumnTextAndVarcharValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnTextAndVarcharValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnTextAndVarcharValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
     public String getCollectionSizeWarnThreshold()
     {
         return sizeToString(DEFAULT_CONFIG.getCollectionSizeWarnThreshold());
@@ -982,6 +1245,66 @@ public final class Guardrails implements GuardrailsMBean
     public void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
         DEFAULT_CONFIG.setCollectionSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionMapSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionMapSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionMapSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionMapSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionMapSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionMapSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionSetSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionSetSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionSetSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionSetSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionSetSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionSetSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionListSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionListSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionListSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionListSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionListSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionListSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override
@@ -1180,6 +1503,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setMaximumReplicationFactorThreshold (int warn, int fail)
     {
         DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public Map<String, Object> getPasswordValidatorConfig()
+    {
+        return password.getConfig();
+    }
+
+    @Override
+    public void reconfigurePasswordValidator(Map<String, Object> config)
+    {
+        password.reconfigure(config);
     }
 
     @Override

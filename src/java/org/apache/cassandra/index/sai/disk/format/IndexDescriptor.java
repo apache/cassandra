@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.IndexValidation;
@@ -135,10 +135,10 @@ public class IndexDescriptor
     }
 
     public PerColumnIndexWriter newPerColumnIndexWriter(StorageAttachedIndex index,
-                                                        LifecycleNewTracker tracker,
+                                                        ILifecycleTransaction txn,
                                                         RowMapping rowMapping)
     {
-        return version.onDiskFormat().newPerColumnIndexWriter(index, this, tracker, rowMapping);
+        return version.onDiskFormat().newPerColumnIndexWriter(index, this, txn, rowMapping);
     }
 
     public boolean isPerSSTableIndexBuildComplete()

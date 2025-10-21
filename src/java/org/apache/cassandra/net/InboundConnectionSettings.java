@@ -146,7 +146,7 @@ public class InboundConnectionSettings
         ServerEncryptionOptions encryption = this.encryption;
         if (encryption == null)
             encryption = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
-        encryption = encryption.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
+        encryption = new ServerEncryptionOptions.Builder(encryption).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all).withOptional(false).build();
 
         return this.withBindAddress(bindAddress.withPort(DatabaseDescriptor.getSSLStoragePort()))
                    .withEncryption(encryption)

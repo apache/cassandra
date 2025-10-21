@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.simulator.systems;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 
+import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptableScheduledFuture;
 import org.apache.cassandra.simulator.systems.SimulatedAction.Kind;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
@@ -38,7 +38,7 @@ public interface InterceptorOfExecution
     interface InterceptExecution
     {
         <V, T extends RunnableFuture<V>> T addTask(T task, InterceptingExecutor executor);
-        <T> ScheduledFuture<T> schedule(Kind kind, long delayNanos, long deadlineNanos, Callable<T> runnable, InterceptingExecutor executor);
+        <T> ScheduledFuture<T> schedule(Kind kind, long delayNanos, long deadlineNanos, InterceptableScheduledFuture<T> task, InterceptingExecutor executor);
         Thread start(Kind kind, Function<Runnable, InterceptibleThread> factory, Runnable run);
     }
 }

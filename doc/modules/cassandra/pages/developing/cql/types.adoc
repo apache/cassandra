@@ -10,6 +10,7 @@ types]:
 include::cassandra:example$BNF/cql_type.bnf[]
 ----
 
+[[native-types]]
 == Native types
 
 The native types supported by CQL are:
@@ -191,6 +192,7 @@ a date context.
 A `1d` duration is not equal to a `24h` one as the duration type has
 been created to be able to support daylight saving.
 
+[[collections]]
 == Collections
 
 CQL supports three kinds of collections: `maps`, `sets` and `lists`. The

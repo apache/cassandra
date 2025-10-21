@@ -27,16 +27,17 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.utils.UnhandledEnum;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
 import org.apache.cassandra.concurrent.Interruptible.Task;
@@ -69,6 +70,8 @@ import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.INFINITE_LOOP;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_DAEMON;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.THREAD;
 
 public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
 {
@@ -185,15 +188,17 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
     final ClassLoader classLoader;
     final ThreadGroup threadGroup;
     final IIsolatedExecutor.DynamicFunction<Serializable> transferToInstance;
+    final Supplier<Long> idSupplier;
     volatile boolean isClosed;
 
-    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
+    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup, Supplier<Long> idSupplier)
     {
         this.simulatedExecution = simulatedExecution;
         this.interceptorOfGlobalMethods = interceptorOfGlobalMethods;
         this.classLoader = classLoader;
         this.threadGroup = threadGroup;
         this.transferToInstance = IsolatedExecutor.transferTo(classLoader);
+        this.idSupplier = idSupplier;
     }
 
     public InterceptibleThreadFactory factory(String name)
@@ -230,7 +235,7 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
         else if (!this.threadGroup.parentOf(threadGroup)) throw new IllegalArgumentException();
         Runnable onTermination = transferToInstance.apply((SerializableRunnable)FastThreadLocal::removeAll);
         LocalTime time = transferToInstance.apply((SerializableCallable<LocalTime>) SimulatedTime.Global::current).call();
-        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo);
+        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo, idSupplier);
     }
 
     @Override
@@ -327,9 +332,18 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
         return configurePooled(name, threads).build();
     }
 
-    public Thread startThread(String name, Runnable runnable, Daemon daemon)
+    public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
     {
-        return simulatedExecution.intercept().start(SimulatedAction.Kind.THREAD, factory(name)::newThread, runnable);
+        SimulatedAction.Kind kind;
+        switch (simulatorTag)
+        {
+            default: throw UnhandledEnum.unknown(simulatorTag);
+            case INFINITE_LOOP: kind = INFINITE_LOOP; break;
+            case JOB: kind = THREAD; break;
+            case DAEMON: kind = SCHEDULED_DAEMON; break;
+        }
+
+        return simulatedExecution.intercept().start(kind, factory(name)::newThread, runnable);
     }
 
     @VisibleForTesting
@@ -341,7 +355,7 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
     }
 
     @Override
-    public Interruptible infiniteLoop(String name, Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts)
+    public Interruptible infiniteLoop(String name, Task task, SimulatorSafe simulatorSafe, SystemThreadTag systemTag, Interrupts interrupts)
     {
         if (simulatorSafe != SimulatorSafe.SAFE)
         {

@@ -1,8 +1,8 @@
-The latest major version is {50_version} and the corresponding distribution name is `50x` (with an "x" as the suffix).
+The latest major version is {51_version} and the corresponding distribution name is `51x` (with an "x" as the suffix).
 For older releases use:
 
+* `51x` for C* {51_version} series
 * `50x` for C* {50_version} series
 * `41x` for C* {41_version} series
-* `40x` for C* {40_version} series
 
-For example, to add the repository for version {50_version} (`50x`):
+For example, to add the repository for version {51_version} (`51x`):

@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -56,6 +57,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -77,7 +80,7 @@ public class ReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(Util.dk("not a valid key"), repairs, writePlan);
+            super(ReadCoordinator.DEFAULT, Util.dk("not a valid key"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -138,6 +141,9 @@ public class ReadRepairTest
         cell2 = cell("v", "val2", now);
         cell3 = cell("v", "val3", now);
         resolved = mutation(cell1, cell2);
+        Location local = DatabaseDescriptor.getLocator().local();
+        for (InetAddressAndPort endpoint : targets.endpoints())
+            ClusterMetadataTestHelper.register(endpoint, local);
     }
 
     private static DecoratedKey dk(int v)

@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag;
+import org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -53,9 +55,6 @@ public class InfiniteLoopExecutor implements Interruptible
     public enum SimulatorSafe { SAFE, UNSAFE }
 
     @Shared(scope = Shared.Scope.SIMULATION)
-    public enum Daemon        { DAEMON, NON_DAEMON }
-
-    @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
 
     private static final AtomicReferenceFieldUpdater<InfiniteLoopExecutor, Object> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(InfiniteLoopExecutor.class, Object.class, "state");
@@ -65,20 +64,20 @@ public class InfiniteLoopExecutor implements Interruptible
     private final Consumer<Thread> interruptHandler;
     private final Condition isTerminated = newOneTimeCondition();
 
-    public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(String name, Task task, SystemThreadTag systemTag)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, daemon, UNSYNCHRONIZED);
+        this(ExecutorFactory.Global.executorFactory(), name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag)
     {
-        this(factory, name, task, daemon, UNSYNCHRONIZED);
+        this(factory, name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon, Interrupts interrupts)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag, Interrupts interrupts)
     {
         this.task = task;
-        this.thread = factory.startThread(name, this::loop, daemon);
+        this.thread = factory.startThread(name, this::loop, systemTag, SimulatorThreadTag.INFINITE_LOOP);
         this.interruptHandler = interrupts == SYNCHRONIZED
                                 ? interruptHandler(task)
                                 : Thread::interrupt;
@@ -102,7 +101,6 @@ public class InfiniteLoopExecutor implements Interruptible
             }
         };
     }
-
 
     private void loop()
     {
@@ -149,10 +147,21 @@ public class InfiniteLoopExecutor implements Interruptible
         interruptHandler.accept(thread);
     }
 
-    public void shutdown()
+    public void shutdownGracefully()
     {
         stateUpdater.updateAndGet(this, cur -> cur != TERMINATED && cur != SHUTTING_DOWN_NOW ? SHUTTING_DOWN : cur);
-        interruptHandler.accept(thread);
+    }
+
+    public void shutdown()
+    {
+        shutdown(true);
+    }
+
+    public void shutdown(boolean interrupt)
+    {
+        stateUpdater.updateAndGet(this, cur -> cur != TERMINATED && cur != SHUTTING_DOWN_NOW ? SHUTTING_DOWN : cur);
+        if (interrupt)
+            interruptHandler.accept(thread);
     }
 
     public Object shutdownNow()
@@ -176,6 +185,11 @@ public class InfiniteLoopExecutor implements Interruptible
         long deadlineNanos = nanoTime() + unit.toNanos(time);
         isTerminated.awaitUntil(deadlineNanos);
         return isTerminated();
+    }
+
+    public long threadId()
+    {
+        return thread.getId();
     }
 
     @VisibleForTesting

@@ -27,6 +27,15 @@ options {
     private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
     protected final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
 
+    // enables parsing txn specific syntax when true
+    protected boolean isParsingTxn = false;
+    // tracks whether a txn has conditional updates
+    protected boolean isTxnConditional = false;
+
+    protected List<RowDataReference.Raw> references;
+
+    private Token statementBeginMarker;
+
     public static final Set<String> reservedTypeNames = new HashSet<String>()
     {{
         add("byte");
@@ -38,30 +47,16 @@ options {
         add("bitstring");
     }};
 
-    public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
+    public Marker.Raw newBindVariables(ColumnIdentifier name)
     {
-        AbstractMarker.Raw marker = new AbstractMarker.Raw(bindVariables.size());
+        Marker.Raw marker = new Marker.Raw(bindVariables.size());
         bindVariables.add(name);
         return marker;
     }
 
-    public AbstractMarker.INRaw newINBindVariables(ColumnIdentifier name)
+    public InMarker.Raw newINBindVariables(ColumnIdentifier name)
     {
-        AbstractMarker.INRaw marker = new AbstractMarker.INRaw(bindVariables.size());
-        bindVariables.add(name);
-        return marker;
-    }
-
-    public Tuples.Raw newTupleBindVariables(ColumnIdentifier name)
-    {
-        Tuples.Raw marker = new Tuples.Raw(bindVariables.size());
-        bindVariables.add(name);
-        return marker;
-    }
-
-    public Tuples.INRaw newTupleINBindVariables(ColumnIdentifier name)
-    {
-        Tuples.INRaw marker = new Tuples.INRaw(bindVariables.size());
+        InMarker.Raw marker = new InMarker.Raw(bindVariables.size());
         bindVariables.add(name);
         return marker;
     }
@@ -71,6 +66,19 @@ options {
         Json.Marker marker = new Json.Marker(bindVariables.size());
         bindVariables.add(name);
         return marker;
+    }
+
+    public RowDataReference.Raw newRowDataReference(Selectable.RawIdentifier tuple, Selectable.Raw selectable)
+    {
+        if (!isParsingTxn)
+            throw new SyntaxException("Cannot create a row data reference unless parsing a transaction");
+
+        if (references == null)
+            references = new ArrayList<>();
+
+        RowDataReference.Raw reference = RowDataReference.Raw.fromSelectable(tuple, selectable);
+        references.add(reference);
+        return reference;
     }
 
     public void addErrorListener(ErrorListener listener)
@@ -113,7 +121,7 @@ options {
             if (!(entry.left instanceof Constants.Literal))
             {
                 String msg = "Invalid property name: " + entry.left;
-                if (entry.left instanceof AbstractMarker.Raw)
+                if (entry.left instanceof Marker.Raw)
                     msg += " (bind variables are not supported in DDL queries)";
                 addRecognitionError(msg);
                 break;
@@ -121,7 +129,7 @@ options {
             if (!(entry.right instanceof Constants.Literal))
             {
                 String msg = "Invalid property value: " + entry.right + " for property: " + entry.left;
-                if (entry.right instanceof AbstractMarker.Raw)
+                if (entry.right instanceof Marker.Raw)
                     msg += " (bind variables are not supported in DDL queries)";
                 addRecognitionError(msg);
                 break;
@@ -136,14 +144,24 @@ options {
         return res;
     }
 
-    public void addRawUpdate(List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key, Operation.RawUpdate update)
+    public void addRawUpdate(UpdateStatement.OperationCollector collector, ColumnIdentifier key, Operation.RawUpdate update)
     {
-        for (Pair<ColumnIdentifier, Operation.RawUpdate> p : operations)
-        {
-            if (p.left.equals(key) && !p.right.isCompatibleWith(update))
-                addRecognitionError("Multiple incompatible setting of column " + key);
-        }
-        operations.add(Pair.create(key, update));
+        if (collector.conflictsWithExistingUpdate(key, update))
+            addRecognitionError("Multiple incompatible setting of column " + key);
+        if (collector.conflictsWithExistingSubstitution(key))
+            addRecognitionError("Normal and reference operations for " + key);
+
+        collector.addRawUpdate(key, update);
+    }
+
+    public void addRawReferenceOperation(UpdateStatement.OperationCollector collector, ColumnIdentifier key, ReferenceOperation.Raw update)
+    {
+        if (collector.conflictsWithExistingUpdate(key))
+            addRecognitionError("Multiple incompatible setting of column " + key);
+        if (collector.conflictsWithExistingSubstitution(key))
+            addRecognitionError("Normal and reference operations for " + key);
+
+        collector.addRawReferenceOperation(key, update);
     }
 
     public Set<Permission> filterPermissions(Set<Permission> permissions, IResource resource)
@@ -200,6 +218,19 @@ options {
     {
         // Do nothing.
     }
+
+    public Token stmtBegins()
+    {
+        statementBeginMarker = input.LT(1);
+        return statementBeginMarker;
+    }
+
+    public StatementSource stmtSrc()
+    {
+        StatementSource stmtSrc = StatementSource.create(statementBeginMarker);
+        statementBeginMarker = null;
+        return stmtSrc;
+    }
 }
 
 /** STATEMENTS **/
@@ -249,6 +280,10 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st41=describeStatement               { $stmt = st41; }
     | st42=addIdentityStatement            { $stmt = st42; }
     | st43=dropIdentityStatement           { $stmt = st43; }
+    | st44=listSuperUsersStatement         { $stmt = st44; }
+    | st45=copyTableStatement              { $stmt = st45; }
+    | st46=batchTxnStatement               { $stmt = st46; }
+    | st47=letStatement                    { $stmt = st47; }
     ;
 
 /*
@@ -272,6 +307,8 @@ selectStatement returns [SelectStatement.RawStatement expr]
         List<Selectable.Raw> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
+        SelectOptions options = new SelectOptions();
+        stmtBegins();
     }
     : K_SELECT
         // json is a valid column name. By consequence, we need to resolve the ambiguity for "json - json"
@@ -283,15 +320,45 @@ selectStatement returns [SelectStatement.RawStatement expr]
       ( K_PER K_PARTITION K_LIMIT rows=intValue { perPartitionLimit = rows; } )?
       ( K_LIMIT rows=intValue { limit = rows; } )?
       ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
+      ( K_WITH properties[options] )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
                                                                              groups,
                                                                              $sclause.isDistinct,
                                                                              allowFiltering,
-                                                                             isJson);
+                                                                             isJson,
+                                                                             null);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
-          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit);
+          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit, stmtSrc(), options);
       }
+    ;
+    
+/**
+ * ex. LET x = (SELECT * FROM <table> WHERE k=1 AND c=2)
+ * ex. LET y = (SELECT * FROM <table> WHERE k=1 LIMIT 1)
+ */
+letStatement returns [SelectStatement.RawStatement expr]
+    @init {
+        Term.Raw limit = null;
+    }
+    : K_LET txnVar=IDENT '='
+      '(' { stmtBegins(); } K_SELECT assignments=letSelectors K_FROM cf=columnFamilyName K_WHERE wclause=whereClause ( K_LIMIT rows=intValue { limit = rows; } )? ')'
+      {
+          SelectStatement.Parameters params = new SelectStatement.Parameters(Collections.emptyList(), Collections.emptyList(), false, false, false, $txnVar.text);
+          WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
+
+          $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null, stmtSrc(), SelectOptions.EMPTY);
+      }
+    ;
+    
+letSelectors returns [List<RawSelector> expr]
+    : t1=letSelector { $expr = new ArrayList<RawSelector>(); $expr.add(t1); } (',' tN=letSelector { $expr.add(tN); })*
+    | '\*' { $expr = Collections.<RawSelector>emptyList();}
+    ;
+    
+letSelector returns [RawSelector s]
+    @init{ ColumnIdentifier alias = null; }
+    : us=unaliasedSelector { $s = new RawSelector(us, alias); }
     ;
 
 selectClause returns [boolean isDistinct, List<RawSelector> selectors]
@@ -425,10 +492,14 @@ selectionFunction returns [Selectable.Raw s]
     ;
 
 selectionLiteral returns [Term.Raw value]
-    : c=constant                     { $value = c; }
-    | K_NULL                         { $value = Constants.NULL_LITERAL; }
-    | ':' id=noncol_ident            { $value = newBindVariables(id); }
-    | QMARK                          { $value = newBindVariables(null); }
+    : c=constant  { $value = c; }
+    | K_NULL      { $value = Constants.NULL_LITERAL; }
+    | m=marker    { $value = m; }
+    ;
+
+marker returns [Term.Raw value]
+    : ':' id=noncol_ident  { $value = newBindVariables(id); }
+    | QMARK                { $value = newBindVariables(null); }
     ;
 
 selectionFunctionArgs returns [List<Selectable.Raw> a]
@@ -483,6 +554,9 @@ groupByClause[List<Selectable.Raw> groups]
  *
  */
 insertStatement returns [ModificationStatement.Parsed expr]
+    @init {
+        stmtBegins();
+    }
     : K_INSERT K_INTO cf=columnFamilyName
         ( st1=normalInsertStatement[cf] { $expr = st1; }
         | K_JSON st2=jsonInsertStatement[cf] { $expr = st2; })
@@ -497,12 +571,17 @@ normalInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsert e
     }
     : '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
       K_VALUES
-      '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
+      '(' insertValue[values] ( ',' insertValue[values] )* ')'
       ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsert(qn, attrs, columnNames, values, ifNotExists);
+          $expr = new UpdateStatement.ParsedInsert(qn, attrs, columnNames, values, ifNotExists, stmtSrc(), isParsingTxn);
       }
+    ;
+
+insertValue[List<Term.Raw> values]
+    : t=term { values.add(t); }
+    | {isParsingTxn}? dr=rowDataReference { values.add(new ReferenceValue.Substitution.Raw(dr)); }
     ;
 
 jsonInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsertJson expr]
@@ -516,7 +595,7 @@ jsonInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsertJson
       ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsertJson(qn, attrs, val, defaultUnset, ifNotExists);
+          $expr = new UpdateStatement.ParsedInsertJson(qn, attrs, val, defaultUnset, ifNotExists, stmtSrc(), isParsingTxn);
       }
     ;
 
@@ -545,8 +624,9 @@ usingClauseObjective[Attributes.Raw attrs]
 updateStatement returns [UpdateStatement.ParsedUpdate expr]
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
-        List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations = new ArrayList<>();
+        UpdateStatement.OperationCollector operations = new UpdateStatement.OperationCollector();
         boolean ifExists = false;
+        stmtBegins();
     }
     : K_UPDATE cf=columnFamilyName
       ( usingClause[attrs] )?
@@ -558,16 +638,17 @@ updateStatement returns [UpdateStatement.ParsedUpdate expr]
                                                    attrs,
                                                    operations,
                                                    wclause.build(),
-                                                   conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions,
-                                                   ifExists);
+                                                   conditions == null ? Collections.<ColumnCondition.Raw>emptyList() : conditions,
+                                                   ifExists,
+                                                   isParsingTxn,
+                                                   stmtSrc());
      }
     ;
 
-updateConditions returns [List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
-    @init { conditions = new ArrayList<Pair<ColumnIdentifier, ColumnCondition.Raw>>(); }
-    : columnCondition[conditions] ( K_AND columnCondition[conditions] )*
+updateConditions returns [List<ColumnCondition.Raw> conditions]
+    @init { conditions = new ArrayList<ColumnCondition.Raw>(); }
+    : c1=columnCondition { $conditions.add(c1);} ( K_AND cn=columnCondition { $conditions.add(cn); })*
     ;
-
 
 /**
  * DELETE name1, name2
@@ -581,6 +662,7 @@ deleteStatement returns [DeleteStatement.Parsed expr]
         Attributes.Raw attrs = new Attributes.Raw();
         List<Operation.RawDeletion> columnDeletions = Collections.emptyList();
         boolean ifExists = false;
+        stmtBegins();
     }
     : K_DELETE ( dels=deleteSelection { columnDeletions = dels; } )?
       K_FROM cf=columnFamilyName
@@ -592,8 +674,10 @@ deleteStatement returns [DeleteStatement.Parsed expr]
                                              attrs,
                                              columnDeletions,
                                              wclause.build(),
-                                             conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions,
-                                             ifExists);
+                                             conditions == null ? Collections.<ColumnCondition.Raw>emptyList() : conditions,
+                                             ifExists,
+                                             stmtSrc(),
+                                             isParsingTxn);
       }
     ;
 
@@ -657,6 +741,102 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
     : i=insertStatement  { $statement = i; }
     | u=updateStatement  { $statement = u; }
     | d=deleteStatement  { $statement = d; }
+    ;
+
+/**
+ * ex. conditional update returning pre-update values
+ *
+ * BEGIN TRANSACTION
+ *   LET row1 = (SELECT * FROM <table> WHERE k=1 AND c=2);
+ *   LET row2 = (SELECT * FROM <table> WHERE k=2 AND c=2);
+ *   SELECT row1.v, row2.v;
+ *   IF row1.v = 3 AND row2.v = 4 THEN
+ *     UPDATE <table> SET v = row1.v + 1 WHERE k = 1 AND c = 2;
+ *   END IF
+ * COMMIT TRANSACTION
+ *
+ * ex. read-only transaction
+ * 
+ * BEGIN TRANSACTION
+ *   SELECT * FROM <table> WHERE k=1 AND c=2;
+ * COMMIT TRANSACTION
+ *
+ * ex. write-only transaction
+ * 
+ * BEGIN TRANSACTION
+ *   INSERT INTO <table> (k, c, v) VALUES (0, 0, 1);
+ * COMMIT TRANSACTION
+ */
+batchTxnStatement returns [TransactionStatement.Parsed expr]
+    @init {
+        isParsingTxn = true;
+        List<SelectStatement.RawStatement> assignments = new ArrayList<>();
+        SelectStatement.RawStatement select = null;
+        List<RowDataReference.Raw> returning = null;
+        List<ModificationStatement.Parsed> updates = new ArrayList<>();
+    }
+    : K_BEGIN K_TRANSACTION
+      ( let=letStatement ';' { assignments.add(let); })*
+      ( ( (selectStatement) => s=selectStatement ';' { select = s; }) | ( K_SELECT drs=rowDataReferences ';' { returning = drs; }) )?
+      ( K_IF conditions=txnConditions K_THEN { isTxnConditional = true; } )?
+      ( upd=batchStatementObjective ';' { updates.add(upd); } )*
+      ( {!isTxnConditional}? (K_COMMIT K_TRANSACTION) | {isTxnConditional}? (K_END K_IF K_COMMIT K_TRANSACTION))
+    {
+        $expr = new TransactionStatement.Parsed(assignments, select, returning, updates, conditions, references);
+    }
+    ;
+    finally { isParsingTxn = false; }
+
+rowDataReferences returns [List<RowDataReference.Raw> refs]
+    : r1=rowDataReference { refs = new ArrayList<RowDataReference.Raw>(); refs.add(r1); } (',' rN=rowDataReference { refs.add(rN); })*
+    ;
+
+rowDataReference returns [RowDataReference.Raw rawRef]
+    @init { Selectable.RawIdentifier tuple = null; Selectable.Raw selectable = null; }
+    @after { $rawRef = newRowDataReference(tuple, selectable); }
+    : t=sident ('.' s=referenceSelection)? { tuple = t; selectable = s; }
+    ;
+
+referenceSelection returns [Selectable.Raw s]
+    : g=referenceSelectionWithoutField m=selectorModifier[g] {$s = m;}
+    ;
+
+referenceSelectionWithoutField returns [Selectable.Raw s]
+    @init { Selectable.Raw tmp = null; }
+    @after { $s = tmp; }
+    : sn=sident  { tmp=sn; }
+    | (selectionTypeHint)=> h=selectionTypeHint { tmp=h; }
+    | t=selectionTupleOrNestedSelector { tmp=t; }
+    | l=selectionList { tmp=l; }
+    | m=selectionMapOrSet { tmp=m; }
+    // UDTs are equivalent to maps from the syntax point of view, so the final decision will be done in Selectable.WithMapOrUdt
+    ;
+
+txnConditions returns [List<ConditionStatement.Raw> conditions]
+    @init { conditions = new ArrayList<ConditionStatement.Raw>(); }
+    : txnColumnCondition[conditions] ( K_AND txnColumnCondition[conditions] )*
+    ;
+
+txnConditionKind returns [ConditionStatement.Kind op]
+    : '='  { $op = ConditionStatement.Kind.EQ; }
+    | '<'  { $op = ConditionStatement.Kind.LT; }
+    | '<=' { $op = ConditionStatement.Kind.LTE; }
+    | '>'  { $op = ConditionStatement.Kind.GT; }
+    | '>=' { $op = ConditionStatement.Kind.GTE; }
+    | '!=' { $op = ConditionStatement.Kind.NEQ; }
+    ;
+
+txnColumnCondition[List<ConditionStatement.Raw> conditions]
+    : lhs=rowDataReference
+      ( 
+        K_IS 
+        (
+            K_NOT K_NULL { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.IS_NOT_NULL, null)); }
+            | K_NULL { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.IS_NULL, null)); }
+        )
+        | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
+      )
+    | lhs=term op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
     ;
 
 createAggregateStatement returns [CreateAggregateStatement.Raw stmt]
@@ -732,7 +912,7 @@ createFunctionStatement returns [CreateFunctionStatement.Raw stmt]
       K_LANGUAGE language = IDENT
       K_AS body = STRING_LITERAL
       { $stmt = new CreateFunctionStatement.Raw(
-          fn, argNames, argTypes, returnType, calledOnNullInput, $language.text.toLowerCase(), $body.text, orReplace, ifNotExists);
+          fn, argNames, argTypes, returnType, calledOnNullInput, LocalizeString.toLowerCaseLocalized($language.text), $body.text, orReplace, ifNotExists);
       }
     ;
 
@@ -789,10 +969,45 @@ tableDefinition[CreateTableStatement.Raw stmt]
     ;
 
 tableColumns[CreateTableStatement.Raw stmt]
-    @init { boolean isStatic = false; }
-    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? { $stmt.addColumn(k, v, isStatic, mask); }
+    @init { boolean isStatic = false; boolean isNotNull = false; }
+    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (K_NOT K_NULL { isNotNull = true; })? (mask=columnMask)? (constraints=columnConstraints)? { $stmt.addColumn(k, v, isStatic, isNotNull, mask, constraints); }
         (K_PRIMARY K_KEY { $stmt.setPartitionKeyColumn(k); })?
     | K_PRIMARY K_KEY '(' tablePartitionKey[stmt] (',' c=ident { $stmt.markClusteringColumn(c); } )* ')'
+    ;
+
+columnConstraints returns [ColumnConstraints.Raw constraints]
+    @init {
+        boolean isStatic = false;
+        List constraintsList = new ArrayList();
+    }
+    : K_CHECK cc=columnConstraint { constraintsList.add(cc); } (K_AND cc=columnConstraint { constraintsList.add(cc); })* { $constraints = new ColumnConstraints.Raw(constraintsList); }
+    ;
+
+columnConstraint returns [ColumnConstraint columnConstraint]
+    @init { List<String> arguments = new ArrayList<>(); }
+    : K_NOT K_NULL
+    {
+        $columnConstraint = new UnaryFunctionColumnConstraint.Raw("NOT_NULL").prepare();
+    }
+    | funcName=ident columnConstraintsArguments[arguments] (op=relationType t=value)?
+    {
+        if (op != null && t != null)
+        {
+            $columnConstraint = new FunctionColumnConstraint.Raw(funcName, arguments, op, t.getText()).prepare();
+        }
+        else
+        {
+            $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName, arguments).prepare();
+        }
+    }
+    | k=ident op=relationType t=value
+    {
+        $columnConstraint = new ScalarColumnConstraint.Raw(k, op, t.getText()).prepare();
+    }
+    | funcName=ident
+    {
+         $columnConstraint = new UnaryFunctionColumnConstraint.Raw(funcName).prepare();
+    }
     ;
 
 columnMask returns [ColumnMask.Raw mask]
@@ -803,6 +1018,12 @@ columnMask returns [ColumnMask.Raw mask]
 
 columnMaskArguments[List<Term.Raw> arguments]
     : '('  ')' | '(' c=term { arguments.add(c); } (',' cn=term { arguments.add(cn); })* ')'
+    ;
+
+columnConstraintsArguments[List<String> arguments]
+    : '('  ')'
+    | '(' c=term { try { arguments.add(c.toString()); } catch (Throwable t) { throw new SyntaxException("Constraint function parameters need to be strings."); }; } (',' cn=term { try { arguments.add(cn.toString()); } catch (Throwable t) { throw new SyntaxException("Constraint function parameters need to be strings."); }; })* ')'
+    | '(' ci=ident { throw new SyntaxException("Constraint function parameters need to be strings."); } (',' cni=ident)* ')'
     ;
 
 tablePartitionKey[CreateTableStatement.Raw stmt]
@@ -821,6 +1042,26 @@ tableProperty[CreateTableStatement.Raw stmt]
 tableClusteringOrder[CreateTableStatement.Raw stmt]
     @init{ boolean ascending = true; }
     : k=ident (K_ASC | K_DESC { ascending = false; } ) { $stmt.extendClusteringOrder(k, ascending); }
+    ;
+
+/**
+ * CREATE TABLE [IF NOT EXISTS] <NEW_TABLE> LIKE <OLD_TABLE> WITH <property> = <value> AND ...;
+ */
+copyTableStatement returns  [CopyTableStatement.Raw stmt]
+    @init { boolean ifNotExists = false; }
+    : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      newCf=columnFamilyName K_LIKE oldCf=columnFamilyName
+      { $stmt = new CopyTableStatement.Raw(newCf, oldCf, ifNotExists); }
+      ( K_WITH propertyOrOption[stmt] ( K_AND propertyOrOption[stmt] )*)?
+    ;
+
+propertyOrOption[CopyTableStatement.Raw stmt]
+    : tableLikeSingleOption[stmt]
+    | property[stmt.attrs]
+    ;
+
+tableLikeSingleOption[CopyTableStatement.Raw stmt]
+    : K_INDEXES {$stmt.withLikeOption(CopyTableStatement.CreateLikeOption.INDEXES);}
     ;
 
 /**
@@ -963,12 +1204,14 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
       | K_ALTER ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )? id=cident
               ( mask=columnMask { $stmt.mask(id, mask); }
-              | K_DROP K_MASKED { $stmt.mask(id, null); } )
+              | constraints=columnConstraints { $stmt.constraint(id, constraints); }
+              | K_DROP K_MASKED { $stmt.mask(id, null); }
+              | K_DROP K_CHECK { $stmt.constraint(id, null); })
 
       | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
-              (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? { $stmt.add(id,  v,  b, m);  }
-               | ('('  id1=ident v1=comparatorType b1=isStaticColumn (m1=columnMask)? { $stmt.add(id1, v1, b1, m1); }
-                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn (mn=columnMask)? { $stmt.add(idn, vn, bn, mn); mn=null; } )* ')') )
+              (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? (c=columnConstraints)? { $stmt.add(id,  v,  b, m, c);  }
+               | ('('  id1=ident v1=comparatorType b1=isStaticColumn (m1=columnMask)? (c=columnConstraints)? { $stmt.add(id1, v1, b1, m1, c); }
+                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn (mn=columnMask)? (c=columnConstraints)? { $stmt.add(idn, vn, bn, mn, c); mn=null; c=null;} )* ')') )
 
       | K_DROP ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
                (       id=ident { $stmt.drop(id);  }
@@ -1137,7 +1380,7 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
 
 permission returns [Permission perm]
     : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE | K_UNMASK | K_SELECT_MASKED)
-    { $perm = Permission.valueOf($p.text.toUpperCase()); }
+    { $perm = Permission.valueOf(LocalizeString.toUpperCaseLocalized($p.text)); }
     ;
 
 permissionOrAll returns [Set<Permission> perms]
@@ -1210,6 +1453,14 @@ createUserStatement returns [CreateRoleStatement stmt]
         {
            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
+        if (opts.getPassword().isPresent() && opts.isGeneratedPassword())
+        {
+           throw new SyntaxException("Options 'password' and 'generated password' are mutually exclusive");
+        }
+        if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
+        {
+           throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), CIDRPermissions.all(), ifNotExists); }
     ;
 
@@ -1230,6 +1481,14 @@ alterUserStatement returns [AlterRoleStatement stmt]
          if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
+         }
+         if (opts.getPassword().isPresent() && opts.isGeneratedPassword())
+         {
+            throw new SyntaxException("Options 'password' and 'generated password' are mutually exclusive");
+         }
+         if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
+         {
+            throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
          }
          $stmt = new AlterRoleStatement(name, opts, null, null, ifExists);
       }
@@ -1311,6 +1570,14 @@ createRoleStatement returns [CreateRoleStatement stmt]
         {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
+        if (opts.getPassword().isPresent() && opts.isGeneratedPassword())
+        {
+            throw new SyntaxException("Options 'password' and 'generated password' are mutually exclusive");
+        }
+        if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
+        {
+           throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
+        }
         $stmt = new CreateRoleStatement(name, opts, dcperms.build(), cidrperms.build(), ifNotExists);
       }
     ;
@@ -1342,6 +1609,14 @@ alterRoleStatement returns [AlterRoleStatement stmt]
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
          }
+         if (opts.getPassword().isPresent() && opts.isGeneratedPassword())
+         {
+            throw new SyntaxException("Options 'password' and 'generated password' are mutually exclusive");
+         }
+         if (opts.getHashedPassword().isPresent() && opts.isGeneratedPassword())
+         {
+            throw new SyntaxException("Options 'hashed password' and 'generated password' are mutually exclusive");
+         }
          $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, cidrperms.isModified() ? cidrperms.build() : null, ifExists);
       }
     ;
@@ -1371,12 +1646,22 @@ listRolesStatement returns [ListRolesStatement stmt]
       { $stmt = new ListRolesStatement(grantee, recursive); }
     ;
 
+/**
+ * LIST SUPERUSERS
+ */
+listSuperUsersStatement returns [ListSuperUsersStatement stmt]
+    @init {
+    }
+    : K_LIST K_SUPERUSERS { $stmt = new ListSuperUsersStatement(); }
+    ;
+
 roleOptions[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     : roleOption[opts, dcperms, cidrperms] (K_AND roleOption[opts, dcperms, cidrperms])*
     ;
 
 roleOption[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_GENERATED K_PASSWORD { opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, Boolean.TRUE); } 
     |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
     |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
@@ -1399,6 +1684,7 @@ cidrPermission[CIDRPermissions.Builder builder]
 userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     |  K_HASHED K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
+    |  K_GENERATED K_PASSWORD { opts.setOption(IRoleManager.Option.GENERATED_PASSWORD, Boolean.TRUE); }
     ;
 
 /**
@@ -1479,6 +1765,11 @@ keyspaceName returns [String id]
 indexName returns [QualifiedName name]
     @init { $name = new QualifiedName(); }
     : (ksName[name] '.')? idxName[name]
+    ;
+
+indexNames returns [Set<QualifiedName> names]
+    @init { $names = new HashSet<QualifiedName>(); }
+    : '{' ( t1=indexName { names.add(t1); } ( ',' tn=indexName { names.add(tn); } )* )? '}'
     ;
 
 columnFamilyName returns [QualifiedName name]
@@ -1594,14 +1885,12 @@ value returns [Term.Raw value]
     | u=usertypeLiteral    { $value = u; }
     | t=tupleLiteral       { $value = t; }
     | K_NULL               { $value = Constants.NULL_LITERAL; }
-    | ':' id=noncol_ident  { $value = newBindVariables(id); }
-    | QMARK                { $value = newBindVariables(null); }
+    | m=marker             { $value = m; }
     ;
 
 intValue returns [Term.Raw value]
-    : t=INTEGER     { $value = Constants.Literal.integer($t.text); }
-    | ':' id=noncol_ident  { $value = newBindVariables(id); }
-    | QMARK         { $value = newBindVariables(null); }
+    : t=INTEGER { $value = Constants.Literal.integer($t.text); }
+    | m=marker  { $value = m; }
     ;
 
 functionName returns [FunctionName s]
@@ -1611,7 +1900,7 @@ functionName returns [FunctionName s]
     ;
 
 allowedFunctionName returns [String s]
-    : f=IDENT                       { $s = $f.text.toLowerCase(); }
+    : f=IDENT                       { $s = LocalizeString.toLowerCaseLocalized($f.text); }
     | f=QUOTED_NAME                 { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }
@@ -1659,18 +1948,18 @@ simpleTerm returns [Term.Raw term]
     | K_CAST '(' t=simpleTerm K_AS n=native_type ')' { $term = FunctionCall.Raw.newCast(t, n); }
     ;
 
-columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
+columnOperation[UpdateStatement.OperationCollector operations]
     : key=cident columnOperationDifferentiator[operations, key]
     ;
 
-columnOperationDifferentiator[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key]
+columnOperationDifferentiator[UpdateStatement.OperationCollector operations, ColumnIdentifier key]
     : '=' normalColumnOperation[operations, key]
     | shorthandColumnOperation[operations, key]
     | '[' k=term ']' collectionColumnOperation[operations, key, k]
     | '.' field=fident udtColumnOperation[operations, key, field]
     ;
 
-normalColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key]
+normalColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdentifier key]
     : t=term ('+' c=cident )?
       {
           if (c == null)
@@ -1698,51 +1987,71 @@ normalColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operatio
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
       }
+     | {isParsingTxn}? r=rowDataReference
+       {
+           addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(new Operation.SetValue(r), key, new ReferenceValue.Substitution.Raw(r)));
+       }
     ;
 
-shorthandColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key]
-    : sig=('+=' | '-=') t=term
-      {
-          addRawUpdate(operations, key, $sig.text.equals("+=") ? new Operation.Addition(t) : new Operation.Substraction(t));
-      }
+shorthandColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdentifier key]
+    : sig=('+=' | '-=')
+      (
+          t=term
+          {
+              addRawUpdate(operations, key, $sig.text.equals("+=") ? new Operation.Addition(t) : new Operation.Substraction(t));
+          }
+          | {isParsingTxn}? dr=rowDataReference
+            {
+                ReferenceValue.Raw right = new ReferenceValue.Substitution.Raw(dr);
+                Operation.RawUpdate operation = $sig.text.equals("+=") ? new Operation.Addition(dr) : new Operation.Substraction(dr);
+                addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(operation, key, right));
+            }
+      )
     ;
 
-collectionColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key, Term.Raw k]
-    : '=' t=term
-      {
-          addRawUpdate(operations, key, new Operation.SetElement(k, t));
-      }
+collectionColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdentifier key, Term.Raw k]
+    : '='
+      (
+          t=term
+          {
+              addRawUpdate(operations, key, new Operation.SetElement(k, t));
+          }
+          | {isParsingTxn}? dr=rowDataReference
+            {
+                ReferenceValue.Raw right = new ReferenceValue.Substitution.Raw(dr);
+                addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(new Operation.SetElement(k, dr), key, right));
+            }
+      )
     ;
 
-udtColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key, FieldIdentifier field]
-    : '=' t=term
-      {
-          addRawUpdate(operations, key, new Operation.SetField(field, t));
-      }
+udtColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdentifier key, FieldIdentifier field]
+    : '='
+      (
+          t=term
+          {
+              addRawUpdate(operations, key, new Operation.SetField(field, t));
+          }
+          | {isParsingTxn}? dr=rowDataReference
+            {
+                ReferenceValue.Raw right = new ReferenceValue.Substitution.Raw(dr);
+                addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(new Operation.SetField(field, dr), key, right));
+            }
+      )
     ;
 
-columnCondition[List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
+columnCondition returns [ColumnCondition.Raw condition]
     // Note: we'll reject duplicates later
-    : key=cident
-        ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleCondition(t, op))); }
-        | op=containsOperator t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleCondition(t, op))); }
-        | K_IN
-            ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(values))); }
-            | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(marker))); }
-            )
+    : column=cident
+        ( op=relationType t=term       { $condition = ColumnCondition.Raw.simpleCondition(column, op, Terms.Raw.of(t)); }
+        | K_CONTAINS (K_KEY)? t=term   { $condition = ColumnCondition.Raw.simpleCondition(column, $K_KEY != null ? Operator.CONTAINS_KEY : Operator.CONTAINS, Terms.Raw.of(t)); }
+        | K_IN v=singleColumnInValues  { $condition = ColumnCondition.Raw.simpleCondition(column, Operator.IN, v); }
         | '[' element=term ']'
-            ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionCondition(t, element, op))); }
-            | K_IN
-                ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, values))); }
-                | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, marker))); }
-                )
+            ( op=relationType t=term      { $condition = ColumnCondition.Raw.collectionElementCondition(column, element, op, Terms.Raw.of(t)); }
+            | K_IN v=singleColumnInValues { $condition = ColumnCondition.Raw.collectionElementCondition(column, element, Operator.IN, v); }
             )
         | '.' field=fident
-            ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldCondition(t, field, op))); }
-            | K_IN
-                ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldInCondition(field, values))); }
-                | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldInCondition(field, marker))); }
-                )
+            ( op=relationType t=term      { $condition = ColumnCondition.Raw.udtFieldCondition(column, field, op, Terms.Raw.of(t)); }
+            | K_IN v=singleColumnInValues { $condition = ColumnCondition.Raw.udtFieldCondition(column, field, Operator.IN, v); }
             )
         )
     ;
@@ -1751,14 +2060,26 @@ properties[PropertyDefinitions props]
     : property[props] (K_AND property[props])*
     ;
 
+indexProperty returns [String s]
+    : 'included_indexes' { s = "included_indexes"; }
+    | 'excluded_indexes' { s = "excluded_indexes"; }
+    ;
+
 property[PropertyDefinitions props]
     : k=noncol_ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     | k=noncol_ident '=' map=fullMapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | s=indexProperty '=' names=indexNames { try { $props.addProperty(s, names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 propertyValue returns [String str]
     : c=constant           { $str = c.getRawText(); }
     | u=unreserved_keyword { $str = u; }
+    ;
+
+singleColumnBetweenValues returns [Terms.Raw terms]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $terms = Terms.Raw.of(list); }
+    : t1=term { list.add(t1); } K_AND t2=term { list.add(t2); }
     ;
 
 relationType returns [Operator op]
@@ -1771,45 +2092,38 @@ relationType returns [Operator op]
     ;
 
 relation[WhereClause.Builder clauses]
-    : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
-    | name=cident K_LIKE t=term { $clauses.add(new SingleColumnRelation(name, Operator.LIKE, t)); }
-    | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
-    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
-        { $clauses.add(new TokenRelation(l, type, t)); }
-    | name=cident K_IN marker=inMarker
-        { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
-    | name=cident K_IN inValues=singleColumnInValues
-        { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
-    | name=cident rt=containsOperator t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
-    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(new SingleColumnRelation(name, key, type, t)); }
+    : name=cident
+           ( type=relationType t=term { $clauses.add(Relation.singleColumn(name, type, t)); }
+           | K_BETWEEN betweenValues=singleColumnBetweenValues { $clauses.add(Relation.singleColumn(name, Operator.BETWEEN, betweenValues)); }
+           | K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
+           | K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
+           | rtInOperator=inOperator inValue=singleColumnInValues { $clauses.add(Relation.singleColumn(name, rtInOperator, inValue)); }
+           | rtContainsOperator=containsOperator t=term { $clauses.add(Relation.singleColumn(name, rtContainsOperator, t)); }
+           )
+    | K_TOKEN l=tupleOfIdentifiers
+        ( type=relationType t=term { $clauses.add(Relation.token(l, type, t)); }
+        | K_BETWEEN betweenValues=singleColumnBetweenValues { $clauses.add(Relation.token(l, Operator.BETWEEN, betweenValues)); }
+        )
+    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(Relation.mapElement(name, key, type, t)); }
     | ids=tupleOfIdentifiers
-      ( K_IN
-          ( '(' ')'
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, new ArrayList<Tuples.Literal>())); }
-          | tupleInMarker=inMarkerForTuple /* (a, b, c) IN ? */
-              { $clauses.add(MultiColumnRelation.createSingleMarkerInRelation(ids, tupleInMarker)); }
-          | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
-              {
-                  $clauses.add(MultiColumnRelation.createInRelation(ids, literals));
-              }
-          | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, markers)); }
-          )
-      | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
-          {
-              $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, literal));
-          }
-      | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
-          { $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, tupleMarker)); }
-      )
+        ( rt=inOperator inValue=multiColumnInValues { $clauses.add(Relation.multiColumn(ids, rt, inValue)); }
+        | type=relationType v=multiColumnValue {$clauses.add(Relation.multiColumn(ids, type, v)); }
+        | K_BETWEEN t1=multiColumnValue K_AND t2=multiColumnValue { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(t1, t2)))); }
+        )
     | '(' relation[$clauses] ')'
     ;
 
 containsOperator returns [Operator o]
     : K_CONTAINS { o = Operator.CONTAINS; } (K_KEY { o = Operator.CONTAINS_KEY; })?
+    | K_NOT K_CONTAINS { o = Operator.NOT_CONTAINS; } (K_KEY { o = Operator.NOT_CONTAINS_KEY; })?
     ;
 
-inMarker returns [AbstractMarker.INRaw marker]
+inOperator returns [Operator o]
+    : K_IN { o = Operator.IN; }
+    | K_NOT K_IN { o = Operator.NOT_IN; }
+    ;
+
+inMarker returns [Terms.Raw marker]
     : QMARK { $marker = newINBindVariables(null); }
     | ':' name=noncol_ident { $marker = newINBindVariables(name); }
     ;
@@ -1819,29 +2133,39 @@ tupleOfIdentifiers returns [List<ColumnIdentifier> ids]
     : '(' n1=cident { $ids.add(n1); } (',' ni=cident { $ids.add(ni); })* ')'
     ;
 
-singleColumnInValues returns [List<Term.Raw> terms]
-    @init { $terms = new ArrayList<Term.Raw>(); }
-    : '(' ( t1 = term { $terms.add(t1); } (',' ti=term { $terms.add(ti); })* )? ')'
+singleColumnInValues returns [Terms.Raw terms]
+    : t=terms     { $terms = t;}
+    | m=inMarker  { $terms = m;}
     ;
 
-tupleOfTupleLiterals returns [List<Tuples.Literal> literals]
-    @init { $literals = new ArrayList<>(); }
-    : '(' t1=tupleLiteral { $literals.add(t1); } (',' ti=tupleLiteral { $literals.add(ti); })* ')'
+terms returns [Terms.Raw terms]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $terms = Terms.Raw.of(list); }
+    : '(' ( t1 = term { list.add(t1); } (',' ti=term { list.add(ti); })* )? ')'
     ;
 
-markerForTuple returns [Tuples.Raw marker]
-    : QMARK { $marker = newTupleBindVariables(null); }
-    | ':' name=noncol_ident { $marker = newTupleBindVariables(name); }
+multiColumnValue returns [Term.Raw term]
+    : l=tupleLiteral { $term = l; } /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
+    | m=marker       { $term = m; } /* (a, b, c) >= ? */
     ;
 
-tupleOfMarkersForTuples returns [List<Tuples.Raw> markers]
-    @init { $markers = new ArrayList<Tuples.Raw>(); }
-    : '(' m1=markerForTuple { $markers.add(m1); } (',' mi=markerForTuple { $markers.add(mi); })* ')'
+multiColumnInValues returns [Terms.Raw terms]
+    : '(' ')'                    { $terms = Terms.Raw.of();}  /* (a, b, c) IN () */
+    | m=inMarker                 { $terms = m; }              /* (a, b, c) IN ? */
+    | tl=tupleOfTupleLiterals    { $terms = tl; }             /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
+    | tm=tupleOfMarkersForTuples { $terms = tm; }             /* (a, b, c) IN (?, ?, ...) */
     ;
 
-inMarkerForTuple returns [Tuples.INRaw marker]
-    : QMARK { $marker = newTupleINBindVariables(null); }
-    | ':' name=noncol_ident { $marker = newTupleINBindVariables(name); }
+tupleOfTupleLiterals returns [Terms.Raw literals]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $literals = Terms.Raw.of(list); }
+    : '(' t1=tupleLiteral { list.add(t1); } (',' ti=tupleLiteral { list.add(ti); })* ')'
+    ;
+
+tupleOfMarkersForTuples returns [Terms.Raw markers]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $markers = Terms.Raw.of(list); }
+    : '(' m1=marker { list.add(m1); } (',' mi=marker { list.add(mi); })* ')'
     ;
 
 comparatorType returns [CQL3Type.Raw t]
@@ -1977,11 +2301,13 @@ basic_unreserved_keyword returns [String str]
         | K_ROLES
         | K_IDENTITY
         | K_SUPERUSER
+        | K_SUPERUSERS
         | K_NOSUPERUSER
         | K_LOGIN
         | K_NOLOGIN
         | K_OPTIONS
         | K_PASSWORD
+        | K_GENERATED
         | K_HASHED
         | K_EXISTS
         | K_CUSTOM
@@ -2021,5 +2347,13 @@ basic_unreserved_keyword returns [String str]
         | K_SELECT_MASKED
         | K_VECTOR
         | K_ANN
+        | K_BETWEEN
+        | K_CHECK
+        | K_INDEXES
+        | K_COMMIT
+        | K_END
+        | K_LET
+        | K_THEN
+        | K_TRANSACTION
         ) { $str = $k.text; }
     ;

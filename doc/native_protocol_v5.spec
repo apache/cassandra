@@ -29,7 +29,6 @@ Table of Contents
       2.3.1 Initial Handshake
       2.3.2 Compression
     2.4. Frame Payload
-      2.4.1 Frame Header
       2.4.1.1. version
       2.4.1.2. flags
       2.4.1.3. stream
@@ -232,7 +231,7 @@ Table of Contents
   All values in an envelope are big-endian (network byte order).
 
   Each envelope contains a fixed size header (9 bytes) followed by a variable size
-  body. The header is described in Section 2.4.1. The content of the body depends
+  body. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
   opcode values). The list of allowed opcodes is defined in Section 2.4.1.4 and the
   details of each corresponding message are described Section 4.
@@ -255,7 +254,7 @@ Table of Contents
   previously possible to enable compression for an individual envelope. This is no
   longer possible, as the framing format is responsible for compression, which is set for
   the lifetime of a connection and applies to all messages transmitted throughout it
-  (see Section 2.2.1 for caveats). The compression flag is therefore deprecated and
+  (see Section 2.2 for caveats). The compression flag is therefore deprecated and
   ignored in protocol v5.
 
 2.4.1.1. version
@@ -277,7 +276,7 @@ Table of Contents
   connection.
 
   This document describes version 5 of the protocol. For the changes made since
-  version 4, see Section 10.
+  version 4, see Section 9.
 
 2.4.1.2. flags
 
@@ -405,7 +404,7 @@ Table of Contents
                       The purpose is to send small negative values as small unsigned values, so that we save bytes on the wire.
                       To encode a value n use "(n >> 31) ^ (n << 1)" for 32 bit values, and "(n >> 63) ^ (n << 1)"
                       for 64 bit values where "^" is the xor operation, "<<" is the left shift operation and ">>" is
-                      the arithemtic right shift operation (highest-order bit is replicated).
+                      the arithmetic right shift operation (highest-order bit is replicated).
                       Decode with "(n >> 1) ^ -(n & 1)".
 
     [option]          A pair of <id><value> where <id> is a [short] representing
@@ -423,7 +422,7 @@ Table of Contents
                       [byte] representing the IP address.
     [consistency]     A consistency level specification. This is a [short]
                       representing a consistency level with the following
-                      correspondance:
+                      correspondence:
                         0x0000    ANY
                         0x0001    ONE
                         0x0002    TWO
@@ -479,7 +478,7 @@ Table of Contents
       This is optional; if not specified no compression will be used.
     - "DRIVER_NAME": allows clients to supply a free-form label representing the driver
       implementation. This is displayed in the output of `nodetool clientstats`
-    - "DRIVER_VERSION": allows clients to supply a free-form label represting the driver
+    - "DRIVER_VERSION": allows clients to supply a free-form label representing the driver
       version. This is displayed in the output of `nodetool clientstats`
     - "THROW_ON_OVERLOAD": flag to specify server behaviour where the incoming message
       rate is too high. An [string] value of "1" instructs the server to respond with
@@ -549,8 +548,8 @@ Table of Contents
                 started (See Section 7 for more details).
         0x0010: With serial consistency. If set, <serial_consistency> should be
                 present. <serial_consistency> is the [consistency] level for the
-                serial phase of conditional updates. That consitency can only be
-                either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+                serial phase of conditional updates. Consistency can be
+                either SERIAL or LOCAL_SERIAL, if not present, it defaults to
                 SERIAL. This option will be ignored for anything else other than a
                 conditional update/insert.
         0x0020: With default timestamp. If set, <timestamp> must be present.
@@ -568,7 +567,7 @@ Table of Contents
                 and using this flag, while supported, is almost surely inefficient.
         0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
                 [string] indicating the keyspace that the query should be executed in.
-                It supercedes the keyspace that the connection is bound to, if any.
+                It supersedes the keyspace that the connection is bound to, if any.
         0x0100: With now in seconds. If set, <now_in_seconds> must be present.
                 <now_in_seconds> is an [int] representing the current time (now) for
                 the query. Affects TTL cell liveness in read queries and local deletion
@@ -594,7 +593,7 @@ Table of Contents
       flags are, given their mask:
         0x01: With keyspace. If set, <keyspace> must be present. <keyspace> is a
               [string] indicating the keyspace that the query should be executed in.
-              It supercedes the keyspace that the connection is bound to, if any.
+              It supersedes the keyspace that the connection is bound to, if any.
 
   The server will respond with a RESULT message with a `prepared` kind (0x0004,
   see Section 4.2.5).
@@ -607,10 +606,10 @@ Table of Contents
   where
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
-    - <result_metadata_id> is the ID of the resultset metadata that was sent
+    - <result_metadata_id> is the ID of the result set metadata that was sent
       along with response to PREPARE message. If a RESULT/Rows message reports
-      changed resultset metadata with the Metadata_changed flag, the reported new
-      resultset metadata must be used in subsequent executions.
+      changed result set metadata with the Metadata_changed flag, the reported new
+      result set metadata must be used in subsequent executions.
     - <query_parameters> has the exact same definition as in QUERY (see Section 4.1.4).
 
 
@@ -635,8 +634,8 @@ Table of Contents
       flags are, given their mask:
         0x0010: With serial consistency. If set, <serial_consistency> should be
                 present. <serial_consistency> is the [consistency] level for the
-                serial phase of conditional updates. That consistency can only be
-                either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+                serial phase of conditional updates. Consistency can be
+                either SERIAL or LOCAL_SERIAL, if not present, it defaults to
                 SERIAL. This option will be ignored for anything else other than a
                 conditional update/insert.
         0x0020: With default timestamp. If set, <timestamp> should be present.
@@ -653,7 +652,7 @@ Table of Contents
                 more details].
         0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
                 [string] indicating the keyspace that the query should be executed in.
-                It supercedes the keyspace that the connection is bound to, if any.
+                It supersedes the keyspace that the connection is bound to, if any.
         0x0100: With now in seconds. If set, <now_in_seconds> must be present.
                 <now_in_seconds> is an [int] representing the current time (now) for
                 the query. Affects TTL cell liveness in read queries and local deletion
@@ -678,8 +677,8 @@ Table of Contents
     - <consistency> is the [consistency] level for the operation.
     - <serial_consistency> is only present if the 0x10 flag is set. In that case,
       <serial_consistency> is the [consistency] level for the serial phase of
-      conditional updates. That consitency can only be either SERIAL or
-      LOCAL_SERIAL and if not present will defaults to SERIAL. This option will
+      conditional updates. Consistency can be either SERIAL or
+      LOCAL_SERIAL, if not present, it defaults to SERIAL. This option will
       be ignored for anything else other than a conditional update/insert.
 
   The server will respond with a RESULT message.
@@ -704,7 +703,7 @@ Table of Contents
 
   This section describes the content of the frame body for the different
   responses. Please note that to make room for future evolution, clients should
-  support extra informations (that they should simply discard) to the one
+  support extra information (that they should simply discard) to the one
   described in this document at the end of the frame body.
 
 4.2.1. ERROR
@@ -732,7 +731,7 @@ Table of Contents
 
   The authentication is SASL based and thus consists of a number of server
   challenges (AUTH_CHALLENGE, Section 4.2.7) followed by client responses
-  (AUTH_RESPONSE, Section 4.1.2). The initial exchange is however boostrapped
+  (AUTH_RESPONSE, Section 4.1.2). The initial exchange is however bootstrapped
   by an initial client response. The details of that exchange (including how
   many challenge-response pairs are required) are specific to the authenticator
   in use. The exchange ends when the server sends an AUTH_SUCCESS message or
@@ -810,12 +809,12 @@ Table of Contents
                       during the query (see QUERY and RESULT messages).
             0x0008    Metadata_changed: if set, the No_metadata flag has to be unset
                       and <new_metadata_id> has to be supplied. This flag is to be
-                      used to avoid a roundtrip in case of metadata changes for queries
+                      used to avoid a round trip in case of metadata changes for queries
                       that requested metadata to be skipped.
         - <columns_count> is an [int] representing the number of columns selected
           by the query that produced this result. It defines the number of <col_spec_i>
           elements in and the number of elements for each row in <rows_content>.
-        - <new_metadata_id> is [short bytes] representing the new, changed resultset
+        - <new_metadata_id> is [short bytes] representing the new, changed result set
            metadata. The new metadata ID must also be used in subsequent executions of
            the corresponding prepared statement, if any.
         - <global_table_spec> is present if the Global_tables_spec is set in
@@ -823,8 +822,8 @@ Table of Contents
           (unique) keyspace name and table name the columns belong to.
         - <col_spec_i> specifies the columns returned in the query. There are
           <column_count> such column specifications that are composed of:
-            (<ksname><tablename>)?<name><type>
-          The initial <ksname> and <tablename> are two [string] and are only present
+            (<ks_name><table_name>)?<name><type>
+          The initial <ks_name> and <table_name> are two [string] and are only present
           if the Global_tables_spec flag is not set. The <column_name> is a
           [string] and <type> is an [option] that corresponds to the description
           (what this description is depends a bit on the context: in results to
@@ -902,7 +901,7 @@ Table of Contents
     <id><result_metadata_id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
-    - <result_metadata_id> is [short bytes] representing the resultset metadata ID.
+    - <result_metadata_id> is [short bytes] representing the result set metadata ID.
     - <metadata> is composed of:
         <flags><columns_count><pk_count>[<pk_index_1>...<pk_index_n>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
@@ -938,8 +937,8 @@ Table of Contents
         - <col_spec_i> specifies the bind markers in the prepared statement.
           There are <column_count> such column specifications, each with the
           following format:
-            (<ksname><tablename>)?<name><type>
-          The initial <ksname> and <tablename> are two [string] that are only
+            (<ks_name><table_name>)?<name><type>
+          The initial <ks_name> and <table_name> are two [string] that are only
           present if the Global_tables_spec flag is not set. The <name> field
           is a [string] that holds the name of the bind marker (if named),
           or the name of the column, field, or expression that the bind marker
@@ -962,7 +961,7 @@ Table of Contents
 
   Note that the prepared query ID returned is global to the node on which the query
   has been prepared. It can be used on any connection to that node
-  until the node is restarted (after which the query must be reprepared).
+  until the node is restarted (after which the query must be re-prepared).
 
 4.2.5.5. Schema_change
 
@@ -979,7 +978,7 @@ Table of Contents
 4.2.6. EVENT
 
   An event pushed by the server. A client will only receive events for the
-  types it has REGISTERed to. The body of an EVENT message will start with a
+  types it has REGISTER-ed to. The body of an EVENT message will start with a
   [string] representing the event type. The rest of the message depends on the
   event type. The valid event types are:
     - "TOPOLOGY_CHANGE": events related to change in the cluster topology.
@@ -1210,7 +1209,7 @@ Table of Contents
 5.25 vector
 
   For a vector of n dimensions of a fixed-length type, a sequence of those n elements.
-  For a vector with variable-length elements, the size of the elements will preced
+  For a vector with variable-length elements, the size of the elements will precede
   each element.  Each element is the [bytes] representing the serialized value.  The
   number of dimensions is not encoded, since it's part of the type definition.
 
@@ -1319,13 +1318,13 @@ Table of Contents
                              - "BATCH_LOG": the timeout occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                             - "CAS": the timeout occured during the Compare And Set write/update.
-                             - "VIEW": the timeout occured when a write involves
-                               VIEW update and failure to acqiure local view(MV)
+                             - "CAS": the timeout occurred during the Compare And Set write/update.
+                             - "VIEW": the timeout occurred when a write involves
+                               VIEW update and failure to acquire local view(MV)
                                lock for key within timeout
-                             - "CDC": the timeout occured when cdc_total_space is
+                             - "CDC": the timeout occurred when cdc_total_space is
                                exceeded when doing a write to data tracked by cdc.
-                <contentions> is a [short] that describes the number of contentions occured during the CAS operation.
+                <contentions> is a [short] that describes the number of contentions occurred during the CAS operation.
                               The field only presents when the <writeType> is "CAS".
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
@@ -1346,7 +1345,7 @@ Table of Contents
                                responded. Otherwise, the value is != 0.
     0x1300    Read_failure: A non-timeout exception during a read request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><reasonmap><data_present>
+                <cl><received><blockfor><reason_map><data_present>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1354,12 +1353,12 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <reasonmap> is a map of endpoint to failure reason codes. This maps
+                <reason_map> is a map of endpoint to failure reason codes. This maps
                             the endpoints of the replica nodes that failed when
                             executing the request to a code representing the reason
                             for the failure. The map is encoded starting with an [int] n
-                            followed by n pairs of <endpoint><failurecode> where
-                            <endpoint> is an [inetaddr] and <failurecode> is a [short].
+                            followed by n pairs of <endpoint><failure_code> where
+                            <endpoint> is an [inetaddr] and <failure_code> is a [short].
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data had not
                                responded. Otherwise, the value is != 0.
@@ -1372,7 +1371,7 @@ Table of Contents
                 <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
     0x1500    Write_failure: A non-timeout exception during a write request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><reasonmap><write_type>
+                <cl><received><blockfor><reason_map><write_type>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1380,12 +1379,12 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <reasonmap> is a map of endpoint to failure reason codes. This maps
+                <reason_map> is a map of endpoint to failure reason codes. This maps
                             the endpoints of the replica nodes that failed when
                             executing the request to a code representing the reason
                             for the failure. The map is encoded starting with an [int] n
-                            followed by n pairs of <endpoint><failurecode> where
-                            <endpoint> is an [inetaddr] and <failurecode> is a [short].
+                            followed by n pairs of <endpoint><failure_code> where
+                            <endpoint> is an [inetaddr] and <failure_code> is a [short].
                 <writeType> is a [string] that describes the type of the write
                             that failed. The value of that string can be one
                             of:
@@ -1399,17 +1398,17 @@ Table of Contents
                                batch. No batch log write has been attempted.
                              - "COUNTER": the write was a counter write
                                (batched or not).
-                             - "BATCH_LOG": the failure occured during the
+                             - "BATCH_LOG": the failure occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                             - "CAS": the failure occured during the Compare And Set write/update.
-                             - "VIEW": the failure occured when a write involves
-                               VIEW update and failure to acqiure local view(MV)
+                             - "CAS": the failure occurred during the Compare And Set write/update.
+                             - "VIEW": the failure occurred when a write involves
+                               VIEW update and failure to acquire local view(MV)
                                lock for key within timeout
-                             - "CDC": the failure occured when cdc_total_space is
+                             - "CDC": the failure occurred when cdc_total_space is
                                exceeded when doing a write to data tracked by cdc.
     0x1600    CDC_WRITE_FAILURE: // todo
-    0x1700    CAS_WRITE_UNKNOWN: An exception occured due to contended Compare And Set write/update.
+    0x1700    CAS_WRITE_UNKNOWN: An exception occurred due to contended Compare And Set write/update.
               The CAS operation was only partially completed and the operation may or may not get completed by
               the contending CAS write or SERIAL/LOCAL_SERIAL read. The rest of the ERROR message body will be
                 <cl><received><blockfor>
@@ -1445,8 +1444,8 @@ Table of Contents
 
   * Added result set metadata id to Prepared responses (Section 4.2.5.4)
   * Beta protocol flag for v5 native protocol is added (Section 2.2)
-  * <numfailures> in Read_failure and Write_failure error message bodies (Section 9)
-    has been replaced with <reasonmap>. The <reasonmap> maps node IP addresses to
+  * <num_failures> in Read_failure and Write_failure error message bodies (Section 9)
+    has been replaced with <reason_map>. The <reason_map> maps node IP addresses to
     a failure reason code which indicates why the request failed on that node.
   * Enlarged flag's bitmaps for QUERY, EXECUTE and BATCH messages from [byte] to [int]
     (Sections 4.1.4, 4.1.6 and 4.1.7).

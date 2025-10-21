@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
 
 @Command(name = "refreshsizeestimates", description = "Refresh system.size_estimates")
-public class RefreshSizeEstimates extends NodeTool.NodeToolCmd
+public class RefreshSizeEstimates extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

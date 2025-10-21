@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
@@ -90,7 +91,7 @@ public class ValidationManager implements IValidationManager
     private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         RepairJobDesc desc = validator.desc;
-        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec, topPartitionCollector);
+        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec, validator.dontPurgeTombstones, topPartitionCollector);
     }
 
     /**
@@ -143,6 +144,10 @@ public class ValidationManager implements IValidationManager
         {
             cfs.metric.bytesValidated.update(state.estimatedTotalBytes);
             cfs.metric.partitionsValidated.update(state.partitionsProcessed);
+            if (validator.getPreviewKind() != PreviewKind.NONE)
+            {
+                cfs.metric.bytesPreviewed.mark(state.estimatedTotalBytes);
+            }
             if (topPartitionCollector != null)
                 cfs.topPartitions.merge(topPartitionCollector);
         }

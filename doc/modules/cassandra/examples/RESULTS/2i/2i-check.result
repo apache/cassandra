@@ -1,1 +1,7 @@
-TBD
+CREATE TABLE cycling.birthday_list (
+    cyclist_name text PRIMARY KEY,
+.
+.
+.
+
+CREATE INDEX blist_values_idx ON cycling.birthday_list (values(blist));

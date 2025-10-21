@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -61,6 +62,7 @@ public class FramingTest
     public static void begin() throws NoSuchFieldException, IllegalAccessException
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
         Verb._TEST_1.unsafeSetSerializer(() -> new IVersionedSerializer<byte[]>()
         {
 

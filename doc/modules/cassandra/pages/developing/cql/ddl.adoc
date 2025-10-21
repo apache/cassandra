@@ -283,7 +283,7 @@ following modifiers:
 
 Some columns can be declared as `STATIC` in a table definition. A column
 that is static will be “shared” by all the rows belonging to the same
-partition (having the same xref:cassandra:developing/cql/ddl.adoc#partition-key[partition key].
+partition (having the same xref:cassandra:developing/cql/ddl.adoc#partition-key[partition key]).
 
 For example:
 

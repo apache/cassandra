@@ -20,7 +20,9 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -40,19 +42,25 @@ import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class KeyspaceTest extends CQLTester
 {
     // Test needs synchronous table drop to avoid flushes causing flaky failures of testLimitSSTables
+
+    @Before
+    public void cleanupSnapshots()
+    {
+        SnapshotManager.instance.clearAllSnapshots();
+    }
 
     @Override
     protected String createTable(String query)
@@ -411,7 +419,7 @@ public class KeyspaceTest extends CQLTester
 
         // compact so we have a big row with more than the minimum index count
         if (cfs.getLiveSSTables().size() > 1)
-            CompactionManager.instance.performMaximal(cfs, false);
+            CompactionManager.instance.performMaximal(cfs);
 
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
@@ -432,10 +440,11 @@ public class KeyspaceTest extends CQLTester
 
         Keyspace ks = Keyspace.open(KEYSPACE_PER_TEST);
         String table = getCurrentColumnFamilyStore().name;
-        ks.snapshot("test", table);
+        SnapshotManager.instance.takeSnapshot("test", ks.getName() + '.' + table);
 
-        assertTrue(ks.snapshotExists("test"));
-        assertEquals(1, ks.getAllSnapshots().count());
+        List<TableSnapshot> snapshots = SnapshotManager.instance.getSnapshots(ks.getName());
+        assertEquals(1, snapshots.size());
+        assertEquals(snapshots.get(0).getTag(), "test");
     }
 
     @Test
@@ -525,7 +534,7 @@ public class KeyspaceTest extends CQLTester
     {
         String ksName = "MissingKeyspace";
 
-        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, Schema.instance, false))
+        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName))
                   .isInstanceOf(AssertionError.class)
                   .hasMessage("Unknown keyspace " + ksName);
     }

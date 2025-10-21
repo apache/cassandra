@@ -27,21 +27,34 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
+import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.shared.WithEnvironment;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.StartupChecks;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.assertj.core.api.Assertions;
 import org.yaml.snakeyaml.error.YAMLException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.config.YamlConfigurationLoader.ENVIRONMENT_VARIABLE_PREFIX;
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -104,8 +117,8 @@ public class YamlConfigurationLoaderTest
         assertEquals("You have wrongly defined a config parameter of abstract type DurationSpec, DataStorageSpec or DataRateSpec." +
                      "Please check the config docs, otherwise Cassandra won't be able to start with this parameter being set in cassandra.yaml.",
                      Arrays.stream(Config.class.getFields())
-                    .filter(f -> !Modifier.isStatic(f.getModifiers()))
-                    .filter(isDurationSpec.or(isDataRateSpec).or(isDataStorageSpec)).count(), 0);
+                           .filter(f -> !Modifier.isStatic(f.getModifiers()))
+                           .filter(isDurationSpec.or(isDataRateSpec).or(isDataStorageSpec)).count(), 0);
     }
 
     @Test
@@ -113,12 +126,12 @@ public class YamlConfigurationLoaderTest
     {
         Config config = new Config();
         Map<String, Object> map = ImmutableMap.<String, Object>builder().put("storage_port", 123)
-                                                                        .put("commitlog_sync", Config.CommitLogSync.batch)
-                                                                        .put("seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider")
-                                                                        .put("client_encryption_options.cipher_suites", Collections.singletonList("FakeCipher"))
-                                                                        .put("client_encryption_options.optional", false)
-                                                                        .put("client_encryption_options.enabled", true)
-                                                                        .build();
+                                              .put("commitlog_sync", Config.CommitLogSync.batch)
+                                              .put("seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider")
+                                              .put("client_encryption_options.cipher_suites", Collections.singletonList("FakeCipher"))
+                                              .put("client_encryption_options.optional", false)
+                                              .put("client_encryption_options.enabled", true)
+                                              .build();
         Config updated = YamlConfigurationLoader.updateFromMap(map, true, config);
         assert updated == config : "Config pointers do not match";
         assertThat(config.storage_port).isEqualTo(123);
@@ -132,28 +145,187 @@ public class YamlConfigurationLoaderTest
     @Test
     public void withSystemProperties()
     {
-        // for primitive types or data-types which use a String constructor, we can support these as nested
-        // if the type is a collection, then the string format doesn't make sense and will fail with an error such as
-        //   Cannot create property=client_encryption_options.cipher_suites for JavaBean=org.apache.cassandra.config.Config@1f59a598
-        //   No single argument constructor found for interface java.util.List : null
-        // the reason is that its not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
-        // It is possible that we define a common string representation for these types so they can be written to; this
-        // is an issue that SettingsTable may need to worry about.
         try (WithProperties ignore = new WithProperties()
                                      .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
                                      .with(SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
                                            SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
                                            SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
+                                           SYSTEM_PROPERTY_PREFIX + "seed_provider.parameters", "{\"seeds\": \"127.0.0.1:7000,127.0.0.1:7001\"}",
+                                           SYSTEM_PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", Boolean.FALSE.toString(),
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", Boolean.TRUE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "sai_options", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
+                                           SYSTEM_PROPERTY_PREFIX + "crypto_provider", "{\"class_name\": \"MyClass\", \"parameters\": {\"fail_on_missing_provider\": \"false\"}}",
+                                           SYSTEM_PROPERTY_PREFIX + "table_properties_warned", "[\"bloom_filter_fp_chance\", \"default_time_to_live\"]",
+                                           SYSTEM_PROPERTY_PREFIX + "paxos_variant", "v2",
+                                           SYSTEM_PROPERTY_PREFIX + "memtable.configurations", "{\"skiplist\": {\"class_name\": \"SkipListMemtable\", \"parameters\": {\"skip_param1\": \"skip_param1_value\"}}, \"trie\": {\"class_name\": \"TrieMemtable\", \"parameters\": {\"trie_param1\": \"trie_param1_value\"}}, \"default\": {\"inherits\": \"trie\"}}",
+                                           SYSTEM_PROPERTY_PREFIX + "client_error_reporting_exclusions.subnets", "[\"127.0.0.1\",\"127.0.0.2\"]",
+                                           SYSTEM_PROPERTY_PREFIX + "startup_checks", "{\"check_data_resurrection\": {\"enabled\": \"true\", \"heartbeat_file\": \"/var/lib/cassandra/data/cassandra-heartbeat\"}}",
                                            SYSTEM_PROPERTY_PREFIX + "doesnotexist", Boolean.TRUE.toString()))
         {
             Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
             assertThat(config.storage_port).isEqualTo(123);
             assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
             assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
+            assertThat(config.seed_provider.parameters.get("seeds")).isEqualTo("127.0.0.1:7000,127.0.0.1:7001");
+            assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
             assertThat(config.client_encryption_options.optional).isFalse();
             assertThat(config.client_encryption_options.enabled).isTrue();
+            assertThat(config.sai_options.prioritize_over_legacy_index).isTrue();
+            assertThat(config.sai_options.segment_write_buffer_size).isEqualTo(new DataStorageSpec.IntMebibytesBound("100MiB"));
+            assertThat(config.crypto_provider.class_name).isEqualTo("MyClass");
+            assertThat(config.crypto_provider.parameters.get("fail_on_missing_provider")).isEqualTo(Boolean.FALSE.toString());
+            assertThat(config.table_properties_warned).isEqualTo(Set.of("bloom_filter_fp_chance", "default_time_to_live"));
+            assertThat(config.paxos_variant).isEqualTo(Config.PaxosVariant.v2);
+            assertThat(config.client_error_reporting_exclusions).isEqualTo(new SubnetGroups(Arrays.asList("127.0.0.2", "127.0.0.1")));
+            assertThat(config.startup_checks).hasSize(1);
+            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("enabled")).isEqualTo(Boolean.TRUE.toString());
+            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
+        }
+
+        try (WithProperties ignore = new WithProperties()
+                                     .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                     .with(SYSTEM_PROPERTY_PREFIX + "memtable.configurations", "{\"skiplist\": {\"class_name\": \"SkipListMemtable\", \"parameters\": {\"skip_param1\": \"skip_param1_value\"}}, \"trie\": {\"class_name\": \"TrieMemtable\", \"parameters\": {\"trie_param1\": \"trie_param1_value\"}}, \"default\": {\"inherits\": \"trie\"}}"))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+            assertThat(config.memtable.configurations).hasSize(3);
+            assertThat(config.memtable.configurations.get("skiplist").class_name).isEqualTo("SkipListMemtable");
+            assertThat(config.memtable.configurations.get("skiplist").parameters.get("skip_param1")).isEqualTo("skip_param1_value");
+            assertThat(config.memtable.configurations.get("trie").class_name).isEqualTo("TrieMemtable");
+            assertThat(config.memtable.configurations.get("trie").parameters.get("trie_param1")).isEqualTo("trie_param1_value");
+            assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
+        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                     .with(SYSTEM_PROPERTY_PREFIX + "crypto_provider.parameters", "{\"fail_on_missing_provider\": \"false\"}")
+                                     .with(SYSTEM_PROPERTY_PREFIX + "crypto_provider.class_name", "MyClass"))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+
+            ParameterizedClass cryptoProvider = config.crypto_provider;
+
+            Assert.assertEquals("MyClass", cryptoProvider.class_name);
+
+            Assert.assertTrue(cryptoProvider.parameters.containsKey("fail_on_missing_provider"));
+            String failOnMissingProviderValue = cryptoProvider.parameters.get("fail_on_missing_provider");
+            Assert.assertNotNull(failOnMissingProviderValue);
+            Assert.assertEquals("false", failOnMissingProviderValue);
+        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                                         .with(SYSTEM_PROPERTY_PREFIX + "jmx_server_options.jmx_encryption_options",
+                                                               '{' +
+                                                               "\"enabled\": true," +
+                                                               "\"cipher_suites\": [\"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\"]" +
+                                                               '}'))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+
+            Assert.assertTrue(c.jmx_server_options.enabled);
+            Assertions.assertThatCollection(c.jmx_server_options.jmx_encryption_options.cipher_suites).containsExactly("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384");
+            // preserved what was in yaml, overridden only what specified
+            Assert.assertEquals("test/conf/cassandra_ssl_test.truststore", c.jmx_server_options.jmx_encryption_options.truststore);
+        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                                         .with(SYSTEM_PROPERTY_PREFIX + "jmx_server_options.jmx_encryption_options.enabled", "true"))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+            Assert.assertTrue(c.jmx_server_options.enabled);
+        }
+    }
+
+    @Test
+    public void withEnvironmentVariables()
+    {
+        try (WithProperties ignore1 = new WithProperties().set(CONFIG_ALLOW_ENVIRONMENT_VARIABLES, true);
+             WithEnvironment ignore2 = new WithEnvironment(ENVIRONMENT_VARIABLE_PREFIX + "STORAGE_PORT", "123",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "COMMITLOG_SYNC", "batch",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "SEED_PROVIDER__class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "SEED_PROVIDER__parameters", "{\"seeds\": \"127.0.0.1:7000,127.0.0.1:7001\"}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__cipher_suites", "[\"FakeCipher\"]",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__optional", "false",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__enabled", "true",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "SAI_OPTIONS", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "crypto_provider", "{\"class_name\": \"MyClass\", \"parameters\": {\"fail_on_missing_provider\": \"false\"}}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "TABLE_PROPERTIES_WARNED", "[\"bloom_filter_fp_chance\", \"default_time_to_live\"]",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "PAXOS_VARIANT", "v2",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "MEMTABLE__configurations", "{\"skiplist\": {\"class_name\": \"SkipListMemtable\", \"parameters\": {\"skip_param1\": \"skip_param1_value\"}}, \"trie\": {\"class_name\": \"TrieMemtable\", \"parameters\": {\"trie_param1\": \"trie_param1_value\"}}, \"default\": {\"inherits\": \"trie\"}}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ERROR_REPORTING_EXCLUSIONS__subnets", "[\"127.0.0.1\",\"127.0.0.2\"]",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "STARTUP_CHECKS", "{\"check_data_resurrection\": {\"enabled\": \"true\", \"heartbeat_file\": \"/var/lib/cassandra/data/cassandra-heartbeat\"}}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "doesnotexist", "true"
+        ))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+            assertThat(config.storage_port).isEqualTo(123);
+            assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
+            assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
+            assertThat(config.seed_provider.parameters.get("seeds")).isEqualTo("127.0.0.1:7000,127.0.0.1:7001");
+            assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
+            assertThat(config.client_encryption_options.optional).isFalse();
+            assertThat(config.client_encryption_options.enabled).isTrue();
+            assertThat(config.sai_options.prioritize_over_legacy_index).isTrue();
+            assertThat(config.sai_options.segment_write_buffer_size).isEqualTo(new DataStorageSpec.IntMebibytesBound("100MiB"));
+            assertThat(config.crypto_provider.class_name).isEqualTo("MyClass");
+            assertThat(config.crypto_provider.parameters.get("fail_on_missing_provider")).isEqualTo(Boolean.FALSE.toString());
+            assertThat(config.table_properties_warned).isEqualTo(Set.of("bloom_filter_fp_chance", "default_time_to_live"));
+            assertThat(config.paxos_variant).isEqualTo(Config.PaxosVariant.v2);
+            assertThat(config.memtable.configurations).hasSize(3);
+            assertThat(config.memtable.configurations.get("skiplist").class_name).isEqualTo("SkipListMemtable");
+            assertThat(config.memtable.configurations.get("skiplist").parameters.get("skip_param1")).isEqualTo("skip_param1_value");
+            assertThat(config.memtable.configurations.get("trie").class_name).isEqualTo("TrieMemtable");
+            assertThat(config.memtable.configurations.get("trie").parameters.get("trie_param1")).isEqualTo("trie_param1_value");
+            assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
+            assertThat(config.client_error_reporting_exclusions).isEqualTo(new SubnetGroups(Arrays.asList("127.0.0.2", "127.0.0.1")));
+            assertThat(config.startup_checks).hasSize(1);
+            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("enabled")).isEqualTo("true");
+            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
+        }
+
+        try (WithEnvironment ignore  = new WithEnvironment(CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getKey(), Boolean.TRUE.toString(),
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "memtable.configurations", "{\"skiplist\": {\"class_name\": \"SkipListMemtable\", \"parameters\": {\"skip_param1\": \"skip_param1_value\"}}, \"trie\": {\"class_name\": \"TrieMemtable\", \"parameters\": {\"trie_param1\": \"trie_param1_value\"}}, \"default\": {\"inherits\": \"trie\"}}"))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+            assertThat(config.memtable.configurations).hasSize(3);
+            assertThat(config.memtable.configurations.get("skiplist").class_name).isEqualTo("SkipListMemtable");
+            assertThat(config.memtable.configurations.get("skiplist").parameters.get("skip_param1")).isEqualTo("skip_param1_value");
+            assertThat(config.memtable.configurations.get("trie").class_name).isEqualTo("TrieMemtable");
+            assertThat(config.memtable.configurations.get("trie").parameters.get("trie_param1")).isEqualTo("trie_param1_value");
+            assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
+        }
+
+        try (WithEnvironment ignore  = new WithEnvironment(CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getKey(), Boolean.TRUE.toString(),
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "crypto_provider.parameters", "{\"fail_on_missing_provider\": \"false\"}",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "crypto_provider.class_name", "MyClass"))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+            ParameterizedClass cryptoProvider = config.crypto_provider;
+            Assert.assertEquals("MyClass", cryptoProvider.class_name);
+            Assert.assertTrue(cryptoProvider.parameters.containsKey("fail_on_missing_provider"));
+            String failOnMissingProviderValue = cryptoProvider.parameters.get("fail_on_missing_provider");
+            Assert.assertNotNull(failOnMissingProviderValue);
+            Assert.assertEquals("false", failOnMissingProviderValue);
+        }
+
+        try (WithEnvironment ignore  = new WithEnvironment(CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getKey(), Boolean.TRUE.toString(),
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "jmx_server_options.jmx_encryption_options",
+                                                           '{' +
+                                                           "\"enabled\": true," +
+                                                           "\"cipher_suites\": [\"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\"]" +
+                                                           '}'))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+            Assert.assertTrue(c.jmx_server_options.enabled);
+            Assertions.assertThatCollection(c.jmx_server_options.jmx_encryption_options.cipher_suites).containsExactly("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384");
+            // preserved what was in yaml, overridden only what specified
+            Assert.assertEquals("test/conf/cassandra_ssl_test.truststore", c.jmx_server_options.jmx_encryption_options.truststore);
+        }
+
+        try (WithEnvironment ignore  = new WithEnvironment(CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getKey(), Boolean.TRUE.toString(),
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "jmx_server_options.jmx_encryption_options.enabled", "true"))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+            Assert.assertTrue(c.jmx_server_options.enabled);
         }
     }
 
@@ -271,6 +443,12 @@ public class YamlConfigurationLoaderTest
         Map<String,Object> encryptionOptions = ImmutableMap.of("cipher_suites", Collections.singletonList("FakeCipher"),
                                                                "optional", false,
                                                                "enabled", true);
+        Map<String, Object> autoRepairConfig = ImmutableMap.of("enabled", true,
+                                                               "global_settings",
+                                                                        ImmutableMap.of("number_of_repair_threads", 1),
+                                                               "repair_type_overrides",
+                                                                        ImmutableMap.of("full",
+                                                                                    ImmutableMap.of("number_of_repair_threads", 2)));
         Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
                                  .put("storage_port", storagePort)
                                  .put("commitlog_sync", commitLogSync)
@@ -279,6 +457,7 @@ public class YamlConfigurationLoaderTest
                                  .put("internode_socket_send_buffer_size", "5B")
                                  .put("internode_socket_receive_buffer_size", "5B")
                                  .put("commitlog_sync_group_window_in_ms", "42")
+                                 .put("auto_repair", autoRepairConfig)
                                  .build();
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
@@ -289,6 +468,9 @@ public class YamlConfigurationLoaderTest
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
+        assertTrue(config.auto_repair.enabled);
+        assertEquals(new DurationSpec.IntSecondsBound("6h"), config.auto_repair.getAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType.INCREMENTAL));
+        config.auto_repair.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
     }
 
     @Test
@@ -426,6 +608,38 @@ public class YamlConfigurationLoaderTest
         assertThat(from("compaction_tombstone_warning_threshold", "0").partition_tombstones_warn_threshold).isEqualTo(0);
     }
 
+    @Test
+    public void process()
+    {
+        for (Type type : Type.values())
+        {
+            Config c = fromType(type, "available_processors", 4);
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(4));
+            assertThat(c.accord.command_store_shard_count).isEqualTo(OptionaldPositiveInt.UNDEFINED);
+            assertThat(c.accord.queue_shard_count).isEqualTo(OptionaldPositiveInt.UNDEFINED);
+
+            c = fromType(type, "available_processors", 3, "accord.queue_shard_count", 1, "accord.command_store_shard_count", 1);
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(3));
+            assertThat(c.accord.command_store_shard_count).isEqualTo(new OptionaldPositiveInt(1));
+            assertThat(c.accord.queue_shard_count).isEqualTo(new OptionaldPositiveInt(1));
+        }
+    }
+
+    private enum Type { MAP, YAML }
+
+    private static Config fromType(Type type, Object... values)
+    {
+        switch (type)
+        {
+            case MAP:
+                return from(values);
+            case YAML:
+                return fromYaml(values);
+            default:
+                throw new AssertionError("Unexpected type: " + type);
+        }
+    }
+
     private static Config from(Object... values)
     {
         assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
@@ -467,6 +681,38 @@ public class YamlConfigurationLoaderTest
         Config config = load("cassandra-mtls-backward-compatibility.yaml");
         assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.AllowAllAuthenticator");
         assertTrue(config.authenticator.parameters.isEmpty());
+    }
+
+    @Test
+    public void testAccordConfig()
+    {
+        Map<String, String> accordSpec = ImmutableMap.of("fast_path_update_delay", "60s",
+                "durability_txnid_lag", "60s",
+                "shard_durability_cycle", "60s",
+                "global_durability_cycle", "60s");
+        AccordSpec spec = from("accord", accordSpec).accord;
+        assertThat(spec.fast_path_update_delay.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.durability_txnid_lag.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.shard_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.global_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+    }
+
+    private static Config fromYaml(Object... values)
+    {
+        assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        for (int i = 0; i < values.length; i += 2)
+            builder.put((String) values[i], values[i + 1]);
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // checkstyle: permit this instantiation
+        try
+        {
+            byte[] bytes = mapper.writeValueAsBytes(builder.build());
+            return YamlConfigurationLoader.loadConfig(bytes);
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new AssertionError("Unable to convert map to YAML", e);
+        }
     }
 
     public static Config load(String path)

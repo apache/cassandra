@@ -21,9 +21,9 @@ package org.apache.cassandra.tools;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
@@ -35,6 +35,7 @@ public class ToolsEnvsConfigsTest
     @Test
     public void testJDKEnvInfoDefaultCleaners()
     {
+        DatabaseDescriptor.daemonInitialization();
         ToolResult tool = ToolRunner.invoke(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"),
                                             null,
                                             CQLTester.buildNodetoolArgs(Collections.emptyList()));

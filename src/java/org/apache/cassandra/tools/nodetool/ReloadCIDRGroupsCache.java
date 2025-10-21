@@ -17,15 +17,14 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 /**
  * Nodetool command to reload CIDR groups cache
  */
 @Command(name = "reloadcidrgroupscache", description = "Reload CIDR groups cache with latest entries in cidr_groups table, when CIDR authorizer is enabled")
-public class ReloadCIDRGroupsCache extends NodeToolCmd
+public class ReloadCIDRGroupsCache extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

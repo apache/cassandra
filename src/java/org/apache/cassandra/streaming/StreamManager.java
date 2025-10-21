@@ -114,9 +114,10 @@ public class StreamManager implements StreamManagerMBean
             this.interDCLimiter = interDCLimiter;
             this.throughput = throughput;
             this.interDCThroughput = interDCThroughput;
-            if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getEndpointSnitch() != null)
-                isLocalDC = DatabaseDescriptor.getLocalDataCenter().equals(
-                DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
+            if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getLocator() != null)
+                isLocalDC = DatabaseDescriptor.getLocator()
+                                              .local()
+                                              .sameDatacenter(DatabaseDescriptor.getLocator().location(peer));
             else
                 isLocalDC = true;
         }

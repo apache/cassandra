@@ -53,7 +53,8 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.restrictions.Restriction;
-import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
+import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -66,7 +67,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.MaxThreshold;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -331,9 +332,30 @@ public class StorageAttachedIndex implements Index
     public Callable<?> getInitializationTask()
     {
         // New storage-attached indexes will be available for queries after on disk index data are built.
-        // Memtable data will be indexed via flushing triggered by schema change
-        // We only want to validate the index files if we are starting up
-        IndexValidation validation = StorageService.instance.isStarting() ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
+        // Memtable data will be indexed via flushing triggered by schema change.
+        // We only want to validate the index files if we are starting up.
+        boolean isStarting = StorageService.instance.isStarting();
+        IndexValidation validation = isStarting ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
+
+        // Only attempt to make the index queryable if we are starting up. Otherwise, if we create a new index on top
+        // of nothing but existing Memtable data (i.e. no SSTables), that data will temporarily be lost until flush.
+        if (isStarting)
+        {
+            StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
+            assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
+
+            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
+
+            if (nonIndexed.isEmpty())
+            {
+                // If the index is complete, mark it queryable and avoid an initial build:
+                baseCfs.indexManager.makeIndexQueryable(this, Status.BUILD_SUCCEEDED);
+                logger.debug(indexIdentifier.logMessage("Skipping initial build, as index is already queryable..."));
+                initBuildStarted = true;
+                return () -> ImmediateFuture.success(null);
+            }
+        }
+
         return () -> startInitialBuild(baseCfs, validation).get();
     }
 
@@ -453,14 +475,17 @@ public class StorageAttachedIndex implements Index
     public Comparator<ByteBuffer> getPostQueryOrdering(Restriction restriction, QueryOptions options)
     {
         // For now, only support ANN
-        assert restriction instanceof SingleColumnRestriction.AnnRestriction;
+        assert restriction instanceof SimpleRestriction
+               && ((SimpleRestriction) restriction).operator() == Operator.ANN;
 
         Preconditions.checkState(indexTermType.isVector());
 
-        SingleColumnRestriction.AnnRestriction annRestriction = (SingleColumnRestriction.AnnRestriction) restriction;
+        SimpleRestriction annRestriction = (SimpleRestriction) restriction;
         VectorSimilarityFunction function = indexWriterConfig.getSimilarityFunction();
 
-        float[] target = indexTermType.decomposeVector(annRestriction.value(options).duplicate());
+        List<ClusteringElements> elementsList = annRestriction.values(options);
+        ByteBuffer serializedVector = elementsList.get(0).get(0).duplicate();
+        float[] target = indexTermType.decomposeVector(serializedVector);
 
         return (leftBuf, rightBuf) -> {
             float[] left = indexTermType.decomposeVector(leftBuf.duplicate());
@@ -516,7 +541,7 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
-    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
+    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn)
     {
         // flush observers should be created from the index group, this is only used by the singleton index group
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");
@@ -530,6 +555,12 @@ public class StorageAttachedIndex implements Index
                              .stream()
                              .map(c -> Version.LATEST.makePerIndexComponent(c, indexIdentifier))
                              .collect(Collectors.toSet());
+    }
+
+    @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
     }
 
     @Override
@@ -843,15 +874,12 @@ public class StorageAttachedIndex implements Index
         // Force another flush to make sure on disk index is generated for memtable data before marking it queryable.
         // In the case of offline scrub, there are no live memtables.
         if (!baseCfs.getTracker().getView().liveMemtables.isEmpty())
-        {
             baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
-        }
 
         // It is now safe to flush indexes directly from flushing Memtables.
         initBuildStarted = true;
 
         StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-
         assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
 
         List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
@@ -888,8 +916,7 @@ public class StorageAttachedIndex implements Index
             }
 
             StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-
-            assert indexGroup != null : "Index group does not exist for table";
+            assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
 
             Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, IndexValidation.HEADER_FOOTER);
 

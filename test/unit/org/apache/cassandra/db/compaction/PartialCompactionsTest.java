@@ -41,8 +41,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 
 public class PartialCompactionsTest extends SchemaLoader
@@ -53,11 +53,11 @@ public class PartialCompactionsTest extends SchemaLoader
     @BeforeClass
     public static void initSchema()
     {
-        CompactionManager.instance.disableAutoCompaction();
-
+        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, TABLE));
+        CompactionManager.instance.disableAutoCompaction();
 
         LimitableDataDirectory.applyTo(KEYSPACE, TABLE);
     }
@@ -98,7 +98,7 @@ public class PartialCompactionsTest extends SchemaLoader
         LimitableDataDirectory.setAvailableSpace(cfs, enoughSpaceForAllButTheLargestSSTable(cfs));
 
         // when - run a compaction where all tombstones have timed out
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false, 0));
 
         // then - the tombstones should not be removed
         assertEquals("live sstables after compaction", 2, cfs.getLiveSSTables().size());
@@ -120,7 +120,7 @@ public class PartialCompactionsTest extends SchemaLoader
     private static int liveRows(ColumnFamilyStore cfs)
     {
         return Util.getAll(Util.cmd(cfs, "key1").build()).stream()
-                   .map(partition -> count(partition.rowIterator()))
+                   .map(partition -> count(partition.rowIterator(false)))
                    .reduce(Integer::sum)
                    .orElse(0);
     }
@@ -193,7 +193,7 @@ public class PartialCompactionsTest extends SchemaLoader
             ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
             TableMetadataRef metadata = store.metadata;
             keyspace.dropCf(metadata.id, true);
-            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata, wrapDirectoriesOf(store), false, false, true);
+            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata.get(), wrapDirectoriesOf(store), false, false);
             keyspace.initCfCustom(cfs);
         }
 

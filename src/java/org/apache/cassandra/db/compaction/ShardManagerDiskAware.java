@@ -204,7 +204,7 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
 
         public int count()
         {
-            return countPerDisk;
+            return countPerDisk * diskBoundaryPositions.length;
         }
 
         /**
@@ -231,7 +231,7 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
 
         public int shardIndex()
         {
-            return nextShardIndex - 1;
+            return diskIndex * countPerDisk + nextShardIndex - 1;
         }
     }
 }

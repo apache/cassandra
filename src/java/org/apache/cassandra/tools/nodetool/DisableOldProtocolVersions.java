@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
 
 @Command(name = "disableoldprotocolversions", description = "Disable old protocol versions")
-public class DisableOldProtocolVersions extends NodeTool.NodeToolCmd
+public class DisableOldProtocolVersions extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

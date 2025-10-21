@@ -20,17 +20,17 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
 
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "disablehintsfordc", description = "Disable hints for a data center")
-public class DisableHintsForDC extends NodeTool.NodeToolCmd
+public class DisableHintsForDC extends AbstractCommand
 {
-    @Arguments(usage = "<datacenter>", description = "The data center to disable")
+    @Parameters(paramLabel = "datacenter", description = "The data center to disable")
     private List<String> args = new ArrayList<>();
 
     public void execute(NodeProbe probe)

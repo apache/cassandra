@@ -36,8 +36,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+
+import static java.lang.String.format;
 
 /**
  * Abstract implementation for {@link ISslContextFactory} using file based, standard keystore format with the ability
@@ -60,18 +64,19 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
 
     public FileBasedSslContextFactory()
     {
-        keystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
-        outboundKeystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra");
-        trustStoreContext = new FileBasedStoreContext("conf/.truststore", "cassandra");
+        keystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra", null);
+        outboundKeystoreContext = new FileBasedStoreContext("conf/.keystore", "cassandra", null);
+        trustStoreContext = new FileBasedStoreContext("conf/.truststore", "cassandra", null);
     }
 
     public FileBasedSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystoreContext = new FileBasedStoreContext(getString("keystore"), getString("keystore_password"));
+        keystoreContext = new FileBasedStoreContext(getString("keystore"), getString("keystore_password"), getString("keystore_password_file"));
         outboundKeystoreContext = new FileBasedStoreContext(StringUtils.defaultString(getString("outbound_keystore"), keystoreContext.filePath),
-                                                            StringUtils.defaultString(getString("outbound_keystore_password"), keystoreContext.password));
-        trustStoreContext = new FileBasedStoreContext(getString("truststore"), getString("truststore_password"));
+                                                            StringUtils.defaultString(getString("outbound_keystore_password"), keystoreContext.password),
+                                                            StringUtils.defaultString(getString("outbound_keystore_password_file"), keystoreContext.passwordFilePath));
+        trustStoreContext = new FileBasedStoreContext(getString("truststore"), getString("truststore_password"), getString("truststore_password_file"));
     }
 
     @Override
@@ -135,7 +140,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         if (password == null)
         {
             String keyName = isOutboundKeystore ? "outbound_" : "";
-            final String msg = String.format("'%skeystore_password' must be specified", keyName);
+            final String msg = format("'%skeystore_password' must be specified", keyName);
             throw new IllegalArgumentException(msg);
         }
     }
@@ -278,11 +283,13 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         public volatile boolean checkedExpiry = false;
         public String filePath;
         public String password;
+        public String passwordFilePath;
 
-        public FileBasedStoreContext(String keystore, String keystorePassword)
+        public FileBasedStoreContext(String keystoreFilePath, String keystorePassword, String keystorePasswordFilePath)
         {
-            this.filePath = keystore;
-            this.password = keystorePassword;
+            this.filePath = keystoreFilePath;
+            this.passwordFilePath = keystorePasswordFilePath;
+            this.password = resolvePassword(keystoreFilePath, keystorePassword, keystorePasswordFilePath);
         }
 
         protected boolean hasKeystore()
@@ -293,6 +300,39 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
         protected boolean passwordMatchesIfPresent(String keyPassword)
         {
             return StringUtils.isEmpty(password) || keyPassword.equals(password);
+        }
+
+        private static String resolvePassword(String keystoreFilePath, String password, String passwordFilePath)
+        {
+            if (password != null)
+                return password;
+
+            if (StringUtils.isEmpty(passwordFilePath))
+                return null;
+
+            File keystorePasswordFile = new File(passwordFilePath);
+
+            if (!keystorePasswordFile.exists())
+            {
+                final String msg = format("keystore password file %s does not exist", keystorePasswordFile.path());
+                throw new ConfigurationException(msg);
+            }
+
+            try
+            {
+                // we expect a password to be on the first line
+                List<String> lines = FileUtils.readLines(keystorePasswordFile);
+                if (lines.isEmpty())
+                    return "";
+
+                return lines.get(0);
+            }
+            catch (RuntimeException e)
+            {
+                throw new ConfigurationException(format("'Failed to read keystore password from the %s for %s",
+                                                        keystorePasswordFile, keystoreFilePath),
+                                                 e);
+            }
         }
     }
 }

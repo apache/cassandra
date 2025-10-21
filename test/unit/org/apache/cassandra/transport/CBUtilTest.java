@@ -47,7 +47,7 @@ public class CBUtilTest
     {
         qt().forAll(Gens.lists(Gens.strings().all().ofLengthBetween(0, 20)).ofSizeBetween(0, 10)).check(list -> {
             int expectedSize = CBUtil.sizeOfStringList(list);
-            ByteBuf body = CBUtil.allocator.buffer(expectedSize * 2);
+            var body = CBUtil.allocator.buffer(expectedSize * 2);
             CBUtil.writeStringList(list, body);
             Assertions.assertThat(body.readableBytes()).isEqualTo(expectedSize);
             // In CASSANDRA-20234 the sizeOf method now reflects the write method, but the work to do this in read

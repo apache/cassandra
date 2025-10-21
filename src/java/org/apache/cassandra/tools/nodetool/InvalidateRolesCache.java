@@ -20,16 +20,17 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "invalidaterolescache", description = "Invalidate the roles cache")
-public class InvalidateRolesCache extends NodeToolCmd
+public class InvalidateRolesCache extends AbstractCommand
 {
 
-    @Arguments(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
+    @CassandraUsage(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
+    @Parameters(paramLabel = "role", description = "List of roles to invalidate. By default, all roles")
     private List<String> args = new ArrayList<>();
 
     @Override

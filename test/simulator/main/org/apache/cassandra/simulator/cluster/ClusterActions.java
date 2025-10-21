@@ -21,6 +21,9 @@ package org.apache.cassandra.simulator.cluster;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -33,37 +36,48 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.ReliableAction;
+import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
-import static org.apache.cassandra.distributed.impl.UnsafeGossipHelper.addToRingNormalRunner;
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.REPLACE;
+import static org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedRunnableExecution;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
-
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 // TODO (feature): add Gossip failures (up to some acceptable number)
 // TODO (feature): add node down/up (need to coordinate bootstrap/repair execution around this)
@@ -80,6 +94,11 @@ public class ClusterActions extends SimulatedSystems
         JOIN, LEAVE, REPLACE, CHANGE_RF
     }
 
+    public enum ConsensusChange
+    {
+        ACCORD_MIGRATE
+    }
+
     public static class Options
     {
         public final int topologyChangeLimit;
@@ -87,6 +106,9 @@ public class ClusterActions extends SimulatedSystems
         public final Choices<TopologyChange> allChoices;
         public final Choices<TopologyChange> choicesNoLeave;
         public final Choices<TopologyChange> choicesNoJoin;
+        public final int consensusChangeLimit;
+        public final KindOfSequence.Period consensusChangeInterval;
+        public final Choices<ConsensusChange> consensusChoices;
 
         public final int[] minRf, initialRf, maxRf;
         public final PaxosVariant changePaxosVariantTo;
@@ -103,32 +125,45 @@ public class ClusterActions extends SimulatedSystems
             this.allChoices = copy.allChoices;
             this.choicesNoLeave = copy.choicesNoLeave;
             this.choicesNoJoin = copy.choicesNoJoin;
+            this.consensusChangeLimit = copy.consensusChangeLimit;
+            this.consensusChangeInterval = copy.consensusChangeInterval;
+            this.consensusChoices = copy.consensusChoices;
             this.minRf = copy.minRf;
             this.initialRf = copy.initialRf;
             this.maxRf = copy.maxRf;
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
-        public Options(int topologyChangeLimit, KindOfSequence.Period topologyChangeInterval, Choices<TopologyChange> choices, int[] minRf, int[] initialRf, int[] maxRf, PaxosVariant changePaxosVariantTo)
+        public Options(int topologyChangeLimit,
+                       KindOfSequence.Period topologyChangeInterval,
+                       Choices<TopologyChange> topologyChangeChoices,
+                       int consensusChangeLimit,
+                       KindOfSequence.Period consensusChangeInterval,
+                       Choices<ConsensusChange> consensusChangeChoices,
+                       int[] minRf, int[] initialRf, int[] maxRf,
+                       PaxosVariant changePaxosVariantTo)
         {
             if (Arrays.equals(minRf, maxRf))
-                choices = choices.without(TopologyChange.CHANGE_RF);
+                topologyChangeChoices = topologyChangeChoices.without(TopologyChange.CHANGE_RF);
 
             this.topologyChangeInterval = topologyChangeInterval;
             this.topologyChangeLimit = topologyChangeLimit;
+            this.consensusChangeInterval = consensusChangeInterval;
+            this.consensusChangeLimit = consensusChangeLimit;
             this.minRf = minRf;
             this.initialRf = initialRf;
             this.maxRf = maxRf;
-            this.allChoices = choices;
+            this.allChoices = topologyChangeChoices;
             this.choicesNoJoin = allChoices.without(JOIN).without(REPLACE);
             this.choicesNoLeave = allChoices.without(LEAVE);
+            this.consensusChoices = consensusChangeChoices;
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
         public static Options noActions(int clusterSize)
         {
             int[] rf = new int[]{clusterSize};
-            return new Options(0, UNIFORM.period(null, null), Choices.uniform(), rf, rf, rf, null);
+            return new Options(0, UNIFORM.period(null, null), Choices.uniform(), 0, UNIFORM.period(null, null), Choices.uniform(), rf, rf, rf, null);
         }
 
         public Options changePaxosVariantTo(PaxosVariant newVariant)
@@ -157,6 +192,19 @@ public class ClusterActions extends SimulatedSystems
         this.options = options;
         this.listener = listener;
         this.debug = debug;
+    }
+
+    public static ClusterActions simple(SimulatedSystems simulated, Cluster cluster)
+    {
+        return simple(simulated, cluster, Options.noActions(cluster.size()));
+    }
+
+    public static ClusterActions simple(SimulatedSystems simulated, Cluster cluster, Options options)
+    {
+        return new ClusterActions(simulated, cluster, options,
+                                  new ClusterActionListener.NoOpListener(),
+                                  new Debug(new EnumMap<>(Debug.Info.class),
+                                            new int[0]));
     }
 
     public static class InitialConfiguration
@@ -190,27 +238,133 @@ public class ClusterActions extends SimulatedSystems
         return StrictAction.of("Initialise Cluster", () -> {
             List<Action> actions = new ArrayList<>();
 
-            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
-                                                             new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
+            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), RELIABLE, RELIABLE,
+                                                             new InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
 
             List<InetSocketAddress> endpoints = cluster.stream().map(IInstance::broadcastAddress).collect(Collectors.toList());
-            cluster.forEach(i -> actions.add(resetGossipState(i, endpoints)));
 
             for (int add : joined)
             {
-                actions.add(transitivelyReliable("Add " + add + " to ring", cluster.get(add), addToRingNormalRunner(cluster.get(add))));
-                actions.addAll(sendLocalGossipStateToAll(add));
+                IInvokableInstance i = cluster.get(add);
+                actions.add(unsafeJoin(i));
             }
 
-            actions.add(ReliableAction.transitively("Sync Pending Ranges Executor", ClusterActions.this::syncPendingRanges));
+            actions.addAll(Quiesce.all(ClusterActions.this));
             debug.debug(CLUSTER, time, cluster, null, null);
             return ActionList.of(actions);
         });
     }
 
+
+    public Action schemaChange(int node, String query)
+    {
+        String caption = String.format("Schema change: %s", query);
+        return new Actions.ReliableAction(caption, () -> {
+            List<Action> actions = new ArrayList<>();
+            actions.add(new ClusterReliableQueryAction(caption,
+                                                       ClusterActions.this,
+                                                       node,
+                                                       query,
+                                                       ClusterActions.this.time.nextGlobalMonotonicMicros(),
+                                                       ConsistencyLevel.ALL));
+            actions.addAll(Quiesce.all(this));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
+    Action unsafeJoin(IInvokableInstance i)
+    {
+        return invoke("Initial cluster participant " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
+                      new InterceptedRunnableExecution((InterceptingExecutor) i.executor(),
+                                                       () -> i.runOnInstance(() -> {
+                                                           ClusterMetadataService.instance()
+                                                                                 .commit(new UnsafeJoin(ClusterMetadata.current().myNodeId(),
+                                                                                                        new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), getBroadcastAddressAndPort())),
+                                                                                                        ClusterMetadataService.instance().placementProvider()));
+                                                       })));
+    }
+
     Action resetGossipState(IInvokableInstance i, List<InetSocketAddress> endpoints)
     {
         return transitivelyReliable("Reset Gossip", i, () -> Gossiper.runInGossipStageBlocking(Gossiper.instance::unsafeSetEnabled));
+    }
+
+    public Action reconfigureCMS(int node, int rf)
+    {
+        return reconfigureCMS(node, rf, false);
+    }
+
+    public Action reconfigureCMS(int nodeId, int rf, boolean inEachDc)
+    {
+        String caption = String.format("Reconfigure CMS rf=%d, inEachDc=%s", rf, inEachDc);
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 ReplicationParams params;
+                                                                                                 if (inEachDc)
+                                                                                                 {
+                                                                                                     Map<String, Integer> rfs = new HashMap<>();
+                                                                                                     for (String dc : ClusterMetadata.current().directory.knownDatacenters())
+                                                                                                     {
+                                                                                                         rfs.put(dc, rf);
+                                                                                                     }
+                                                                                                     params = ReplicationParams.ntsMeta(rfs);
+                                                                                                 }
+                                                                                                 else
+                                                                                                 {
+                                                                                                     params = ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters());
+                                                                                                 }
+                                                                                                 ClusterMetadataService.instance().reconfigureCMS(params);
+                                                                                             })));
+    }
+
+    public Action flush(String keyspace, String... tableNames)
+    {
+        return new Actions.ReliableAction("Flush on all nodes", () -> {
+            List<Action> actions = new ArrayList<>(cluster.size());
+            for (int i = 0; i < cluster.size(); i++)
+                actions.add(flush(i + 1, keyspace, tableNames));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
+    public Action flush(int nodeId, String keyspace, String... tableNames)
+    {
+        String caption = String.format("Flush %s: %s", keyspace, Arrays.toString(tableNames));
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 for (ColumnFamilyStore store : StorageService.instance.getValidColumnFamilies(false, false, keyspace, tableNames))
+                                                                                                 {
+                                                                                                     store.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                                                                                                 }
+                                                                                             })));
+    }
+
+    public Action compact(String keyspace, String... tableNames)
+    {
+        return new Actions.ReliableAction("Compact on all nodes", () -> {
+            List<Action> actions = new ArrayList<>(cluster.size());
+            for (int i = 0; i < cluster.size(); i++)
+                actions.add(compact(i + 1, keyspace, tableNames));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
+    public Action compact(int nodeId, String keyspace, String... tableNames)
+    {
+        String caption = String.format("Compact %s: %s", keyspace, Arrays.toString(tableNames));
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 for (ColumnFamilyStore store : StorageService.instance.getValidColumnFamilies(false, false, keyspace, tableNames))
+                                                                                                 {
+                                                                                                     store.submitMajorCompaction(false, -1);
+                                                                                                 }
+                                                                                             })));
     }
 
     @SuppressWarnings("unchecked")
@@ -238,7 +392,7 @@ public class ClusterActions extends SimulatedSystems
             Arrays.sort(vs1);
             Arrays.sort(vs2);
             if (!Arrays.equals(vs1, vs2))
-                throw new AssertionError();
+                throw new AssertionError(String.format("(from replicasForPrimaryKey) %s != %s (predicted)", Arrays.toString(vs1), Arrays.toString(vs2)));
         }
     }
 
@@ -248,7 +402,7 @@ public class ClusterActions extends SimulatedSystems
         Keyspace keyspace = Keyspace.open(keyspaceName);
         TableMetadata metadata = keyspace.getColumnFamilyStore(table).metadata.get();
         DecoratedKey key = metadata.partitioner.decorateKey(Int32Type.instance.decompose(primaryKey));
-        // we return a Set because simulator can easily encounter point where nodes are both natural and pending
+
         return ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all().asList(Replica::endpoint);
     }
 
@@ -279,8 +433,6 @@ public class ClusterActions extends SimulatedSystems
         return on(action, IntStream.of(on));
     }
 
-    ActionList syncPendingRanges() { return onAll(OnInstanceSyncPendingRanges.factory(this)); }
-    ActionList gossipWithAll(int from) { return toAll(OnInstanceGossipWith.factory(this), from); }
     ActionList sendShutdownToAll(int from) { return toAll(OnInstanceSendShutdown.factory(this), from); }
     ActionList sendLocalGossipStateToAll(int from) { return toAll(OnInstanceSendLocalGossipState.factory(this), from); }
     ActionList flushAndCleanup(int[] on) { return on(OnInstanceFlushAndCleanup.factory(this), on); }

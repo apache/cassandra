@@ -28,13 +28,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -42,19 +45,19 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.TokenRangeTestUtil;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
 import static org.apache.cassandra.net.Verb.READ_REQ;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.broadcastAddress;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.bytesToken;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.randomInt;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.registerOutgoingMessageSink;
+import static org.junit.Assert.assertEquals;
 
 public class ReadCommandVerbHandlerOutOfRangeTest
 {
@@ -71,21 +74,19 @@ public class ReadCommandVerbHandlerOutOfRangeTest
     @BeforeClass
     public static void init() throws Throwable
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
+        ServerTestUtils.markCMS();
         metadata_nonreplicated = Schema.instance.getTableMetadata(KEYSPACE_NONREPLICATED, TABLE);
+        StorageService.instance.unsafeSetInitialized();
     }
 
     @Before
     public void setup()
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(0), node1);
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(100), broadcastAddress);
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(broadcastAddress, bytesToken(100));
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
 
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
@@ -104,93 +105,107 @@ public class ReadCommandVerbHandlerOutOfRangeTest
     }
 
     @Test
-    public void acceptReadForNaturalEndpoint() throws Exception
+    public void acceptPartitionReadForNaturalEndpoint() throws Exception
     {
-        ListenableFuture<TokenRangeTestUtil.MessageDelivery> messageSink = registerOutgoingMessageSink();
+        verifyPartitionReadAccepted();
+    }
+
+    @Test
+    public void acceptPartitionReadForPendingEndpoint() throws Exception
+    {
+        // reset ClusterMetadata then join the remote node and partially
+        // join the localhost one to emulate pending ranges
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
+        assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
+
+        verifyPartitionReadAccepted();
+    }
+
+    private void verifyPartitionReadAccepted() throws Exception
+    {
+        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int key = 50;
-        ReadCommand command = command(key);
+        ReadCommand command = partitionRead(key);
         handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, false, false);
+        getAndVerifyResponse(messageSink, messageId, false);
     }
 
-    @Test
-    public void rejectReadForTokenOutOfRange() throws Exception
+    @Test(expected = InvalidRoutingException.class)
+    public void rejectPartitionReadForTokenOutOfRange() 
     {
         // reject a read for a key who's token the node doesn't own the range for
-        ListenableFuture<TokenRangeTestUtil.MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int key = 200;
-        ReadCommand command = command(key);
+        ReadCommand command = partitionRead(key);
         handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, true, true);
+        // we automatically send a failure response if doVerb above throws
     }
 
     @Test
-    public void acceptReadIfRejectionNotEnabled() throws Exception
+    public void acceptRangeReadForNaturalEndpoint() throws Exception
     {
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        ListenableFuture<TokenRangeTestUtil.MessageDelivery> messageSink = registerOutgoingMessageSink();
-        int messageId = randomInt();
-        int key = 200;
-        ReadCommand command = command(key);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, true, false);
+        // reset ClusterMetadata then join the remote node and partially
+        // join the localhost one to emulate pending ranges
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
+        assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
+
+        verifyRangeReadAccepted();
     }
 
     @Test
-    public void rangeReadCommandBoundsAreNotChecked() throws Exception
+    public void acceptRangeReadForPendingEndpoint() throws Exception
     {
-        // checking is only currently done for single partition reads, range reads will continue to
-        // accept any range they are given. So for a range wholly outside the node's ownership we
-        // expect the metric to remain unchanged and read command to be executed.
-        // This test is added for 3.0 because the single partition & range  commands are now processed
-        // by the same verb handler.
-        // rdar://problem/33535104 is to extend checking to range reads
-        ListenableFuture<TokenRangeTestUtil.MessageDelivery> messageSink = registerOutgoingMessageSink();
-        int messageId = randomInt();
-        Range<Token> range = new Range<>(key(metadata_nonreplicated, 150).getToken(),
-                                         key(metadata_nonreplicated, 160).getToken());
-        ReadCommand command = new StubRangeReadCommand(range, metadata_nonreplicated);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, false, false);
+        verifyRangeReadAccepted();
     }
 
-    private void getAndVerifyResponse(ListenableFuture<TokenRangeTestUtil.MessageDelivery> messageSink,
+    private void verifyRangeReadAccepted() throws Exception
+    {
+        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
+        int messageId = randomInt();
+        ReadCommand command = rangeRead(50, 60);
+        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+        getAndVerifyResponse(messageSink, messageId, false);
+    }
+
+    @Test(expected = InvalidRoutingException.class)
+    public void rejectRangeReadForUnownedRange() throws Exception
+    {
+        int messageId = randomInt();
+        ReadCommand command = rangeRead(150, 160);
+        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+    }
+
+    private void getAndVerifyResponse(ListenableFuture<MessageDelivery> messageSink,
                                       int messageId,
-                                      boolean isOutOfRange,
-                                      boolean expectFailure) throws InterruptedException, ExecutionException, TimeoutException
+                                      boolean isOutOfRange) throws InterruptedException, ExecutionException, TimeoutException
     {
+        MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
+        assertEquals(isOutOfRange ? Verb.FAILURE_RSP : Verb.READ_RSP, response.message.verb());
+        assertEquals(broadcastAddress, response.message.from());
+        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
+        assertEquals(messageId, response.message.id());
+        assertEquals(node1, response.to);
         assertEquals(startingTotalMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
         assertEquals(startingKeyspaceMetricCount + (isOutOfRange ? 1 : 0), keyspaceMetricValue(cfs));
-        if (expectFailure)
-        {
-            try
-            {
-                TokenRangeTestUtil.MessageDelivery response = messageSink.get(10, TimeUnit.MILLISECONDS);
-                fail(String.format("Didn't expect any message to be sent, but sent %s to %s in response to %s",
-                                   response.message.toString(),
-                                   response.to,
-                                   response.message.id()));
-            }
-            catch (TimeoutException e)
-            {
-                // expected
-            }
-        }
-        else
-        {
-            TokenRangeTestUtil.MessageDelivery response = messageSink.get(10, TimeUnit.MILLISECONDS);
-            assertEquals(Verb.READ_RSP, response.message.verb());
-            assertEquals(broadcastAddress, response.message.from());
-            assertEquals(messageId, response.message.id());
-            assertEquals(node1, response.to);
-        }
     }
 
-    private ReadCommand command(int key)
+    private ReadCommand partitionRead(int key)
     {
         return new StubReadCommand(key, metadata_nonreplicated);
+    }
+
+    private ReadCommand rangeRead(int start, int end)
+    {
+        Range<Token> range = new Range<>(key(metadata_nonreplicated, start).getToken(),
+                                         key(metadata_nonreplicated, end).getToken());
+        return new StubRangeReadCommand(range, metadata_nonreplicated);
     }
 
     private static class StubReadCommand extends SinglePartitionReadCommand
@@ -199,9 +214,11 @@ public class ReadCommandVerbHandlerOutOfRangeTest
 
         StubReadCommand(int key, TableMetadata tmd)
         {
-            super(false,
+            super(tmd.epoch,
+                  false,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   tmd,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(tmd),
@@ -233,9 +250,11 @@ public class ReadCommandVerbHandlerOutOfRangeTest
 
         StubRangeReadCommand(Range<Token> range, TableMetadata tmd)
         {
-            super(false,
+            super(tmd.epoch,
+                  false,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   tmd,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(tmd),

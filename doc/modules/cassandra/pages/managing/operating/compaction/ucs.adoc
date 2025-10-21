@@ -18,7 +18,86 @@ Thus, a compaction is triggered when more than a given number of SSTables are pr
 * *size* can be replaced by *density*, allowing SSTables to be split at arbitrary points when the output of a compaction is written, while still producing a leveled hierarchy.  
 Density is defined as the size of an SSTable divided by the width of the token range it covers.
 
-Let's look at the first concept in more detail.
+== Migration from Other Strategies
+
+The Unified Compaction Strategy (UCS) can be configured to behave like other compaction strategies, making migration straightforward. It also provides advanced options for optimizing specific workload patterns.
+
+=== Examples
+
+Below are examples for migrating from commonly used strategies. UCS can maintain similar behavior while providing additional benefits such as parallel compaction and the ability to change parameters without requiring full recompaction.
+
+[cols="1,3a", options="header"]
+|===
+| Source Strategy | Migration Command
+| Migrating From LCS |
+[source,plaintext]
+----
+ALTER TABLE mykeyspace.foo
+WITH COMPACTION = {
+  'class': 'UnifiedCompactionStrategy',
+  'scaling_parameters': 'L10'};
+----
+| Migration from SizeTieredCompactionStrategy |
+[source,plaintext]
+----
+ALTER TABLE mykeyspace.foo WITH
+COMPACTION = {
+  'class': 'UnifiedCompactionStrategy',
+  'scaling_parameters': 'T4'};
+----
+|===
+
+== Use Case Specific Configurations
+
+The following configurations are optimized for common workload patterns. The parameters can be adjusted based on your specific requirements.
+
+These provide a good starting point for common workloads, but you may find you want to tune additional parameters based on your workload characteristics.
+Additional details to understand this are in the following section.
+
+[cols="1,3a,3", options="header"]
+|===
+| Use Case | Configuration Example | Explanation
+| Read Heavy Key Value |
+[source,plaintext]
+----
+ALTER TABLE mykeyspace.foo
+WITH COMPACTION = {
+  'class': 'UnifiedCompactionStrategy',
+  'scaling_parameters': 'L10',
+  'target_sstable_size':
+  '256MiB',
+  'base_shard_count': '8'
+};
+----
+| Optimizes for read-intensive workloads with a leveled approach similar to LCS. The smaller target SSTable size and higher shard count improve read performance by minimizing the number of SSTables that must be consulted for a query.
+| Write Heavy |
+[source,plaintext]
+----
+ALTER TABLE mykeyspace.foo
+WITH COMPACTION = {
+  'class': 'UnifiedCompactionStrategy',
+  'scaling_parameters': 'T4',
+  'target_sstable_size': '1GiB',
+  'base_shard_count': '4'
+};
+----
+| Optimizes for write-intensive workloads using a tiered approach similar to STCS. The larger target SSTable size reduces write amplification by requiring fewer compactions, while the lower shard count reduces the overhead of managing too many SSTables.
+| Time Series |
+[source,plaintext]
+----
+ALTER TABLE mykeyspace.foo WITH COMPACTION = {
+  'class': 'UnifiedCompactionStrategy',
+  'scaling_parameters': 'T8',
+  'target_sstable_size': '512MiB',
+  'base_shard_count': '8',
+  'expired_sstable_check_frequency_seconds': '300'
+};
+----
+| Suitable for time-series data with TTLs. The higher tiered scaling parameter (T8) improves write throughput, while the frequent expired SSTable check helps reclaim space from expired data more quickly. The higher shard count allows for greater parallelism in compaction operations.
+
+Using `scaling_parameters:T8` will result in more SSTables per read.  Consider using T4 for time series use cases where lower read latency is desired, and you can afford to perform additional compaction.
+|===
+
 
 == Read and write amplification
 

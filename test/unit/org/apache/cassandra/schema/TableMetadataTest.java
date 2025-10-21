@@ -47,23 +47,27 @@ public class TableMetadataTest
         CompositeType type1 = CompositeType.getInstance(UTF8Type.instance, UTF8Type.instance, UTF8Type.instance);
         TableMetadata metadata1 = TableMetadata.builder(keyspaceName, tableName)
                                                .addPartitionKeyColumn("key", type1)
+                                               .offline()
                                                .build();
         assertEquals("('test:', 'composite!', 'type)')",
                      metadata1.partitionKeyAsCQLLiteral(type1.decompose("test:", "composite!", "type)")));
 
         // composite type with tuple
-        CompositeType type2 = CompositeType.getInstance(new TupleType(Arrays.asList(FloatType.instance, UTF8Type.instance)),
+        TupleType tupleType = new TupleType(Arrays.asList(FloatType.instance, UTF8Type.instance));
+        CompositeType type2 = CompositeType.getInstance(tupleType,
                                                         IntegerType.instance);
         TableMetadata metadata2 = TableMetadata.builder(keyspaceName, tableName)
                                                .addPartitionKeyColumn("key", type2)
+                                               .offline()
                                                .build();
-        ByteBuffer tupleValue = TupleType.buildValue(new ByteBuffer[]{ FloatType.instance.decompose(0.33f),
-                                                                       UTF8Type.instance.decompose("tuple test") });
+        ByteBuffer tupleValue = tupleType.pack(FloatType.instance.decompose(0.33f),
+                                               UTF8Type.instance.decompose("tuple test"));
         assertEquals("((0.33, 'tuple test'), 10)",
                      metadata2.partitionKeyAsCQLLiteral(type2.decompose(tupleValue, BigInteger.valueOf(10))));
 
         // plain type
         TableMetadata metadata3 = TableMetadata.builder(keyspaceName, tableName)
+                                               .offline()
                                                .addPartitionKeyColumn("key", UTF8Type.instance).build();
         assertEquals("'non-composite test'",
                      metadata3.partitionKeyAsCQLLiteral(UTF8Type.instance.decompose("non-composite test")));
@@ -79,12 +83,14 @@ public class TableMetadataTest
 
         // one partition key column, no clustering key
         metadata = TableMetadata.builder(keyspaceName, tableName)
+                                .offline()
                                 .addPartitionKeyColumn("key", UTF8Type.instance)
                                 .build();
         assertEquals("'Test'", metadata.primaryKeyAsCQLLiteral(UTF8Type.instance.decompose("Test"), Clustering.EMPTY));
 
         // two partition key columns, no clustering key
         metadata = TableMetadata.builder(keyspaceName, tableName)
+                                .offline()
                                 .addPartitionKeyColumn("k1", UTF8Type.instance)
                                 .addPartitionKeyColumn("k2", Int32Type.instance)
                                 .build();
@@ -94,6 +100,7 @@ public class TableMetadataTest
 
         // one partition key column, one clustering key column
         metadata = TableMetadata.builder(keyspaceName, tableName)
+                                .offline()
                                 .addPartitionKeyColumn("key", UTF8Type.instance)
                                 .addClusteringColumn("clustering", UTF8Type.instance)
                                 .build();
@@ -107,6 +114,7 @@ public class TableMetadataTest
 
         // one partition key column, two clustering key columns
         metadata = TableMetadata.builder(keyspaceName, tableName)
+                                .offline()
                                 .addPartitionKeyColumn("key", UTF8Type.instance)
                                 .addClusteringColumn("c1", UTF8Type.instance)
                                 .addClusteringColumn("c2", UTF8Type.instance)
@@ -123,6 +131,7 @@ public class TableMetadataTest
         // two partition key columns, two clustering key columns
         CompositeType composite = CompositeType.getInstance(Int32Type.instance, BooleanType.instance);
         metadata = TableMetadata.builder(keyspaceName, tableName)
+                                .offline()
                                 .addPartitionKeyColumn("k1", Int32Type.instance)
                                 .addPartitionKeyColumn("k2", BooleanType.instance)
                                 .addClusteringColumn("c1", UTF8Type.instance)

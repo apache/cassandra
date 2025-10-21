@@ -18,15 +18,14 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "setdefaultrf", description = "Sets default keyspace replication factor.")
-public class SetDefaultKeyspaceRF extends NodeTool.NodeToolCmd
+public class SetDefaultKeyspaceRF extends AbstractCommand
 {
-    @Arguments(title = "default_rf", usage = "<value>", description = "Default replication factor", required = true)
+    @Parameters(paramLabel = "default_rf", description = "Default replication factor", arity = "1")
     private Integer defaultRF = null;
 
     protected void execute(NodeProbe probe)

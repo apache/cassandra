@@ -18,10 +18,10 @@ stacks.
 
 [arabic]
 . By default Cassandra ships with `-XX:+PerfDisableSharedMem` set to
-prevent long pauses (see `CASSANDRA-9242` and `CASSANDRA-9483` for
+prevent long pauses (see https://issues.apache.org/jira/browse/CASSANDRA-9242[CASSANDRA-9242] and https://issues.apache.org/jira/browse/CASSANDRA-9483[CASSANDRA-9483] for
 details). If you want to use JVM tooling you can instead have `/tmp`
 mounted on an in memory `tmpfs` which also effectively works around
-`CASSANDRA-9242`.
+https://issues.apache.org/jira/browse/CASSANDRA-9242[CASSANDRA-9242] .
 . Make sure you run the tools as the same user as Cassandra is running
 as, e.g. if the database is running as `cassandra` the tool also has to
 be run as `cassandra`, e.g. via `sudo -u cassandra <cmd>`.

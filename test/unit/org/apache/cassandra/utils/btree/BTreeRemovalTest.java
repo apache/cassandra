@@ -57,7 +57,7 @@ public class BTreeRemovalTest
         {
             for (int i = BTree.getChildStart(btree); i < BTree.getChildEnd(btree); ++i)
                 result[i] = copy((Object[]) btree[i]);
-            final int[] sizeMap = BTree.getSizeMap(btree);
+            final int[] sizeMap = BTree.sizeMap(btree);
             final int[] resultSizeMap = new int[sizeMap.length];
             System.arraycopy(sizeMap, 0, resultSizeMap, 0, sizeMap.length);
             result[result.length - 1] = resultSizeMap;
@@ -96,7 +96,7 @@ public class BTreeRemovalTest
                 assertEquals(expected[i], result[i]);
             for (int i = BTree.getChildStart(expected); i < BTree.getChildEnd(expected); ++i)
                 assertBTree((Object[]) expected[i], (Object[]) result[i]);
-            assertArrayEquals(BTree.getSizeMap(expected), BTree.getSizeMap(result));
+            assertArrayEquals(BTree.sizeMap(expected), BTree.sizeMap(result));
         }
     }
 

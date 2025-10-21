@@ -159,8 +159,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
             }
             catch (InterruptedException e)
             {
-                if (!isTriggered()) throw new UncheckedInterruptedException(e);
-                else doInterrupt();
+                doInterrupt();
             }
         }
 
@@ -190,6 +189,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     final Runnable onTermination;
     private final InterceptorOfGlobalMethods interceptorOfGlobalMethods;
     private final LocalTime time;
+    private final long id;
 
     // this is set before the thread's execution begins/continues; events and cessation are reported back to this
     private InterceptorOfConsequences interceptor;
@@ -206,7 +206,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     // perform any non-deterministic actions
     private int determinismDepth;
 
-    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, LocalTime time)
+    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, LocalTime time, long id)
     {
         super(group, target, name);
         this.onTermination = onTermination;
@@ -215,6 +215,13 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
         // group is nulled on termination, and we need it for reporting purposes, so save the toString
         this.toString = "Thread[" + name + ',' + getPriority() + ',' + group.getName() + ']';
         this.extraToStringInfo = extraToStringInfo;
+        this.id = id;
+    }
+
+    @Override
+    public long getId()
+    {
+        return id;
     }
 
     public boolean park(long waitTime, WaitTimeKind waitTimeKind)

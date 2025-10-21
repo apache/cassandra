@@ -213,13 +213,13 @@ public class CompactionTaskTest
 
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, sstables))
         {
-            Assert.assertEquals(4, txn.tracker.getView().liveSSTables().size());
+            Assert.assertEquals(4, txn.tracker().getView().liveSSTables().size());
             CompactionTask task = new CompactionTask(cfs, txn, 1000);
             task.execute(null);
 
             // Check that new SSTable was not released
-            Assert.assertEquals(1, txn.tracker.getView().liveSSTables().size());
-            SSTableReader newSSTable = txn.tracker.getView().liveSSTables().iterator().next();
+            Assert.assertEquals(1, txn.tracker().getView().liveSSTables().size());
+            SSTableReader newSSTable = txn.tracker().getView().liveSSTables().iterator().next();
             Assert.assertNotNull(newSSTable.tryRef());
         }
         finally
@@ -233,7 +233,7 @@ public class CompactionTaskTest
     public void testMajorCompactTask()
     {
         //major compact without range/pk specified 
-        CompactionTasks compactionTasks = cfs.getCompactionStrategyManager().getMaximalTasks(Integer.MAX_VALUE, false, OperationType.MAJOR_COMPACTION);
+        CompactionTasks compactionTasks = cfs.getCompactionStrategyManager().getMaximalTasks(Integer.MAX_VALUE, false, Integer.MAX_VALUE, OperationType.MAJOR_COMPACTION);
         Assert.assertTrue(compactionTasks.stream().allMatch(task -> task.compactionType.equals(OperationType.MAJOR_COMPACTION)));
     }
 }

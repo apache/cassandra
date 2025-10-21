@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.util.Set;
 
@@ -32,13 +29,14 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "netstats", description = "Print network information on provided host (connecting node by default)")
-public class NetStats extends NodeToolCmd
+public class NetStats extends WithPortDisplayAbstractCommand
 {
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 

@@ -32,11 +32,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChecksumWriter;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -246,7 +246,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
         if (compressed.capacity() < chunkSize)
         {
-            FileUtils.clean(compressed);
+            MemoryUtil.clean(compressed);
             compressed = compressor.preferredBufferType().allocate(chunkSize);
         }
 
@@ -401,7 +401,10 @@ public class CompressedSequentialWriter extends SequentialWriter
             accumulate = super.doPreCleanup(accumulate);
             if (compressed != null)
             {
-                try { FileUtils.clean(compressed); }
+                try
+                {
+                    MemoryUtil.clean(compressed);
+                }
                 catch (Throwable t) { accumulate = merge(accumulate, t); }
                 compressed = null;
             }

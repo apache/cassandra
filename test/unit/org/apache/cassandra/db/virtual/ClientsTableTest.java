@@ -19,44 +19,57 @@
 package org.apache.cassandra.db.virtual;
 
 import java.net.InetAddress;
+import java.util.Collections;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.auth.AuthTestUtils;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.MutualTlsAuthenticator;
+import org.apache.cassandra.auth.SpiffeCertificateValidator;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ClientsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
     
-    private ClientsTable table;
-    
     @BeforeClass
-    public static void setUpClass()
+    public static void config()
     {
-        CQLTester.setUpClass();
-    }
+        // Enable TLS and require native protocol encryption
+        requireNativeProtocolClientEncryption();
+        requireNetwork(server -> server.withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED), cluster -> {});
 
-    @Before
-    public void config()
-    {
-        table = new ClientsTable(KS_NAME);
+        IAuthenticator authenticator = new MutualTlsAuthenticator( ImmutableMap.of("validator_class_name", SpiffeCertificateValidator.class.getSimpleName()));
+        requireAuthentication(authenticator);
+
+        ClientsTable table = new ClientsTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+
+        waitForExistingRoles();
+
+        AuthTestUtils.addIdentityToRole(TlsTestUtils.CLIENT_SPIFFE_IDENTITY, "cassandra");
     }
     
     @Test
-    public void testSelectAll() throws Throwable
+    public void testSelectAll()
     {
+        shouldUseEncryption(true);
+        shouldUseClientCertificate(true);
         ResultSet result = executeNet("SELECT * FROM vts.clients");
-        
         for (Row r : result)
         {
             Assert.assertEquals(InetAddress.getLoopbackAddress(), r.getInet("address"));
@@ -69,6 +82,13 @@ public class ClientsTableTest extends CQLTester
             Assertions.assertThat(r.getMap("client_options", String.class, String.class))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_name"))))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_version"))));
+            Assert.assertTrue(r.getBool("ssl_enabled"));
+            Assert.assertTrue(r.getString("ssl_protocol").startsWith("TLS"));
+            Assert.assertNotNull(r.getString("ssl_cipher_suite"));
+            Assert.assertEquals("cassandra", r.getString("username"));
+            Assert.assertEquals("MutualTls", r.getString("authentication_mode"));
+            Assert.assertEquals(Collections.singletonMap("identity", TlsTestUtils.CLIENT_SPIFFE_IDENTITY),
+                                r.getMap("authentication_metadata", String.class, String.class));
         }
     }
 }

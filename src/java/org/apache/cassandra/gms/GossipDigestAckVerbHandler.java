@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK2;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -41,12 +40,10 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
     public void doVerb(Message<GossipDigestAck> message)
     {
         InetAddressAndPort from = message.from();
-        if (logger.isTraceEnabled())
-            logger.trace("Received a GossipDigestAckMessage from {}", from);
-        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
+        logger.trace("Received a GossipDigestAckMessage from {}", from);
+        if (!Gossiper.instance.isEnabled() && !NewGossiper.instance.isInShadowRound())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
+            logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
             return;
         }
 
@@ -54,17 +51,14 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
         logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
-
-        if (Gossiper.instance.isInShadowRound())
+        if (NewGossiper.instance.isInShadowRound())
         {
             if (logger.isDebugEnabled())
                 logger.debug("Received an ack from {}, which may trigger exit from shadow round", from);
 
-            // if the ack is completely empty, then we can infer that the respondent is also in a shadow round
-            Gossiper.instance.maybeFinishShadowRound(from, gDigestList.isEmpty() && epStateMap.isEmpty(), epStateMap);
-            return; // don't bother doing anything else, we have what we came for
+            NewGossiper.instance.onAck(epStateMap);
+            return;
         }
-
         if (epStateMap.size() > 0)
         {
             // Ignore any GossipDigestAck messages that we handle before a regular GossipDigestSyn has been send.
@@ -72,8 +66,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             // the regular gossip conversation.
             if ((nanoTime() - Gossiper.instance.firstSynSendAt) < 0 || Gossiper.instance.firstSynSendAt == 0)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Ignoring unrequested GossipDigestAck from {}", from);
+                logger.trace("Ignoring unrequested GossipDigestAck from {}", from);
                 return;
             }
 
@@ -87,16 +80,13 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         for (GossipDigest gDigest : gDigestList)
         {
             InetAddressAndPort addr = gDigest.getEndpoint();
-            // reply everything regardless of heartbeat if remote is asking about me, adding the flag check so we have the ability to rollback to OSS behavior
-            int maxVersion = FBUtilities.getBroadcastAddressAndPort().equals(addr) ? HeartBeatState.EMPTY_VERSION : gDigest.getMaxVersion();
-            EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, maxVersion);
+            EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
             if (localEpStatePtr != null)
                 deltaEpStateMap.put(addr, localEpStatePtr);
         }
 
         Message<GossipDigestAck2> gDigestAck2Message = Message.out(GOSSIP_DIGEST_ACK2, new GossipDigestAck2(deltaEpStateMap));
-        if (logger.isTraceEnabled())
-            logger.trace("Sending a GossipDigestAck2Message to {}", from);
+        logger.trace("Sending a GossipDigestAck2Message to {}", from);
         MessagingService.instance().send(gDigestAck2Message, from);
 
         super.doVerb(message);

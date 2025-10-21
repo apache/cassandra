@@ -21,17 +21,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Command;
 
 @Command(name = "getconcurrency", description = "Get maximum concurrency for processing stages")
-public class GetConcurrency extends NodeToolCmd
+public class GetConcurrency extends AbstractCommand
 {
-    @Arguments(title = "[stage-names]",
-    usage = "[stage-names]",
-    description = "optional list of stage names, otherwise display all stages")
+    @Parameters(paramLabel = "stage-names",
+                description = "Optional list of stage names, otherwise display all stages",
+                index = "0..*")
     private List<String> args = new ArrayList<>();
 
     @Override

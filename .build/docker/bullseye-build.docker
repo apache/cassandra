@@ -15,7 +15,7 @@
 # limitations under the License.
 
 FROM debian:bullseye
-MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
+LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
 
 # CONTEXT is expected to be cassandra/.build
 
@@ -52,3 +52,22 @@ RUN pip install --upgrade pip
 
 # dependencies for .build/ci/ci_parser.py
 RUN pip install beautifulsoup4==4.12.3 jinja2==3.1.3
+
+# install golang.  GO_VERSION_SHA must be updated with VERSION
+RUN sh -c '\
+  GO_VERSION="1.24.3" ;\
+  GO_VERSION_SHAS="3333f6ea53afa971e9078895eaa4ac7204a8c6b5c68c10e6bc9a33e8e391bdd8 a463cb59382bd7ae7d8f4c68846e73c4d589f223c589ac76871b66811ded7836 13e6fe3fcf65689d77d40e633de1e31c6febbdbcb846eb05fc2434ed2213e92b 64a3fa22142f627e78fac3018ce3d4aeace68b743eff0afda8aae0411df5e4fb" ;\
+  GO_OS=linux ;\
+  [ $(uname) = "Darwin" ] && GO_OS=darwin ;\
+  GO_PLATFORM=amd64 ;\
+  [ $(uname -m) = "aarch64" ] && GO_PLATFORM=arm64 ;\
+  GO_TAR="go${GO_VERSION}.${GO_OS}-${GO_PLATFORM}.tar.gz" ;\
+  curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 30 https://go.dev/dl/$GO_TAR -o $GO_TAR ;\
+  GO_SHA="$(sha256sum $GO_TAR | cut -d" " -f2)" ;\
+  echo "$GO_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$GO_SHA" || { echo "SHA256 mismatch for $GO_TAR $GO_SHA"; exit 1; } ;\
+  tar -C /usr/local -xzf $GO_TAR ;\
+  rm $GO_TAR'
+
+ENV GOROOT="/usr/local/go"
+ENV GOPATH="$BUILD_HOME/go"
+ENV PATH="$PATH:/usr/local/go/bin"

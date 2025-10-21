@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -42,7 +44,7 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      */
     public enum Option
     {
-        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD
+        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD, GENERATED_PASSWORD
     }
 
     /**
@@ -226,7 +228,16 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      *
      * For example, use this method to create any required keyspaces/column families.
      */
-    void setup();
+    default void setup()
+    {
+        setup(true);
+    }
+
+    /**
+     * Like the method above, but allows to disable async role setup, making it synchronous.
+     */
+    @VisibleForTesting
+    void setup(boolean asyncRoleSetup);
 
     /**
      * Each valid identity is associated with a role in the identity_to_role table, this method returns role

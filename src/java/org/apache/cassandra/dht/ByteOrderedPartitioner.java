@@ -17,25 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.Pair;
-
-import org.apache.commons.lang3.ArrayUtils;
-
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -44,8 +26,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
 import com.google.common.collect.Maps;
+import org.apache.commons.lang3.ArrayUtils;
+
+import accord.primitives.Ranges;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.TokenKey.Serializer;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class ByteOrderedPartitioner implements IPartitioner
 {
@@ -129,6 +135,18 @@ public class ByteOrderedPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return hashCode();
+        }
+
+        @Override
+        public TokenFactory tokenFactory()
+        {
+            return tokenFactory;
+        }
+
+        @Override
         public double size(Token next)
         {
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
@@ -141,7 +159,56 @@ public class ByteOrderedPartitioner implements IPartitioner
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
                                                                   getClass().getSimpleName()));
         }
+
+        public Token increaseSlightly()
+        {
+            // find first byte we can increment
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != -1)
+                    break;
+                --i;
+            }
+            if (i == -1)
+                return new BytesToken(Arrays.copyOf(token, token.length + 1));
+
+            // increment and fill remainder with zeros
+            byte[] newToken = token.clone();
+            ++newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)0);
+            return new BytesToken(newToken);
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.length == 0)
+                throw new IndexOutOfBoundsException("Cannot create a smaller token the MINIMUM");
+
+            // find first byte we can decrement
+            int i = token.length - 1;
+            while (i >= 0)
+            {
+                if (token[i] != 0)
+                    break;
+                --i;
+            }
+            if (i == -1)
+            {
+                byte[] newToken = Arrays.copyOf(token, token.length - 1);
+                return new BytesToken(newToken);
+            }
+
+            // decrement and fill remainder with -1
+            byte[] newToken = token.clone();
+            --newToken[i];
+            Arrays.fill(newToken, i + 1, newToken.length, (byte)-1);
+            return new BytesToken(newToken);
+        }
     }
+
+    private ByteOrderedPartitioner() {}
 
     public BytesToken getToken(ByteBuffer key)
     {
@@ -229,11 +296,16 @@ public class ByteOrderedPartitioner implements IPartitioner
         return new BytesToken(buffer);
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    private static final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
         public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
         {
             return new BytesToken(ByteSourceInverse.getUnescapedBytes(comparableBytes));
+        }
+
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipUnescapedBytes(comparableBytes);
         }
 
         public ByteBuffer toByteArray(Token token)
@@ -286,6 +358,58 @@ public class ByteOrderedPartitioner implements IPartitioner
         return tokenFactory;
     }
 
+    @Override
+    public boolean accordSupported()
+    {
+        return true;
+    }
+
+    @Override
+    public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
+    {
+        Serializer.serializeWithEscapes(((BytesToken)token).token, out);
+    }
+
+    @Override
+    public final void accordSerialize(Token token, ByteBuffer out)
+    {
+        Serializer.serializeWithEscapes(((BytesToken)token).token, out);
+    }
+
+    @Override
+    public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(in, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final Token accordDeserialize(ByteBuffer in, int length)
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(in, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
+    {
+        byte[] bytes = Serializer.deserializeWithEscapes(src, accessor, offset, length);
+        return new BytesToken(bytes);
+    }
+
+    @Override
+    public final int accordSerializedSize(Token token)
+    {
+        byte[] bytes = ((BytesToken)token).token;
+        return Serializer.serializedSize(bytes);
+    }
+
+    @Override
+    public final int accordFixedLength()
+    {
+        return -1;
+    }
+
     public boolean preservesOrder()
     {
         return true;
@@ -310,6 +434,8 @@ public class ByteOrderedPartitioner implements IPartitioner
         {
             for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
+                if (!(cfmd.partitioner instanceof ByteOrderedPartitioner))
+                    continue;
                 for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
@@ -336,5 +462,11 @@ public class ByteOrderedPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return BytesType.instance;
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return AccordBytesSplitter::new;
     }
 }

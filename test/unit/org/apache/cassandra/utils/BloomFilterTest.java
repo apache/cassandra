@@ -233,7 +233,7 @@ public class BloomFilterTest
     @Test
     public void testMurmur3FilterHash()
     {
-        IPartitioner partitioner = new Murmur3Partitioner();
+        IPartitioner partitioner = Murmur3Partitioner.instance;
         Iterator<ByteBuffer> gen = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
         long[] expected = new long[2];
         long[] actual = new long[2];

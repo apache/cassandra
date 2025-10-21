@@ -248,7 +248,14 @@ public interface MonotonicClock
 
     public static class SystemClock extends AbstractEpochSamplingClock
     {
-        private SystemClock()
+        // Without making this constructor public you may start getting the following exception in the simulator:
+        //    java.lang.IncompatibleClassChangeError: Type
+        //       org.apache.cassandra.utils.MonotonicClock$Global is not a nest member of
+        //       org.apache.cassandra.utils.MonotonicClock: types are in different packages
+        // There might be a problem with a simulator and how we allow access, but I verified the change access
+        // flags on <init> method of the org/apache/cassandra/utils/MonotonicClock$SystemClock
+        // class to ACC_PUBLIC, and ensured proper testing relationship from both the surrounding and nested class.
+        public SystemClock()
         {
             super(Clock.Global::currentTimeMillis);
         }

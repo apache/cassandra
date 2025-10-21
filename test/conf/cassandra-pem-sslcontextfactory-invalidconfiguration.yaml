@@ -146,3 +146,5 @@ stream_throughput_outbound: 24MiB/s
 sasi_indexes_enabled: true
 materialized_views_enabled: true
 file_cache_enabled: true
+accord:
+  journal_directory: build/test/cassandra/accord_journal

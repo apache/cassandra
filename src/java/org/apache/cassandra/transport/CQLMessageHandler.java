@@ -75,7 +75,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * has exceeded the maximum number of allowed permits. The choices are to either pause reads from the incoming socket
  * and allow TCP backpressure to do the work, or to throw an explict exception and rely on the client to back off.
  */
-public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
+public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler implements Flusher.OnFlushCleanup<Envelope>
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
@@ -319,12 +319,11 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     private void logOverload(Limit endpointReserve, Limit globalReserve, Envelope.Header header, int messageSize)
     {
-        logger.trace("Discarded request of size {} with {} bytes in flight on channel. " + 
-                     "Using {}/{} bytes of endpoint limit and {}/{} bytes of global limit. " + 
-                     "Global rate limiter: {} Header: {}",
-                     messageSize, channelPayloadBytesInFlight,
-                     endpointReserve.using(), endpointReserve.limit(), globalReserve.using(), globalReserve.limit(),
-                     requestRateLimiter, header);
+        if (logger.isTraceEnabled())
+            logger.trace("Discarded request of size {} with {} bytes in flight on channel. Using {}/{} bytes of endpoint limit and {}/{} bytes of global limit. Global rate limiter: {} Header: {}",
+                         messageSize, channelPayloadBytesInFlight,
+                         endpointReserve.using(), endpointReserve.limit(), globalReserve.using(), globalReserve.limit(),
+                         requestRateLimiter, header);
     }
 
     private boolean handleProtocolException(ProtocolException exception,
@@ -375,18 +374,13 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         int idx = buf.position() + Envelope.Header.LENGTH;
         final int end = idx + Ints.checkedCast(header.bodySizeInBytes);
-        ByteBuf body = Unpooled.wrappedBuffer(buf.slice());
+        ByteBuf body = Unpooled.wrappedBuffer(buf); // buf.slice() is not needed: Unpooled.wrappedBuffer does ByteBuffer.slice inside
         body.readerIndex(Envelope.Header.LENGTH);
         body.retain();
         buf.position(end);
         return new Envelope(header, body);
     }
 
-    protected boolean processRequest(Envelope request)
-    {
-        return processRequest(request, Overload.NONE);
-    }
-    
     protected boolean processRequest(Envelope request, Overload backpressure)
     {
         M message = null;
@@ -498,10 +492,11 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                           responseFrame,
                           request.getSource(),
                           payloadAllocator,
-                          this::release);
+                          this);
     }
 
-    private void release(Flusher.FlushItem<Envelope> flushItem)
+    @Override
+    public void cleanup(Flusher.FlushItem<Envelope> flushItem)
     {
         release(flushItem.request.header);
         flushItem.request.release();

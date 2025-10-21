@@ -17,32 +17,26 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-
 import javax.management.InstanceNotFoundException;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "info", description = "Print node information (uptime, load, ...)")
-public class Info extends NodeToolCmd
+public class Info extends AbstractCommand
 {
-    @Option(name = {"-T", "--tokens"}, description = "Display all tokens")
+    @Option(names = { "-T", "--tokens" }, description = "Display all tokens")
     private boolean tokens = false;
-
-    @Option(name = {"-O", "--out-of-range-ops"}, description = "Display per-keyspace counts of operations for invalid tokens")
-    private boolean outOfRangeOps = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -185,20 +179,6 @@ public class Info extends NodeToolCmd
         out.printf("%-23s: %s%n", "Bootstrap failed", probe.getStorageService().isBootstrapFailed());
         out.printf("%-23s: %s%n", "Decommissioning", probe.getStorageService().isDecommissioning());
         out.printf("%-23s: %s%n", "Decommission failed", probe.getStorageService().isDecommissionFailed());
-
-        // Operations for out of range tokens
-        if (this.outOfRangeOps)
-        {
-            System.out.printf("%-23s: %-48s %10s %10s %10s%n", "Invalid Token Ops", "Keyspace", "Read", "Write", "Paxos");
-
-            Map<String, long[]> outOfRangeOpCounts = probe.getOutOfRangeOpCounts();
-            outOfRangeOpCounts.forEach((ks, counts) -> System.out.printf("%-24s %-48s %10s %10s %10s%n",
-                                                                         "",
-                                                                         ks,
-                                                                         counts[0],
-                                                                         counts[1],
-                                                                         counts[2]));
-        }
     }
 
     /**

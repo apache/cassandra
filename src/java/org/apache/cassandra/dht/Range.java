@@ -17,15 +17,38 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.Token.KeyBound;
+import org.apache.cassandra.dht.Token.TokenFactory;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.emptyList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
@@ -38,7 +61,36 @@ import org.apache.cassandra.utils.Pair;
  */
 public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
+    public static final Serializer serializer = new Serializer();
     public static final long serialVersionUID = 1L;
+
+    public static final boolean EXPENSIVE_CHECKS = TEST_RANGE_EXPENSIVE_CHECKS.getBoolean();
+
+    public static final IPartitionerDependentSerializer rangeSerializer = new RangeSerializer();
+
+    public static class RangeSerializer<T extends RingPosition<T>> implements IPartitionerDependentSerializer<Range<T>>
+    {
+        @Override
+        public void serialize(Range range, DataOutputPlus out, int version) throws IOException
+        {
+            Token.compactSerializer.serialize(range.left.getToken(), out, version);
+            Token.compactSerializer.serialize(range.right.getToken(), out, version);
+        }
+
+        @Override
+        public Range deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            return new Range(Token.compactSerializer.deserialize(in, p, version),
+                             Token.compactSerializer.deserialize(in, p, version));
+        }
+
+        @Override
+        public long serializedSize(Range range, int version)
+        {
+            return Token.compactSerializer.serializedSize(range.left.getToken(), version)
+                    + Token.compactSerializer.serializedSize(range.right.getToken(), version);
+        }
+    }
 
     public Range(T left, T right)
     {
@@ -353,7 +405,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         // both ranges cover the entire ring, their difference is an empty set
         if(isFull(left, right) && isFull(contained.left, contained.right))
         {
-            return Collections.emptyList();
+            return emptyList();
         }
 
         // a range is subtracted from another range that covers the entire ring
@@ -462,6 +514,11 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
             }
         }
         return false;
+    }
+
+    public boolean isFull()
+    {
+        return isFull(left, right);
     }
 
     @Override
@@ -662,6 +719,26 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         }
     }
 
+    public static <T extends RingPosition<T>> boolean equals(Collection<Range<T>> a, Collection<Range<T>> b)
+    {
+        return normalize(a).equals(normalize(b));
+    }
+
+    // Helper to convert a range string to POJO so you can copy toString from a debugger
+    public static Range<Token> fromString(String value)
+    {
+        return fromString(value, DatabaseDescriptor.getPartitioner());
+    }
+
+    public static Range<Token> fromString(String value, IPartitioner partitioner)
+    {
+        TokenFactory tokenFactory = partitioner.getTokenFactory();
+        String[] parts = value.split(",");
+        Token left = tokenFactory.fromString(parts[0].substring(1));
+        Token right = tokenFactory.fromString(parts[1].substring(0, parts[1].length() -1));
+        return new Range<>(left, right);
+    }
+
     public static <T extends RingPosition<T>> void assertNormalized(List<Range<T>> ranges)
     {
         Range<T> lastRange = null;
@@ -681,5 +758,109 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                                                        ranges));
             }
         }
+    }
+
+    public static class Serializer implements MetadataSerializer<Range<Token>>
+    {
+        private static final int SERDE_VERSION = MessagingService.VERSION_40;
+
+        public void serialize(Range<Token> t, DataOutputPlus out, Version version) throws IOException
+        {
+            tokenSerializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public Range<Token> deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return (Range<Token>) tokenSerializer.deserialize(in, ClusterMetadata.current().partitioner, SERDE_VERSION);
+        }
+
+        public long serializedSize(Range<Token> t, Version version)
+        {
+            return tokenSerializer.serializedSize(t, SERDE_VERSION);
+        }
+    }
+
+    /**
+     * Returns a Pair containing the intersection (or null) and the remainder of the bounds that is to the right of the
+     * range, the remainder to the left is discarded since it is assumed if you are checking for intersection of multiple ranges
+     * the ranges are being checked in order.
+     */
+    public static Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> intersectionAndRemainder(AbstractBounds<PartitionPosition> bounds, org.apache.cassandra.dht.Range<Token> range)
+    {
+        checkArgument((bounds.inclusiveRight() && bounds.inclusiveLeft()) || (bounds.left.compareTo(bounds.right) < 0 || bounds.right.isMinimum()), "Wrap around not handled");
+        boolean boundsInclusiveLeft = bounds.inclusiveLeft() || (bounds.left.getClass() == KeyBound.class && ((KeyBound)bounds.left).isMinimumBound);
+        boolean boundsInclusiveRight = bounds.inclusiveRight() || (bounds.right.getClass() == KeyBound.class && !((KeyBound)bounds.right).isMinimumBound);
+        Token boundsLeft = bounds.left.getToken();
+        Token boundsRight = bounds.right.getToken();
+        Token rangeLeft = range.left;
+        Token rangeRight = range.right;
+        checkState(rangeLeft.compareTo(rangeRight) < 0 || rangeRight.isMinimum(), "Wrap around is not handled");
+
+        // Completely before
+        int rightLeftCmp = boundsRight.compareTo(rangeLeft);
+        // Nothing is > min on the right
+        if (boundsRight.isMinimum())
+            rightLeftCmp = 1;
+        // Range left is not inclusive, doesn't matter whether the bound is inclusive/exclusive left
+        rightLeftCmp = rightLeftCmp == 0 ? -1 : rightLeftCmp;
+        if (rightLeftCmp < 0)
+            return Pair.create(null, null);
+
+        // Completely after
+        int leftRightCmp = boundsLeft.compareTo(rangeRight);
+        // Nothing is > min on the right
+        if (rangeRight.isMinimum())
+            leftRightCmp = -1;
+        // Fixed mismatched inclusivity
+        leftRightCmp = leftRightCmp == 0 && !boundsInclusiveLeft ? 1 : leftRightCmp;
+        if (leftRightCmp > 0)
+            return Pair.create(null, bounds);
+
+        int rightRightCmp = boundsRight.compareTo(rangeRight);
+        // min on the right is > than everything
+        if (rangeRight.isMinimum() && boundsRight.isMinimum())
+            rightRightCmp = 0;
+        else if (boundsRight.isMinimum())
+            rightRightCmp = 1;
+        else if (rangeRight.isMinimum())
+            rightRightCmp = -1;
+        // Fixed mismatched inclusivity
+        rightRightCmp = rightRightCmp == 0 && !boundsInclusiveRight ? -1 : rightRightCmp;
+
+        int leftLeftCmp = boundsLeft.compareTo(rangeLeft);
+        // Range left is not inclusive, doesn't matter whether the bound is inclusive/exclusive left
+        leftLeftCmp = leftLeftCmp == 0 ? -1 : leftLeftCmp;
+
+        // Fully contained
+        if (leftLeftCmp > 0 && rightRightCmp <= 0)
+            return Pair.create(bounds, null);
+        // Split by the right bound of the range (rightRightCmp is implicitly > 0 given the preceding condition)
+        else if (leftLeftCmp >= 0)
+            return bounds.split(rangeRight.maxKeyBound());
+        // Intersects but has some portion that needs to be discarded first
+        else
+        {
+            // Remove everything before the intersection
+            Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> split = bounds.split(rangeLeft.maxKeyBound());
+            AbstractBounds<PartitionPosition> intersectionAndRemainder = bounds;
+            if (split != null)
+                intersectionAndRemainder = split.right;
+            // There is a remainder
+            if (rightRightCmp > 0)
+                return intersectionAndRemainder.split(rangeRight.maxKeyBound());
+            // There is no remainder everything that
+            return Pair.create(intersectionAndRemainder, null);
+        }
+    }
+
+    public static int compareRightToken(Token a, Token b)
+    {
+        if (a.isMinimum() && b.isMinimum())
+            return 0;
+        if (a.isMinimum())
+            return 1;
+        if (b.isMinimum())
+            return 0;
+        return a.compareTo(b);
     }
 }

@@ -33,41 +33,33 @@ import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
-import javax.management.remote.*;
+import javax.management.remote.JMXAuthenticator;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
+import javax.management.remote.MBeanServerForwarder;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
-import javax.rmi.ssl.SslRMIServerSocketFactory;
+import javax.net.ssl.SSLException;
 import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.JMXServerOptions;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.jmx.DefaultJmxSocketFactory;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_ACCESS_FILE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_HOSTNAME;
 
 public class JMXServerUtils
@@ -79,31 +71,31 @@ public class JMXServerUtils
      * inaccessable.
      */
     @VisibleForTesting
-    public static JMXConnectorServer createJMXServer(int port, String hostname, boolean local)
-    throws IOException
+    public static JMXConnectorServer createJMXServer(JMXServerOptions options, String hostname) throws IOException
     {
         Map<String, Object> env = new HashMap<>();
 
         InetAddress serverAddress = null;
-        if (local)
+        if (!options.remote)
         {
             serverAddress = InetAddress.getLoopbackAddress();
             JAVA_RMI_SERVER_HOSTNAME.setString(serverAddress.getHostAddress());
         }
 
         // Configure the RMI client & server socket factories, including SSL config.
-        env.putAll(configureJmxSocketFactories(serverAddress, local));
+        // CASSANDRA-18508: Make JMX SSL to be configured in cassandra.yaml
+        env.putAll(configureJmxSocketFactories(serverAddress, options));
 
         // configure the RMI registry
-        Registry registry = new JmxRegistry(port,
-                                            (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
-                                            (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
-                                            "jmxrmi");
+        JmxRegistry registry = new JmxRegistry(options.jmx_port,
+                                               (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
+                                               (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+                                               "jmxrmi");
 
         // Configure authn, using a JMXAuthenticator which either wraps a set log LoginModules configured
         // via a JAAS configuration entry, or one which delegates to the standard file based authenticator.
         // Authn is disabled if com.sun.management.jmxremote.authenticate=false
-        env.putAll(configureJmxAuthentication());
+        env.putAll(configureJmxAuthentication(options));
         // Secure credential passing to avoid deserialization attacks
         env.putAll(configureSecureCredentials());
 
@@ -111,7 +103,7 @@ public class JMXServerUtils
         // If not, but a location for the standard access file is set in system properties, the
         // return value is null, and an entry is added to the env map detailing that location
         // If neither method is specified, no access control is applied
-        MBeanServerForwarder authzProxy = configureJmxAuthorization(env);
+        MBeanServerForwarder authzProxy = configureJmxAuthorization(options, env);
 
         // Mark the JMX server as a permanently exported object. This allows the JVM to exit with the
         // server running and also exempts it from the distributed GC scheduler which otherwise would
@@ -125,7 +117,7 @@ public class JMXServerUtils
         // Set the port used to create subsequent connections to exported objects over RMI. This simplifies
         // configuration in firewalled environments, but it can't be used in conjuction with SSL sockets.
         // See: CASSANDRA-7087
-        int rmiPort = COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT.getInt();
+        int rmiPort = options.rmi_port;
 
         // We create the underlying RMIJRMPServerImpl so that we can manually bind it to the registry,
         // rather then specifying a binding address in the JMXServiceURL and letting it be done automatically
@@ -144,16 +136,19 @@ public class JMXServerUtils
         // If a custom authz proxy was created, attach it to the server now.
         if (authzProxy != null)
             jmxServer.setMBeanServerForwarder(authzProxy);
+        else
+            jmxServer.setMBeanServerForwarder(AuditLogManager.instance.getMBeanServerForwarder());
+
         jmxServer.start();
 
-        ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
-        logJmxServiceUrl(serverAddress, port);
+        registry.setRemoteServerStub(server.toStub());
+        logJmxServiceUrl(serverAddress, options.jmx_port);
         return jmxServer;
     }
 
-    public static JMXConnectorServer createJMXServer(int port, boolean local) throws IOException
+    public static JMXConnectorServer createJMXServer(JMXServerOptions serverOptions) throws IOException
     {
-        return createJMXServer(port, null, local);
+        return createJMXServer(serverOptions, null);
     }
 
     private static Map<String, Object> configureSecureCredentials()
@@ -163,10 +158,10 @@ public class JMXServerUtils
         return env;
     }
 
-    private static Map<String, Object> configureJmxAuthentication()
+    private static Map<String, Object> configureJmxAuthentication(JMXServerOptions options)
     {
         Map<String, Object> env = new HashMap<>();
-        if (!COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE.getBoolean())
+        if (!options.authenticate)
             return env;
 
         // If authentication is enabled, initialize the appropriate JMXAuthenticator
@@ -180,14 +175,30 @@ public class JMXServerUtils
         // before creating the authenticator. If no password file has been
         // explicitly set, it's read from the default location
         // $JAVA_HOME/lib/management/jmxremote.password
-        String configEntry = CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.getString();
+        String configEntry = options.login_config_name;
         if (configEntry != null)
         {
+            if (Strings.isNullOrEmpty(CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG.getString()))
+            {
+                if (Strings.isNullOrEmpty(options.login_config_file))
+                {
+                    throw new ConfigurationException(String.format("Login config name %s specified for JMX auth, but no " +
+                                                                   "configuration is available. Please set config " +
+                                                                   "location in cassandra.yaml or with the " +
+                                                                   "'%s' system property",
+                                                                   configEntry,
+                                                                   CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG.getKey()));
+                }
+                else
+                {
+                    CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG.setString(options.login_config_file);
+                }
+            }
             env.put(JMXConnectorServer.AUTHENTICATOR, new AuthenticationProxy(configEntry));
         }
         else
         {
-            String passwordFile = COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE.getString();
+            String passwordFile = options.password_file;
             if (passwordFile != null)
             {
                 // stash the password file location where JMXPluggableAuthenticator expects it
@@ -199,14 +210,14 @@ public class JMXServerUtils
         return env;
     }
 
-    private static MBeanServerForwarder configureJmxAuthorization(Map<String, Object> env)
+    private static MBeanServerForwarder configureJmxAuthorization(JMXServerOptions options, Map<String, Object> env)
     {
         // If a custom authz proxy is supplied (Cassandra ships with AuthorizationProxy, which
         // delegates to its own role based IAuthorizer), then instantiate and return one which
         // can be set as the JMXConnectorServer's MBeanServerForwarder.
         // If no custom proxy is supplied, check system properties for the location of the
         // standard access file & stash it in env
-        String authzProxyClass = CASSANDRA_JMX_AUTHORIZER.getString();
+        String authzProxyClass = options.authorizer;
         if (authzProxyClass != null)
         {
             final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy");
@@ -217,7 +228,7 @@ public class JMXServerUtils
         }
         else
         {
-            String accessFile = COM_SUN_MANAGEMENT_JMXREMOTE_ACCESS_FILE.getString();
+            String accessFile = options.access_file;
             if (accessFile != null)
             {
                 env.put("jmx.remote.x.access.file", accessFile);
@@ -226,46 +237,31 @@ public class JMXServerUtils
         }
     }
 
-    private static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, boolean localOnly)
+    /**
+     * Configures the client and server socket factories for the JMX connection. It uses {@link DefaultJmxSocketFactory}
+     * for configuring this.
+     *
+     * @param serverAddress the JMX server is bound to
+     * @param serverOptions options for JMX server, either from {@code cassandra.yaml} or parsed as system properties from {@code cassandra-env.sh}.
+     * @return Map&lt;String, Object@gt; containing {@code jmx.remote.rmi.client.socket.factory}, {@code jmx.remote.rmi.server.socket.factory}
+     * and {@code com.sun.jndi.rmi.factory.socket} properties for the client and server socket factories.
+     * @throws SSLException if it fails to configure the socket factories with the given input
+     * @see DefaultJmxSocketFactory
+     */
+    @VisibleForTesting
+    public static Map<String, Object> configureJmxSocketFactories(InetAddress serverAddress, JMXServerOptions serverOptions) throws SSLException
     {
-        Map<String, Object> env = new HashMap<>();
-        if (COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean())
-        {
-            boolean requireClientAuth = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH.getBoolean();
-            String[] protocols = null;
-            String protocolList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.getString();
-            if (protocolList != null)
-            {
-                JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.setString(protocolList);
-                protocols = StringUtils.split(protocolList, ',');
-            }
-
-            String[] ciphers = null;
-            String cipherList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.getString();
-            if (cipherList != null)
-            {
-                JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.setString(cipherList);
-                ciphers = StringUtils.split(cipherList, ',');
-            }
-
-            SslRMIClientSocketFactory clientFactory = new SslRMIClientSocketFactory();
-            SslRMIServerSocketFactory serverFactory = new SslRMIServerSocketFactory(ciphers, protocols, requireClientAuth);
-            env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-            env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, clientFactory);
-            env.put("com.sun.jndi.rmi.factory.socket", clientFactory);
-            logJmxSslConfig(serverFactory);
-        }
-        else if (localOnly)
-        {
-            env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE,
-                    new RMIServerSocketFactoryImpl(serverAddress));
-        }
-
-        return env;
+        return new DefaultJmxSocketFactory().configure(serverAddress, serverOptions, serverOptions.jmx_encryption_options);
     }
 
     @VisibleForTesting
     public static void logJmxServiceUrl(InetAddress serverAddress, int port)
+    {
+        logger.info("Configured JMX server at: {}", getJmxServiceUrl(serverAddress, port));
+    }
+
+    @VisibleForTesting
+    private static String getJmxServiceUrl(InetAddress serverAddress, int port)
     {
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         String hostName;
@@ -280,21 +276,7 @@ public class JMXServerUtils
                        ? '[' + serverAddress.getHostAddress() + ']'
                        : serverAddress.getHostAddress();
         }
-        String url = String.format(urlTemplate, hostName, port);
-        logger.info("Configured JMX server at: {}", url);
-    }
-
-    private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("JMX SSL configuration. { protocols: [{}], cipher_suites: [{}], require_client_auth: {} }",
-                         serverFactory.getEnabledProtocols() == null
-                         ? "'JVM defaults'"
-                         : Arrays.stream(serverFactory.getEnabledProtocols()).collect(Collectors.joining("','", "'", "'")),
-                         serverFactory.getEnabledCipherSuites() == null
-                         ? "'JVM defaults'"
-                         : Arrays.stream(serverFactory.getEnabledCipherSuites()).collect(Collectors.joining("','", "'", "'")),
-                         serverFactory.getNeedClientAuth());
+        return String.format(urlTemplate, hostName, port);
     }
 
     private static class JMXPluggableAuthenticatorWrapper implements JMXAuthenticator

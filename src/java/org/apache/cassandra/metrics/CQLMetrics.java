@@ -26,7 +26,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class CQLMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("CQL");
+    public static final String TYPE_NAME = "CQL";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public final Counter regularStatementsExecuted;
     public final Counter preparedStatementsExecuted;
@@ -36,6 +37,7 @@ public class CQLMetrics
 
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
+    public final Gauge<Long> preparedStatementsCacheSize;
 
     public CQLMetrics()
     {
@@ -63,5 +65,6 @@ public class CQLMetrics
                 return regularStatementsExecuted.getCount() + preparedStatementsExecuted.getCount();
             }
         });
+        preparedStatementsCacheSize = Metrics.register(factory.createMetricName("PreparedStatementsCacheSize"), QueryProcessor::preparedStatementsCacheMemoryUsedBytes);
     }
 }

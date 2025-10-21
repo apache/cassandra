@@ -109,7 +109,8 @@ public class V1SSTableIndex extends SSTableIndex
         catch (Throwable t)
         {
             FileUtils.closeQuietly(indexFiles);
-            FileUtils.closeQuietly(sstableContext);
+            // Close the shared copy we just created in the superclass constructor:
+            FileUtils.closeQuietly(super.sstableContext);
             throw Throwables.unchecked(t);
         }
     }

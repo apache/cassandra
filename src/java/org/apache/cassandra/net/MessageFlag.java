@@ -29,7 +29,12 @@ public enum MessageFlag
     /** track repaired data - see CASSANDRA-14145 */
     TRACK_REPAIRED_DATA  (1),
     /** allow creating warnings or aborting queries based off query - see CASSANDRA-16850 */
-    TRACK_WARNINGS(2);
+    TRACK_WARNINGS(2),
+    /** whether this message should be sent on an URGENT channel despite its Verb default priority */
+    URGENT(3),
+    /** Allow a single callback to receive multiple responses until a final response is received **/
+    NOT_FINAL(4)
+    ;
 
     private final int id;
 

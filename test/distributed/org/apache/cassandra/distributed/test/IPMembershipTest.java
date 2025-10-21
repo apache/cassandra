@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
@@ -26,17 +27,18 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.NoOpProximity;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectories;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
@@ -44,6 +46,25 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.updateAddress
 
 public class IPMembershipTest extends TestBaseImpl
 {
+
+    private static void deleteRecursiveNoStaticInit(File file)
+    {
+        if (file.isDirectory())
+        {
+            for (File entry : file.listFiles())
+                deleteRecursiveNoStaticInit(entry);
+        }
+        else
+        {
+            file.delete();
+        }
+    }
+
+    private static void deleteRecursiveNoStaticInit(org.apache.cassandra.io.util.File file)
+    {
+        deleteRecursiveNoStaticInit(new File(file.absolutePath()));
+    }
+
     /**
      * Port of replace_address_test.py::fail_without_replace_test to jvm-dtest
      */
@@ -58,20 +79,19 @@ public class IPMembershipTest extends TestBaseImpl
             IInvokableInstance nodeToReplace = cluster.get(3);
 
             ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=9042").assertOnExitCode();
-
+            DatabaseDescriptor.toolInitialization(); // needed for deleteRecursive below
             for (boolean auto_bootstrap : Arrays.asList(true, false))
             {
                 stopUnchecked(nodeToReplace);
-                getDirectories(nodeToReplace).forEach(FileUtils::deleteRecursive);
+                getDirectories(nodeToReplace).forEach(IPMembershipTest::deleteRecursiveNoStaticInit);
 
                 nodeToReplace.config().set("auto_bootstrap", auto_bootstrap);
 
                 // we need to override the host id because otherwise the node will not be considered as a new node
                 ((InstanceConfig) nodeToReplace.config()).setHostId(UUID.randomUUID());
 
-                Assertions.assertThatThrownBy(() -> nodeToReplace.startup())
-                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use " +
-                                      REPLACE_ADDRESS.getKey() + " if you want to replace this node.");
+                Assertions.assertThatThrownBy(nodeToReplace::startup)
+                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.");
             }
         }
     }
@@ -80,12 +100,13 @@ public class IPMembershipTest extends TestBaseImpl
      * Tests the behavior if a node restarts with a different IP.
      */
     @Test
-    public void startupNewIP() throws IOException, InterruptedException
+    public void startupNewIP() throws IOException
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
-                                                        // disable DistributedTestSnitch as it tries to query before we setup
-                                                        .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                                        // disable DistributedTestInitialLocationProvider as it tries to query before we setup
+                                                        .set("node_proximity", NoOpProximity.class.getName())
+                                                        .set("initial_location_provider", SimpleLocationProvider.class.getName()))
                                       .start())
         {
             IInvokableInstance nodeToReplace = cluster.get(3);

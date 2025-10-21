@@ -18,13 +18,21 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.service.StorageService;
 
 public class EmptyStringLifecycleTest extends SAITester
 {
+    @BeforeClass
+    public static void setup()
+    {
+        StorageService.instance.unsafeSetInitialized();
+    }
+
     @Test
     public void testBeforeAndAfterFlush()
     {

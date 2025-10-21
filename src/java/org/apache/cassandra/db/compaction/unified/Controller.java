@@ -25,18 +25,20 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.Overlaps;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 /**
 * The controller provides compaction parameters to the unified compaction strategy
 */
@@ -48,7 +50,7 @@ public class Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    public final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
     private final static String DEFAULT_SCALING_PARAMETERS =
         CassandraRelevantProperties.UCS_SCALING_PARAMETER.getString();
 
@@ -56,7 +58,7 @@ public class Controller
      * The minimum sstable size. Sharded writers split sstables over shard only if they are at least as large as the
      * minimum size.
      */
-    static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
+    public static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
 
     private static final String DEFAULT_MIN_SSTABLE_SIZE = CassandraRelevantProperties.UCS_MIN_SSTABLE_SIZE.getString();
 
@@ -64,9 +66,9 @@ public class Controller
      * Override for the flush size in MB. The database should be able to calculate this from executing flushes, this
      * should only be necessary in rare cases.
      */
-    static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
+    public static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
 
-    static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
+    public static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
     /**
      * Default base shard count, used when a base count is not explicitly supplied. This value applies as long as the
      * table is not a system one, and directories are not defined.
@@ -77,10 +79,10 @@ public class Controller
     public static final int DEFAULT_BASE_SHARD_COUNT =
         CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
 
-    static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
+    public static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
     public static final long DEFAULT_TARGET_SSTABLE_SIZE =
         CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
-    static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
+    public static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
      * Provision for growth of the constructed SSTables as the size of the data grows. By default, the target SSTable
@@ -107,7 +109,7 @@ public class Controller
      * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, 128 (~8GiB each) for
      * a growth value of 0.333, and 64 (~16GiB each) for a growth value of 0.5.
      */
-    static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
+    public static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
     private static final double DEFAULT_SSTABLE_GROWTH = CassandraRelevantProperties.UCS_SSTABLE_GROWTH.getDouble();
 
     /**
@@ -125,7 +127,7 @@ public class Controller
      *
      * If the fanout factor is larger than the maximum number of sstables, the strategy will ignore the latter.
      */
-    static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
+    public static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
 
     static final String ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION = "unsafe_aggressive_sstable_expiration";
     static final boolean ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION =
@@ -145,9 +147,17 @@ public class Controller
      * that overlap with participating (LCS-like, higher concurrency during upgrades but some double compaction),
      * TRANSITIVE to include overlaps of overlaps (likely to trigger whole level compactions, safest).
      */
-    static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
+    public static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
     static final Overlaps.InclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
         CassandraRelevantProperties.UCS_OVERLAP_INCLUSION_METHOD.getEnum(Overlaps.InclusionMethod.TRANSITIVE);
+
+    /**
+     * Whether to create subtask for the output shards of individual compactions and execute them in parallel.
+     * Defaults to true for improved parallelization and efficiency.
+     */
+    static final String PARALLELIZE_OUTPUT_SHARDS_OPTION = "parallelize_output_shards";
+    static final boolean DEFAULT_PARALLELIZE_OUTPUT_SHARDS =
+            CassandraRelevantProperties.UCS_PARALLELIZE_OUTPUT_SHARDS.getBoolean(true);
 
     protected final ColumnFamilyStore cfs;
     protected final MonotonicClock clock;
@@ -171,6 +181,7 @@ public class Controller
     private static final double INVERSE_LOG_2 = 1.0 / Math.log(2);
 
     protected final Overlaps.InclusionMethod overlapInclusionMethod;
+    protected final boolean parallelizeOutputShards;
 
     Controller(ColumnFamilyStore cfs,
                MonotonicClock clock,
@@ -184,7 +195,8 @@ public class Controller
                int baseShardCount,
                double targetSStableSize,
                double sstableGrowthModifier,
-               Overlaps.InclusionMethod overlapInclusionMethod)
+               Overlaps.InclusionMethod overlapInclusionMethod,
+               boolean parallelizeOutputShards)
     {
         this.cfs = cfs;
         this.clock = clock;
@@ -198,6 +210,7 @@ public class Controller
         this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
         this.sstableGrowthModifier = sstableGrowthModifier;
+        this.parallelizeOutputShards = parallelizeOutputShards;
 
         if (maxSSTablesToCompact <= 0)
             maxSSTablesToCompact = Integer.MAX_VALUE;
@@ -355,6 +368,11 @@ public class Controller
         }
     }
 
+    public boolean parallelizeOutputShards()
+    {
+        return parallelizeOutputShards;
+    }
+
     /**
      * @return the survival factor o
      * @param index
@@ -442,8 +460,12 @@ public class Controller
             sstableGrowthModifier = FBUtilities.parsePercent(options.get(SSTABLE_GROWTH_OPTION));
 
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
-                ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                ? Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(options.get(OVERLAP_INCLUSION_METHOD_OPTION)))
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
+
+        boolean parallelizeOutputShards = options.containsKey(PARALLELIZE_OUTPUT_SHARDS_OPTION)
+                ? Boolean.parseBoolean(options.get(PARALLELIZE_OUTPUT_SHARDS_OPTION))
+                : DEFAULT_PARALLELIZE_OUTPUT_SHARDS;
 
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
@@ -457,7 +479,8 @@ public class Controller
                               baseShardCount,
                               targetSStableSize,
                               sstableGrowthModifier,
-                              inclusionMethod);
+                              inclusionMethod,
+                parallelizeOutputShards);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -495,14 +518,20 @@ public class Controller
         {
             try
             {
-                targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
-                if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
+                double targetSize = FBUtilities.parseHumanReadable(s, null, "B");
+                if (targetSize >= Long.MAX_VALUE) {
+                    throw new ConfigurationException(String.format("%s %s is out of range of Long.",
+                                                                    TARGET_SSTABLE_SIZE_OPTION,
+                                                                    s));
+                }
+                if (targetSize < MIN_TARGET_SSTABLE_SIZE)
                 {
                     throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
                                                                    TARGET_SSTABLE_SIZE_OPTION,
                                                                    s,
                                                                    FBUtilities.prettyPrintMemory(MIN_TARGET_SSTABLE_SIZE)));
                 }
+                targetSSTableSize = (long) Math.ceil(targetSize);
             }
             catch (NumberFormatException e)
             {
@@ -571,19 +600,15 @@ public class Controller
             }
         }
 
-        s = options.remove(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
-        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false"))
-        {
-            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
-                                                           ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, s));
-        }
+        validateBoolean(options, ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
+        validateBoolean(options, PARALLELIZE_OUTPUT_SHARDS_OPTION);
 
         s = options.remove(OVERLAP_INCLUSION_METHOD_OPTION);
         if (s != null)
         {
             try
             {
-                Overlaps.InclusionMethod.valueOf(s.toUpperCase());
+                Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(s));
             }
             catch (IllegalArgumentException e)
             {
@@ -603,12 +628,12 @@ public class Controller
                 if (sizeInBytes < 0)
                     throw new ConfigurationException(String.format("Invalid configuration, %s should be greater than or equal to 0 (zero)",
                                                                    MIN_SSTABLE_SIZE_OPTION));
-                int limit = (int) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
+                long limit = (long) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
                 if (sizeInBytes >= limit)
-                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than the target size minimum: %s",
+                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than 70%% of the targetSSTableSize (%s)",
                                                                    MIN_SSTABLE_SIZE_OPTION,
                                                                    FBUtilities.prettyPrintMemory(sizeInBytes),
-                                                                   FBUtilities.prettyPrintMemory(limit)));
+                                                                   FBUtilities.prettyPrintMemory(targetSSTableSize)));
             }
             catch (NumberFormatException e)
             {
@@ -644,6 +669,16 @@ public class Controller
         return options;
     }
 
+    private static void validateBoolean(Map<String, String> options, String option)
+    {
+        String s;
+        s = options.remove(option);
+        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false")) {
+            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
+                    option, s));
+        }
+    }
+
     // The methods below are implemented here (rather than directly in UCS) to aid testability.
 
     public double getBaseSstableSize(int F)
@@ -674,7 +709,7 @@ public class Controller
 
     public int maxConcurrentCompactions()
     {
-        return DatabaseDescriptor.getConcurrentCompactors();
+        return CompactionManager.instance.getMaximumCompactorThreads();
     }
 
     public int maxSSTablesToCompact()

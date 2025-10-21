@@ -1,4 +1,4 @@
-= Data Modeling
+= Vector Search : Data Modeling
 
 As you develop AI and Machine Learning (ML) applications using Vector Search, here are some data modeling considerations. 
 These factors help effectively leverage vector search to produce accurate and efficient search responses within your application.

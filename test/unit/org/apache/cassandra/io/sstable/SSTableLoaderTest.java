@@ -24,6 +24,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.io.Files;
+
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,10 +42,9 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -82,7 +85,7 @@ public class SSTableLoaderTest
     @BeforeClass
     public static void defineSchema()
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -94,7 +97,7 @@ public class SSTableLoaderTest
                 KeyspaceParams.simple(1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD2));
-
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
     }
 

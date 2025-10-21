@@ -20,10 +20,13 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -33,8 +36,22 @@ import static org.apache.cassandra.db.marshal.ValueAccessors.ACCESSORS;
 
 public class CompositeAndTupleTypesTest
 {
-    interface TypeFactory<T extends AbstractType> { T createType(List<AbstractType<?>> types); }
-    interface ValueCombiner<V> { V combine(ValueAccessor<V> accessor, V[] values); }
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
+    }
+
+    interface TypeFactory<T extends AbstractType<?>> { T createType(List<AbstractType<?>> types); }
+    interface ValueCombiner<V> { V combine(AbstractType<?> type, ValueAccessor<V> accessor, V[] values); }
 
     public static Object[] createValues(ValueGenerator[] generators, Random random)
     {
@@ -75,7 +92,7 @@ public class CompositeAndTupleTypesTest
         return composed;
     }
 
-    public <AT extends AbstractType> void testSerializationDeserialization(TypeFactory<AT> typeFactory, ValueCombiner combiner)
+    public <AT extends AbstractType<?>> void testSerializationDeserialization(TypeFactory<AT> typeFactory, ValueCombiner combiner)
     {
         for (int i=0; i<100; i++)
         {
@@ -90,14 +107,14 @@ public class CompositeAndTupleTypesTest
                 {
                     ByteBuffer[] srcBuffers = decompose(generators, expected);
                     Object[] srcValues = convert(srcBuffers, ByteBufferAccessor.instance, srcAccessor);
-                    Object srcJoined = combiner.combine(srcAccessor, srcValues);
+                    Object srcJoined = combiner.combine(type, srcAccessor, srcValues);
                     String srcString  = type.getString(srcJoined, srcAccessor);
 
                     for (ValueAccessor<Object> dstAccessor : ACCESSORS)
                     {
                         // convert data types and deserialize with
                         Object[] dstValues = convert(srcValues, srcAccessor, dstAccessor);
-                        Object dstJoined = combiner.combine(dstAccessor, dstValues);
+                        Object dstJoined = combiner.combine(type, dstAccessor, dstValues);
                         String dstString = type.getString(dstJoined, dstAccessor);
 
                         Object[] composed = compose(generators, dstValues, dstAccessor);
@@ -106,6 +123,7 @@ public class CompositeAndTupleTypesTest
                         Assert.assertEquals(srcString, dstString);
                     }
                 }
+                allocator.releaseMemory();
             }
         }
     }
@@ -113,7 +131,12 @@ public class CompositeAndTupleTypesTest
     @Test
     public void tuple()
     {
-        testSerializationDeserialization(TupleType::new, TupleType::buildValue);
+        testSerializationDeserialization(TupleType::new, getTupleValueCombiner());
+    }
+
+    private static <V> ValueCombiner<V> getTupleValueCombiner()
+    {
+        return (type, accessor, values) -> TupleType.pack(accessor, Arrays.asList(values));
     }
 
     @Test
@@ -127,12 +150,12 @@ public class CompositeAndTupleTypesTest
             }
             return new UserType("ks", ByteBufferUtil.bytes("user_type"), names, types, false);
         };
-        testSerializationDeserialization(factory, TupleType::buildValue);
+        testSerializationDeserialization(factory, getTupleValueCombiner());
     }
 
     @Test
     public void composite()
     {
-        testSerializationDeserialization(CompositeType::new, CompositeType::build);
+        testSerializationDeserialization(CompositeType::new, (type, accessor, values) -> CompositeType.build(accessor, values));
     }
 }

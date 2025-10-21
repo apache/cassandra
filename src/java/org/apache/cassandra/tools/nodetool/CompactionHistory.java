@@ -17,22 +17,26 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryHolder;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "compactionhistory", description = "Print history of compaction")
-public class CompactionHistory extends NodeToolCmd
+public class CompactionHistory extends AbstractCommand
 {
-    @Option(title = "format",
-            name = {"-F", "--format"},
+    @Option(paramLabel = "format",
+            names = { "-F", "--format" },
             description = "Output format (json, yaml)")
     private String outputFormat = "";
+
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
+            description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
+    private boolean humanReadable = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -41,7 +45,7 @@ public class CompactionHistory extends NodeToolCmd
         {
             throw new IllegalArgumentException("arguments for -F are json,yaml only.");
         }
-        StatsHolder data = new CompactionHistoryHolder(probe);
+        StatsHolder data = new CompactionHistoryHolder(probe, humanReadable);
         StatsPrinter printer = CompactionHistoryPrinter.from(outputFormat);
         printer.print(data, probe.output().out);
     }

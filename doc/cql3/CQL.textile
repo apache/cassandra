@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.7
+h1. Cassandra Query Language (CQL) v3.4.8
 
 
 
@@ -406,6 +406,42 @@ h4. Other considerations:
 
 * When "inserting":#insertStmt / "updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
 
+h3(#copyStmt). CREATE TABLE LIKE
+
+__Syntax:__
+
+bc(syntax).. 
+<copy-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <newtablename> LIKE <oldtablename>
+                    ( WITH <option> ( AND <option>)* )?
+
+<option> ::= <property> | INDEXES
+
+p.
+__Sample:__
+
+bc(sample).. 
+CREATE TABLE newtb1 LIKE oldtb;
+
+CREATE TABLE newtb2 LIKE oldtb WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
+
+CREATE TABLE newtb4 LIKE oldtb WITH INDEXES AND compaction = { 'class' : 'LeveledCompactionStrategy' };
+
+p.
+The @COPY TABLE@ statement creates a new table which is a clone of old table. The new table have the same column numbers, column names, column data types, column data mask with the old table. The new table is defined by a "name":#copyNewTableName, and the name of the old table being cloned is defined by a "name":#copyOldTableName . The table options of the new table can be defined by setting "copyoptions":#copyTableOptions. Note that the @CREATE COLUMNFAMILY LIKE@ syntax is supported as an alias for @CREATE TABLE like@ (for historical reasons).
+
+Attempting to create an already existing table will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the table already exists.
+
+h4(#copyNewTableName). @<newtablename>@
+
+Valid table names are the same as valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
+
+h4(#copyOldTableName). @<oldtablename>@
+
+The old table name defines the already existed table.   
+
+h4(#copyTableOptions). @<copyoptions>@
+
+The @COPY TABLE@ statement supports a number of options that controls the configuration of a new table. These options can be specified after the @WITH@ keyword, and all options are the same as those options when creating a table except for id. Besides the options can also be specified with keyword INDEXES which means copy source table's indexes.
 
 h3(#alterTableStmt). ALTER TABLE
 
@@ -501,7 +537,7 @@ h3(#createIndexStmt). CREATE INDEX
 __Syntax:__
 
 bc(syntax).. 
-<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( <indexname> )?
+<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( <index-name> )?
                             ON <tablename> '(' <index-identifier> ')'
                             ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
 
@@ -940,6 +976,10 @@ bc(syntax)..
              | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | <identifier> NOT IN <variable>
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN <variable>
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -993,12 +1033,16 @@ bc(syntax)..
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
-<relation> ::= <identifier> <op> <term>
+<relation> ::= <identifier> (<op> | NOT CONTAINS ( KEY )?) <term>
              | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | <identifier> NOT IN <variable>
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN <variable>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
@@ -1094,6 +1138,7 @@ bc(syntax)..
                   ( PER PARTITION LIMIT <integer> )?
                   ( LIMIT <integer> )?
                   ( ALLOW FILTERING )?
+                  ( WITH <select-options> )?
 
 <select-clause> ::= DISTINCT? <selection-list>
 
@@ -1118,13 +1163,20 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY | NOT CONTAINS | NOT CONTAINS KEY
 <group-by> ::= (<identifier>,)* (<identifier> | <function>)
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
+
+<select-options> ::= <select-option> ( AND <select-option> )*
+<select-option> ::= included_indexes  '=' <index-names>
+                  | excluded_indexes  '=' <index-names>
+<index-names> ::= '{' <identifier> ( ',' <identifier> )* '}'
 p. 
 __Sample:__
 
@@ -1280,6 +1332,7 @@ bc(syntax)..
 <create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
@@ -1298,6 +1351,7 @@ CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = tr
 CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
 CREATE ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
 CREATE ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+CREATE ROLE tom WITH LOGIN = true and GENERATED PASSWORD;
 
 
 By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
@@ -1315,6 +1369,10 @@ h4(#createRolePwd). Setting credentials for internal authentication
 Use the @WITH PASSWORD@ clause to set a password for internal authentication, enclosing the password in single quotation marks.
 If internal authentication has not been set up or the role does not have @LOGIN@ privileges, the @WITH PASSWORD@ clause is not necessary.
 
+When @WITH GENERATED PASSWORD@ is used, Cassandra provides out-of-the-box CassandraPasswordValidator and CassandraPasswordGenerator
+under "password_validator" configuration property in cassandra.yaml. The usage of this clause will generate a password for a given password strength policy, as configured,
+and such password is returned to a client in CQL shell after query is executed. @GENERATED PASSWORD@ can not be used together with @HASHED PASSWORD@ nor with @PASSWORD@ alone.
+
 h4(#createRoleConditional). Creating a role conditionally
 
 Attempting to create an existing role results in an invalid query condition unless the @IF NOT EXISTS@ option is used. If the option is used and the role exists, the statement is a no-op.
@@ -1330,7 +1388,8 @@ __Syntax:__
 bc(syntax).. 
 <alter-role-stmt> ::= ALTER ROLE (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= PASSWORD = <string>
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
@@ -1343,9 +1402,10 @@ p.
 __Sample:__
 
 bc(sample). 
-ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
-ALTER ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
-ALTER ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+ALTER ROLE IF EXISTS bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+ALTER ROLE IF EXISTS rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
+ALTER ROLE IF EXISTS hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+ALTER ROLE IF EXISTS hob WITH LOGIN = true and GENERATED PASSWORD;
 
 Conditions on executing @ALTER ROLE@ statements:
 
@@ -1414,7 +1474,7 @@ REVOKE report_writer FROM alice;
 
 This statement revokes the @report_writer@ role from @alice@. Any permissions that @alice@ has acquired via the @report_writer@ role are also revoked. 
 
-h4(#listRolesStmt). LIST ROLES
+h3(#listRolesStmt). LIST ROLES
 
 __Syntax:__
 
@@ -1438,16 +1498,32 @@ LIST ROLES OF @bob@ NORECURSIVE
 
 List all roles directly granted to @bob@.
 
+h3(#listSuperusersStmt). LIST SUPERUSERS
+
+__Syntax:__
+
+bc(syntax).
+<list-superusers-stmt> ::= LIST SUPERUSERS;
+
+__Sample:__
+
+bc(sample).
+LIST SUPERUSERS;
+
+Returns roles with the superuser privilege (this includes roles with transitively acquired superuser privilege), this command requires `DESCRIBE` permission on all roles of the database.
+
 h3(#createUserStmt). CREATE USER 
 
 Prior to the introduction of roles in Cassandra 2.2, authentication and authorization were based around the concept of a @USER@. For backward compatibility, the legacy syntax has been preserved with @USER@ centric statments becoming synonyms for the @ROLE@ based equivalents.
 
 __Syntax:__ 
 
-bc(syntax).. 
-<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH ("HASHED")? PASSWORD <string> )? (<option>)?
+bc(syntax)..
+<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= SUPERUSER
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
            | NOSUPERUSER
 p. 
 
@@ -1456,6 +1532,7 @@ __Sample:__
 bc(sample). 
 CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
 CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
+CREATE USER tom WITH GENERATED PASSWORD;
 
 @CREATE USER@ is equivalent to @CREATE ROLE@ where the @LOGIN@ option is @true@. So, the following pairs of statements are equivalent:
 
@@ -1481,9 +1558,11 @@ h3(#alterUserStmt). ALTER USER
 __Syntax:__ 
 
 bc(syntax).. 
-<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH PASSWORD <string> )? ( <option> )?
+<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= SUPERUSER
+<option> ::= ("HASHED")? PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
            | NOSUPERUSER
 p. 
 If the user does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
@@ -2645,6 +2724,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.8
+
+* Add support for the BETWEEN operator in WHERE clauses (see "CASSANDRA-19604":https://issues.apache.org/jira/browse/CASSANDRA-19604)
+* Add support for GENERATED PASSWORD clause (see "CASSANDRA-17457":https://issues.apache.org/jira/browse/CASSANDRA-17457)
 
 h3. 3.4.7
 

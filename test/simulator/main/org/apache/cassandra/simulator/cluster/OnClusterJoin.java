@@ -18,8 +18,22 @@
 
 package org.apache.cassandra.simulator.cluster;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
+import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
@@ -37,15 +51,69 @@ class OnClusterJoin extends OnClusterChangeTopology
     {
         IInvokableInstance joinInstance = actions.cluster.get(joining);
         before(joinInstance);
-        return ActionList.of(
-            // setup the node's own gossip state for pending ownership, and return gossip actions to disseminate
-            new OnClusterUpdateGossip(actions, joining, new OnInstanceSetBootstrapping(actions, joining)),
-            new OnInstanceSyncSchemaForBootstrap(actions, joining),
-            new OnInstanceTopologyChangePaxosRepair(actions, joining, "Join"),
-            // stream/repair from a peer
-            new OnInstanceBootstrap(actions, joinInstance),
-            // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate
-            new OnClusterUpdateGossip(actions, joining, new OnInstanceSetNormal(actions, joining))
-        );
+        List<Action> actionList = new ArrayList<>();
+        actionList.add(new SubmitPrepareJoin(actions, joining));
+        actionList.add(new OnInstanceTopologyChangePaxosRepair(actions, joining, "Join"));
+
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS, "Start Join", () -> {
+            List<Action> local = new ArrayList<>();
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.START_JOIN));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
+
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS,"Mid Join", () -> {
+            List<Action> local = new ArrayList<>();
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.MID_JOIN));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
+
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS,"Finish Join", () -> {
+            List<Action> local = new ArrayList<>();
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.FINISH_JOIN));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
+
+        return ActionList.of(actionList);
+    }
+
+    public static class SubmitPrepareJoin extends ClusterReliableAction
+    {
+        public SubmitPrepareJoin(ClusterActions actions, int on)
+        {
+            super("Prepare Join", actions, on, () -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                ClusterMetadataService.instance().commit(new PrepareJoin(metadata.myNodeId(),
+                                                                         new HashSet<>(BootStrapper.getBootstrapTokens(metadata, FBUtilities.getBroadcastAddressAndPort())),
+                                                                         ClusterMetadataService.instance().placementProvider(),
+                                                                         true,
+                                                                         true));
+            });
+        }
+    }
+
+    public static class ExecuteNextStep extends ClusterReliableAction
+    {
+        private ExecuteNextStep(ClusterActions actions, int on, Transformation.Kind kind)
+        {
+            this(actions, on, kind.ordinal());
+        }
+        private ExecuteNextStep(ClusterActions actions, int on, int kind)
+        {
+            super(String.format("Execute next step of the join operation: %s", Transformation.Kind.values()[kind]), actions, on, () -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                MultiStepOperation<?> sequence = metadata.inProgressSequences.get(metadata.myNodeId());
+
+                if (!(sequence instanceof BootstrapAndJoin))
+                    throw new IllegalStateException(String.format("Can not resume bootstrap as it does not appear to have been started. Found %s", sequence));
+
+                BootstrapAndJoin bootstrapAndJoin = ((BootstrapAndJoin) sequence);
+                assert bootstrapAndJoin.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], bootstrapAndJoin.next);
+                boolean res = bootstrapAndJoin.executeNext().isContinuable();
+                assert res;
+            });
+        }
     }
 }

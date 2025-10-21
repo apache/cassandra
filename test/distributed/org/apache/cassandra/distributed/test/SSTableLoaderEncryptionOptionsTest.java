@@ -61,12 +61,12 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
         CLUSTER = Cluster.build().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP); // need gossip to get hostid for java driver
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .put("optional", false)
                               .build());
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("optional", false)
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
@@ -109,7 +109,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
     public void bulkLoaderSuccessfullyStreamsOverSslWithDeprecatedSslStoragePort() throws Throwable
     {
         File sstables_to_upload = prepareSstablesForUpload();
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class, true,
                                                             "--nodes", NODES,
                                                             "--port", Integer.toString(NATIVE_PORT),
                                                             "--storage-port", Integer.toString(STORAGE_PORT),

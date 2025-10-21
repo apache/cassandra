@@ -37,6 +37,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class SSTableTasksTableTest extends CQLTester
@@ -47,9 +48,8 @@ public class SSTableTasksTableTest extends CQLTester
     private SSTableTasksTable table;
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAutoCompaction()
     {
-        CQLTester.setUpClass();
         CompactionManager.instance.disableAutoCompaction();
     }
 
@@ -92,7 +92,7 @@ public class SSTableTasksTableTest extends CQLTester
         CompactionManager.instance.active.beginCompaction(compactionHolder);
         UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks");
         assertRows(result, row(CQLTester.KEYSPACE, currentTable(), compactionId, 1.0 * bytesCompacted / bytesTotal,
-                OperationType.COMPACTION.toString().toLowerCase(), bytesCompacted, sstables.size(),
+                toLowerCaseLocalized(OperationType.COMPACTION.toString()), bytesCompacted, sstables.size(),
                 directory, bytesTotal, CompactionInfo.Unit.BYTES.toString()));
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);

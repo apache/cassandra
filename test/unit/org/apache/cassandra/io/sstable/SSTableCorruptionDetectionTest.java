@@ -37,6 +37,7 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slices;
@@ -156,6 +157,12 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
         bruteForceCorruptionTest(ssTableReader, sstableScanner());
     }
 
+    @Test
+    public void testSSTableSimpleScanner() throws Throwable
+    {
+        bruteForceCorruptionTest(ssTableReader, sstableSimpleScanner());
+    }
+
     private void bruteForceCorruptionTest(SSTableReader ssTableReader, Consumer<SSTableReader> walker) throws Throwable
     {
         FileChannel fc = new File(ssTableReader.getFilename()).newReadWriteChannel();
@@ -193,6 +200,32 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     }
 
     private Consumer<SSTableReader> sstableScanner()
+    {
+        return (SSTableReader sstable) -> {
+            try (var scanner = sstable.partitionIterator(ColumnFilter.NONE, DataRange.allData(sstable.getPartitioner()), SSTableReadsListener.NOOP_LISTENER))
+            {
+                while (scanner.hasNext())
+                {
+                    try (UnfilteredRowIterator rowIter = scanner.next())
+                    {
+                        if (rowIter.hasNext())
+                        {
+                            Unfiltered unfiltered = rowIter.next();
+                            if (unfiltered.isRow())
+                            {
+                                Row row = (Row) unfiltered;
+                                assertEquals(2, row.clustering().size());
+                                // no-op read
+                            }
+                        }
+                    }
+
+                }
+            }
+        };
+    }
+
+    private Consumer<SSTableReader> sstableSimpleScanner()
     {
         return (SSTableReader sstable) -> {
             try (ISSTableScanner scanner = sstable.getScanner())

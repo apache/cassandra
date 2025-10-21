@@ -35,6 +35,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -58,10 +59,9 @@ public class SSTableExpiredBlockers
         }
 
         Util.initDatabaseDescriptor();
-
+        ClusterMetadataService.initializeForTools(false);
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
-        Schema.instance.loadFromDisk();
 
         TableMetadata metadata = Schema.instance.validateTable(keyspace, columnfamily);
 

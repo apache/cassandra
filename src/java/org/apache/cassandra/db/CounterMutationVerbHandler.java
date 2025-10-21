@@ -33,13 +33,12 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
 
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    @Override
     protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
 
-        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
         // We should not wait for the result of the write in this thread,
         // otherwise we could have a distributed deadlock between replicas
         // running this VerbHandler (see #4578).

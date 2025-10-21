@@ -17,28 +17,40 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setcachekeystosave", description = "Set number of keys saved by each cache for faster post-restart warmup. 0 to disable")
-public class SetCacheKeysToSave extends NodeToolCmd
+public class SetCacheKeysToSave extends AbstractCommand
 {
-    @Arguments(title = "<key-cache-keys-to-save> <row-cache-keys-to-save> <counter-cache-keys-to-save>",
-               usage = "<key-cache-keys-to-save> <row-cache-keys-to-save> <counter-cache-keys-to-save>",
-               description = "The number of keys saved by each cache. 0 to disable",
-               required = true)
+    @CassandraUsage(usage = "<key-cache-keys-to-save> <row-cache-keys-to-save> <counter-cache-keys-to-save>",
+                    description = "The number of keys saved by each cache. 0 to disable")
     private List<Integer> args = new ArrayList<>();
+
+    @Parameters(paramLabel = "key-cache-keys-to-save", description = "Key cache keys to save", arity = "0..1", index = "0")
+    private Integer keyCacheKeysToSave = null;
+
+    @Parameters(paramLabel = "row-cache-keys-to-save", description = "Row cache keys to save", arity = "0..1", index = "1")
+    private Integer rowCacheKeysToSave = null;
+
+    @Parameters(paramLabel = "counter-cache-keys-to-save", description = "Counter cache keys to save", arity = "0..1", index = "2")
+    private Integer counterCacheKeysToSave = null;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        Optional.ofNullable(keyCacheKeysToSave).ifPresent(args::add);
+        Optional.ofNullable(rowCacheKeysToSave).ifPresent(args::add);
+        Optional.ofNullable(counterCacheKeysToSave).ifPresent(args::add);
+
         checkArgument(args.size() == 3, "setcachekeystosave requires key-cache-keys-to-save, row-cache-keys-to-save, and counter-cache-keys-to-save args.");
         probe.setCacheKeysToSave(args.get(0), args.get(1), args.get(2));
     }

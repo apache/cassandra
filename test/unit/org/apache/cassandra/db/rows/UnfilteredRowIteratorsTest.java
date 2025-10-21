@@ -51,6 +51,7 @@ public class UnfilteredRowIteratorsTest
                                 .addClusteringColumn("ck", Int32Type.instance)
                                 .addRegularColumn("v1", Int32Type.instance)
                                 .addRegularColumn("v2", Int32Type.instance)
+                                .offline()
                                 .build();
         v1Metadata = metadata.regularAndStaticColumns().columns(false).getSimple(0);
         v2Metadata = metadata.regularAndStaticColumns().columns(false).getSimple(1);

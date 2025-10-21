@@ -28,5 +28,5 @@ package org.apache.cassandra.io.util;
  */
 public interface RebuffererFactory extends ReaderFileProxy
 {
-    Rebufferer instantiateRebufferer();
+    Rebufferer instantiateRebufferer(boolean isScan);
 }

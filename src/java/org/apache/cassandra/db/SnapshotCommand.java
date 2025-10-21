@@ -18,10 +18,17 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 
 public class SnapshotCommand
 {
@@ -31,13 +38,15 @@ public class SnapshotCommand
     public final String column_family;
     public final String snapshot_name;
     public final boolean clear_snapshot;
+    public final List<Range<Token>> ranges;
 
-    public SnapshotCommand(String keyspace, String columnFamily, String snapshotName, boolean clearSnapshot)
+    public SnapshotCommand(String keyspace, String columnFamily, List<Range<Token>> ranges, String snapshotName, boolean clearSnapshot)
     {
         this.keyspace = keyspace;
         this.column_family = columnFamily;
         this.snapshot_name = snapshotName;
         this.clear_snapshot = clearSnapshot;
+        this.ranges = ranges;
     }
 
     @Override
@@ -46,7 +55,8 @@ public class SnapshotCommand
         return "SnapshotCommand{" + "keyspace='" + keyspace + '\'' +
                                   ", column_family='" + column_family + '\'' +
                                   ", snapshot_name=" + snapshot_name +
-                                  ", clear_snapshot=" + clear_snapshot + '}';
+                                  ", clear_snapshot=" + clear_snapshot +
+                                  ", ranges=" + ranges + '}';
     }
 }
 
@@ -58,6 +68,15 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         out.writeUTF(snapshot_command.column_family);
         out.writeUTF(snapshot_command.snapshot_name);
         out.writeBoolean(snapshot_command.clear_snapshot);
+        if (version >= MessagingService.VERSION_51)
+        {
+            out.writeUnsignedVInt32(snapshot_command.ranges.size());
+            for (Range<Token> r : snapshot_command.ranges)
+            {
+                Token.serializer.serialize(r.left, out, version);
+                Token.serializer.serialize(r.right, out, version);
+            }
+        }
     }
 
     public SnapshotCommand deserialize(DataInputPlus in, int version) throws IOException
@@ -66,14 +85,35 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         String column_family = in.readUTF();
         String snapshot_name = in.readUTF();
         boolean clear_snapshot = in.readBoolean();
-        return new SnapshotCommand(keyspace, column_family, snapshot_name, clear_snapshot);
+        if (version >= MessagingService.VERSION_51)
+        {
+            IPartitioner partitioner = Keyspace.open(keyspace).getColumnFamilyStore(column_family).getPartitioner();
+            int count = in.readUnsignedVInt32();
+            List<Range<Token>> ranges = new ArrayList<>(count);
+            for (int i = 0; i < count; i++)
+            {
+                Token start = Token.serializer.deserialize(in, partitioner, version);
+                Token end = Token.serializer.deserialize(in, partitioner, version);
+                ranges.add(new Range<>(start, end));
+            }
+            return new SnapshotCommand(keyspace, column_family, ranges, snapshot_name, clear_snapshot);
+        }
+        return new SnapshotCommand(keyspace, column_family, Collections.emptyList(), snapshot_name, clear_snapshot);
     }
 
     public long serializedSize(SnapshotCommand sc, int version)
     {
-        return TypeSizes.sizeof(sc.keyspace)
-             + TypeSizes.sizeof(sc.column_family)
-             + TypeSizes.sizeof(sc.snapshot_name)
-             + TypeSizes.sizeof(sc.clear_snapshot);
+        long size =  TypeSizes.sizeof(sc.keyspace)
+                     + TypeSizes.sizeof(sc.column_family)
+                     + TypeSizes.sizeof(sc.snapshot_name)
+                     + TypeSizes.sizeof(sc.clear_snapshot);
+        if (version >= MessagingService.VERSION_51)
+        {
+            size += TypeSizes.sizeofUnsignedVInt(sc.ranges.size());
+            for (Range<Token> r : sc.ranges)
+                size += Token.serializer.serializedSize(r.left, version)
+                        + Token.serializer.serializedSize(r.right, version);
+        }
+        return size;
     }
 }

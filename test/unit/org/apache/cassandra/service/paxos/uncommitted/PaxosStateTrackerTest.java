@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
@@ -73,6 +74,8 @@ public class PaxosStateTrackerTest
     public static void setUpClass() throws Exception
     {
         SchemaLoader.prepareServer();
+        DatabaseDescriptor.setAccordTransactionsEnabled(false);
+        AccordService.startup(null);
 
         ks = "coordinatorsessiontest";
         cfm1 = TableMetadata.builder(ks, "tbl1").addPartitionKeyColumn("k", Int32Type.instance).addRegularColumn("v", Int32Type.instance).build();

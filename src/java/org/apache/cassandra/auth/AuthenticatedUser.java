@@ -18,11 +18,16 @@
 package org.apache.cassandra.auth;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Datacenters;
+
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
 
 /**
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
@@ -55,13 +60,39 @@ public class AuthenticatedUser
 
     private final String name;
 
-    // Primary Role of the logged in user
+    private final AuthenticationMode authenticationMode;
+
+    private final Map<String, Object> metadata;
+
+    // Primary Role of the logged-in user
     private final RoleResource role;
 
     public AuthenticatedUser(String name)
     {
+        this(name, UNAUTHENTICATED);
+    }
+
+    public AuthenticatedUser(String name, AuthenticationMode authenticationMode)
+    {
+        this(name, authenticationMode, Collections.emptyMap());
+    }
+
+    /**
+     * Defines authenticated user context established within a client connection.
+     *
+     * @param name The user's role name
+     * @param authenticationMode How the user was authenticated
+     * @param metadata contextual metadata about how the user was authenticated.  Note that this data is exposed
+     *                 through the <code>system_views.clients table</code>, <code>nodetool clientstats</code> and
+     *                 {@link org.apache.cassandra.metrics.ClientMetrics}-based JMX Beans.  Implementors should
+     *                 take care not to store anything sensitive here.
+     */
+    public AuthenticatedUser(String name, AuthenticationMode authenticationMode, Map<String, Object> metadata)
+    {
         this.name = name;
         this.role = RoleResource.role(name);
+        this.authenticationMode = authenticationMode;
+        this.metadata = metadata;
     }
 
     public String getName()
@@ -72,6 +103,26 @@ public class AuthenticatedUser
     public RoleResource getPrimaryRole()
     {
         return role;
+    }
+
+    /**
+     * @returns the mode of authentication used to authenticate this user
+     */
+    public AuthenticationMode getAuthenticationMode()
+    {
+        return authenticationMode;
+    }
+
+    /**
+     * @returns {@link IAuthenticator}-contextual metadata about how the user was authenticated.
+     * <p>
+     * Note that this data is exposed through the <code>system_views.clients table</code>,
+     * <code>nodetool clientstats</code> and {@link org.apache.cassandra.metrics.ClientMetrics}-based JMX Beans.
+     * Implementors should take care not to store anything sensitive here.
+     */
+    public Map<String, Object> getMetadata()
+    {
+        return metadata;
     }
 
     /**
@@ -179,6 +230,12 @@ public class AuthenticatedUser
     @Override
     public int hashCode()
     {
+        // Note: for reasons of maintaining the invariant that an object that equals maintains the same hashCode,
+        // we do not include mode and metadata in the hashCode calculation.
+        // This is particularly salient as there are cases where AuthenticatedUser is used as a key in
+        // Role/Permissions cache. In effect, we would like to treat all connections sharing the same name as the same
+        // user, where mode and metadata are just additional context about how the user authenticated that
+        // should not factor into 'equivalence' of users.
         return Objects.hashCode(name);
     }
 }

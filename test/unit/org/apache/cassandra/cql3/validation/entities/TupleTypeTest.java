@@ -34,7 +34,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -160,6 +159,9 @@ public class TupleTypeTest extends CQLTester
 
         assertInvalidMessage("Invalid tuple literal for t: component 1 is not of type frozen<tuple<int, text, double>>",
                              "INSERT INTO %s (k, t) VALUES (0, (1, (1, '1', 1.0, 1)))");
+
+        assertInvalidMessage("Invalid tuple type literal for k of type int",
+                             "SELECT * FROM %s WHERE k = ('a', 'b')");
     }
 
     @Test
@@ -172,7 +174,7 @@ public class TupleTypeTest extends CQLTester
 
         createIndex("CREATE INDEX tuple_index ON %s (t)");
         // select using unset
-        assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", unset(), unset(), unset(), unset());
+        assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", 42, unset(), unset(), unset());
     }
 
     /**
@@ -270,13 +272,12 @@ public class TupleTypeTest extends CQLTester
             for (ByteBuffer value : testcase.uniqueRows)
             {
                 map.put(value, count);
-                ByteBuffer[] tupleBuffers = tupleType.split(ByteBufferAccessor.instance, value);
+                Object[] tupleBuffers = tupleType.unpack(value).toArray();
 
-                // use cast to avoid warning
-                execute("INSERT INTO %s (id, value) VALUES (?, ?)", tuple((Object[]) tupleBuffers), count);
+                execute("INSERT INTO %s (id, value) VALUES (?, ?)", tuple(tupleBuffers), count);
 
-                assertRows(execute("SELECT * FROM %s WHERE id = ?", tuple((Object[]) tupleBuffers)),
-                           row(tuple((Object[]) tupleBuffers), count));
+                assertRows(execute("SELECT * FROM %s WHERE id = ?", tuple(tupleBuffers)),
+                           row(tuple(tupleBuffers), count));
                 count++;
             }
             assertRows(execute("SELECT * FROM %s LIMIT 100"),
@@ -308,13 +309,12 @@ public class TupleTypeTest extends CQLTester
             for (ByteBuffer value : testcase.uniqueRows)
             {
                 map.put(value, count);
-                ByteBuffer[] tupleBuffers = tupleType.split(ByteBufferAccessor.instance, value);
+                Object[] tupleBuffers = tupleType.unpack(value).toArray();
 
-                // use cast to avoid warning
-                execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, tuple((Object[]) tupleBuffers), count);
+                execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, tuple(tupleBuffers), count);
 
-                assertRows(execute("SELECT * FROM %s WHERE pk = ? AND ck = ?", 1, tuple((Object[]) tupleBuffers)),
-                           row(1, tuple((Object[]) tupleBuffers), count));
+                assertRows(execute("SELECT * FROM %s WHERE pk = ? AND ck = ?", 1, tuple(tupleBuffers)),
+                           row(1, tuple(tupleBuffers), count));
                 count++;
             }
             UntypedResultSet results = execute("SELECT * FROM %s LIMIT 100");

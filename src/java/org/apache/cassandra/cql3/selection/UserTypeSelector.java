@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,13 +32,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UserTypes;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -68,9 +68,9 @@ final class UserTypeSelector extends Selector
     };
 
     /**
-     * The map type.
+     * The user type.
      */
-    private final AbstractType<?> type;
+    private final UserType type;
 
     /**
      * The user type fields
@@ -191,14 +191,13 @@ final class UserTypeSelector extends Selector
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         UserType userType = (UserType) type;
-        ByteBuffer[] buffers = new ByteBuffer[userType.size()];
+        List<ByteBuffer> buffers = new ArrayList<>(userType.size());
         for (int i = 0, m = userType.size(); i < m; i++)
         {
             Selector selector = fields.get(userType.fieldName(i));
-            if (selector != null)
-                buffers[i] = selector.getOutput(protocolVersion);
+            buffers.add(selector == null ? null : selector.getOutput(protocolVersion));
         }
-        return TupleType.buildValue(buffers);
+        return type.pack(buffers);
     }
 
     public void reset()
@@ -232,7 +231,7 @@ final class UserTypeSelector extends Selector
     private UserTypeSelector(AbstractType<?> type, Map<FieldIdentifier, Selector> fields)
     {
         super(Kind.USER_TYPE_SELECTOR);
-        this.type = type;
+        this.type = (UserType) type;
         this.fields = fields;
     }
 

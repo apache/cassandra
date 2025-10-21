@@ -17,37 +17,36 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class PropertyDefinitions
 {
+    public static final String MULTIPLE_DEFINITIONS_ERROR = "Multiple definitions for property '%s'";
+
     private static final Pattern POSITIVE_PATTERN = Pattern.compile("(1|true|yes)");
     private static final Pattern NEGATIVE_PATTERN = Pattern.compile("(0|false|no)");
-    
-    protected static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
+    private static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
 
     protected final Map<String, Object> properties = new HashMap<>();
 
-    public void addProperty(String name, String value) throws SyntaxException
+    public void addProperty(String name, Object value) throws SyntaxException
     {
-        if (properties.put(name, value) != null)
-            throw new SyntaxException(format("Multiple definitions for property '%s'", name));
-    }
-
-    public void addProperty(String name, Map<String, String> value) throws SyntaxException
-    {
-        if (properties.put(name, value) != null)
-            throw new SyntaxException(format("Multiple definitions for property '%s'", name));
+        if (properties.putIfAbsent(name, value) != null)
+            throw new SyntaxException(format(MULTIPLE_DEFINITIONS_ERROR, name));
     }
 
     public void validate(Set<String> keywords, Set<String> obsolete) throws SyntaxException
@@ -64,9 +63,6 @@ public class PropertyDefinitions
         }
     }
 
-    /**
-     * Returns the name of all the properties that are updated by this object.
-     */
     public Set<String> updatedProperties()
     {
         return properties.keySet();
@@ -82,7 +78,7 @@ public class PropertyDefinitions
         return properties.containsKey(name);
     }
 
-    protected String getString(String name) throws SyntaxException
+    public String getString(String name) throws SyntaxException
     {
         Object val = properties.get(name);
         if (val == null)
@@ -92,11 +88,27 @@ public class PropertyDefinitions
         return (String)val;
     }
 
+    @Nullable
+    public Set<QualifiedName> getQualifiedNames(String name) throws SyntaxException
+    {
+        Object val = properties.get(name);
+        if (val == null)
+            return null;
+        if (val instanceof Map && ((Map<?, ?>)val).isEmpty()) // to solve the ambiguity between empty map and empty set
+            return Collections.emptySet();
+        if (!(val instanceof Set))
+            throw new SyntaxException(String.format("Invalid value for property '%s'. It should be a set of identifiers.", name));
+        return (Set<QualifiedName>) val;
+    }
+
+    @Nullable
     protected Map<String, String> getMap(String name) throws SyntaxException
     {
         Object val = properties.get(name);
         if (val == null)
             return null;
+        if (val instanceof Set && ((Set<?>)val).isEmpty()) // to solve the ambiguity between empty map and empty set
+            return Collections.emptyMap();
         if (!(val instanceof Map))
             throw new SyntaxException(format("Invalid value for property '%s'. It should be a map.", name));
         return (Map<String, String>)val;
@@ -113,7 +125,7 @@ public class PropertyDefinitions
         if (null == value)
             throw new IllegalArgumentException("value argument can't be null");
 
-        String lowerCasedValue = value.toLowerCase();
+        String lowerCasedValue = toLowerCaseLocalized(value);
 
         if (POSITIVE_PATTERN.matcher(lowerCasedValue).matches())
             return true;
@@ -166,5 +178,14 @@ public class PropertyDefinitions
         {
             throw new SyntaxException(format("Invalid double value %s for '%s'", value, key));
         }
+    }
+
+    public Object getProperty(String name)
+    {
+        Object ret = properties.get(name);
+        if (ret == null)
+            throw new SyntaxException(String.format("Invalid value for property '%s'. It should not be null.", name));
+
+        return ret;
     }
 }

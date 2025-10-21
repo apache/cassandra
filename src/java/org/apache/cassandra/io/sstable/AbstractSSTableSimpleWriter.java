@@ -83,7 +83,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
     {
-        this.sstableProducedListener = Objects.requireNonNull(listener);
+        this.sstableProducedListener = Objects.requireNonNull(listener, "sstableProducedListener cannot be null");
     }
 
     protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)

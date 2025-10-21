@@ -32,8 +32,8 @@ import org.apache.cassandra.utils.AbstractIterator;
 public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
 {
     private final DecoratedKey partitionKey;
-
     private UnfilteredRowIterator iterator;
+    private boolean closed = false;
 
     public LazilyInitializedUnfilteredRowIterator(DecoratedKey partitionKey)
     {
@@ -97,15 +97,17 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
 
     public void close()
     {
+        // don't use iterator == null as indicator if this is closed since some methods are called after the iterator is
+        // closed and maybeInit would re-initialize the underlying iterator in that case
+        closed = true;
         if (iterator != null)
-        {
             iterator.close();
-            iterator = null;
-        }
     }
 
     public boolean isOpen()
     {
-        return iterator != null;
+        if (closed)
+            return false;
+        return iterator != null; // for backwards compatibility - if `maybeInit` has not been run on this class, consider it not open, for example SSTableExport seems to rely on this
     }
 }

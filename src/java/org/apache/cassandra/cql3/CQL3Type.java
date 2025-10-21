@@ -25,6 +25,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
@@ -41,6 +42,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public interface CQL3Type
 {
@@ -61,7 +63,7 @@ public interface CQL3Type
         return false;
     }
 
-    public AbstractType<?> getType();
+    AbstractType<?> getType();
 
     /**
      * Generates CQL literal from a binary value of this type.
@@ -83,10 +85,10 @@ public interface CQL3Type
      */
     default ByteBuffer fromCQLLiteral(String keyspaceName, String literal)
     {
-        return Terms.asBytes(keyspaceName, literal, getType());
+        return Term.asBytes(keyspaceName, literal, getType());
     }
 
-    public enum Native implements CQL3Type
+    enum Native implements CQL3Type
     {
         ASCII       (AsciiType.instance),
         BIGINT      (LongType.instance),
@@ -138,11 +140,11 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return toLowerCaseLocalized(super.toString());
         }
     }
 
-    public static class Custom implements CQL3Type
+    class Custom implements CQL3Type
     {
         private final AbstractType<?> type;
 
@@ -164,8 +166,13 @@ public interface CQL3Type
         @Override
         public String toCQLLiteral(ByteBuffer buffer)
         {
-            // *always* use the 'blob' syntax to express custom types in CQL
-            return Native.BLOB.toCQLLiteral(buffer);
+            CQL3Type asCql3 = type.asCQL3Type();
+            if (asCql3 instanceof Custom)
+            {
+                // use the 'blob' syntax to express custom types in CQL if not overridden
+                return Native.BLOB.toCQLLiteral(buffer);
+            }
+            return asCql3.toCQLLiteral(buffer);
         }
 
         @Override
@@ -191,7 +198,7 @@ public interface CQL3Type
         }
     }
 
-    public static class Collection implements CQL3Type
+    class Collection implements CQL3Type
     {
         private final CollectionType<?> type;
 
@@ -322,9 +329,9 @@ public interface CQL3Type
         }
     }
 
-    public static class UserDefined implements CQL3Type
+    class UserDefined implements CQL3Type
     {
-        // Keeping this separatly from type just to simplify toString()
+        // Keeping this separately from type just to simplify toString()
         private final String name;
         private final UserType type;
 
@@ -419,7 +426,7 @@ public interface CQL3Type
         }
     }
 
-    public static class Tuple implements CQL3Type
+    class Tuple implements CQL3Type
     {
         private final TupleType type;
 
@@ -522,7 +529,7 @@ public interface CQL3Type
         }
     }
 
-    public static class Vector implements CQL3Type
+    class Vector implements CQL3Type
     {
         private final VectorType<?> type;
 
@@ -554,7 +561,7 @@ public interface CQL3Type
                 return "null";
             buffer = buffer.duplicate();
             CQL3Type elementType = type.elementType.asCQL3Type();
-            List<ByteBuffer> values = getType().split(buffer);
+            List<ByteBuffer> values = getType().unpack(buffer);
             StringBuilder sb = new StringBuilder();
             sb.append('[');
             for (int i = 0; i < values.size(); i++)
@@ -593,7 +600,7 @@ public interface CQL3Type
 
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
-    public abstract class Raw
+    abstract class Raw
     {
         protected final boolean frozen;
 

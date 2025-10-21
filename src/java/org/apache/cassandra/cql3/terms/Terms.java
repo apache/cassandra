@@ -1,0 +1,729 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.cassandra.cql3.terms;
+
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.terms.Term.NonTerminal;
+import org.apache.cassandra.cql3.terms.Term.Terminal;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
+/**
+ * A set of {@code Terms}
+ */
+public interface Terms
+{
+    /**
+     * The terminals returned when they were unset.
+     */
+    Terminals UNSET_TERMINALS = new Terminals()
+    {
+        @Override
+        @SuppressWarnings("unchecked")
+        public List<ByteBuffer> get()
+        {
+            return Term.UNSET_LIST;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public List<List<ByteBuffer>> getElements()
+        {
+            return Term.UNSET_LIST;
+        }
+
+        @Override
+        public List<Terminal> asList()
+        {
+            throw new UnsupportedOperationException("Cannot convert UNSET_TERMINALS to a list of terminals");
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+        }
+
+        @Override
+        public boolean containsSingleTerm()
+        {
+            return false;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "UNSET";
+        }
+    };
+
+    /**
+     * Adds all functions (native and user-defined) used by any of the terms to the specified list.
+     * @param functions the list to add to
+     */
+    void addFunctionsTo(List<Function> functions);
+
+    /**
+     * Collects the column specifications for the bind variables in the terms.
+     * This is obviously a no-op if the terms are Terminals.
+     *
+     * @param boundNames the variables specification where to collect the
+     * bind variables of the terms in.
+     */
+    void collectMarkerSpecification(VariableSpecifications boundNames);
+
+    /**
+     * Bind the values in these terms to the values contained in {@code options}.
+     * This is obviously a no-op if this {@code Terms} are Terminals.
+     *
+     * @param options the query options containing the values to bind markers to.
+     * @return the result of binding all the variables of these NonTerminals.
+     */
+    Terminals bind(QueryOptions options);
+
+    /**
+     * A shorter for {@code bind(options).get()}.
+     * We expose it mainly because for constants it can avoid allocating a temporary
+     * object between the bind and the get.
+     * @param options the query options containing the values to bind markers to.
+     */
+    List<ByteBuffer> bindAndGet(QueryOptions options);
+
+    /**
+     * A shorter for {@code bind(options).getElements()}.
+     * We expose it mainly because for constants it can avoid allocating a temporary
+     * object between the {@code bind} and the {@code getElements}.
+     * @param options the query options containing the values to bind markers to.
+     */
+    List<List<ByteBuffer>> bindAndGetElements(QueryOptions options);
+
+    /**
+     * Creates a {@code Terms} containing a single {@code Term}.
+     *
+     * @param term the {@code Term}
+     * @return a {@code Terms} containing a single {@code Term}.
+     */
+    static Terms of(final Term term)
+    {
+        if (term.isTerminal())
+            return Terminals.of(term == Constants.NULL_VALUE ? null : (Terminal) term);
+
+        return NonTerminals.of((NonTerminal) term);
+    }
+
+    /**
+     * Creates a {@code Terms} containing a set of {@code Term}.
+     *
+     * @param terms the terms
+     * @return a {@code Terms} containing a set of {@code Term}.
+     */
+    static Terms of(final List<Term> terms)
+    {
+        if (terms.isEmpty())
+            return Terminals.of();
+
+        boolean allTerminals = terms.stream().allMatch(Term::isTerminal);
+
+        if (allTerminals)
+        {
+            int size = terms.size();
+            List<Terminal> terminals = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+            {
+                Terminal terminal = (Terminal) terms.get(i);
+                terminals.add(terminal == Constants.NULL_VALUE ? null : terminal);
+            }
+            return Terminals.of(terminals);
+        }
+
+        return NonTerminals.of(terms);
+    }
+
+    /**
+     * Converts these {@code Terms} into a {@code List} of {@code Term}.
+     * @return a {@code List} of {@code Term}.
+     * @throws UnsupportedOperationException if the conversion is not supported.
+     */
+    default List<? extends Term> asList()
+    {
+        throw new UnsupportedOperationException(this.getClass() + " cannot be converted in a list of Term");
+    }
+
+    /**
+     * Checks if these {@code terms} knows that it contains a single {@code term}.
+     * <p>
+     * If the instance is a marker it will not know how many terms it represents and will return false.
+     * @return {@code true} if this {@code terms} know contains a single {@code term}, {@code false} otherwise.
+     */
+    boolean containsSingleTerm();
+
+    /**
+     * Adds all functions (native and user-defined) of the specified terms to the list.
+     * @param functions the list to add to
+     */
+    static void addFunctions(Iterable<? extends Term> terms, List<Function> functions)
+    {
+        for (Term term : terms)
+        {
+            if (term != null)
+                term.addFunctionsTo(functions);
+        }
+    }
+
+    /**
+     * A parsed, non prepared (thus untyped) set of terms.
+     */
+    abstract class Raw implements AssignmentTestable
+    {
+        private static final Raw EMPTY = new Raw()
+        {
+            @Override
+            public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+            {
+                return Terminals.of();
+            }
+
+            @Override
+            public String getText()
+            {
+                return "";
+            }
+
+            @Override
+            public AbstractType<?> getExactTypeIfKnown(String keyspace)
+            {
+                return null;
+            }
+
+            @Override
+            public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+            {
+                return TestResult.WEAKLY_ASSIGNABLE;
+            }
+
+            @Override
+            public boolean containsBindMarkers()
+            {
+                return false;
+            }
+        };
+        /**
+         * This method validates this {@code Terms.Raw} is valid for the provided column
+         * specification and "prepare" this {@code Terms.Raw}, returning the resulting {@link Terms}.
+         *
+         * @param receiver the "column" the set of terms are supposed to be a value of. Note
+         * that the ColumnSpecification may not correspond to a real column.
+         * @return the prepared terms
+         */
+        public abstract Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException;
+
+        /**
+         * @return a String representation of the raw terms that can be used when reconstructing a CQL query string.
+         */
+        public abstract String getText();
+
+        /**
+         * Converts these {@code Terms.Raw} into a {@code List} of {@code Term.Raw} if supported.
+         * @return a {@code List} of {@code Term.Raw}.
+         * @throws UnsupportedOperationException if the conversion is not supported.
+         */
+        public List<? extends Term.Raw> asList()
+        {
+            throw new UnsupportedOperationException(this.getClass() + " cannot be converted in a list of Term.Raw");
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return getText().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return this == o || (o instanceof Terms.Raw && getText().equals(((Terms.Raw) o).getText()));
+        }
+
+        /**
+         * The type of the {@code Terms} if it can be inferred.
+         *
+         * @param keyspace the keyspace on which the statement containing these terms is on.
+         * @return the type of this {@code Terms} if inferrable, or {@code null}
+         * otherwise (for instance, the type isn't inferrable for a bind marker. Even for
+         * literals, the exact type is not inferrable since they are valid for many
+         * different types and so this will return {@code null} too).
+         */
+        public abstract AbstractType<?> getExactTypeIfKnown(String keyspace);
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return getExactTypeIfKnown(keyspace);
+        }
+
+        @Override
+        public String toString()
+        {
+            return getText();
+        }
+
+        /**
+         * Checks if these terms are or contains bind markers.
+         * @return {@code true} if tthese terms are or contains bind markers, {@code false} otherwise.
+         */
+        public abstract boolean containsBindMarkers();
+
+        public static Raw of()
+        {
+            return EMPTY;
+        }
+
+        public static Raw of(List<? extends Term.Raw> raws)
+        {
+            if (raws.isEmpty())
+                return EMPTY;
+            return new Raw()
+            {
+                @Override
+                public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+                {
+                    List<Term> terms = new ArrayList<>(raws.size());
+                    for (Term.Raw raw : raws)
+                    {
+                        terms.add(raw.prepare(keyspace, receiver));
+                    }
+                    return Terms.of(terms);
+                }
+
+                @Override
+                public String getText()
+                {
+                    return raws.stream().map(Term.Raw::getText)
+                                        .collect(Collectors.joining(", ", "(", ")"));
+                }
+
+                @Override
+                public List<? extends Term.Raw> asList() {
+                    return raws;
+                }
+
+                @Override
+                public AbstractType<?> getExactTypeIfKnown(String keyspace)
+                {
+                    return null;
+                }
+
+                @Override
+                public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+                {
+                    return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+                }
+
+                @Override
+                public boolean containsBindMarkers()
+                {
+                    for (Term.Raw raw : raws)
+                    {
+                        if (raw.containsBindMarker())
+                            return true;
+                    }
+                    return false;
+                }
+            };
+        }
+
+        public static Raw of(Term.Raw raw)
+        {
+            return new Raw()
+            {
+                @Override
+                public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+                {
+                    return Terms.of(raw.prepare(keyspace, receiver));
+                }
+
+                @Override
+                public List<? extends Term.Raw> asList() {
+                    return Collections.singletonList(raw);
+                }
+
+                @Override
+                public String getText()
+                {
+                    return raw.getText();
+                }
+
+                @Override
+                public AbstractType<?> getExactTypeIfKnown(String keyspace)
+                {
+                    return raw.getExactTypeIfKnown(keyspace);
+                }
+
+                @Override
+                public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+                {
+                    return raw.testAssignment(keyspace, receiver);
+                }
+
+                @Override
+                public boolean containsBindMarkers()
+                {
+                    return raw.containsBindMarker();
+                }
+            };
+        }
+    }
+
+    /**
+     * Set of terms that contains only terminal terms.
+     */
+    abstract class Terminals implements Terms
+    {
+        /**
+         * Empty Terminals.
+         */
+        private static final Terminals EMPTY = new Terminals()
+        {
+            @Override
+            public List<ByteBuffer> get()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public List<List<ByteBuffer>> getElements()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public List<Terminal> asList()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public void addFunctionsTo(List<Function> functions)
+            {
+
+            }
+
+            @Override
+            public boolean containsSingleTerm()
+            {
+                return false;
+            }
+        };
+        @Override
+        public void collectMarkerSpecification(VariableSpecifications boundNames) {}
+
+        @Override
+        public final Terminals bind(QueryOptions options)
+        {
+            return this;
+        }
+
+        @Override
+        public List<ByteBuffer> bindAndGet(QueryOptions options)
+        {
+            return get();
+        }
+
+        @Override
+        public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+        {
+            return getElements();
+        }
+
+        /**
+         * @return the serialized values of this {@code Terminals}.
+         */
+        public abstract List<ByteBuffer> get();
+
+        /**
+         * Returns the serialized values of each Term elements, if these term represents a Collection, tuple, UDT or vector.
+         * If the terms do not represent multi-elements type the method will return a list containing the serialized value of the terminals
+         * @return a list containing serialized values of each Term elements
+         */
+        public abstract List<List<ByteBuffer>> getElements();
+
+        /**
+         * Converts these {@code Terminals} into a {@code List} of {@code Term.Terminal}.
+         * @return a {@code List} of {@code Term.Terminal}.
+         */
+        public abstract List<Term.Terminal> asList();
+
+        /**
+         * Returns an empty {@code Terminals}.
+         * @return an empty {@code Terminals}.
+         */
+        public static Terminals of()
+        {
+            return EMPTY;
+        }
+
+        /**
+         * Converts a {@code Terminal} into a {@code Terminals}.
+         * @param terminal the {@code Terminal} to convert
+         * @return a {@code Terminals}.
+         */
+        public static Terminals of(Terminal terminal)
+        {
+            return new Terminals()
+            {
+                @Override
+                public List<ByteBuffer> get()
+                {
+                    return Collections.singletonList(terminal == null ? null : terminal.get());
+                }
+
+                @Override
+                public List<List<ByteBuffer>> getElements()
+                {
+                    return Collections.singletonList(terminal == null ? null : terminal.getElements());
+                }
+
+                @Override
+                public List<Terminal> asList()
+                {
+                    return Collections.singletonList(terminal);
+                }
+
+                @Override
+                public void addFunctionsTo(List<Function> functions)
+                {
+                    if (terminal != null)
+                        terminal.addFunctionsTo(functions);
+                }
+
+                @Override
+                public boolean containsSingleTerm()
+                {
+                    return true;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return terminal.toString();
+                }
+            };
+        }
+
+        public static Terminals of(List<Terminal> terminals)
+        {
+            return new Terminals()
+            {
+                @Override
+                public List<Terminal> asList()
+                {
+                    return terminals;
+                }
+
+                @Override
+                public List<ByteBuffer> get()
+                {
+                    int size = terminals.size();
+                    List<ByteBuffer> buffers = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Terminal terminal = terminals.get(i);
+                        buffers.add(terminal == null ? null : terminal.get());
+                    }
+                    return buffers;
+                }
+
+                @Override
+                public List<List<ByteBuffer>> getElements()
+                {
+                    int size = terminals.size();
+                    List<List<ByteBuffer>> buffers = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Terminal terminal = terminals.get(i);
+                        buffers.add(terminal == null ? null : terminal.getElements());
+                    }
+                    return buffers;
+                }
+
+                @Override
+                public void addFunctionsTo(List<Function> functions)
+                {
+                    addFunctions(terminals, functions);
+                }
+
+                @Override
+                public boolean containsSingleTerm()
+                {
+                    return terminals.size() == 1;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return terminals.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
+                }
+            };
+        }
+    }
+
+    /**
+     * Set of terms that contains at least one non-terminal term.
+     */
+    abstract class NonTerminals implements Terms
+    {
+        public static NonTerminals of(NonTerminal term)
+        {
+            return new NonTerminals()
+            {
+                @Override
+                public void addFunctionsTo(List<Function> functions)
+                {
+                    term.addFunctionsTo(functions);
+                }
+
+                @Override
+                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                {
+                    term.collectMarkerSpecification(boundNames);
+                }
+
+                @Override
+                public Terminals bind(QueryOptions options)
+                {
+                    return Terminals.of(term.bind(options));
+                }
+
+                @Override
+                public List<ByteBuffer> bindAndGet(QueryOptions options)
+                {
+                    return Collections.singletonList(term.bindAndGet(options));
+                }
+
+                @Override
+                public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+                {
+                    return Collections.singletonList(term.bindAndGetElements(options));
+                }
+
+                @Override
+                public List<? extends Term> asList() {
+                    return Collections.singletonList(term);
+                }
+
+                @Override
+                public boolean containsSingleTerm()
+                {
+                    return true;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return term.toString();
+                }
+            };
+        }
+
+        public static NonTerminals of(List<Term> terms)
+        {
+            return new NonTerminals()
+            {
+                @Override
+                public void addFunctionsTo(List<Function> functions)
+                {
+                    addFunctions(terms, functions);
+                }
+
+                @Override
+                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                {
+                    for (int i = 0, m = terms.size(); i < m; i++)
+                    {
+                        Term term = terms.get(i);
+                        term.collectMarkerSpecification(boundNames);
+                    }
+                }
+
+                @Override
+                public Terminals bind(QueryOptions options)
+                {
+                    int size = terms.size();
+                    List<Terminal> terminals = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Term term = terms.get(i);
+                        terminals.add(term.bind(options));
+                    }
+                    return Terminals.of(terminals);
+                }
+
+                @Override
+                public List<ByteBuffer> bindAndGet(QueryOptions options)
+                {
+                    int size = terms.size();
+                    List<ByteBuffer> buffers = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Term term = terms.get(i);
+                        buffers.add(term.bindAndGet(options));
+                    }
+                    return buffers;
+                }
+
+                @Override
+                public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+                {
+                    int size = terms.size();
+                    List<List<ByteBuffer>> buffers = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Term term = terms.get(i);
+                        buffers.add(term.bindAndGetElements(options));
+                    }
+                    return buffers;
+                }
+
+                @Override
+                public List<? extends Term> asList() {
+                    return terms;
+                }
+
+                @Override
+                public boolean containsSingleTerm()
+                {
+                    return terms.size() == 1;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return terms.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
+                }
+            };
+        }
+    }
+}

@@ -33,7 +33,7 @@ import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionTask;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
@@ -64,7 +64,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected final boolean isTransient;
 
     protected final SSTableRewriter sstableWriter;
-    protected final LifecycleTransaction txn;
+    protected final ILifecycleTransaction txn;
     private final List<Directories.DataDirectory> locations;
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
@@ -72,9 +72,19 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
-                                 LifecycleTransaction txn,
+                                 ILifecycleTransaction txn,
                                  Set<SSTableReader> nonExpiredSSTables,
                                  boolean keepOriginals)
+    {
+        this(cfs, directories, txn, nonExpiredSSTables, keepOriginals, true);
+    }
+
+    public CompactionAwareWriter(ColumnFamilyStore cfs,
+                                 Directories directories,
+                                 ILifecycleTransaction txn,
+                                 Set<SSTableReader> nonExpiredSSTables,
+                                 boolean keepOriginals,
+                                 boolean earlyOpenAllowed)
     {
         this.cfs = cfs;
         this.directories = directories;
@@ -83,7 +93,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
         estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
         maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
-        sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge);
+        sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge, earlyOpenAllowed);
         minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         pendingRepair = CompactionTask.getPendingRepair(nonExpiredSSTables);
         isTransient = CompactionTask.getIsTransient(nonExpiredSSTables);

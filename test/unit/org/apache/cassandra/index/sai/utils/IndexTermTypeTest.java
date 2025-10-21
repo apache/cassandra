@@ -195,7 +195,7 @@ public class IndexTermTypeTest
 
     private static ColumnMetadata column(AbstractType<?> type)
     {
-        return ColumnMetadata.regularColumn("ks", "cf", "col", type);
+        return ColumnMetadata.regularColumn("ks", "cf", "col", type, ColumnMetadata.NO_UNIQUE_ID);
     }
 
     @Test

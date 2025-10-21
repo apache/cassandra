@@ -20,8 +20,11 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -63,11 +66,58 @@ public class Operation
         }
     }
 
+    public static class Expressions
+    {
+        final ListMultimap<ColumnMetadata, Expression> expressions;
+        final Set<ColumnMetadata> unindexedColumns;
+
+        Expressions(ListMultimap<ColumnMetadata, Expression> expressions, Set<ColumnMetadata> unindexedColumns)
+        {
+            this.expressions = expressions;
+            this.unindexedColumns = unindexedColumns;
+        }
+
+        Set<ColumnMetadata> columns()
+        {
+            return expressions.keySet();
+        }
+
+        Collection<Expression> all()
+        {
+            return expressions.values();
+        }
+
+        List<Expression> expressionsFor(ColumnMetadata column)
+        {
+            return expressions.get(column);
+        }
+
+        boolean isEmpty()
+        {
+            return expressions.isEmpty();
+        }
+
+        int size()
+        {
+            return expressions.size();
+        }
+
+        boolean isUnindexed(ColumnMetadata column)
+        {
+            return unindexedColumns.contains(column);
+        }
+
+        boolean hasMultipleUnindexedColumns()
+        {
+            return unindexedColumns.size() > 1;
+        }
+    }
+
     @VisibleForTesting
-    protected static ListMultimap<ColumnMetadata, Expression> buildIndexExpressions(QueryController queryController,
-                                                                                    List<RowFilter.Expression> expressions)
+    protected static Expressions buildIndexExpressions(QueryController queryController, List<RowFilter.Expression> expressions)
     {
         ListMultimap<ColumnMetadata, Expression> analyzed = ArrayListMultimap.create();
+        Set<ColumnMetadata> unindexedColumns = Collections.emptySet();
 
         // sort all the expressions in the operation by name and priority of the logical operator
         // this gives us an efficient way to handle inequality and combining into ranges without extra processing
@@ -82,17 +132,28 @@ public class Operation
             if (Expression.supportsOperator(expression.operator()))
             {
                 StorageAttachedIndex index = queryController.indexFor(expression);
-
                 List<Expression> perColumn = analyzed.get(expression.column());
 
                 if (index == null)
+                {
                     buildUnindexedExpression(queryController, expression, perColumn);
+
+                    if (!expression.column().isPrimaryKeyColumn())
+                    {
+                        if (unindexedColumns.isEmpty())
+                            unindexedColumns = new HashSet<>(3);
+
+                        unindexedColumns.add(expression.column());
+                    }
+                }
                 else
+                {
                     buildIndexedExpression(index, expression, perColumn);
+                }
             }
         }
 
-        return analyzed;
+        return new Expressions(analyzed, unindexedColumns);
     }
 
     private static void buildUnindexedExpression(QueryController queryController,
@@ -286,11 +347,11 @@ public class Operation
 
     static abstract class Node
     {
-        ListMultimap<ColumnMetadata, Expression> expressionMap;
+        Expressions expressions;
 
         boolean canFilter()
         {
-            return (expressionMap != null && !expressionMap.isEmpty()) || !children().isEmpty();
+            return (expressions != null && !expressions.isEmpty()) || !children().isEmpty();
         }
 
         List<Node> children()
@@ -382,19 +443,19 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, expressionList);
+            expressions = buildIndexExpressions(controller, expressionList);
         }
 
         @Override
         FilterTree filterTree(boolean isStrict, QueryContext context)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap, isStrict, context);
+            return new FilterTree(BooleanOperator.AND, expressions, isStrict, context);
         }
 
         @Override
         KeyRangeIterator rangeIterator(QueryController controller)
         {
-            KeyRangeIterator.Builder builder = controller.getIndexQueryResults(expressionMap.values());
+            KeyRangeIterator.Builder builder = controller.getIndexQueryResults(expressions.all());
             for (Node child : children)
             {
                 boolean canFilter = child.canFilter();
@@ -412,15 +473,15 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, expressionList);
-            assert expressionMap.size() == 1 : "Expression nodes should only have a single expression!";
+            expressions = buildIndexExpressions(controller, expressionList);
+            assert expressions.size() == 1 : "Expression nodes should only have a single expression!";
         }
 
         @Override
         FilterTree filterTree(boolean isStrict, QueryContext context)
         {
             // There should only be one expression, so AND/OR would both work here. 
-            return new FilterTree(BooleanOperator.AND, expressionMap, isStrict, context);
+            return new FilterTree(BooleanOperator.AND, expressions, isStrict, context);
         }
 
         public ExpressionNode(RowFilter.Expression expression)
@@ -439,7 +500,7 @@ public class Operation
         {
             assert canFilter() : "Cannot process query with no expressions";
 
-            return controller.getIndexQueryResults(expressionMap.values()).build();
+            return controller.getIndexQueryResults(expressions.all()).build();
         }
     }
 }

@@ -66,7 +66,7 @@ print_help() {
 
 # legacy argument handling
 case ${1} in
-  "build_dtest_jars" | "stress-test" | "fqltool-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
+  "build_dtest_jars" | "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
     test_type="-a ${1}"
     if [[ -z ${2} ]]; then
       test_list=""
@@ -173,6 +173,7 @@ _get_env_var() {
 }
 
 _build_all_dtest_jars() {
+
     # build the dtest-jar for the branch under test. remember to `ant clean` if you want a new dtest jar built
     dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
     if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
@@ -199,7 +200,7 @@ _build_all_dtest_jars() {
     [ "${java_version}" -eq 11 ] && export CASSANDRA_USE_JDK11=true
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
-    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 ; do
+    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk ; do
         git clean -qxdff && git reset --hard HEAD  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
@@ -284,7 +285,7 @@ _main() {
   # check split_chunk is compatible with target (if not a regexp)
   if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
-      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
+      "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
           error 1 "Target ${target} does not suport splits."
           ;;
         *)
@@ -341,6 +342,11 @@ _main() {
     "fqltool-test")
       # hard fail on test compilation, but dont fail the test run so unstable test reports are processed
       ant fqltool-build-test ${ANT_TEST_OPTS}
+      ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
+      ;;
+    "sstableloader-test")
+      # hard fail on test compilation, but dont fail the test run so unstable test reports are processed
+      ant sstableloader-build-test ${ANT_TEST_OPTS}
       ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "microbench")

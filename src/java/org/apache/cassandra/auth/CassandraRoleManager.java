@@ -18,10 +18,22 @@
 package org.apache.cassandra.auth;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -34,24 +46,35 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.mindrot.jbcrypt.BCrypt;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 
 /**
@@ -79,13 +102,20 @@ import static org.apache.cassandra.service.QueryState.forInternalCalls;
  * of the password itself (such as storing it in an alternative location) would
  * be added in overridden createRole and alterRole implementations.
  */
-public class CassandraRoleManager implements IRoleManager
+public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
     public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
+
+    @VisibleForTesting
+    static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD = "invalid_role_disconnect_task_period";
+    @VisibleForTesting
+    static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
+
+    public static final String MBEAN_NAME = "org.apache.cassandra.auth:type=CassandraRoleManager";
 
     /**
      * We need to treat the default superuser as a special case since during initial node startup, we may end up with
@@ -116,38 +146,58 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
-
-    static int getGensaltLogRounds()
-    {
-        int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
-        if (rounds < 4 || rounds > 30)
-            throw new ConfigurationException(String.format("Bad value for system property %s." +
-                                                           "Please use a value between 4 and 30 inclusively", AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey()));
-        return rounds;
-    }
-
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
 
+    private volatile ScheduledFuture<?> invalidRoleDisconnectTask;
+
+    private volatile long invalidClientDisconnectPeriodMillis;
+    private volatile long invalidClientDisconnectMaxJitterMillis;
+
     public CassandraRoleManager()
     {
+        this(Map.of());
+    }
+
+    public CassandraRoleManager(Map<String, String> parameters)
+    {
         supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+                           ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
+                           : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.<Option>of();
+                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
+                           : ImmutableSet.<Option>of();
+
+        // Inherit parsing and validation from existing config parser
+        invalidClientDisconnectPeriodMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "0h")).toMilliseconds();
+        invalidClientDisconnectMaxJitterMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "0h")).toMilliseconds();
+
+        if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     @Override
-    public void setup()
+    public void setup(boolean asyncRoleSetup)
     {
         loadRoleStatement();
         loadIdentityStatement();
+        scheduleDisconnectInvalidRoleTask();
+        if (!asyncRoleSetup)
+        {
+            try
+            {
+                // Try to set up synchronously
+                setupDefaultRole();
+                return;
+            }
+            catch (Throwable t)
+            {
+                // We tried to execute the task in a sync way, but failed. Try asynchronous setup.
+            }
+        }
         scheduleSetupTask(() -> {
             setupDefaultRole();
             return null;
@@ -417,7 +467,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
-        if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
+        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
             throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
 
         try
@@ -461,7 +511,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
-            if (!StorageProxy.isSafeToPerformRead())
+            if (!StorageProxy.hasJoined())
             {
                 logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
                 scheduleSetupTask(setupTask);
@@ -487,7 +537,7 @@ public class CassandraRoleManager implements IRoleManager
         }
         catch (RequestValidationException e)
         {
-            throw new AssertionError(e); // not supposed to happen
+            throw new AssertionError(e + " " + FBUtilities.getJustLocalAddress()); // not supposed to happen
         }
     }
 
@@ -627,9 +677,11 @@ public class CassandraRoleManager implements IRoleManager
                       .collect(Collectors.joining(","));
     }
 
+
+
     private static String hashpw(String password)
     {
-        return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
+        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
     private static String escape(String name)
@@ -702,5 +754,77 @@ public class CassandraRoleManager implements IRoleManager
             );
             return entries;
         };
+    }
+
+    protected void disconnectInvalidRoles()
+    {
+        // This should always run with jitter, otherwise there's a risk that all nodes disconnect clients at the same time
+        StorageService.instance.disconnectInvalidRoles();
+    }
+
+    protected void invalidRoleDisconnectTask(LongSupplier delayMillis, ScheduledExecutorService executor)
+    {
+        try
+        {
+            disconnectInvalidRoles();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed to disconnect invalid roles", e);
+        }
+
+        long nextDelayMillis = delayMillis.getAsLong();
+        logger.info("Scheduling next invalid role disconnection in {} millis", nextDelayMillis);
+        this.invalidRoleDisconnectTask = executor.schedule(() -> invalidRoleDisconnectTask(delayMillis, executor), nextDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    protected void scheduleDisconnectInvalidRoleTask()
+    {
+        // Cancel any pending execution if it exists, since we may have changed period / jitter parameters
+        if (this.invalidRoleDisconnectTask != null)
+        {
+            logger.debug("Canceling previous invalidRoleDisconnectTask");
+            this.invalidRoleDisconnectTask.cancel(true);
+        }
+
+        long period = getInvalidClientDisconnectPeriodMillis();
+        long jitter = getInvalidClientDisconnectMaxJitterMillis();
+        if (period <= 0)
+        {
+            logger.info("Invalid role disconnection is disabled");
+            return;
+        }
+        LongSupplier delayMillis = () -> period + ThreadLocalRandom.current().nextLong(0, jitter);
+        long firstDelayMillis = delayMillis.getAsLong();
+        ScheduledExecutorPlus executor = ScheduledExecutors.optionalTasks;
+
+        logger.debug("Scheduling first invalid role disconnection in {} millis", firstDelayMillis);
+        this.invalidRoleDisconnectTask = executor.schedule(() -> invalidRoleDisconnectTask(delayMillis, executor), firstDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public long getInvalidClientDisconnectPeriodMillis()
+    {
+        return this.invalidClientDisconnectPeriodMillis;
+    }
+
+    @Override
+    public void setInvalidClientDisconnectPeriodMillis(long duration)
+    {
+        this.invalidClientDisconnectPeriodMillis = duration;
+        scheduleDisconnectInvalidRoleTask();
+    }
+
+    @Override
+    public long getInvalidClientDisconnectMaxJitterMillis()
+    {
+        return this.invalidClientDisconnectMaxJitterMillis;
+    }
+
+    @Override
+    public void setInvalidClientDisconnectMaxJitterMillis(long duration)
+    {
+        this.invalidClientDisconnectMaxJitterMillis = duration;
+        scheduleDisconnectInvalidRoleTask();
     }
 }

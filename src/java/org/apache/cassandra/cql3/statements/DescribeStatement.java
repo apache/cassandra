@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 
@@ -41,6 +42,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -104,9 +107,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         return this;
     }
 
-    public final List<ColumnSpecification> getBindVariables()
+    public final ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return Collections.emptyList();
+        return ImmutableList.of();
     }
 
     @Override
@@ -133,13 +136,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        DistributedSchema schema = Schema.instance.getDistributedSchemaBlocking();
-
-        Keyspaces keyspaces = Keyspaces.builder()
-                                       .add(schema.getKeyspaces())
-                                       .add(Schema.instance.getLocalKeyspaces())
-                                       .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
-                                       .build();
+        Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
+        UUID schemaVersion = Schema.instance.getVersion();
+        keyspaces = keyspaces.with(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata());
 
         PagingState pagingState = options.getPagingState();
 
@@ -157,7 +156,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //   (vint bytes) serialized schema hash (currently the result of Keyspaces.hashCode())
         //
 
-        long offset = getOffset(pagingState, schema.getVersion());
+        long offset = getOffset(pagingState, schemaVersion);
         int pageSize = options.getPageSize();
 
         Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
@@ -174,7 +173,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         ResultSet result = new ResultSet(resultMetadata, rows);
 
         if (pageSize > 0 && rows.size() == pageSize)
-            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schema.getVersion()));
+            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
 
         return new ResultMessage.Rows(result);
     }
@@ -375,7 +374,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                         bytes(element.elementType().toString()),
                                         bytes(element.elementNameQuotedIfNeeded()),
-                                        bytes(element.toCqlString(withInternals, false)));
+                                        bytes(element.toCqlString(true, withInternals, false)));
             }
         };
     }
@@ -425,7 +424,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                     bytes(element.elementType().toString()),
                                     bytes(element.elementNameQuotedIfNeeded()),
-                                    bytes(element.toCqlString(withInternals, false)));
+                                    bytes(element.toCqlString(true, withInternals, false)));
         }
     }
 
@@ -474,9 +473,16 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             TableMetadata table = checkNotNull(ks.getTableNullable(t),
                                                "Table '%s' not found in keyspace '%s'", t, ks.name);
 
-            return Stream.concat(Stream.of(table), table.indexes.stream()
-                                                                .map(index -> toDescribable(table, index))
-                                                                .sorted(SchemaElement.NAME_COMPARATOR));
+
+            Stream<SchemaElement> withIndexes = Stream.concat(Stream.of(table), table.indexes.stream()
+                                                                                             .map(index -> toDescribable(table, index))
+                                                                                             .sorted(SchemaElement.NAME_COMPARATOR));
+
+            Stream<SchemaElement> views = StreamSupport.stream(ks.views.forTable(table.id).spliterator(), false)
+                                                       .map(viewMetadata -> toDescribable(table, viewMetadata))
+                                                       .sorted(SchemaElement.NAME_COMPARATOR);
+
+            return Stream.concat(withIndexes, views);
         });
     }
 
@@ -575,11 +581,41 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                     }
 
                     @Override
-                    public String toCqlString(boolean withInternals, boolean ifNotExists)
+                    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
                     {
                         return index.toCqlString(table, ifNotExists);
                     }
                 };
+    }
+
+    private static SchemaElement toDescribable(TableMetadata table, ViewMetadata viewMetadata)
+    {
+        return new SchemaElement()
+        {
+            @Override
+            public SchemaElementType elementType()
+            {
+                return SchemaElementType.MATERIALIZED_VIEW;
+            }
+
+            @Override
+            public String elementKeyspace()
+            {
+                return table.keyspace;
+            }
+
+            @Override
+            public String elementName()
+            {
+                return viewMetadata.name();
+            }
+
+            @Override
+            public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+            {
+                return viewMetadata.toCqlString(withWarnings, withInternals, ifNotExists);
+            }
+        };
     }
 
     /**
@@ -678,8 +714,11 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 List<Object> list = new ArrayList<Object>();
                 list.add(DatabaseDescriptor.getClusterName());
                 list.add(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."));
-                list.add(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
-                                            "org.apache.cassandra.locator."));
+                NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
+                String nodeProximityClassName = proximity instanceof SnitchAdapter ? ((SnitchAdapter) proximity).snitch.getClass().getName()
+                                                                             : proximity.getClass().getName();
+                list.add(trimIfPresent(nodeProximityClassName,
+                                       "org.apache.cassandra.locator."));
 
                 String useKs = state.getRawKeyspace();
                 if (mustReturnsRangeOwnerships(useKs))

@@ -35,7 +35,9 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
         implements ReadRepair<E, P>
@@ -89,7 +91,6 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void awaitReads() throws ReadTimeoutException
     {
-
     }
 
     @Override
@@ -111,10 +112,16 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource)
     {
         for (Map.Entry<Replica, Mutation> entry: mutations.entrySet())
             sent.put(entry.getKey().endpoint(), entry.getValue());
+    }
+
+    @Override
+    public void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ForWrite writePlan)
+    {
+        throw new UnsupportedOperationException();
     }
 
     public Mutation getForEndpoint(InetAddressAndPort endpoint)

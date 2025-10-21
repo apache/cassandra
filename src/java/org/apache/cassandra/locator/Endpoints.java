@@ -97,6 +97,11 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
         return byEndpoint().get(self);
     }
 
+    public boolean containsSelf()
+    {
+        return selfIfPresent() != null;
+    }
+
     /**
      * @return a collection without the provided endpoints, otherwise in the same order as this collection
      */

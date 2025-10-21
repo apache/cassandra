@@ -18,22 +18,14 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 
-import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.concurrent.Future;
-
-import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class SchemaTestUtil
 {
@@ -41,13 +33,24 @@ public class SchemaTestUtil
 
     public static void announceNewKeyspace(KeyspaceMetadata ksm) throws ConfigurationException
     {
-        ksm.validate();
+        ksm.validate(ClusterMetadata.current());
 
         if (Schema.instance.getKeyspaceMetadata(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
 
         logger.info("Create new Keyspace: {}", ksm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm));
+        Schema.instance.submit(new SchemaTransformation()
+        {
+            public Keyspaces apply(ClusterMetadata metadata)
+            {
+                return metadata.schema.getKeyspaces().withAddedOrUpdated(ksm);
+            }
+
+            public String cql()
+            {
+                return "fake";
+            }
+        });
     }
 
     public static void announceNewTable(TableMetadata cfm)
@@ -67,19 +70,19 @@ public class SchemaTestUtil
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
         logger.info("Create new table: {}", cfm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
     }
 
     static void announceKeyspaceUpdate(KeyspaceMetadata ksm)
     {
-        ksm.validate();
+        ksm.validate(ClusterMetadata.current());
 
         KeyspaceMetadata oldKsm = Schema.instance.getKeyspaceMetadata(ksm.name);
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info("Update Keyspace '{}' From {} To {}", ksm.name, oldKsm, ksm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void announceTableUpdate(TableMetadata updated)
@@ -94,7 +97,7 @@ public class SchemaTestUtil
         updated.validateCompatibility(current);
 
         logger.info("Update table '{}/{}' From {} To {}", current.keyspace, current.name, current, updated);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
     }
 
     static void announceKeyspaceDrop(String ksName)
@@ -104,12 +107,13 @@ public class SchemaTestUtil
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
         logger.info("Drop Keyspace '{}'", oldKsm.name);
-        Schema.instance.transform(schema -> schema.without(ksName));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().without(ksName));
     }
 
     public static SchemaTransformation dropTable(String ksName, String cfName)
     {
-        return schema -> {
+        return (metadata) -> {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata ksm = schema.getNullable(ksName);
             TableMetadata tm = ksm != null ? ksm.getTableOrViewNullable(cfName) : null;
             if (tm == null)
@@ -122,25 +126,22 @@ public class SchemaTestUtil
     public static void announceTableDrop(String ksName, String cfName)
     {
         logger.info("Drop table '{}/{}'", ksName, cfName);
-        Schema.instance.transform(dropTable(ksName, cfName));
+        Schema.instance.submit(dropTable(ksName, cfName));
     }
 
+    public static void addOrUpdateKeyspace(KeyspaceMetadata ksm)
+    {
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+    }
+
+    @Deprecated(since = "CEP-21") // TODO remove this
     public static void addOrUpdateKeyspace(KeyspaceMetadata ksm, boolean locally)
     {
-        Schema.instance.transform(current -> current.withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void dropKeyspaceIfExist(String ksName, boolean locally)
     {
-        Schema.instance.transform(current -> current.without(Collections.singletonList(ksName)));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().without(Collections.singletonList(ksName)));
     }
-
-    public static void mergeAndAnnounceLocally(Collection<Mutation> schemaMutations)
-    {
-        SchemaPushVerbHandler.instance.doVerb(Message.out(SCHEMA_PUSH_REQ, schemaMutations));
-        Future<?> f = Stage.MIGRATION.submit(() -> {});
-        Assert.assertTrue(f.awaitThrowUncheckedOnInterrupt(10, TimeUnit.SECONDS));
-        f.rethrowIfFailed();
-    }
-
 }

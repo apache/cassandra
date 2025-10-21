@@ -39,9 +39,11 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.JmxInvocationListener;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
@@ -140,43 +142,57 @@ public class AuthorizationProxy implements InvocationHandler
      */
     protected BooleanSupplier isAuthSetupComplete = () -> StorageService.instance.isAuthSetupComplete();
 
+    protected JmxInvocationListener listener = AuditLogManager.instance;
+
     @Override
     public Object invoke(Object proxy, Method method, Object[] args)
             throws Throwable
     {
         String methodName = method.getName();
 
-        if ("getMBeanServer".equals(methodName))
-            throw new SecurityException("Access denied");
-
-        // Corresponds to MBeanServer.invoke
-        if (methodName.equals("invoke") && args.length == 4)
-            checkVulnerableMethods(args);
-
         // Retrieve Subject from current AccessControlContext
         AccessControlContext acc = AccessController.getContext();
         Subject subject = Subject.getSubject(acc);
 
-        // Allow setMBeanServer iff performed on behalf of the connector server itself
-        if (("setMBeanServer").equals(methodName))
+        try
         {
-            if (subject != null)
+            if ("getMBeanServer".equals(methodName))
                 throw new SecurityException("Access denied");
 
-            if (args[0] == null)
-                throw new IllegalArgumentException("Null MBeanServer");
+            // Corresponds to MBeanServer.invoke
+            if (methodName.equals("invoke") && args.length == 4)
+                checkVulnerableMethods(args);
 
-            if (mbs != null)
-                throw new IllegalArgumentException("MBeanServer already initialized");
+            // Allow setMBeanServer iff performed on behalf of the connector server itself
+            if (("setMBeanServer").equals(methodName))
+            {
+                if (subject != null)
+                    throw new SecurityException("Access denied");
 
-            mbs = (MBeanServer) args[0];
-            return null;
+                if (args[0] == null)
+                    throw new IllegalArgumentException("Null MBeanServer");
+
+                if (mbs != null)
+                    throw new IllegalArgumentException("MBeanServer already initialized");
+
+                mbs = (MBeanServer) args[0];
+                return null;
+            }
+
+            if (authorize(subject, methodName, args))
+            {
+                Object invoke = invoke(method, args);
+                listener.onInvocation(subject, method, args);
+                return invoke;
+            }
+
+            throw new SecurityException("Access Denied");
         }
-
-        if (authorize(subject, methodName, args))
-            return invoke(method, args);
-
-        throw new SecurityException("Access Denied");
+        catch (Exception e)
+        {
+            listener.onFailure(subject, method, args, e);
+            throw e;
+        }
     }
 
     /**
@@ -191,9 +207,10 @@ public class AuthorizationProxy implements InvocationHandler
     @VisibleForTesting
     public boolean authorize(Subject subject, String methodName, Object[] args)
     {
-        logger.trace("Authorizing JMX method invocation {} for {}",
-                     methodName,
-                     subject == null ? "" :subject.toString().replaceAll("\\n", " "));
+        if (logger.isTraceEnabled())
+            logger.trace("Authorizing JMX method invocation {} for {}",
+                         methodName,
+                         subject == null ? "" : subject.toString().replaceAll("\\n", " "));
 
         if (!isAuthSetupComplete.getAsBoolean())
         {
@@ -281,7 +298,8 @@ public class AuthorizationProxy implements InvocationHandler
         if (null == requiredPermission)
             return false;
 
-        logger.trace("JMX invocation of {} on {} requires permission {}", methodName, targetBean, requiredPermission);
+        if (logger.isTraceEnabled())
+            logger.trace("JMX invocation of {} on {} requires permission {}", methodName, targetBean, requiredPermission);
 
         // find any JMXResources upon which the authenticated subject has been granted the
         // reqired permission. We'll do ObjectName-specific filtering & matching of resources later

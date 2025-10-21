@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="5.0.3"/>
+    <property name="base.version" value="5.1"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git"/>
@@ -89,6 +89,7 @@
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
     <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
+    <property name="test.harry.src" value="${test.dir}/harry/main"/>
     <property name="test.driver.connection_timeout_ms" value="10000"/>
     <property name="test.driver.read_timeout_ms" value="24000"/>
     <property name="test.jvm.args" value="" />
@@ -99,6 +100,8 @@
          the user specifies the tmp.dir property -->
     <property name="tmp.dir" value="${build.dir}/tmp"/>
 
+    <property name="ant.build.src" value="${basedir}/.build" />
+
     <property name="doc.dir" value="${basedir}/doc"/>
 
     <condition property="version" value="${base.version}">
@@ -108,8 +111,12 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="accord.dir" value="modules/accord" />
+    <!-- The reason not to use ant.project.name is we publish as "cassandra-accord" so the file names won't be named apache-cassandra-accord -->
+    <property name="accord.final.name" value="cassandra-accord-${version}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
+    <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
 
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
@@ -227,6 +234,24 @@
     <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
       <isset property="arch_x86" />
     </condition>
+    <condition property="java.version.11">
+      <!-- This includes every JDK other than 8; so JDK 9 is flagged as JDK 11, and JDK 17 is as well... at the moment this is desired behavior
+      and may be relooked at once JDK 8 support is dropped -->
+        <not><isset property="java.version.8"/></not>
+    </condition>
+    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
+        <isset property="java.version.8"/>
+        <isset property="java.version.11"/>
+    </or></not></condition></fail>
+
+    <condition property="arch_x86">
+      <equals arg1="${os.arch}" arg2="x86" />
+    </condition>
+    <!-- On non-X86 JDK 8 (such as M1 Mac) the smallest allowed Xss is 384k; so need a larger value
+    when on these platforms. -->
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
+      <isset property="arch_x86" />
+    </condition>
 
     <resources id="_jvm11_arg_items">
         <string>-Djdk.attach.allowAttachSelf=true</string>
@@ -321,6 +346,7 @@
     <resources id="_jvm11_test_arg_items">
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+        <string>-XX:MaxMetaspaceSize=2G</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
     <resources id="_jvm17_test_arg_items">
@@ -337,7 +363,7 @@
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
     <!-- needed to compile org.apache.cassandra.utils.memory.BufferPool -->
-    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
+    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-exports java.management/com.sun.jmx.remote.security=ALL-UNNAMED" />
 
     <!--
          Add all the dependencies.
@@ -359,26 +385,38 @@
         </fileset>
     </path>
 
-  <macrodef name="create-javadoc">
-    <attribute name="destdir"/>
-    <element name="filesets"/>
-    <sequential>
-      <javadoc destdir="@{destdir}" author="true" version="true" use="true"
-        windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
-        useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
-        <filesets/>
-      </javadoc>
-      <fail message="javadoc failed">
-        <condition>
-            <not>
-                <available file="@{destdir}/index-all.html" />
-            </not>
-        </condition>
-      </fail>
-    </sequential>
-  </macrodef>
+    <macrodef name="create-javadoc">
+      <attribute name="destdir"/>
+      <element name="filesets"/>
+      <sequential>
+        <javadoc destdir="@{destdir}" author="true" version="true" use="true"
+          windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+          bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
+          useexternalfile="yes" encoding="UTF-8" failonerror="false"
+          maxmemory="1024m" additionalparam="${jdk11plus-javac-exports}">
+          <filesets/>
+        </javadoc>
+        <fail message="javadoc failed">
+          <condition>
+              <not>
+                  <available file="@{destdir}/index-all.html" />
+              </not>
+          </condition>
+        </fail>
+      </sequential>
+    </macrodef>
+
+    <!-- filterset to apply to pom templates -->
+    <filterset id="pom-template">
+        <filter token="version" value="${version}"/>
+        <filter token="final.name" value="${final.name}"/>
+        <filter token="jamm.version" value="${jamm.version}"/>
+        <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
+        <filter token="ecj.version" value="${ecj.version}"/>
+        <filter token="asm.version" value="${asm.version}"/>
+        <filter token="jacoco.version" value="${jacoco.version}"/>
+        <filter token="jflex.version" value="${jflex.version}"/>
+    </filterset>
 
     <!--
         Setup the output directories.
@@ -395,6 +433,7 @@
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
         <mkdir dir="${jacoco.partials.dir}"/>
+        <exec executable="${ant.build.src}/git/install-git-defaults.sh" osfamily="unix" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
 
         <!-- Set up jdk specific properties -->
         <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
@@ -424,7 +463,7 @@
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete>
-          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,puresasl-internal-only-*"/>
+          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,puresasl-internal-only-*,harry-*"/>
         </delete>
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
@@ -468,13 +507,13 @@
     </target>
 
     <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="gen-asciidoc"/>
         </exec>
     </target>
 
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
         </exec>
     </target>
@@ -489,13 +528,23 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version">
+    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version,_set-build-date">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
         <entry key="CassandraVersion" value="${version}"/>
         <entry key="GitSHA" value="${git.sha}"/>
+        <entry key="BuildDate" value="${build.date}"/>
       </propertyfile>
+    </target>
+
+    <!-- set ant build date -->
+    <target name="_set-build-date">
+        <tstamp>
+            <format property="build.date" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"/>
+        </tstamp>
+        <!-- Include timezone information -->
+        <property name="build.date" value="${build.date}"/>
     </target>
 
     <target name="test-run" depends="jar"
@@ -516,7 +565,8 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
+    <target name="_build_subprojects" depends="_build-accord" description="Builds all subprojects needed for the build" />
+    <target name="build" depends="resolver-retrieve-build,_build_subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -548,7 +598,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-doc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -708,24 +758,13 @@
     </target>
 
     <target name="write-poms" unless="without.maven">
-        <filterset id="pom-template">
-            <filter token="version" value="${version}"/>
-            <filter token="final.name" value="${final.name}"/>
-            <filter token="jamm.version" value="${jamm.version}"/>
-            <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
-            <filter token="ecj.version" value="${ecj.version}"/>
-            <filter token="asm.version" value="${asm.version}"/>
-            <filter token="jacoco.version" value="${jacoco.version}"/>
-            <filter token="jflex.version" value="${jflex.version}"/>
-        </filterset>
-
-        <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">
+        <copy file=".build/cassandra-deps-maven-pom.xml" tofile="${build.dir}/${final.name}.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/parent-pom-template.xml" tofile="${build.dir}/${final.name}-parent.pom">
+        <copy file=".build/parent-maven-pom.xml" tofile="${build.dir}/${final.name}-parent.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/cassandra-build-deps-template.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
+        <copy file=".build/cassandra-build-maven-pom.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
             <filterset refid="pom-template"/>
         </copy>
     </target>
@@ -734,7 +773,7 @@
         The jar target makes cassandra.jar output.
     -->
     <target name="_main-jar"
-            depends="build"
+            depends="build,_get-git-sha,_set-build-date"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <copy file="LICENSE.txt"
@@ -753,6 +792,7 @@
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
           <attribute name="Implementation-Git-SHA" value="${git.sha}"/>
+          <attribute name="Implementation-Build-Date" value="${build.date}"/>
         <!-- </section> -->
         </manifest>
       </jar>
@@ -825,7 +865,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -891,6 +931,7 @@
       <copy todir="${dist.dir}/">
         <fileset dir="${basedir}">
           <include name="*.txt" />
+          <include name=".snyk" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/tools/bin">
@@ -909,7 +950,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,check,gen-doc,sources-jar"
+    <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
             description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -960,6 +1001,9 @@
           <exclude name=".externalToolBuilders/**" />
           <!-- exclude NetBeans files -->
           <exclude name="ide/nbproject/private/**" />
+          <!-- Accord build -->
+          <exclude name="${accord.dir}/*/build/**" />
+          <exclude name="${accord.dir}/**/.gradle/**" />
         </tarfileset>
 
         <!-- python driver -->
@@ -979,6 +1023,8 @@
           <include name="tools/bin/*"/>
           <exclude name="tools/bin/*.in.sh" />
           <include name=".build/**/*.sh"/>
+          <include name="${accord.dir}/gradlew" />
+          <include name="doc/scripts/process-native-protocol-specs-in-docker.sh"/>
         </tarfileset>
       </tar>
 
@@ -994,6 +1040,32 @@
           <include name="${final.name}-src.tar.gz" />
         </fileset>
       </checksum>
+    </target>
+
+    <target name="bintar" depends="_artifacts-init,check"
+            description="Create Cassandra tarball and maven artifacts">
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-bin.tar.gz">
+
+        <!-- Everything but bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="**"/>
+          <exclude name="bin/*" />
+          <exclude name="tools/bin/*"/>
+        </tarfileset>
+        <!-- Shell includes in bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="bin/*.in.sh" />
+          <include name="tools/bin/*.in.sh" />
+        </tarfileset>
+        <!-- Executable scripts in bin/ -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
+          <include name="bin/*"/>
+          <include name="tools/bin/*"/>
+          <exclude name="bin/*.in.sh" />
+          <exclude name="tools/bin/*.in.sh" />
+        </tarfileset>
+      </tar>
     </target>
 
   <!-- Wrapper of build-test without dependencies, so both that target and its dependencies are skipped if the property
@@ -1012,7 +1084,7 @@
     <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build-test,sstableloader-build-test,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
     <antcall target="_check-test-names"/>
@@ -1031,6 +1103,7 @@
      <classpath>
         <path refid="cassandra.classpath.test"/>
         <pathelement location="${fqltool.build.classes}"/>
+        <pathelement location="${sstableloader.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
      <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
@@ -1046,6 +1119,7 @@
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
+     <src path="${test.harry.src}"/>
      <compilerarg line="${jdk11plus-javac-exports}"/>
     </javac>
 
@@ -1058,7 +1132,7 @@
     <macrodef name="check-test-names">
         <attribute name="annotationName"/>
         <attribute name="regex"/>
-        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}"/>
+        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}:${sstableloader.test.classes}"/>
         <attribute name="packageName" default="org.apache.cassandra"/>
         <attribute name="expand" default="true"/>
         <attribute name="normalize" default="true"/>
@@ -1070,9 +1144,11 @@
                     <path refid="cassandra.classpath.test"/>
                     <pathelement location="${fqltool.build.classes}"/>
                     <pathelement location="${stress.build.classes}"/>
+                    <pathelement location="${sstableloader.build.classes}"/>
                     <pathelement location="${test.classes}"/>
                     <pathelement location="${fqltool.test.classes}"/>
                     <pathelement location="${stress.test.classes}"/>
+                    <pathelement location="${sstableloader.test.classes}"/>
                 </classpath>
                 <jvmarg line="${java-jvmargs}"/>
                 <jvmarg value="-DscanClassPath=@{scanClassPath}"/>
@@ -1129,6 +1205,7 @@
     <attribute name="testtag" default=""/>
     <attribute name="usejacoco" default="no"/>
     <attribute name="showoutput" default="false"/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <fail message="testing with build.test.dir (${build.test.dir}) not pointing to 'build/test/' will fail, test configurations are hardcoded.">
@@ -1148,7 +1225,7 @@
       <mkdir dir="${build.test.output.dir}"/>
       <mkdir dir="${build.test.output.dir}/@{testtag}"/>
       <mkdir dir="${tmp.dir}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
+      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="@{maxmemory}" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1167,6 +1244,7 @@
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
         <jvmarg value="-XX:HeapDumpPath=${build.test.dir}" />
+        <jvmarg value="-Dcassandra.test.accord.allow_test_modes=true"/>
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1197,10 +1275,12 @@
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
           <pathelement location="${fqltool.build.classes}"/>
+          <pathelement location="${sstableloader.build.classes}"/>
           <pathelement location="${test.classes}"/>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
+          <pathelement location="${sstableloader.test.classes}"/>
           <pathelement location="${test.conf}"/>
           <pathelement path="${java.class.path}"/>
           <path refid="cassandra.classpath" />
@@ -1240,16 +1320,14 @@
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
     <sequential>
-      <condition property="maxMemory" value="8G" else="4G">
-          <equals arg1="${test.classlistprefix}" arg2="distributed"/>
-      </condition>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}">
+      <!-- CI normally runs in containers, so bumping this value is not always safe; bumping can cause the JVM to crash due to inability to allocate memory! All changes here must be coordinated with CI memory improvements -->
+      <property name="maxMemory" value="1G" />
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}" maxmemory="${maxMemory}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
-        <jvmarg value="-Xmx${maxMemory}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1327,7 +1405,7 @@
           <fileset file="${test.conf}/cassandra.yaml"/>
           <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
         </concat>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1638,12 +1716,14 @@
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
     <attribute name="testtag" default=""/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
                        exclude="@{exclude}" filelist="@{filelist}"
-                       testtag="@{testtag}" showoutput="false" >
+                       testtag="@{testtag}" showoutput="@{showoutput}"
+                       maxmemory="@{maxmemory}">
           <optjvmargs/>
       </testmacrohelper>
       <fail message="Some test(s) failed.">
@@ -1762,6 +1842,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1778,7 +1859,7 @@
 
     <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1795,7 +1876,10 @@
       <jvmarg line="-XX:CICompilerCount=1"/>
       <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
       <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg line="-Xmx8G"/>
+      <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
+      <jvmarg line="-XX:MaxDirectMemorySize=8G"/>
     </testmacro>
   </target>
 
@@ -1809,6 +1893,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1825,6 +1910,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
       <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
@@ -1994,14 +2080,20 @@
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>
   <classpathentry kind="src" output="${test.classes}" path="test/unit"/>
   <classpathentry kind="src" output="${test.classes}" path="test/long"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/microbench"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/memory"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/burn"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/anttasks"/>
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
+  <classpathentry kind="src" path="tools/sstableloader/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
   <classpathentry kind="src" output="build/test/fqltool-classes" path="tools/fqltool/test/unit" />
+  <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
@@ -2041,6 +2133,7 @@
   <target name="mvn-install"
           depends="jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
+    <!-- This logic does not install cassandra-accord as the accord submodule already did so -->
 
     <!-- the parent -->
     <install pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2060,8 +2153,20 @@
 
   <!-- Publish artifacts to remote Maven repository -->
   <target name="publish"
-          depends="mvn-install,artifacts"
+          depends="mvn-install,sstableloader-mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
+    <!-- Accord -->
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.pom"
+            packaging="pom"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.jar" />
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-javadoc.jar"
+            classifier="javadoc"/>
 
     <!-- the parent -->
     <deploy pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2078,6 +2183,16 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
 
+    <!-- the cassandra-sstableloader jar -->
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/tools/lib/sstableloader.jar"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-javadoc.jar"
+            classifier="javadoc"/>
+
     <!-- the distribution -->
     <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
     <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
@@ -2092,4 +2207,6 @@
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
   <import file="${build.helpers.dir}/build-bench.xml"/>
   <import file="${build.helpers.dir}/build-sonar.xml"/>
+  <import file="${build.helpers.dir}/build-accord.xml" />
+  <import file="${basedir}/tools/sstableloader/build.xml"/>
 </project>

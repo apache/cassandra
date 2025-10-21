@@ -84,7 +84,7 @@ public class CassandraPrincipal implements Principal, Serializable
     @Override
     public String toString()
     {
-        return ("CassandraPrincipal:  " + name);
+        return ("CassandraPrincipal: " + name);
     }
 
     /**

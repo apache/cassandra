@@ -22,6 +22,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
+import org.apache.cassandra.db.tries.Direction;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.db.tries.TrieEntriesWalker;
@@ -43,6 +44,9 @@ public class InMemoryTrieReadBench
 
     @Param({"1000", "100000", "10000000"})
     int count = 1000;
+
+    @Param({"FORWARD"})
+    Direction direction = Direction.FORWARD;
 
     final static InMemoryTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> y;
 
@@ -145,7 +149,7 @@ public class InMemoryTrieReadBench
             }
         }
         Counter counter = new Counter();
-        trie.process(counter);
+        trie.process(counter, direction);
         return counter.sum;
     }
 
@@ -162,7 +166,7 @@ public class InMemoryTrieReadBench
     public int iterateEntries()
     {
         int sum = 0;
-        for (Map.Entry<ByteComparable, Byte> en : trie.entrySet())
+        for (Map.Entry<ByteComparable, Byte> en : trie.entrySet(direction))
             sum += en.getValue();
         return sum;
     }

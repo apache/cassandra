@@ -19,25 +19,28 @@
 package org.apache.cassandra.hints;
 
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 /**
  * Verb handler used both for hint dispatch and streaming.
- * <p>
+ *
  * With the non-sstable format, we cannot just stream hint sstables on node decommission. So sometimes, at decommission
  * time, we might have to stream hints to a non-owning host (say, if the owning host B is down during decommission of host A).
  * In that case the handler just stores the received hint in its local hint store.
@@ -60,10 +63,11 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         // is schema agreement between the sender and the receiver.
         if (hint == null)
         {
-            logger.trace("Failed to decode and apply a hint for {}: {} - table with id {} is unknown",
-                         address,
-                         hostId,
-                         message.payload.unknownTableID);
+            if (logger.isTraceEnabled())
+                logger.trace("Failed to decode and apply a hint for {}: {} - table with id {} is unknown",
+                             address,
+                             hostId,
+                             message.payload.unknownTableID);
             respond(message);
             return;
         }
@@ -80,10 +84,14 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             return;
         }
 
-        if (!hostId.equals(StorageService.instance.getLocalHostUUID()))
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId localId = metadata.myNodeId();
+        if (!hostId.equals(localId.toUUID()) && !hostId.equals(metadata.directory.hostId(localId)))
         {
-            // the node is not the final destination of the hint (must have gotten it from a decommissioning node),
-            // so just store it locally, to be delivered later.
+            // the hint may have been written prior to upgrading, in which case it would be addressing the old
+            // host id for its target node. If the id in the hint matches neither the pre-upgrade host id nor the
+            // post-upgrade node id for this peer, the node is not the final destination of the hint (must have gotten
+            // it from a decommissioning node), so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
             respond(message);
         }
@@ -92,28 +100,27 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // the topology has changed, and we are no longer a replica of the mutation - since we don't know which node(s)
             // it has been handed over to, re-address the hint to all replicas; see CASSANDRA-5902.
             HintsService.instance.writeForAllReplicas(hint);
-
-            HintsService.instance.metrics.incrHintsReceivedForUnownedRanges();
-            if (DatabaseDescriptor.getLogOutOfTokenRangeRequests())
-            {
-                // Log at most 1 message per second
-                NoSpamLogger.log(logger,
-                                 NoSpamLogger.Level.WARN,
-                                 1,
-                                 TimeUnit.SECONDS,
-                                 "Receiving hint(s) for token(s) neither owned nor pending. Example: from {} for token {} in {}.{}",
-                                 message.from(),
-                                 hint.mutation.key().getToken(),
-                                 hint.mutation.getKeyspaceName(),
-                                 hint.mutation.getPartitionUpdates().iterator().next().metadata().name);
-            }
-
             respond(message);
         }
         else
         {
-            // the common path - the node is both the destination and a valid replica for the hint.
-            hint.applyFuture().addCallback(o -> respond(message), e -> logger.debug("Failed to apply hint", e));
+            try
+            {
+                // the common path - the node is both the destination and a valid replica for the hint.
+                hint.applyFuture().addCallback(
+                o -> {
+                    HintsServiceMetrics.hintsApplySucceeded.mark();
+                    respond(message);
+                },
+                e -> {
+                    HintsServiceMetrics.hintsApplyFailed.mark();
+                    logger.debug("Failed to apply hint", e);
+                });
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
     }
 

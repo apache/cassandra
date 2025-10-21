@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Shared;
@@ -130,6 +129,7 @@ public class BufferPool
     public static final int TINY_CHUNK_SIZE = NORMAL_ALLOCATION_UNIT;
     public static final int TINY_ALLOCATION_UNIT = TINY_CHUNK_SIZE / 64;
     public static final int TINY_ALLOCATION_LIMIT = TINY_CHUNK_SIZE / 2;
+    private static final boolean REF_TRACE_ENABLED = Ref.TRACE_ENABLED;
 
     private static final Logger logger = LoggerFactory.getLogger(BufferPool.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
@@ -815,7 +815,7 @@ public class BufferPool
 
             if (chunk == null)
             {
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
                 updateOverflowMemoryUsage(-size);
             }
             else
@@ -1330,7 +1330,7 @@ public class BufferPool
 
         void setAttachment(ByteBuffer buffer)
         {
-            if (Ref.DEBUG_ENABLED)
+            if (REF_TRACE_ENABLED)
                 MemoryUtil.setAttachment(buffer, new DirectBufferRef<>(this, null));
             else
                 MemoryUtil.setAttachment(buffer, this);
@@ -1342,7 +1342,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
-            if (Ref.DEBUG_ENABLED)
+            if (REF_TRACE_ENABLED)
                 ((DirectBufferRef<Chunk>) attachment).release();
 
             return true;
@@ -1562,7 +1562,7 @@ public class BufferPool
             if (parent != null)
                 parent.free(slab);
             else
-                FileUtils.clean(slab);
+                MemoryUtil.clean(slab);
         }
 
         static void unsafeRecycle(Chunk chunk)

@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
 
+/** Tests that we can shutdown gossip with the {@link org.apache.cassandra.tools.nodetool.DisableGossip} command. */
 public class GossipShutdownTest extends TestBaseImpl
 {
     @Test

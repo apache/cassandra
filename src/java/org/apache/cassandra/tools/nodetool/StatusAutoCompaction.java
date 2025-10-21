@@ -22,25 +22,36 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "statusautocompaction", description = "status of autocompaction of the given keyspace and table")
-public class StatusAutoCompaction extends NodeToolCmd
+public class StatusAutoCompaction extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "show_all", name = { "-a", "--all" }, description = "Show auto compaction status for each keyspace/table")
+    @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1..*", description = "Tables to get autocomaction status to", arity = "0..*")
+    private List<String> tables;
+
+    @Option(paramLabel = "show_all", names = { "-a", "--all" }, description = "Show auto compaction status for each keyspace/table")
     private boolean showAll = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, tables);
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 

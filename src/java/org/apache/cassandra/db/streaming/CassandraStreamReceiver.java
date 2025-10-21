@@ -23,37 +23,49 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopology;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncRemote.NoRemote;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CassandraStreamReceiver implements StreamReceiver
 {
@@ -65,7 +77,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     private final StreamSession session;
 
     // Transaction tracking new files received
-    private final LifecycleTransaction txn;
+    private final StreamingLifecycleTransaction txn;
 
     //  holds references to SSTables received
     protected final Collection<SSTableReader> sstables;
@@ -74,14 +86,17 @@ public class CassandraStreamReceiver implements StreamReceiver
 
     private final boolean requiresWritePath;
 
+    private final List<Range<Token>> ranges;
 
-    public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, int totalFiles)
+
+    public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, List<Range<Token>> ranges, int totalFiles)
     {
         this.cfs = cfs;
         this.session = session;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
         // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
-        this.txn = LifecycleTransaction.offline(OperationType.STREAM);
+        this.txn = new StreamingLifecycleTransaction();
+        this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
     }
@@ -104,16 +119,16 @@ public class CassandraStreamReceiver implements StreamReceiver
         CassandraIncomingFile file = getFile(stream);
 
         Collection<SSTableReader> finished = null;
-        SSTableMultiWriter sstable = file.getSSTable();
+        SSTableTxnSingleStreamWriter sstable = (SSTableTxnSingleStreamWriter)file.getSSTable();
         try
         {
-            finished = sstable.finish(true);
+            finished = sstable.transferOwnershipTo(txn);
         }
         catch (Throwable t)
         {
             Throwables.maybeFail(sstable.abort(t));
         }
-        txn.update(finished, false);
+        txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
     }
@@ -124,39 +139,6 @@ public class CassandraStreamReceiver implements StreamReceiver
         CassandraIncomingFile file = getFile(stream);
         Throwables.maybeFail(file.getSSTable().abort(null));
     }
-
-    /**
-     * @return a LifecycleNewTracker whose operations are synchronised on this StreamReceiveTask.
-     */
-    public synchronized LifecycleNewTracker createLifecycleNewTracker()
-    {
-        return new LifecycleNewTracker()
-        {
-            @Override
-            public void trackNew(SSTable table)
-            {
-                synchronized (CassandraStreamReceiver.this)
-                {
-                    txn.trackNew(table);
-                }
-            }
-
-            @Override
-            public void untrackNew(SSTable table)
-            {
-                synchronized (CassandraStreamReceiver.this)
-                {
-                    txn.untrackNew(table);
-                }
-            }
-
-            public OperationType opType()
-            {
-                return txn.opType();
-            }
-        };
-    }
-
 
     @Override
     public synchronized void abort()
@@ -175,7 +157,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         return cfs.metadata().params.cdc;
     }
 
-    // returns true iif it is a cdc table and cdc on repair is enabled.
+    // returns true if it is a cdc table and cdc on repair is enabled.
     private boolean cdcRequiresWriteCommitLog(ColumnFamilyStore cfs)
     {
         return DatabaseDescriptor.isCDCOnRepairEnabled() && hasCDC(cfs);
@@ -190,11 +172,12 @@ public class CassandraStreamReceiver implements StreamReceiver
      * For CDC-enabled tables and write path for CDC is enabled, we want to ensure that the mutations are
      * run through the CommitLog, so they can be archived by the CDC process on discard.
      */
-    private boolean requiresWritePath(ColumnFamilyStore cfs)
+    @VisibleForTesting
+    boolean requiresWritePath(ColumnFamilyStore cfs)
     {
         return cdcRequiresWriteCommitLog(cfs)
                || cfs.streamToMemtable()
-               || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+               || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled());
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)
@@ -233,6 +216,23 @@ public class CassandraStreamReceiver implements StreamReceiver
     @Override
     public void finished()
     {
+        CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
+        checkNotNull(minVersion, "Unable to determine minimum cluster version");
+        if (session.streamOperation().requiresBarrierTransaction()
+            && cfs.metadata().requiresAccordSupport()
+            && CassandraVersion.CASSANDRA_5_0.compareTo(minVersion) >= 0)
+        {
+            IAccordService accordService = AccordService.instance();
+            Ranges accordRanges = AccordTopology.toAccordRanges(cfs.getTableId(), ranges);
+            long startedAtNanos = nanoTime();
+            long timeoutNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+            long deadlineNanos = startedAtNanos + timeoutNanos;
+            // TODO (expected): use the source bounds for the streams to avoid waiting unnecessarily long
+            AccordService.getBlocking(accordService.maxConflict(accordRanges)
+                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', min, accordRanges, null, Self, NoRemote, timeoutNanos, NANOSECONDS).chain())
+                                      , accordRanges, new LatencyRequestBookkeeping(cfs.metric.accordPostStreamRepair), startedAtNanos, deadlineNanos);
+        }
+
         boolean requiresWritePath = requiresWritePath(cfs);
         Collection<SSTableReader> readers = sstables;
 

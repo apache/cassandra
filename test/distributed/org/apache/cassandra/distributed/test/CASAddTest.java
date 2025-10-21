@@ -19,9 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -33,17 +32,10 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 public class CASAddTest extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(CASAddTest.class);
-
-    /**
-     * The {@code cas_contention_timeout} used during the tests
-     */
-    private static final long CONTENTION_TIMEOUT = 1000L;
-
-    /**
-     * The {@code write_request_timeout} used during the tests
-     */
-    private static final long REQUEST_TIMEOUT = 1000L;
+    static
+    {
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+    }
 
     @Test
     public void testAddition() throws Throwable
@@ -80,13 +72,13 @@ public class CASAddTest extends TestBaseImpl
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.SERIAL), row(1, null, null));
 
             // this section is testing current limitations... if they start to fail due to the limitations going away... update this test to include those cases
-            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(batch(
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(unloggedBatch(
                       "INSERT INTO " + KEYSPACE + ".tbl (pk, a, b) VALUES (1, 0, '') IF NOT EXISTS",
                       "UPDATE " + KEYSPACE + ".tbl SET a = a + 1, b = b + 'success' WHERE pk = 1 IF EXISTS"
                       ), ConsistencyLevel.QUORUM))
                       .is(AssertionUtils.is(InvalidRequestException.class))
                       .hasMessage("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
-            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(batch(
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(unloggedBatch(
                       "INSERT INTO " + KEYSPACE + ".tbl (pk, a, b) VALUES (1, 0, '') IF NOT EXISTS",
 
                       "UPDATE " + KEYSPACE + ".tbl SET a = a + 1, b = b + 'success' WHERE pk = 1"

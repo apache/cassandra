@@ -19,18 +19,21 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 
-import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -44,8 +47,11 @@ import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.IStreamReader;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -59,21 +65,19 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.streaming.StreamTestUtils.channelFactory;
+import static java.util.Collections.emptyList;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginJoin;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginMove;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.setLocalTokens;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.broadcastAddress;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.randomInt;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.setLocalTokens;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.setPendingRanges;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.token;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -87,19 +91,16 @@ public class StreamReaderTest
     @BeforeClass
     public static void setupClass() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
+        ServerTestUtils.markCMS();
     }
 
     @Before
     public void setup() throws Exception
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
         // All tests suppose a 2 node ring, with the other peer having the tokens 0, 200, 400
         // Initially, the local node has no tokens so when indivividual test set owned tokens or
         // pending ranges for the local node, they're always in relation to this.
@@ -114,19 +115,24 @@ public class StreamReaderTest
         // e.g. test calls setPendingRanges(0, 100, 200, 300)
         // the pending ranges for local would be calculated as:
         // local -> (0, 100], (200, 300]
-        StorageService.instance.getTokenMetadata().updateNormalTokens(Lists.newArrayList(token(0),
-                                                                                         token(200),
-                                                                                         token(400)),
-                                                                      node1);
+        clearAndSetPeerTokens(0, 200, 400);
     }
+
+    private static void clearAndSetPeerTokens(int...tokens)
+    {
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        Collection<Token> peerTokens = new HashSet<>();
+        for (int token : tokens)
+            peerTokens.add(token(token));
+        ClusterMetadataTestHelper.addEndpoint(node1, peerTokens);
+    }
+
     @Test
     public void testReceiveWithNoOwnedRanges() throws Throwable
     {
         int[] tokens = {10, 20};
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -135,10 +141,7 @@ public class StreamReaderTest
         int[] tokens = {10, 20};
         setLocalTokens(100);
 
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -149,9 +152,6 @@ public class StreamReaderTest
         setLocalTokens(100);
 
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -160,11 +160,7 @@ public class StreamReaderTest
         // Because ranges are left exlusive, for the range (0, 100] the lowest permissable key is 1
         int[] tokens = {1, 100};
         setLocalTokens(100);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -172,11 +168,7 @@ public class StreamReaderTest
     {
         int[] tokens = {-100, 0};
         setLocalTokens(100);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -184,11 +176,7 @@ public class StreamReaderTest
     {
         int[] tokens = {101, 200};
         setLocalTokens(100);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -196,11 +184,7 @@ public class StreamReaderTest
     {
         int[] tokens = {80, 120};
         setLocalTokens(100);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -209,14 +193,9 @@ public class StreamReaderTest
         int[] tokens = {110, 120};
 
         // local node owns (min, 0] & (100, max], peer owns (0, 100]
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(0), broadcastAddress);
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(100), node1);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        clearAndSetPeerTokens(100);
+        setLocalTokens(0);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -225,14 +204,9 @@ public class StreamReaderTest
         int[] tokens = {-150, -140};
 
         // local node owns (min, 0] & (100, max], peer owns (0, 100]
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(0), broadcastAddress);
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(100), node1);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        clearAndSetPeerTokens(100);
+        setLocalTokens(0);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -241,14 +215,9 @@ public class StreamReaderTest
         int[] tokens = {-10, 10};
 
         // local node owns (min, 0] & (100, max], peer owns (0, 100]
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(0), broadcastAddress);
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(100), node1);
-
+        clearAndSetPeerTokens(100);
+        setLocalTokens(0);
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -257,14 +226,9 @@ public class StreamReaderTest
         int[] tokens = {90, 110};
 
         // local node owns (min, 0] & (100, max], peer owns (0, 100]
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(0), broadcastAddress);
-        StorageService.instance.getTokenMetadata().updateNormalToken(token(100), node1);
-
+        clearAndSetPeerTokens(100);
+        setLocalTokens(0);
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -272,11 +236,7 @@ public class StreamReaderTest
     {
         int[] tokens = {10, 20};
         setLocalTokens(100, 300, 500);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -284,11 +244,7 @@ public class StreamReaderTest
     {
         int[] tokens = {450, 460};
         setLocalTokens(100, 300, 500);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -296,11 +252,7 @@ public class StreamReaderTest
     {
         int[] tokens = {510, 520};
         setLocalTokens(100, 300, 500);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -308,11 +260,7 @@ public class StreamReaderTest
     {
         int[] tokens = {-20, -10};
         setLocalTokens(100, 300, 500);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -320,11 +268,7 @@ public class StreamReaderTest
     {
         int[] tokens = {80, 120};
         setLocalTokens(100, 300, 500);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -332,11 +276,7 @@ public class StreamReaderTest
     {
         int[] tokens = {310, 320};
         setLocalTokens(100, 300, 500);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -344,11 +284,7 @@ public class StreamReaderTest
     {
         int[] tokens = {80, 320};
         setLocalTokens(100, 300, 500);
-
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -357,11 +293,7 @@ public class StreamReaderTest
         // bacause ranges are left exclusive, for the range (200, 300] the lowest permissable key is 201
         int[] tokens = {201, 300};
         setLocalTokens(100, 300, 500);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -371,7 +303,7 @@ public class StreamReaderTest
         // local -> (min, -100], (400, max]
         setLocalTokens(-100);
         int[] tokens = {-200, 500};
-        tryReceiveExpectingSuccess(tokens, false);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -382,9 +314,6 @@ public class StreamReaderTest
         setLocalTokens(-100);
         int[] tokens = {-200, 300};
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
 
     @Test
@@ -395,33 +324,30 @@ public class StreamReaderTest
         setLocalTokens(-100);
         int[] tokens = {0, 300};
         tryReceiveExpectingFailure(tokens);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, true);
     }
+
+    /*****************************************************************************************
+     *
+     * Unlike stream requests, when receiving streams we also have to consider pending ranges
+     *
+     ****************************************************************************************/
 
     @Test
     public void testReceiveWithSinglePendingRangeReceivingTableWithRangeContained() throws Throwable
     {
         int[] tokens = {10, 20};
-        setPendingRanges(KEYSPACE, 0, 100);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        // start but don't finish the join process, emulating the previous pending ranges paradigm
+        beginJoin(100);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
     public void testReceiveWithMultiplePendingRangesReceivingTableRangeContainedInFirstOwned() throws Throwable
     {
         int[] tokens = {10, 20};
-        setPendingRanges(KEYSPACE, 0, 100, 200, 300, 400, 500);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        // start but don't finish the join process, emulating the previous pending ranges paradigm
+        beginJoin(100, 300, 500);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     @Test
@@ -431,41 +357,35 @@ public class StreamReaderTest
         // but it is covered by the normalized set of both
         int[] tokens = {90, 110};
         setLocalTokens(100);
-        setPendingRanges(KEYSPACE, 100, 120);
-
-        tryReceiveExpectingSuccess(tokens, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryReceiveExpectingSuccess(tokens, false);
+        // start but don't finish a token move, emulating the previous pending ranges paradigm
+        beginMove(120);
+        tryReceiveExpectingSuccess(tokens);
     }
 
     public static StreamSession setupStreamingSessionForTest()
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.REPAIR, 1, channelFactory, false, false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.REPAIR, Collections.emptyList(), streamCoordinator);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.REPAIR, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED, null));
+        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, emptyList(), emptyList(), StreamSession.State.INITIALIZED, ""));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
         return session;
     }
 
-    private static void tryReceiveExpectingSuccess(int[] tokens,
-                                                   boolean isOutOfRange) throws Throwable
+    private static void tryReceiveExpectingSuccess(int[] tokens) throws Throwable
     {
         StreamSession session = setupStreamingSessionForTest();
         StreamMessageHeader header = streamHeader();
         CassandraStreamHeader streamHeader = streamMessageHeader(tokens);
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         IStreamReader reader = streamReader(header, streamHeader, session);
-        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
+        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, emptyList(), 1, 0);
         session.prepareReceiving(streamSummary);
-        try (SSTableMultiWriter ignored = reader.read(incomingStream(tokens)))
-        {
-            assertEquals(isOutOfRange, StorageMetrics.totalOpsForInvalidToken.getCount() > startMetricCount);
-        }
+        reader.read(incomingStream(tokens));
+        assertEquals(StorageMetrics.totalOpsForInvalidToken.getCount(), startMetricCount);
     }
 
     private static void tryReceiveExpectingFailure(int[] tokens) throws Throwable
@@ -474,15 +394,13 @@ public class StreamReaderTest
         StreamMessageHeader header = streamHeader();
         CassandraStreamHeader streamHeader = streamMessageHeader(tokens);
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
-        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
+        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, emptyList(), 1, 0);
         session.prepareReceiving(streamSummary);
         try
         {
             IStreamReader reader = streamReader(header, streamHeader, session);
-            try (SSTableMultiWriter ignored = reader.read(incomingStream(tokens)))
-            {
-                fail("Expected StreamReceivedOfTokenRangeException");
-            }
+            reader.read(incomingStream(tokens));
+            fail("Expected StreamReceivedOfTokenRangeException");
         }
         catch (StreamReceivedOutOfTokenRangeException e)
         {
@@ -496,8 +414,7 @@ public class StreamReaderTest
     {
         ByteBuffer supplied;
 
-        @Override
-        public ByteBuffer get(int capacity)
+        public ByteBuffer get(int capacity) throws IOException
         {
             supplied = ByteBuffer.allocateDirect(capacity);
             return supplied;
@@ -536,6 +453,7 @@ public class StreamReaderTest
         TableMetadata tmd = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata();
         int fakeSession = randomInt(9);
         int fakeSeq = randomInt(9);
+        TimeUUID pendingRepair = null;
         return new StreamMessageHeader(tmd.id,
                                        null,
                                        null,
@@ -543,7 +461,7 @@ public class StreamReaderTest
                                        fakeSession,
                                        fakeSeq,
                                        System.currentTimeMillis(),
-                                       null);
+                                       pendingRepair);
     }
 
     private static CassandraStreamHeader streamMessageHeader(int...tokens)
@@ -553,7 +471,7 @@ public class StreamReaderTest
         List<SSTableReader.PartitionPositionBounds> fakeSections = new ArrayList<>();
         // each decorated key takes up (2 + 8) bytes, so this enables the
         // StreamReader to calculate the expected number of bytes to read
-        fakeSections.add(new SSTableReader.PartitionPositionBounds(0L, (tokens.length * 10L) - 1));
+        fakeSections.add(new SSTableReader.PartitionPositionBounds(0L, (long)(tokens.length * 10) - 1));
 
         return CassandraStreamHeader.builder()
                                     .withTableId(tmd.id)
@@ -582,7 +500,7 @@ public class StreamReaderTest
             super(header, streamHeader, session);
         }
 
-        protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
+        protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?,?> format) throws IOException
         {
             return super.createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
         }
@@ -601,7 +519,7 @@ public class StreamReaderTest
             }
 
             @Override
-            protected void readPartition()
+            protected void readPartition() throws IOException
             {
                 // no-op, our dummy stream contains only decorated keys
                 partitionLevelDeletion = DeletionTime.LIVE;
@@ -623,4 +541,9 @@ public class StreamReaderTest
 
         }
     }
+
+    static StreamingChannel.Factory channelFactory = (InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind)  ->
+    {
+        throw new UnsupportedOperationException();
+    };
 }

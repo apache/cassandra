@@ -22,7 +22,6 @@ import java.util.UUID;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -33,11 +32,9 @@ public class UserTypesTest extends CQLTester
     @BeforeClass
     public static void setUpClass()     // overrides CQLTester.setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-
+        daemonInitialization();
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
         prepareServer();
     }
 

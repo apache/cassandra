@@ -24,6 +24,8 @@ package org.apache.cassandra.stress.settings;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public enum CliOption
 {
     POP("Population distribution and intra-partition visit order", SettingsPopulation.helpPrinter()),
@@ -50,7 +52,7 @@ public enum CliOption
         final Map<String, CliOption> lookup = new HashMap<>();
         for (CliOption cmd : values())
         {
-            lookup.put("-" + cmd.toString().toLowerCase(), cmd);
+            lookup.put("-" + toLowerCaseLocalized(cmd.toString()), cmd);
             if (cmd.extraName != null)
                 lookup.put(cmd.extraName, cmd);
         }
@@ -59,7 +61,7 @@ public enum CliOption
 
     public static CliOption get(String command)
     {
-        return LOOKUP.get(command.toLowerCase());
+        return LOOKUP.get(toLowerCaseLocalized(command));
     }
 
     public final String extraName;

@@ -171,7 +171,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         StreamCoordinator coordinator = plan.getCoordinator();
         StreamSession session = Iterables.getOnlyElement(coordinator.getAllStreamSessions());
         assertEquals(expectedIncoming, session.getNumRequests());
-        assertEquals(expectedOutgoing, session.getNumTransfers());
+        assertEquals(expectedOutgoing, session.getNumKeyspaceTransfers());
     }
 
     @Test

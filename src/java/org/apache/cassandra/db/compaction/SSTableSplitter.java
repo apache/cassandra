@@ -24,13 +24,13 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 
 public class SSTableSplitter 
 {
     private final SplittingCompactionTask task;
 
-    public SSTableSplitter(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
+    public SSTableSplitter(ColumnFamilyStore cfs, ILifecycleTransaction transaction, int sstableSizeInMB)
     {
         this.task = new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
     }
@@ -44,7 +44,7 @@ public class SSTableSplitter
     {
         private final int sstableSizeInMiB;
 
-        public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
+        public SplittingCompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction transaction, int sstableSizeInMB)
         {
             super(cfs, transaction, CompactionManager.NO_GC, false);
             this.sstableSizeInMiB = sstableSizeInMB;
@@ -62,7 +62,7 @@ public class SSTableSplitter
         @Override
         public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
                                                               Directories directories,
-                                                              LifecycleTransaction txn,
+                                                              ILifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
             return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, sstableSizeInMiB * 1024L * 1024L, 0, false);

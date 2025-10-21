@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -44,10 +46,12 @@ public class Ordering
     public static abstract class Expression
     {
         protected final ColumnMetadata columnMetadata;
+        protected final TableMetadata tableMetadata;
 
-        public Expression(ColumnMetadata columnMetadata)
+        public Expression(ColumnMetadata columnMetadata, TableMetadata tableMetadata)
         {
             this.columnMetadata = columnMetadata;
+            this.tableMetadata = tableMetadata;
         }
 
         public boolean hasNonClusteredOrdering()
@@ -71,9 +75,9 @@ public class Ordering
      */
     public static class SingleColumn extends Expression
     {
-        public SingleColumn(ColumnMetadata columnMetadata)
+        public SingleColumn(ColumnMetadata columnMetadata, TableMetadata tableMetadata)
         {
-            super(columnMetadata);
+            super(columnMetadata, tableMetadata);
         }
     }
 
@@ -84,9 +88,9 @@ public class Ordering
     {
         final Term vectorValue;
 
-        public Ann(ColumnMetadata columnMetadata, Term vectorValue)
+        public Ann(ColumnMetadata columnMetadata, TableMetadata tableMetadata, Term vectorValue)
         {
-            super(columnMetadata);
+            super(columnMetadata, tableMetadata);
             this.vectorValue = vectorValue;
         }
 
@@ -99,7 +103,10 @@ public class Ordering
         @Override
         public SingleRestriction toRestriction()
         {
-            return new SingleColumnRestriction.AnnRestriction(columnMetadata, vectorValue);
+            return new SimpleRestriction(ColumnsExpression.singleColumn(columnMetadata, tableMetadata),
+                                         Operator.ANN,
+                                         Terms.of(vectorValue), 
+                                         false);
         }
     }
 
@@ -149,7 +156,7 @@ public class Ordering
             @Override
             public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames)
             {
-                return new Ordering.SingleColumn(table.getExistingColumn(column));
+                return new Ordering.SingleColumn(table.getExistingColumn(column), table);
             }
         }
 
@@ -170,7 +177,7 @@ public class Ordering
                 ColumnMetadata column = table.getExistingColumn(columnId);
                 Term value = vectorValue.prepare(table.keyspace, column);
                 value.collectMarkerSpecification(boundNames);
-                return new Ordering.Ann(column, value);
+                return new Ordering.Ann(column, table, value);
             }
         }
     }

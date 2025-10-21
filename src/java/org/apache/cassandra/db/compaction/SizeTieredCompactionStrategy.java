@@ -30,7 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.SplittingSizeTieredCompactionWriter;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams;
@@ -175,7 +175,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return sstr.getReadMeter() == null ? 0.0 : sstr.getReadMeter().twoHourRate() / sstr.estimatedKeys();
     }
 
-    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    public Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         List<SSTableReader> previousCandidate = null;
         while (true)
@@ -183,7 +183,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             List<SSTableReader> hottestBucket = getNextBackgroundSSTables(gcBefore);
 
             if (hottestBucket.isEmpty())
-                return null;
+                return Collections.emptyList();
 
             // Already tried acquiring references without success. It means there is a race with
             // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
@@ -192,22 +192,22 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
                             "unless it happens frequently, in which case it must be reported. Will retry later.",
                             hottestBucket);
-                return null;
+                return Collections.emptyList();
             }
 
-            LifecycleTransaction transaction = cfs.getTracker().tryModify(hottestBucket, OperationType.COMPACTION);
+            ILifecycleTransaction transaction = cfs.getTracker().tryModify(hottestBucket, OperationType.COMPACTION);
             if (transaction != null)
-                return new CompactionTask(cfs, transaction, gcBefore);
+                return Collections.singletonList(new CompactionTask(cfs, transaction, gcBefore));
             previousCandidate = hottestBucket;
         }
     }
 
-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput)
+    public synchronized List<AbstractCompactionTask> getMaximalTasks(final long gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(filteredSSTables))
             return null;
-        LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
+        ILifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
         if (splitOutput)
@@ -219,7 +219,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
 
-        LifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+        ILifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         if (transaction == null)
         {
             logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
@@ -347,7 +347,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     private static class SplittingCompactionTask extends CompactionTask
     {
-        public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, long gcBefore)
+        public SplittingCompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBefore)
         {
             super(cfs, txn, gcBefore);
         }
@@ -355,7 +355,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         @Override
         public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
                                                               Directories directories,
-                                                              LifecycleTransaction txn,
+                                                              ILifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
             return new SplittingSizeTieredCompactionWriter(cfs, directories, txn, nonExpiredSSTables);

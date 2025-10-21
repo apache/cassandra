@@ -68,6 +68,12 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
+accord:
+    enabled: true
+    journal_directory: build/test/cassandra/accord_journal
+    queue_shard_count: 2
+    command_store_shard_count: 4
+
 memtable:
     configurations:
         skiplist:

@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
-import time
+from datetime import datetime, timezone
 
 from cassandra.query import QueryTrace, TraceUnavailable
 from cqlshlib.displaying import MAGENTA
@@ -39,6 +38,14 @@ def print_trace(shell, trace):
     """
     Print an already populated cassandra.query.QueryTrace instance.
     """
+    temp_query = None
+    temp_color = None
+    if shell.shunted_query_out is not None:
+        temp_query = shell.query_out
+        shell.query_out = shell.shunted_query_out
+        temp_color = shell.color
+        shell.color = shell.shunted_color
+
     rows = make_trace_rows(trace)
     if not rows:
         shell.printerr("No rows for session %s found." % (trace.trace_id,))
@@ -54,6 +61,10 @@ def print_trace(shell, trace):
     shell.writeresult('')
     shell.print_formatted_result(formatted_names, formatted_values, with_header=True, tty=shell.tty)
     shell.writeresult('')
+
+    if temp_query is not None:
+        shell.query_out = temp_query
+        shell.color = temp_color
 
 
 def make_trace_rows(trace):
@@ -85,6 +96,8 @@ def total_micro_seconds(td):
 
 
 def datetime_from_utc_to_local(utc_datetime):
-    now_timestamp = time.time()
-    offset = datetime.fromtimestamp(now_timestamp) - datetime.utcfromtimestamp(now_timestamp)
-    return utc_datetime + offset
+    """
+    Convert a naive UTC datetime to the local timezone.
+    This is necessary because the driver always returns naive datetime objects.
+    """
+    return utc_datetime.replace(tzinfo=timezone.utc).astimezone()

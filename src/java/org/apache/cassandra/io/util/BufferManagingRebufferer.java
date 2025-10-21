@@ -50,6 +50,7 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     public void closeReader()
     {
         BufferPools.forChunkCache().put(buffer);
+        source.releaseUnderlyingResources();
         offset = -1;
     }
 

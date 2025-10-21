@@ -65,10 +65,6 @@ Build with a specific jdk:
     .build/docker/build-redhat.sh rpm 11
 
 
-Build with legacy noboolean and a specific jdk:
-
-    .build/docker/build-redhat.sh noboolean 11
-
 
 Running Tests
 -------------
@@ -104,6 +100,7 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh -a test
     .build/docker/run-tests.sh -a stress-test
     .build/docker/run-tests.sh -a fqltool-test
+    .build/docker/run-tests.sh -a sstableloader-test
     .build/docker/run-tests.sh -a microbench
     .build/docker/run-tests.sh -a test-cdc
     .build/docker/run-tests.sh -a test-compression

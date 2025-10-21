@@ -28,6 +28,8 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 
 public class StreamingVirtualTable extends AbstractVirtualTable
@@ -60,7 +62,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
     {
         StringBuilder sb = new StringBuilder();
         for (StreamingState.Status state : StreamingState.Status.values())
-            sb.append("  status_").append(state.name().toLowerCase()).append("_timestamp timestamp,\n");
+            sb.append("  status_").append(toLowerCaseLocalized(state.name())).append("_timestamp timestamp,\n");
         return sb.toString();
     }
 
@@ -91,13 +93,13 @@ public class StreamingVirtualTable extends AbstractVirtualTable
         ds.column("follower", state.follower());
         ds.column("operation", state.operation().getDescription());
         ds.column("peers", state.peers().stream().map(Object::toString).collect(Collectors.toList()));
-        ds.column("status", state.status().name().toLowerCase());
+        ds.column("status", toLowerCaseLocalized(state.status().name()));
         ds.column("progress_percentage", round(state.progress() * 100));
         ds.column("duration_millis", state.durationMillis());
         ds.column("failure_cause", state.failureCause());
         ds.column("success_message", state.successMessage());
         for (Map.Entry<StreamingState.Status, Long> e : state.stateTimesMillis().entrySet())
-            ds.column("status_" + e.getKey().name().toLowerCase() + "_timestamp", new Date(e.getValue()));
+            ds.column("status_" + toLowerCaseLocalized(e.getKey().name()) + "_timestamp", new Date(e.getValue()));
 
         state.sessions().update(ds);
     }

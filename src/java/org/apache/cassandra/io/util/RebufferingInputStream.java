@@ -276,6 +276,18 @@ public abstract class RebufferingInputStream extends DataInputStreamPlus impleme
     }
 
     @Override
+    public long readLeastSignificantBytes(int bytes) throws IOException
+    {
+        if (buffer.remaining() < 8)
+            return super.readLeastSignificantBytes(bytes);
+
+        long retval = buffer.getLong(buffer.position());
+        retval >>>= 64 - (bytes * 8);
+        buffer.position(buffer.position() + bytes);
+        return retval;
+    }
+
+    @Override
     public int readUnsignedVInt32() throws IOException
     {
         return VIntCoding.checkedCast(readUnsignedVInt());

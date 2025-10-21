@@ -104,6 +104,17 @@ public enum KindOfSequence
             else if (step > 0 && cur >= target) next(random);
             return result;
         }
+
+        @Override
+        public String toString()
+        {
+            return "UniformStepPeriod{" +
+                   "range=" + range +
+                   ", target=" + target +
+                   ", cur=" + cur +
+                   ", step=" + step +
+                   '}';
+        }
     }
 
     static class RandomWalkPeriod implements Period

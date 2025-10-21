@@ -39,7 +39,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class CompactionMetrics
 {
-    public static final MetricNameFactory factory = new DefaultNameFactory("Compaction");
+    public static final String TYPE_NAME = "Compaction";
+    public static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     /** Estimated number of compactions remaining to perform */
     public final Gauge<Integer> pendingTasks;
@@ -52,6 +53,8 @@ public class CompactionMetrics
     public final Meter totalCompactionsCompleted;
     /** Total number of bytes compacted since server [re]start */
     public final Counter bytesCompacted;
+    /** Recent/current throughput of compactions take */
+    public final Meter bytesCompactedThroughput;
     /** Time spent redistributing index summaries */
     public final Timer indexSummaryRedistributionTime;
 
@@ -146,6 +149,7 @@ public class CompactionMetrics
         });
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
+        bytesCompactedThroughput = Metrics.meter(factory.createMetricName("BytesCompactedThroughput"));
 
         // compaction failure metrics
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));

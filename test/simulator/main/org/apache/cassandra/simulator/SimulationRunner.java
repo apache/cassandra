@@ -25,69 +25,82 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.Option;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
 import org.apache.cassandra.simulator.Debug.Levels;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.debug.SelfReconcile;
+import org.apache.cassandra.simulator.logging.SeedDefiner;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LIBJEMALLOC;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_STARTED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_IGNORE_SIGAR;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
 import static org.apache.cassandra.simulator.debug.SelfReconcile.reconcileWithSelf;
 import static org.apache.cassandra.simulator.utils.IntRange.parseRange;
 import static org.apache.cassandra.simulator.utils.LongRange.parseNanosRange;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 @SuppressWarnings({ "ZeroLengthArrayAllocation", "CodeBlock2Expr", "SameParameterValue", "DynamicRegexReplaceableByCompiledPattern", "CallToSystemGC" })
 public class SimulationRunner
 {
-    private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(SimulationRunner.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
 
     public enum RecordOption { NONE, VALUE, WITH_CALLSITES }
 
@@ -112,7 +125,6 @@ public class SimulationRunner
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Global");
 
-        CASSANDRA_JMX_REMOTE_PORT.setString("");
         RING_DELAY.setInt(0);
         PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS.setLong(NANOSECONDS.toMillis(Long.MAX_VALUE));
         SHUTDOWN_ANNOUNCE_DELAY_IN_MS.setInt(0);
@@ -122,14 +134,13 @@ public class SimulationRunner
         DISABLE_SSTABLE_ACTIVITY_TRACKING.setBoolean(false);
         DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.setBoolean(false); // compression causes variation in file size for e.g. UUIDs, IP addresses, random file paths
         CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
-        TEST_IGNORE_SIGAR.setBoolean(true);
         SYSTEM_AUTH_DEFAULT_RF.setInt(3);
-        MIGRATION_DELAY.setInt(Integer.MAX_VALUE);
         DISABLE_GOSSIP_ENDPOINT_REMOVAL.setBoolean(true);
         MEMTABLE_OVERHEAD_SIZE.setInt(100);
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
+        SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
         new InterceptedWait.CaptureSites(Thread.currentThread())
@@ -138,122 +149,135 @@ public class SimulationRunner
         ThreadLocalRandom.current();
     }
 
-    protected interface ICommand<B extends ClusterSimulation.Builder<?>>
+    protected abstract static class BasicCommand<B extends ClusterSimulation.Builder<?>> implements Runnable
     {
-        public void run(B builder) throws IOException;
-    }
+        @Inject
+        protected B builder;
 
-    protected abstract static class BasicCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
-    {
-        @Option(name = { "--seed" } , title = "0x", description = "Specify the first seed to test (each simulation will increment the seed by 1)")
+        @Option(names = { "--seed" }, description = { "Specify the first seed to test (each simulation will increment the seed by 1)", "0x" })
         protected String seed;
 
-        @Option(name = { "--simulations"} , title = "int", description = "The number of simulations to run")
+        @Option(names = { "--simulations" }, description = { "The number of simulations to run", "int" })
         protected int simulationCount = 1;
 
-        @Option(name = { "-t", "--threads" }, title = "int", description = "The number of threads to split between node thread pools. Each ongoing action also requires its own thread.")
+        @Option(names = { "-t", "--threads" }, description = { "The number of threads to split between node thread pools. Each ongoing action also requires its own thread.", "int" })
         protected int threadCount = 1000;
 
-        @Option(name = { "-n", "--nodes" } , title = "int...int", description = "Cluster size range, lb..ub (default 4..16)")
+        @Option(names = { "-n", "--nodes" }, description = { "Cluster size range, lb..ub (default 4..16)", "int...int" })
         protected String nodeCount = "4..16";
 
-        @Option(name = { "--dcs" }, title = "int...int", description = "Cluster DC count, lb..ub (default 1..2)")
+        @Option(names = { "--dcs" }, description = { "Cluster DC count, lb..ub (default 1..2)", "int...int" })
         protected String dcCount = "1..2";
 
-        @Option(name = { "-o", "--within-key-concurrency" }, title = "int..int", description = "Number of simultaneous paxos operations per key, lb..ub (default 2..5)")
+        @Option(names = { "-o", "--within-key-concurrency" }, description = { "Number of simultaneous paxos operations per key, lb..ub (default 2..5)", "int...int" })
         protected String withinKeyConcurrency = "2..5";
 
-        @Option(name = { "-c", "--concurrency" }, title = "int", description = "Number of keys to operate on simultaneously (default 10)")
+        @Option(names = { "-c", "--concurrency" }, description = { "Number of keys to operate on simultaneously (default 10)", "int" })
         protected int concurrency = 10;
-        @Option(name = { "-k", "--keys" }, title = "int", description = "Number of unique partition keys to operate over (default to 2* concurrency)")
+        @Option(names = { "-k", "--keys" }, description = { "Number of unique partition keys to operate over (default to 2* concurrency)", "int" })
         protected int primaryKeyCount = -1;
-        @Option(name = { "--key-seconds" }, title = "int...int", description = "Number of seconds to simulate a partition key for before selecting another (default 5..30)")
+        @Option(names = { "--key-seconds" }, description = { "Number of seconds to simulate a partition key for before selecting another (default 5..30)", "int...int" })
         protected String primaryKeySeconds = "5..30";
 
-        @Option(name = { "--cluster-actions" }, title = "JOIN,LEAVE,REPLACE,CHANGE_RF", description = "Cluster actions to select from, comma delimited (JOIN, LEAVE, REPLACE, CHANGE_RF)")
+        @Option(names = { "--cluster-actions" }, description = { "Cluster actions to select from, comma delimited (JOIN, LEAVE, REPLACE, CHANGE_RF)", "JOIN,LEAVE,REPLACE,CHANGE_RF" })
         protected String topologyChanges = stream(TopologyChange.values()).map(Object::toString).collect(Collectors.joining(","));
-        @Option(name = { "--cluster-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two cluster actions (default 5..15s)")
+        @Option(names = { "--cluster-action-interval" }, description = { "The period of time between two cluster actions (default 5..15s)", "int...int(s|ms|us|ns)" })
         protected String topologyChangeInterval = "5..15s";
-        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0)")
+        @Option(names = { "--cluster-action-limit" }, description = { "The maximum number of topology change events to perform (default 0 disabled, -1 unlimited)", "int" })
         protected String topologyChangeLimit = "0";
 
-        @Option(name = { "-s", "--run-time" }, title = "int", description = "Length of simulated time to run in seconds (default -1)")
+        @Option(names = { "--consensus-actions" }, description = { "Consensus migration actions to select from, comma delimited (ACCORD_MIGRATE)", "ACCORD_MIGRATE" })
+        protected String consensusChanges = stream(ConsensusChange.values()).map(Object::toString).collect(Collectors.joining(","));
+        @Option(names = { "--consensus-action-interval" }, description = { "The period of time between two consensus actions (default 5..15s)", "int...int(s|ms|us|ns)" })
+        protected String consensusChangeInterval = "1..5s";
+        @Option(names = { "--consensus-action-limit" }, description = { "The maximum number of consensus change events to perform (default 0 disabled, -1 unlimited)", "int" })
+        protected String consensusChangeLimit = "0";
+
+        @Option(names = { "-s", "--run-time" }, description = { "Length of simulated time to run in seconds (default -1)", "int" })
         protected int secondsToSimulate = -1;
 
-        @Option(name = { "--reads" }, title = "[distribution:]float...float", description = "Proportion of actions that are reads (default: 0.05..0.95)")
+        @Option(names = { "--reads" }, description = { "Proportion of actions that are reads (default: 0.05..0.95)", "[distribution:]float...float" })
         protected String readChance;
-        @Option(name = { "--nemesis" }, title = "[distribution:]float...float", description = "Proportion of nemesis points that are intercepted (default: 0..0.01)")
+        @Option(names = { "--nemesis" }, description = { "Proportion of nemesis points that are intercepted (default: 0..0.01)", "[distribution:]float...float" })
         protected String nemesisChance;
 
-        @Option(name = { "--priority" }, title = "uniform|randomwalk|seq", description = "Priority assignment for actions that may overlap their execution", allowedValues = { "uniform", "randomwalk", "seq" })
+        @Option(names = { "--priority" }, description = { "Priority assignment for actions that may overlap their execution", "uniform|randomwalk|seq" })
         protected String priority;
 
         // TODO (feature): simulate GC pauses
 
-        @Option(name = { "--network-flaky-chance" }, title = "[distribution:]float...float", description = "Chance of some minority of nodes experiencing flaky connections (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-flaky-chance" }, description = { "Chance of some minority of nodes experiencing flaky connections (default: qlog:0.01..0.1)", "[distribution:]float...float" })
         protected String networkFlakyChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-partition-chance" }, title = "[distribution:]float...float", description = "Chance of some minority of nodes being isolated (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-partition-chance" }, description = { "Chance of some minority of nodes being isolated (default: qlog:0.01..0.1)", "[distribution:]float...float" })
         protected String networkPartitionChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-reconfigure-interval" }, title = "int...int(s|ms|us|ns)", description = "Period of time for which a flaky or catastrophic network partition may be in force")
+        @Option(names = { "--network-reconfigure-interval" }, description = { "Period of time for which a flaky or catastrophic network partition may be in force", "int...int(s|ms|us|ns)" })
         protected String networkReconfigureInterval = "1..10s";
-        @Option(name = { "--network-drop-chance" }, title = "[distribution:]float...float", description = "Chance of dropping a message under normal circumstances (default: qlog:0..0.001)")
+        @Option(names = { "--network-drop-chance" }, description = { "Chance of dropping a message under normal circumstances (default: qlog:0..0.001)", "[[distribution:]float...float]" })
         protected String networkDropChance = "qlog:0..0.001";
         // TODO (feature): TDP vs UDP simulation (right now we have no head of line blocking so we deliver in a UDP fashion which is not how the cluster operates)
-        @Option(name = { "--network-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying a message under normal circumstances (default: qlog:0..0.1)")
+        @Option(names = { "--network-delay-chance" }, description = { "Chance of delaying a message under normal circumstances (default: qlog:0..0.1)", "[[distribution:]float...float]" })
         protected String networkDelayChance = "qlog:0..0.01";
-        @Option(name = { "--network-latency" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience (default 1..2ms)")
+        @Option(names = { "--network-latency" }, description = { "Range of possible latencies messages can be simulated to experience (default 1..2ms)", "[int...int(s|ms|us|ns)]" })
         protected String networkLatency = "1..2ms";
-        @Option(name = { "--network-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience when delayed (default 2..20ms)")
+        @Option(names = { "--network-delay" }, description = { "Range of possible latencies messages can be simulated to experience when delayed (default 2..20ms)", "[int...int(s|ms|us|ns)]" })
         protected String networkDelay = "2..20ms";
-        @Option(name = { "--network-flaky-drop-chance" }, title = "[distribution:]float...float", description = "Chance of dropping a message on a flaky connection (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-flaky-drop-chance" }, description = { "Chance of dropping a message on a flaky connection (default: qlog:0.01..0.1)", "[[distribution:]float...float]" })
         protected String flakyNetworkDropChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-flaky-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying a message on a flaky connection (default: qlog:0.01..0.2)")
+        @Option(names = { "--network-flaky-delay-chance" }, description = { "Chance of delaying a message on a flaky connection (default: qlog:0.01..0.2)", "[[distribution:]float...float]" })
         protected String flakyNetworkDelayChance = "qlog:0.01..0.2";
-        @Option(name = { "--network-flaky-latency" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience on a flaky connection (default 2..4ms)")
+        @Option(names = { "--network-flaky-latency" }, description = { "Range of possible latencies messages can be simulated to experience on a flaky connection (default 2..4ms)", "[int...int(s|ms|us|ns)]" })
         protected String flakyNetworkLatency = "2..4ms";
-        @Option(name = { "--network-flaky-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience when delayed on a flaky connection (default 4..100ms)")
+        @Option(names = { "--network-flaky-delay" }, description = { "Range of possible latencies messages can be simulated to experience when delayed on a flaky connection (default 4..100ms)", "[int...int(s|ms|us|ns)]" })
         protected String flakyNetworkDelay = "4..100ms";
 
-        @Option(name = { "--clock-drift" }, title = "int...int(s|ms|us|ns)", description = "The range of clock skews to experience (default 10..1000ms)")
+        @Option(names = { "--clock-drift" }, description = { "The range of clock skews to experience (default 10..1000ms)", "[int...int(s|ms|us|ns)]" })
         protected String clockDrift = "10..1000ms";
-        @Option(name = { "--clock-discontinuity-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of clock continuity (a discontinuity is a large jump of the global clock to introduce additional chaos for event scheduling) (default 10..60s)")
+        @Option(names = { "--clock-discontinuity-interval" }, description = { "The period of clock continuity (a discontinuity is a large jump of the global clock to introduce additional chaos for event scheduling) (default 10..60s)", "[int...int(s|ms|us|ns)]" })
         protected String clockDiscontinuityInterval = "10..60s";
 
-        @Option(name = { "--scheduler-jitter" }, title = "int...int(s|ms|us|ns)", description = "The scheduler will randomly prioritise all tasks scheduled to run within this interval (default 10..1500us)")
+        @Option(names = { "--scheduler-jitter" }, description = { "The scheduler will randomly prioritise all tasks scheduled to run within this interval (default 10..1500us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerJitter = "10..1500us";
-        @Option(name = { "--scheduler-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying the consequence of an action (default: 0..0.1)")
+        @Option(names = { "--scheduler-delay-chance" }, description = { "Chance of delaying the consequence of an action (default: 0..0.1)", "[[distribution:]float...float]" })
         protected String schedulerDelayChance = "qlog:0..0.1";
-        @Option(name = { "--scheduler-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)")
+        @Option(names = { "--scheduler-delay" }, description = { "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerDelayMicros = "1..10000us";
-        @Option(name = { "--scheduler-long-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)")
+        @Option(names = { "--scheduler-long-delay" }, description = { "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerLongDelayMicros = "1..10000us";
 
-        @Option(name = { "--log" }, title = "level", description = "<partition> <cluster> level events, between 0 and 2", arity = 2)
+        @Option(names = { "--log" }, description = "<partition> <cluster> level events, between 0 and 2", arity = "2")
         protected List<Integer> log;
 
-        @Option(name = { "--debug-keys" }, title = "level", description = "Print debug info only for these keys (comma delimited)")
+        @Option(names = { "--debug-keys" }, description = "Print debug info only for these keys (comma delimited)")
         protected String debugKeys;
 
-        @Option(name = { "--debug-rf" }, title = "level", description = "Print RF on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-rf" }, description = { "Print RF on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugRf;
 
-        @Option(name = { "--debug-ownership" }, title = "level", description = "Print ownership on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-ownership" }, description = { "Print ownership on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugOwnership;
 
-        @Option(name = { "--debug-ring" }, title = "level", description = "Print ring state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-ring" }, description = { "Print ring state on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugRing;
 
-        @Option(name = { "--debug-gossip" }, title = "level", description = "Debug gossip at <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-gossip" }, description = { "Debug gossip at <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugGossip;
 
-        @Option(name = { "--debug-paxos" }, title = "level", description = "Print paxos state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-paxos" }, description = { "Print paxos state on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugPaxos;
 
-        @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
+        @Option(names = { "--capture" }, description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
+
+        @Option(names = { "--transactional-mode" }, description = { "Starting transactional mode for the created table", "[off|mixed_reads|full]" })
+        protected String transactionalMode;
 
         protected void propagate(B builder)
         {
+            checkArgumentAllowed(debugRf, 0, 1, 2);
+            checkArgumentAllowed(debugOwnership, 0, 1, 2);
+            checkArgumentAllowed(debugRing, 0, 1, 2);
+            checkArgumentAllowed(debugGossip, 0, 1, 2);
+            checkArgumentAllowed(debugPaxos, 0, 1, 2);
             builder.threadCount(threadCount);
             builder.concurrency(concurrency);
             if (primaryKeyCount >= 0) builder.primaryKeyCount(primaryKeyCount);
@@ -285,18 +309,19 @@ public class SimulationRunner
             Optional.ofNullable(topologyChanges).ifPresent(topologyChanges -> {
                 builder.topologyChanges(stream(topologyChanges.split(","))
                                         .filter(v -> !v.isEmpty())
-                                        .map(v -> TopologyChange.valueOf(v.toUpperCase()))
+                                        .map(v -> TopologyChange.valueOf(toUpperCaseLocalized(v)))
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
             builder.topologyChangeLimit(Integer.parseInt(topologyChangeLimit));
-            Optional.ofNullable(priority).ifPresent(kinds -> {
-                builder.scheduler(stream(kinds.split(","))
-                                  .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
-                                  .toArray(RunnableActionScheduler.Kind[]::new));
+            Optional.ofNullable(consensusChanges).ifPresent(consensusChanges -> {
+                builder.consensusChanges(stream(consensusChanges.split(","))
+                                        .filter(v -> !v.isEmpty())
+                                        .map(v -> ConsensusChange.valueOf(toUpperCaseLocalized(v)))
+                                        .toArray(ConsensusChange[]::new));
             });
-
+            parseNanosRange(Optional.ofNullable(consensusChangeInterval)).ifPresent(builder::consensusChangeIntervalNanos);
+            builder.consensusChangeLimit(Integer.parseInt(consensusChangeLimit));
             Optional.ofNullable(this.capture)
                     .map(s -> s.split(","))
                     .map(s -> new Capture(
@@ -320,11 +345,34 @@ public class SimulationRunner
                                                  .orElse(new int[0]);
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
+
+            Optional.ofNullable(transactionalMode).ifPresent(builder::transactionalMode);
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                if (builder == null)
+                    throw new IllegalStateException("No builder provided");
+                run(builder);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public void run(B builder) throws IOException
         {
+            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
+            SeedDefiner.setSeed(seed);
             beforeAll();
+            // TODO (expected): this doesn't work properly for multiple seeds in a single JVM
+            TEST_CASSANDRA_TESTTAG.setString("simulator");
+            TEST_CASSANDRA_SUITENAME.setString(SIMULATOR_STARTED.getString() + '-' + CassandraRelevantProperties.SIMULATOR_SEED.getString());
+            logger();
             Thread.setDefaultUncaughtExceptionHandler((th, e) -> {
                 boolean isInterrupt = false;
                 Throwable t = e;
@@ -334,14 +382,12 @@ public class SimulationRunner
                     t = t.getCause();
                 }
                 if (!isInterrupt)
-                    logger.error("Uncaught exception on {}", th, e);
+                    logger().error("Uncaught exception on {}", th, e);
                 if (e instanceof Error)
                     throw (Error) e;
             });
 
             propagate(builder);
-
-            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             for (int i = 0 ; i < simulationCount ; ++i)
             {
                 cleanup();
@@ -358,16 +404,18 @@ public class SimulationRunner
     {
         protected void run(long seed, B builder) throws IOException
         {
-            logger.error("Seed 0x{}", Long.toHexString(seed));
+            logger().error("Seed 0x{}", Long.toHexString(seed));
+            logger().info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
-                try
+                try (Simulation simulation = cluster.simulation())
                 {
-                    cluster.simulation.run();
+                    simulation.run();
                 }
                 catch (Throwable t)
                 {
+                    logger().error("Failed on seed 0x{}", Long.toHexString(seed), t);
                     throw new SimulationException(seed, t);
                 }
             }
@@ -382,18 +430,20 @@ public class SimulationRunner
     @Command(name = "record")
     protected static class Record<B extends ClusterSimulation.Builder<?>> extends BasicCommand<B>
     {
-        @Option(name = {"--to"}, description = "Directory of recordings to reconcile with for the seed", required = true)
+        @Option(names = { "--to" }, description = "Directory of recordings to reconcile with for the seed", required = true)
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Record RNG values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-rng" }, description = { "Record RNG values (with or without call sites)", "allowed values 0|1" })
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Record time values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-time" }, description = { "Record time values (with or without call sites)", "allowed values 0|1" })
         private int time = -1;
 
         @Override
         protected void run(long seed, B builder) throws IOException
         {
+            checkArgumentAllowed(rng, 0, 1);
+            checkArgumentAllowed(time, 0, 1);
             record(dir, seed, RecordOption.values()[rng + 1], RecordOption.values()[time + 1], builder);
         }
     }
@@ -401,24 +451,26 @@ public class SimulationRunner
     @Command(name = "reconcile")
     protected static class Reconcile<B extends ClusterSimulation.Builder<?>> extends BasicCommand<B>
     {
-        @Option(name = {"--with"}, description = "Directory of recordings to reconcile with for the seed")
+        @Option(names = { "--with" }, description = "Directory of recordings to reconcile with for the seed")
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Reconcile RNG values (if present in source)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-rng" }, description = { "Reconcile RNG values (if present in source)", "allowed values 0|1" })
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Reconcile time values (if present in source)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-time" }, description = { "Reconcile time values (if present in source)", "allowed values 0|1" })
         private int time = -1;
 
-        @Option(name = {"--with-allocations"}, description = "Reconcile memtable allocations (only with --with-self)", arity = 0)
+        @Option(names = { "--with-allocations" }, description = "Reconcile memtable allocations (only with --with-self)", arity = "0..1")
         private boolean allocations;
 
-        @Option(name = {"--with-self"}, description = "Reconcile with self", arity = 0)
+        @Option(names = { "--with-self" }, description = "Reconcile with self", arity = "0..1")
         private boolean withSelf;
 
         @Override
         protected void run(long seed, B builder) throws IOException
         {
+            checkArgumentAllowed(rng, 0, 1);
+            checkArgumentAllowed(time, 0, 1);
             RecordOption withRng = RecordOption.values()[rng + 1];
             RecordOption withTime = RecordOption.values()[time + 1];
             if (withSelf) reconcileWithSelf(seed, withRng, withTime, allocations, builder);
@@ -427,23 +479,40 @@ public class SimulationRunner
         }
     }
 
-    protected static class HelpCommand<B extends ClusterSimulation.Builder<?>> extends Help implements ICommand<B>
+    public static void checkArgumentAllowed(int value, int... allowed)
+    {
+        if (Arrays.stream(allowed).noneMatch(v -> v == value))
+            throw new IllegalArgumentException("Value " + value + " not allowed, must be one of " + Arrays.toString(allowed));
+    }
+
+    @Command(name = "version", description = "Display version information")
+    public static class VersionCommand implements Runnable
     {
         @Override
-        public void run(B builder) throws IOException
+        public void run()
         {
-            super.run();
+            System.out.println(FBUtilities.getReleaseVersionString());
+            System.out.println(FBUtilities.getGitSHA());
         }
     }
 
-
-    private static Optional<Long> parseHex(Optional<String> value)
+    public static void checkArgumentAllowed(List<Integer> values, int... allowed)
     {
-        return value.map(s -> {
-            if (s.startsWith("0x"))
-                return Hex.parseLong(s, 2, s.length());
-            throw new IllegalArgumentException("Invalid hex string: " + s);
-        });
+        if (values == null || values.isEmpty())
+            return;
+        values.forEach(v -> checkArgumentAllowed(v, allowed));
+    }
+
+    public static Optional<Long> parseHex(Optional<String> value)
+    {
+        return value.map(SimulationRunner::parseHex);
+    }
+
+    public static long parseHex(String s)
+    {
+        if (s.startsWith("0x"))
+            return Hex.parseLong(s, 2, s.length());
+        throw new IllegalArgumentException("Invalid hex string: " + s);
     }
 
     private static final Pattern CHANCE_PATTERN = Pattern.compile("(uniform|(?<qlog>qlog(\\((?<quantizations>[0-9]+)\\))?):)?(?<min>0(\\.[0-9]+)?)(..(?<max>0\\.[0-9]+))?", Pattern.CASE_INSENSITIVE);

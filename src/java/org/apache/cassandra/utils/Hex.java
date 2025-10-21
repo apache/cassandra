@@ -27,7 +27,16 @@ public class Hex
 {
     private static final Constructor<String> stringConstructor = getProtectedConstructor(String.class, int.class, int.class, char[].class);
     private final static byte[] charToByte = new byte[256];
-    private static final Logger logger = LoggerFactory.getLogger(Hex.class);
+
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(Hex.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
 
     // package protected for use by ByteBufferUtil. Do not modify this array !!
     static final char[] byteToChar = new char[16];
@@ -123,7 +132,7 @@ public class Hex
             {
                 // The underlying constructor failed. Unwrapping the exception.
                 Throwable cause = ite.getCause();
-                logger.error("Underlying string constructor threw an error: {}",
+                logger().error("Underlying string constructor threw an error: {}",
                     cause == null ? ite.getMessage() : cause.getMessage());
             }
             catch (Exception e)

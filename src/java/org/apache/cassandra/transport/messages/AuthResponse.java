@@ -20,11 +20,6 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.auth.AuthEvents;
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.exceptions.AuthenticationException;
-import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 
@@ -71,29 +66,16 @@ public class AuthResponse extends Message.Request
     @Override
     protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
-        try
+        return AuthUtil.handleLogin(connection, queryState, token, (negotiationComplete, challenge) ->
         {
-            IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(queryState);
-            byte[] challenge = negotiator.evaluateResponse(token);
-            if (negotiator.isComplete())
+            if (negotiationComplete)
             {
-                AuthenticatedUser user = negotiator.getAuthenticatedUser();
-                queryState.getClientState().login(user);
-                ClientMetrics.instance.markAuthSuccess();
-                AuthEvents.instance.notifyAuthSuccess(queryState);
-                // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
             }
             else
             {
                 return new AuthChallenge(challenge);
             }
-        }
-        catch (AuthenticationException e)
-        {
-            ClientMetrics.instance.markAuthFailure();
-            AuthEvents.instance.notifyAuthFailure(queryState, e);
-            return ErrorMessage.fromException(e);
-        }
+        });
     }
 }

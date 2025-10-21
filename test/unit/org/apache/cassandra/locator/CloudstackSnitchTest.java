@@ -19,27 +19,18 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Map;
 
-import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.ServerTestUtils.cleanup;
-import static org.apache.cassandra.ServerTestUtils.mkdirs;
-import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,14 +44,14 @@ public class CloudstackSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
-        mkdirs();
-        cleanup();
-        Keyspace.setInitialized();
-        StorageService.instance.initServer(0);
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test
@@ -73,21 +64,14 @@ public class CloudstackSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        CloudstackLocationProvider locationProvider = new CloudstackLocationProvider(spiedConnector);
+        assertEquals("ch-gva", locationProvider.initialLocation().datacenter);
+        assertEquals("1", locationProvider.initialLocation().rack);
+
         CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
-
-        Gossiper.instance.addSavedEndpoint(nonlocal);
-        Map<ApplicationState, VersionedValue> stateMap = new EnumMap<>(ApplicationState.class);
-        stateMap.put(ApplicationState.DC, StorageService.instance.valueFactory.datacenter("ch-zrh"));
-        stateMap.put(ApplicationState.RACK, StorageService.instance.valueFactory.rack("2"));
-        Gossiper.instance.getEndpointStateForEndpoint(nonlocal).addApplicationStates(stateMap);
-
-        assertEquals("ch-zrh", snitch.getDatacenter(nonlocal));
-        assertEquals("2", snitch.getRack(nonlocal));
-
-        assertEquals("ch-gva", snitch.getDatacenter(local));
-        assertEquals("1", snitch.getRack(local));
+        assertEquals("ch-gva", snitch.getLocalDatacenter());
+        assertEquals("1", snitch.getLocalRack());
     }
 
     @Test
@@ -100,17 +84,13 @@ public class CloudstackSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        CloudstackLocationProvider locationProvider = new CloudstackLocationProvider(spiedConnector);
+        assertEquals("us-east", locationProvider.initialLocation().datacenter);
+        assertEquals("1a", locationProvider.initialLocation().rack);
+
         CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
-
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-
-        assertEquals("us-east", snitch.getDatacenter(local));
-        assertEquals("1a", snitch.getRack(local));
-    }
-
-    @AfterClass
-    public static void tearDown()
-    {
-        StorageService.instance.stopClient();
+        assertEquals("us-east", snitch.getLocalDatacenter());
+        assertEquals("1a", snitch.getLocalRack());
     }
 }

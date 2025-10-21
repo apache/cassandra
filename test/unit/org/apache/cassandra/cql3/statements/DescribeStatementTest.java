@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
@@ -36,25 +37,27 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class DescribeStatementTest extends CQLTester
 {
@@ -268,6 +271,19 @@ public class DescribeStatementTest extends CQLTester
     @Test
     public void testDescribe() throws Throwable
     {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(false);
+        helperTestDescribe();
+    }
+
+    @Test
+    public void testDescribeWithAutoRepair() throws Throwable
+    {
+        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
+        helperTestDescribe();
+    }
+
+    public void helperTestDescribe() throws Throwable
+    {
         try
         {
             execute("CREATE KEYSPACE test WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
@@ -288,11 +304,11 @@ public class DescribeStatementTest extends CQLTester
             row(KEYSPACE, "keyspace", KEYSPACE,
                 "CREATE KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true;"),
+                "  AND durable_writes = true  AND fast_path = 'simple';"),
             row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
                 "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true;"),
+                "  AND durable_writes = true  AND fast_path = 'simple';"),
             row("test", "keyspace", "test", keyspaceOutput()),
             row("test", "table", "has_all_types", allTypesTable()),
             row("test", "table", "\"Test\"", testTableOutput()),
@@ -311,7 +327,9 @@ public class DescribeStatementTest extends CQLTester
             Object[][] testKeyspacesOutput = rows(row(KEYSPACE, "keyspace", KEYSPACE),
                                                   row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST),
                                                   row(SYSTEM_KEYSPACE_NAME, "keyspace", SYSTEM_KEYSPACE_NAME),
+                                                  row(ACCORD_KEYSPACE_NAME, "keyspace", ACCORD_KEYSPACE_NAME),
                                                   row(AUTH_KEYSPACE_NAME, "keyspace", AUTH_KEYSPACE_NAME),
+                                                  row(METADATA_KEYSPACE_NAME, "keyspace", METADATA_KEYSPACE_NAME),
                                                   row(DISTRIBUTED_KEYSPACE_NAME, "keyspace", DISTRIBUTED_KEYSPACE_NAME),
                                                   row(SCHEMA_KEYSPACE_NAME, "keyspace", SCHEMA_KEYSPACE_NAME),
                                                   row(TRACE_KEYSPACE_NAME, "keyspace", TRACE_KEYSPACE_NAME),
@@ -449,22 +467,21 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet(describeKeyword + " CLUSTER"),
                           row("Test Cluster",
                               trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                              DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+                              DatabaseDescriptor.getNodeProximity().getClass().getName()));
 
             assertRowsNet(executeDescribeNet("system_virtual_schema", describeKeyword + " CLUSTER"),
                           row("Test Cluster",
                               trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                              DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
+                              DatabaseDescriptor.getNodeProximity().getClass().getName()));
         }
-
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        Token token = tokenMetadata.sortedTokens().get(0);
-        InetAddressAndPort addressAndPort = tokenMetadata.getAllEndpoints().iterator().next();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Token token = metadata.tokenMap.tokens().get(0);
+        InetAddressAndPort addressAndPort = metadata.directory.allAddresses().iterator().next();
 
         assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE CLUSTER"),
                       row("Test Cluster",
                           trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
-                          DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
+                          DatabaseDescriptor.getNodeProximity().getClass().getName(),
                           ImmutableMap.of(token.toString(), ImmutableList.of(addressAndPort.toString()))));
     }
 
@@ -491,7 +508,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v2 int,\n" +
                                       "    v3 int,\n" +
                                       "    PRIMARY KEY ((pk1, pk2), c)\n" +
-                                      ") WITH ID = " + id + "\n" +
+                                      ") WITH ID = " + id.toLongString() + "\n" +
                                       "    AND CLUSTERING ORDER BY (c ASC)\n" +
                                       "    AND " + tableParametersCql();
 
@@ -555,9 +572,9 @@ public class DescribeStatementTest extends CQLTester
 
         try
         {
-
             assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table),
-                          row(KEYSPACE_PER_TEST, "table", table, tableCreateStatement));
+                          row(KEYSPACE_PER_TEST, "table", table, tableCreateStatement),
+                          row(KEYSPACE_PER_TEST, "materialized_view", "mv", mvCreateStatement));
 
             assertRowsNet(executeDescribeNet("DESCRIBE MATERIALIZED VIEW " + KEYSPACE_PER_TEST + ".mv"),
                           row(KEYSPACE_PER_TEST, "materialized_view", "mv", mvCreateStatement));
@@ -580,7 +597,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v1 text,\n" +
                                       "    v2 int,\n" +
                                       "    v3 int\n" +
-                                      ") WITH ID = " + id + "\n" +
+                                      ") WITH ID = " + id.toLongString() + "\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table + " WITH INTERNALS"),
@@ -693,7 +710,8 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE KEYSPACE " + KEYSPACE_PER_TEST),
                           row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST, "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                                                                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                                                                "  AND durable_writes = true;"),
+                                                                                "  AND durable_writes = true" +
+                                                                                "  AND fast_path = 'simple';"),
                           row(KEYSPACE_PER_TEST, "type", type2, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type2 + " (\n" +
                                                                 "    x text,\n" +
                                                                 "    y text\n" +
@@ -798,7 +816,8 @@ public class DescribeStatementTest extends CQLTester
 
         String expectedKeyspaceStmt = "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                       " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                      "  AND durable_writes = true;";
+                                      "  AND durable_writes = true" +
+                                      "  AND fast_path = 'simple';";
 
         String expectedTableStmt = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
                                    "    id int PRIMARY KEY,\n" +
@@ -819,6 +838,67 @@ public class DescribeStatementTest extends CQLTester
 
         assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE_PER_TEST + "." + indexWithOptions),
                       row(KEYSPACE_PER_TEST, "index", indexWithOptions, expectedIndexStmtWithOptions));
+    }
+
+    @Test
+    public void testDescribeCreateLikeTable() throws Throwable
+    {
+        requireNetwork();
+        DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
+        String souceTable = createTable(KEYSPACE_PER_TEST,
+                                        "CREATE TABLE %s (" +
+                                        "  pk1 text, " +
+                                        "  pk2 int MASKED WITH DEFAULT, " +
+                                        "  ck1 int, " +
+                                        "  ck2 double," +
+                                        "  s1 float static, " +
+                                        "  v1 int, " +
+                                        "  v2 int, " +
+                                        "PRIMARY KEY ((pk1, pk2), ck1, ck2 ))");
+        TableMetadata source = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
+        assertNotNull(source);
+        String targetTable = createTableLike("CREATE TABLE %s LIKE %s", souceTable, KEYSPACE_PER_TEST, KEYSPACE_PER_TEST);
+        TableMetadata target = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
+        assertNotNull(target);
+        assertTrue(equalsWithoutTableNameAndDropCns(source, target, true, true, true));
+        assertNotEquals(source.id, target.id);
+        assertNotEquals(source.name, target.name);
+
+        String sourceTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " (\n" +
+                                            "    pk1 text,\n" +
+                                            "    pk2 int MASKED WITH system.mask_default(),\n" +
+                                            "    ck1 int,\n" +
+                                            "    ck2 double,\n" +
+                                            "    s1 float static,\n" +
+                                            "    v1 int,\n" +
+                                            "    v2 int,\n" +
+                                            "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+                                            ") WITH ID = " + source.id.toLongString() + "\n" +
+                                            "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                            "    AND " + tableParametersCql();
+        String targetTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + targetTable + " (\n" +
+                                            "    pk1 text,\n" +
+                                            "    pk2 int MASKED WITH system.mask_default(),\n" +
+                                            "    ck1 int,\n" +
+                                            "    ck2 double,\n" +
+                                            "    s1 float static,\n" +
+                                            "    v1 int,\n" +
+                                            "    v2 int,\n" +
+                                            "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+                                            ") WITH ID = " + target.id.toLongString() + "\n" +
+                                            "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                            "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " WITH INTERNALS"),
+                      row(KEYSPACE_PER_TEST,
+                          "table",
+                          souceTable,
+                          sourceTableCreateStatement));
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + targetTable + " WITH INTERNALS"),
+                      row(KEYSPACE_PER_TEST,
+                          "table",
+                          targetTable,
+                          targetTableCreateStatement));
     }
 
     @Test
@@ -852,7 +932,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v1 text,\n" +
                                       "    v2 text MASKED WITH system.mask_inner(1, null),\n" +
                                       "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                                      ") WITH ID = " + tableMetadata.id + "\n" +
+                                      ") WITH ID = " + tableMetadata.id.toLongString() + "\n" +
                                       "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 
@@ -1013,8 +1093,8 @@ public class DescribeStatementTest extends CQLTester
 
     private static String indexOutput(String index, String table, String col)
     {
-        if (DatabaseDescriptor.getDefaultSecondaryIndex() == CassandraIndex.NAME)
-            return format("CREATE INDEX %s ON %s.%s (%s);", index, "test", table, col);
+        if (Objects.equals(DatabaseDescriptor.getDefaultSecondaryIndex(), CassandraIndex.NAME))
+            return format("CREATE INDEX %s ON %s.%s (%s) USING '" + CassandraIndex.NAME + "';", index, "test", table, col);
         else
             return format("CREATE CUSTOM INDEX %s ON %s.%s (%s) USING '%s';",
                           index, "test", table, col, DatabaseDescriptor.getDefaultSecondaryIndex());
@@ -1055,25 +1135,57 @@ public class DescribeStatementTest extends CQLTester
 
     private static String tableParametersCql()
     {
-        return "additional_write_policy = '99p'\n" +
-               "    AND allow_auto_snapshot = true\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND default_time_to_live = 0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND incremental_backups = true\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND fast_path = 'keyspace'\n" +
+                   "    AND default_time_to_live = 0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND transactional_mode = 'off'\n" +
+                   "    AND transactional_migration_from = 'none'\n" +
+                   "    AND speculative_retry = '99p';";
+        }
+        else
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND fast_path = 'keyspace'\n" +
+                   "    AND default_time_to_live = 0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND transactional_mode = 'off'\n" +
+                   "    AND transactional_migration_from = 'none'\n" +
+                   "    AND speculative_retry = '99p'\n" +
+                   "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+        }
     }
 
     private static String cqlQuoted(Map<String, String> map)
@@ -1083,29 +1195,54 @@ public class DescribeStatementTest extends CQLTester
 
     private static String mvParametersCql()
     {
-        return "additional_write_policy = '99p'\n" +
-               "    AND allow_auto_snapshot = true\n" +
-               "    AND bloom_filter_fp_chance = 0.01\n" +
-               "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
-               "    AND cdc = false\n" +
-               "    AND comment = ''\n" +
-               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
-               "    AND memtable = 'default'\n" +
-               "    AND crc_check_chance = 1.0\n" +
-               "    AND extensions = {}\n" +
-               "    AND gc_grace_seconds = 864000\n" +
-               "    AND incremental_backups = true\n" +
-               "    AND max_index_interval = 2048\n" +
-               "    AND memtable_flush_period_in_ms = 0\n" +
-               "    AND min_index_interval = 128\n" +
-               "    AND read_repair = 'BLOCKING'\n" +
-               "    AND speculative_retry = '99p';";
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p';";
+        }
+        else
+        {
+            return "additional_write_policy = '99p'\n" +
+                   "    AND allow_auto_snapshot = true\n" +
+                   "    AND bloom_filter_fp_chance = 0.01\n" +
+                   "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
+                   "    AND cdc = false\n" +
+                   "    AND comment = ''\n" +
+                   "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
+                   "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
+                   "    AND memtable = 'default'\n" +
+                   "    AND crc_check_chance = 1.0\n" +
+                   "    AND extensions = {}\n" +
+                   "    AND gc_grace_seconds = 864000\n" +
+                   "    AND incremental_backups = true\n" +
+                   "    AND max_index_interval = 2048\n" +
+                   "    AND memtable_flush_period_in_ms = 0\n" +
+                   "    AND min_index_interval = 128\n" +
+                   "    AND read_repair = 'BLOCKING'\n" +
+                   "    AND speculative_retry = '99p'\n" +
+                   "    AND auto_repair = {'full_enabled': 'true', 'incremental_enabled': 'true', 'preview_repaired_enabled': 'true', 'priority': '0'};";
+        }
     }
 
     private static String keyspaceOutput()
     {
-        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;";
+        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple';";
     }
 
     private void describeError(String cql, String msg) throws Throwable

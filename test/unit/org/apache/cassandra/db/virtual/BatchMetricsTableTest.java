@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.codahale.metrics.Histogram;
@@ -38,12 +37,6 @@ import static org.junit.Assert.assertEquals;
 public class BatchMetricsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Before
     public void config()

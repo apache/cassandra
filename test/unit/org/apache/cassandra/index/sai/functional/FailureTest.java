@@ -20,6 +20,8 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import org.assertj.core.api.Assertions;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -30,12 +32,18 @@ import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 
 public class FailureTest extends SAITester
 {
+    @BeforeClass
+    public static void setup()
+    {
+        StorageService.instance.unsafeSetInitialized();
+    }
+
     @Test
     public void shouldMakeIndexNonQueryableOnSSTableContextFailureDuringFlush() throws Throwable
     {
@@ -60,7 +68,7 @@ public class FailureTest extends SAITester
         flush();
 
         // Verify that, while the node is still operational, the index is not.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v1 > 1"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v1 > 1"))
                   .isInstanceOf(IndexNotAvailableException.class);
 
         ssTableContextCreationFailure.disable();
@@ -98,7 +106,7 @@ public class FailureTest extends SAITester
         compact();
 
         // Verify that the index is not available.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v1 > 1"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v1 > 1"))
                   .isInstanceOf(IndexNotAvailableException.class);
     }
 
@@ -126,7 +134,7 @@ public class FailureTest extends SAITester
         verifySSTableIndexes(indexIdentifier, 0);
 
         // ...and then verify that, while the node is still operational, the index is not.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v2 = '1'"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v2 = '1'"))
                   .isInstanceOf(IndexNotAvailableException.class);
     }
 }

@@ -568,6 +568,9 @@ class TestCqlParsing(TestCase):
     def test_parse_create_table(self):
         pass
 
+    def test_parse_create_table_like(self):
+        pass
+
     def test_parse_drop_table(self):
         pass
 
@@ -800,6 +803,17 @@ class TestCqlParsing(TestCase):
                                */ SELECT FROM "MyTable";
                                ''')
         self.assertRaises(SyntaxError)
+
+    def test_skip_duplicate_endtokens(self):
+        parsed = parse_cqlsh_statements('SELECT * FROM my_table;;;;')
+        expected_output = [
+            ('SELECT', 'reserved_identifier'),
+            ('*', 'star'),
+            ('FROM', 'reserved_identifier'),
+            ('my_table', 'identifier'),
+            (';', 'endtoken')
+        ]
+        self.assertSequenceEqual(tokens_with_types(parsed), expected_output)
 
 
 def parse_cqlsh_statements(text):

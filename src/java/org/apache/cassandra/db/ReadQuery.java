@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.db;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.cql3.statements.SelectOptions;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -35,7 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public interface ReadQuery
 {
-    public static ReadQuery empty(final TableMetadata metadata)
+    static ReadQuery empty(final TableMetadata metadata)
     {
         return new ReadQuery()
         {
@@ -124,7 +128,7 @@ public interface ReadQuery
      *
      * @return the metadata for the table this is a query on.
      */
-    public TableMetadata metadata();
+    TableMetadata metadata();
 
     default DataRange dataRange()
     {
@@ -134,13 +138,13 @@ public interface ReadQuery
     /**
      * Starts a new read operation.
      * <p>
-     * This must be called before {@link #executeInternal} and passed to it to protect the read.
-     * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
+     * This must be called before {@link #executeInternal(ReadExecutionController)} and passed to it to protect the read.
+     * The returned object <b>must</b> be closed on all paths, and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *
      * @return a newly started execution controller for this {@code ReadQuery}.
      */
-    public ReadExecutionController executionController();
+    ReadExecutionController executionController();
 
     /**
      * Executes the query at the provided consistency level.
@@ -150,7 +154,7 @@ public interface ReadQuery
      * @param requestTime request enqueue / and start times
      * @return the result of the query.
      */
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException;
+    PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException;
 
     /**
      * Execute the query for internal queries (that is, it basically executes the query locally).
@@ -158,7 +162,7 @@ public interface ReadQuery
      * @param controller the {@code ReadExecutionController} protecting the read.
      * @return the result of the query.
      */
-    public PartitionIterator executeInternal(ReadExecutionController controller);
+    PartitionIterator executeInternal(ReadExecutionController controller);
 
     /**
      * Execute the query locally. This is similar to {@link ReadQuery#executeInternal(ReadExecutionController)}
@@ -167,7 +171,7 @@ public interface ReadQuery
      * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the result of the read query.
      */
-    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController);
+    UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController);
 
     /**
      * Returns a pager for the query.
@@ -178,26 +182,26 @@ public interface ReadQuery
      *
      * @return a pager for the query.
      */
-    public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion);
+    QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion);
 
     /**
      * The limits for the query.
      *
      * @return The limits for the query.
      */
-    public DataLimits limits();
+    DataLimits limits();
 
     /**
      * @return true if the read query would select the given key, including checks against the row filter, if
      * checkRowFilter is true
      */
-    public boolean selectsKey(DecoratedKey key);
+    boolean selectsKey(DecoratedKey key);
 
     /**
      * @return true if the read query would select the given clustering, including checks against the row filter, if
      * checkRowFilter is true
      */
-    public boolean selectsClustering(DecoratedKey key, Clustering<?> clustering);
+    boolean selectsClustering(DecoratedKey key, Clustering<?> clustering);
 
     /**
      * The time in seconds to use as "now" for this query.
@@ -208,13 +212,13 @@ public interface ReadQuery
      *
      * @return the time (in seconds) to use as "now".
      */
-    public long nowInSec();
+    long nowInSec();
 
     /**
      * Checks if this {@code ReadQuery} selects full partitions, that is it has no filtering on clustering or regular columns.
      * @return {@code true} if this {@code ReadQuery} selects full partitions, {@code false} otherwise.
      */
-    public boolean selectsFullPartition();
+    boolean selectsFullPartition();
 
     /**
      * Filters/Resrictions on CQL rows.
@@ -228,14 +232,14 @@ public interface ReadQuery
      *
      * @return the filter holding the expression that rows must satisfy.
      */
-    public RowFilter rowFilter();
+    RowFilter rowFilter();
 
     /**
      * A filter on which (non-PK) columns must be returned by the query.
      *
      * @return which columns must be fetched by this query.
      */
-    public ColumnFilter columnFilter();
+    ColumnFilter columnFilter();
 
     /**
      * Whether this query is known to return nothing upfront.
@@ -245,7 +249,7 @@ public interface ReadQuery
      *
      * @return if this method is guaranteed to return no results whatsoever.
      */
-    public default boolean isEmpty()
+    default boolean isEmpty()
     {
         return false;
     }
@@ -256,7 +260,7 @@ public interface ReadQuery
      * validation method to check that nothing in this query's parameters
      * violates the implementation specific validation rules.
      */
-    default void maybeValidateIndex()
+    default void maybeValidateIndex(SelectOptions selectOptions)
     {
     }
 
@@ -273,5 +277,16 @@ public interface ReadQuery
     default boolean isTopK()
     {
         return false;
+    }
+
+    /**
+     * Index query plan chosen for this query. Can be null.
+     *
+     * @return index query plan chosen for this query
+     */
+    @Nullable
+    default Index.QueryPlan indexQueryPlan()
+    {
+        return null;
     }
 }

@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,8 +38,10 @@ import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -125,7 +128,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
         long timeElapsed = currentTimeNanos - header.createdAtNanos;
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         if (approxTime.isAfter(currentTimeNanos, header.expiresAtNanos))
         {
@@ -165,13 +168,29 @@ public class InboundMessageHandler extends AbstractMessageHandler
         {
             Message<?> m = serializer.deserialize(in, header, version);
             if (in.available() > 0) // bytes remaining after deser: deserializer is busted
-                throw new InvalidSerializedSizeException(header.verb, size, size - in.available());
+            {
+                Throwable t = new InvalidSerializedSizeException(header.verb, size, size - in.available());
+                ByteBuffer clone = bytes.get();
+                clone.limit(clone.position() + size); // cap to expected message size
+                logger.error("Could not deserialize the message: {}", ByteBufferUtil.bytesToHex(clone), t);
+                throw t;
+
+            }
             message = m;
         }
         catch (IncompatibleSchemaException e)
         {
             callbacks.onFailedDeserialize(size, header, e);
             noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(header.from, header.epoch);
+        }
+        catch (CMSIdentifierMismatchException e)
+        {
+            callbacks.onFailedDeserialize(size, header, e);
+            logger.error("{} is a member of a different CMS group. Forcing connection close.", header.from, e);
+            MessagingService.instance().closeOutbound(header.from);
+            // Sharable bytes will be released by the frame decoder
+            channel.close();
         }
         catch (Throwable t)
         {
@@ -211,7 +230,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
         if (!expired && !acquireCapacity(endpointReserve, globalReserve, size, currentTimeNanos, header.expiresAtNanos))
@@ -369,6 +388,14 @@ public class InboundMessageHandler extends AbstractMessageHandler
             {
                 callbacks.onFailedDeserialize(size, header, e);
                 noSpamLogger.info("{} incompatible schema encountered while deserializing a message", InboundMessageHandler.this, e);
+            }
+            catch (CMSIdentifierMismatchException e)
+            {
+                callbacks.onFailedDeserialize(size, header, e);
+                noSpamLogger.info("{} is a member of a different CMS group, and should not be tried. Forcing connection close.", header.from);
+                // Sharable bytes will be released by the frame decoder
+                channel.close();
+                MessagingService.instance().closeOutbound(header.from);
             }
             catch (Throwable t)
             {

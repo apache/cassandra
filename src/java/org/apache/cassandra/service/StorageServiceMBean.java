@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.CompositeData;
@@ -112,6 +113,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return A string representation of the Cassandra git SHA.
      */
     public String getGitSHA();
+
+    /**
+     * Fetch a string representation of the Cassandra's build date.
+     * The format: {@code yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}
+     * @return A string representation of the Cassandra's build date.
+     */
+    String getBuildDate();
 
     /**
      * Fetch a string representation of the current Schema version.
@@ -273,7 +281,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
+     * Use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
+     *
+     * @deprecated See CASSANDRA-10907
      */
     @Deprecated(since = "3.4")
     public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
@@ -281,13 +291,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
      *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param options
-     *            Map of options (skipFlush is the only supported option for now)
-     * @param entities
-     *            list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     * @param tag the tag given to the snapshot; may not be null or empty
+     * @param options Map of options (skipFlush is the only supported option for now)
+     * @param entities list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException;
 
     /**
@@ -308,7 +317,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param options map of options for cleanup operation, consult nodetool's ClearSnapshot
      * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
      * @param keyspaceNames name of keyspaces to clear snapshots for
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
@@ -324,13 +335,17 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * @param options map of options used for filtering of snapshots
      * @return A map of snapshotName to all its details in Tabular form.
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options);
 
     /**
      * Get the true size taken by all snapshots across all keyspaces.
      * @return True size taken by all the snapshots.
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public long trueSnapshotsSize();
 
     /**
@@ -338,7 +353,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * A setting of zero indicates no throttling
      *
      * @param throttle
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public void setSnapshotLinksPerSecond(long throttle);
 
     /**
@@ -346,7 +363,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * A setting of zero indicates no throttling.
      *
      * @return snapshot links-per-second throttle
+     * @deprecated See CASSANDRA-18111
      */
+    @Deprecated(since = "5.1")
     public long getSnapshotLinksPerSecond();
 
     /**
@@ -363,6 +382,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Forces major compaction of a single keyspace
      */
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Forces major compaction of a single keyspace with the given parallelism limit
+     */
+    public void forceKeyspaceCompaction(boolean splitOutput, int parallelism, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /** @deprecated See CASSANDRA-11179 */
     @Deprecated(since = "3.5")
@@ -507,7 +531,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param force Decommission even if this will reduce N to be less than RF.
      */
     public void decommission(boolean force) throws InterruptedException;
-
+    public void abortDecommission(String nodeId);
     /**
      * Returns whether a node has failed to decommission.
      *
@@ -530,12 +554,18 @@ public interface StorageServiceMBean extends NotificationEmitter
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
     public void move(String newToken) throws IOException;
+    public void resumeMove();
+    public void abortMove(String nodeId);
 
     /**
      * removeToken removes token (and all data associated with
      * enpoint that had it) from the ring
      */
     public void removeNode(String token);
+    public void removeNode(String token, boolean force);
+    public void abortRemoveNode(String nodeId);
+
+    public void assassinateEndpoint(String addr);
 
     /**
      * Get the status of a token removal.
@@ -556,7 +586,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      * If classQualifer is not empty but level is empty/null, it will set the level to null for the defined classQualifer<br>
      * If level cannot be parsed, then the level will be defaulted to DEBUG<br>
      * <br>
-     * The logback configuration should have {@code < jmxConfigurator />} set
      *
      * @param classQualifier The logger's classQualifer
      * @param level The log level
@@ -631,14 +660,34 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
      * can be specified individually to update the parameters of the dynamic snitch during runtime.
-     *
      * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch
      * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
      * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
      * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
      * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     * @deprecated See CASSANDRA-19488
      */
+    @Deprecated(since = "5.1")
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
+
+    /**
+     * Change NodeProximity class and dynamic-ness (and dynamic attributes) at runtime.
+     * This method supercedes the deprecated updateSnitch method.
+     *
+     * This method is used to change the proximity implementation and/or dynamic proximity parameters.
+     * If {@code proximityClassName} is specified, it will configure a new instance and make it a
+     * 'dynamic snitch' if {@code dynamic} is specified and {@code true}.
+     *
+     * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
+     * can be specified individually to update the parameters of the dynamic snitch during runtime.
+     *
+     * @param proximityClassName       the canonical path name for a class implementing NodeProximity
+     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
+     * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
+     * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
+     * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
+     */
+    public void updateNodeProximity(String proximityClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
 
     /*
       Update dynamic_snitch_update_interval in ms
@@ -811,6 +860,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated(since = "4.1")
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
+    Map<String, String> getCurrentCompactionThroughputMebibytesPerSec();
+
+    public int getCompressedReadAheadBufferInKB();
+    public void setCompressedReadAheadBufferInKB(int sizeInKb);
 
     public int getBatchlogReplayThrottleInKB();
     public void setBatchlogReplayThrottleInKB(int value);
@@ -1083,6 +1136,21 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean resumeBootstrap();
 
     public String getBootstrapState();
+    void abortBootstrap(String nodeId, String endpoint);
+
+    void migrateConsensusProtocol(@Nullable List<String> keyspaceNames,
+                                  @Nullable List<String> maybeTableNames,
+                                  @Nullable String maybeRangesStr);
+
+    Integer finishConsensusMigration(@Nonnull String keyspace,
+                                     @Nullable List<String> maybeTableNames,
+                                     @Nullable String maybeRangesStr,
+                                     @Nonnull String target);
+
+    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
+
+    List<String> getAccordManagedKeyspaces();
+    List<String> getAccordManagedTables();
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
@@ -1131,6 +1199,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /**
      * Start the fully query logger.
+     *
      * @param path Path where the full query log will be stored. If null cassandra.yaml value is used.
      * @param rollCycle How often to create a new file for query data (MINUTELY, DAILY, HOURLY)
      * @param blocking Whether threads submitting queries to the query log should block if they can't be drained to the filesystem or alternatively drops samples and log
@@ -1178,6 +1247,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     @Deprecated(since = "4.0")
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+    @Deprecated(since = "CEP-21")
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();
 
     // see CASSANDRA-3200
@@ -1299,21 +1369,20 @@ public interface StorageServiceMBean extends NotificationEmitter
     boolean getEnforceNativeDeadlineForHints();
     void setEnforceNativeDeadlineForHints(boolean value);
 
-    /**
-     * Toggles to turn on the logging or rejection of operations for token ranges that the node does not own,
-     * or is not about to acquire.
-     */
-    boolean isOutOfTokenRangeRequestLoggingEnabled();
-    void setOutOfTokenRangeRequestLoggingEnabled(boolean enabled);
+    boolean getPrioritizeSAIOverLegacyIndex();
+    void setPrioritizeSAIOverLegacyIndex(boolean value);
 
-    boolean isOutOfTokenRangeRequestRejectionEnabled();
-    void setOutOfTokenRangeRequestRejectionEnabled(boolean enabled);
+    void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
-    /**
-     * Get the per-keyspace counts of operations that the node has received for tokens outside
-     * its owned ranges. Represented as a {@code Map<String, long[]>}, keys are keyspace names and the
-     * values are the counts for read, write and paxos ops respectivly.
-     * e.g. keyspace_name -> [reads, writes, paxos].
-     */
-    Map<String, long[]> getOutOfRangeOperationCounts();
+    boolean getPaxosRepairRaceWait();
+
+    public void dropPreparedStatements(boolean memoryOnly);
+
+    // Comma delimited list of "nodeId=dc:rack" or "endpoint=dc:rack"
+    void alterTopology(String updates);
+    /** Gets the names of all tables for the given keyspace */
+    public List<String> getTablesForKeyspace(String keyspace);
+
+    /** Mutates the repaired state of all SSTables for the given SSTables */
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);
 }

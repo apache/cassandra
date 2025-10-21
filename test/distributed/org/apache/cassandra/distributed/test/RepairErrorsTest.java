@@ -89,13 +89,21 @@ public class RepairErrorsTest extends TestBaseImpl
     @Test
     public void testRemoteSyncFailure() throws Exception
     {
-        try (Cluster cluster = init(Cluster.build(3)
+        try (Cluster cluster = Cluster.build(3)
                                            .withConfig(config -> config.with(GOSSIP)
                                                                        .with(NETWORK)
                                                                        .set("disk_failure_policy", "stop")
                                                                        .set("disk_access_mode", "mmap_index_only"))
-                                           .withInstanceInitializer(ByteBuddyHelper::installStreamPlanExecutionFailure).start()))
+                                           .withInstanceInitializer(ByteBuddyHelper::installStreamPlanExecutionFailure)
+                                           .createWithoutStarting())
         {
+            // This test relies on the fact that 2->3 streaming is going to fail, but if we're using vnodes,
+            // 2 will effectively become 3 because of the token allocator. To avoid this, we simply start the nodes sequentially
+            // and guarantee their tokens order.
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).startup();
+
+            init(cluster);
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, x int)");
             
             // On repair, this data layout will require two (local) syncs from node 1 and one remote sync from node 2:

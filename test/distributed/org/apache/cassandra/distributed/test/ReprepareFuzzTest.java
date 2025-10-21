@@ -43,6 +43,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -226,9 +227,10 @@ public class ReprepareFuzzTest extends TestBaseImpl
                                 case CLEAR_CACHES:
                                     c.get(1).runOnInstance(() -> {
                                         SystemKeyspace.loadPreparedStatements((id, query, keyspace) -> {
+                                            Prepared prepared = QueryProcessor.instance.getPrepared(id);
                                             if (rng.nextBoolean())
                                                 QueryProcessor.instance.evictPrepared(id);
-                                            return true;
+                                            return prepared;
                                         });
                                     });
                                     break;

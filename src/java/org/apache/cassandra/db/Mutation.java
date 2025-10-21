@@ -18,10 +18,18 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
@@ -31,6 +39,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -48,13 +57,17 @@ import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.VERSION_51;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
 {
     public static final MutationSerializer serializer = new MutationSerializer();
+    public static final int ALLOW_POTENTIAL_TRANSACTION_CONFLICTS = 0x01;
+
 
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
@@ -67,36 +80,50 @@ public class Mutation implements IMutation, Supplier<Mutation>
     // Time at which this mutation or the builder that built it was instantiated
     final long approxCreatedAtNanos;
     // keep track of when mutation has started waiting for a MV partition lock
-    final AtomicLong viewLockAcquireStart = new AtomicLong(0);
+
+    final static AtomicLongFieldUpdater<Mutation> viewLockAcquireStartUpdater =
+        AtomicLongFieldUpdater.newUpdater(Mutation.class, "viewLockAcquireStart");
+    volatile long viewLockAcquireStart;
 
     private final boolean cdcEnabled;
 
     private static final int SERIALIZATION_VERSION_COUNT = MessagingService.Version.values().length;
     // Contains serialized representations of this mutation.
-    // Note: there is no functionality to clear/remove serialized instances, because a mutation must never
-    // be modified (e.g. calling add(PartitionUpdate)) when it's being serialized.
+    // Note: The cached serializations can be cleared when CoordinatorBehindException is being retried
     private final Serialization[] cachedSerializations = new Serialization[SERIALIZATION_VERSION_COUNT];
 
     /** @see CassandraRelevantProperties#CACHEABLE_MUTATION_SIZE_LIMIT */
     private static final long CACHEABLE_MUTATION_SIZE_LIMIT = CassandraRelevantProperties.CACHEABLE_MUTATION_SIZE_LIMIT.getLong();
 
+    // Paxos & Accord manage conflicts directly and needs to apply mutations to tables/ranges
+    // that are only safe to write to from a transaction system.
+    // Don't refuse to apply this mutation because it should go through a transaction system
+    // because it is being applied by one or in a context where transaction conflicts don't occur
+    private PotentialTxnConflicts potentialTxnConflicts;
+
     public Mutation(PartitionUpdate update)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
+        this(update, PotentialTxnConflicts.DISALLOW);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
+    public Mutation(PartitionUpdate update, PotentialTxnConflicts potentialTxnConflicts)
     {
-        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
+        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, potentialTxnConflicts);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, PotentialTxnConflicts potentialTxnConflicts)
+    {
+        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), potentialTxnConflicts);
+    }
+
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, PotentialTxnConflicts potentialTxnConflicts)
     {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
         this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
+        this.potentialTxnConflicts = potentialTxnConflicts;
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -107,26 +134,35 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return cdc;
     }
 
-    public Mutation without(Set<TableId> tableIds)
+    @Override
+    public @Nullable Mutation filter(Predicate<TableId> predicate)
     {
-        if (tableIds.isEmpty())
+        boolean allMatch = true;
+        boolean noneMatch = true;
+        for (TableId tableId : modifications.keySet())
+        {
+            boolean test = predicate.test(tableId);
+            allMatch &= test;
+            noneMatch &= !test;
+        }
+        if (allMatch)
             return this;
+        if (noneMatch)
+            return null;
 
         ImmutableMap.Builder<TableId, PartitionUpdate> builder = new ImmutableMap.Builder<>();
         for (Map.Entry<TableId, PartitionUpdate> update : modifications.entrySet())
-        {
-            if (!tableIds.contains(update.getKey()))
-            {
+            if (predicate.test(update.getKey()))
                 builder.put(update);
-            }
-        }
 
-        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos);
+        Map<TableId, PartitionUpdate> updates = builder.build();
+        checkState(!updates.isEmpty(), "Updates should not be empty");
+        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
     }
 
-    public Mutation without(TableId tableId)
+    public @Nullable Mutation without(TableId tableId)
     {
-        return without(Collections.singleton(tableId));
+        return filter(otherTableId -> !tableId.equals(otherTableId));
     }
 
     public String getKeyspaceName()
@@ -152,6 +188,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public long getApproxCreatedAtNanos()
     {
         return approxCreatedAtNanos;
+    }
+
+    @Override
+    public boolean hasUpdateForTable(TableId tableId)
+    {
+        return modifications.containsKey(tableId);
     }
 
     @Override
@@ -197,18 +239,22 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @throws IllegalArgumentException if not all the mutations are on the same
      * keyspace and key.
      */
-    public static Mutation merge(List<Mutation> mutations)
+    public static Mutation merge(Collection<Mutation> mutations)
     {
         assert !mutations.isEmpty();
 
         if (mutations.size() == 1)
-            return mutations.get(0);
+            return mutations.iterator().next();
 
         Set<TableId> updatedTables = new HashSet<>();
         String ks = null;
         DecoratedKey key = null;
+        PotentialTxnConflicts potentialTxnConflicts = null;
         for (Mutation mutation : mutations)
         {
+            if (potentialTxnConflicts != null && potentialTxnConflicts != mutation.potentialTxnConflicts)
+                throw new IllegalArgumentException("Can't merge mutations with differing policies on allowing potential transaction conflicts");
+            potentialTxnConflicts = mutation.potentialTxnConflicts;
             updatedTables.addAll(mutation.modifications.keySet());
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
@@ -235,7 +281,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), approxTime.now());
+        return new Mutation(ks, key, modifications.build(), approxTime.now(), potentialTxnConflicts);
     }
 
     public Future<?> applyFuture()
@@ -292,9 +338,37 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return cdcEnabled;
     }
 
+    public void allowPotentialTransactionConflicts()
+    {
+        potentialTxnConflicts = PotentialTxnConflicts.ALLOW;
+        Arrays.fill(cachedSerializations, null);
+    }
+
+    @Override
+    public PotentialTxnConflicts potentialTxnConflicts()
+    {
+        return potentialTxnConflicts;
+    }
+
+    private static int potentialTxnConflictsFlag(PotentialTxnConflicts potentialTxnConflicts)
+    {
+        return potentialTxnConflicts.allowed ? ALLOW_POTENTIAL_TRANSACTION_CONFLICTS : 0;
+    }
+
+    public static PotentialTxnConflicts potentialTxnConflicts(int flags)
+    {
+        return (flags & ALLOW_POTENTIAL_TRANSACTION_CONFLICTS) != 0 ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW;
+    }
+
     public String toString()
     {
         return toString(false);
+    }
+
+    @Override
+    public void clearCachedSerializationsForRetry()
+    {
+        Arrays.fill(cachedSerializations, null);
     }
 
     public String toString(boolean shallow)
@@ -322,6 +396,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
     private int serializedSize40;
     private int serializedSize50;
+    private int serializedSize51;
 
     public int serializedSize(int version)
     {
@@ -335,7 +410,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 if (serializedSize50 == 0)
                     serializedSize50 = (int) serializer.serializedSize(this, VERSION_50);
                 return serializedSize50;
-
+            case VERSION_51:
+                if (serializedSize51 == 0)
+                    serializedSize51 = (int) serializer.serializedSize(this, VERSION_51);
+                return serializedSize51;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }
@@ -361,6 +439,13 @@ public class Mutation implements IMutation, Supplier<Mutation>
      */
     public interface SimpleBuilder
     {
+        /**
+         * Assume any potential transaction conflicts that might occur by applying this mutation are already
+         * being handled by the caller
+         * @return this builder
+         */
+        public SimpleBuilder allowPotentialTxnConflicts();
+
         /**
          * Sets the timestamp to use for the following additions to this builder or any derived (update or row) builder.
          *
@@ -453,7 +538,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                     try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
                     {
                         serializeInternal(PartitionUpdate.serializer, mutation, dob, version);
-                        serialization = new CachedSerialization(dob.toByteArray());
+                        serialization = new CachedSerialization(dob.unsafeToByteArray());
                     }
                     catch (IOException e)
                     {
@@ -472,6 +557,13 @@ public class Mutation implements IMutation, Supplier<Mutation>
                                          int version) throws IOException
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
+
+            if (version >= VERSION_51)
+            {
+                int flags = 0;
+                flags |= potentialTxnConflictsFlag(mutation.potentialTxnConflicts);
+                out.write(flags);
+            }
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -492,13 +584,19 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
+                PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
+                if (version >= VERSION_51)
+                {
+                    int flags = teeIn.readByte();
+                    potentialTxnConflicts = potentialTxnConflicts(flags);
+                }
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
 
                 PartitionUpdate update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                 if (size == 1)
                 {
-                    m = new Mutation(update);
+                    m = new Mutation(update, potentialTxnConflicts);
                 }
                 else
                 {
@@ -511,12 +609,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
                         update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                         modifications.put(update.metadata().id, update);
                     }
-                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
+                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now(), potentialTxnConflicts);
                 }
 
                 //Only cache serializations that don't hit the limit
                 if (!teeIn.isLimitReached())
-                    m.cachedSerializations[MessagingService.getVersionOrdinal(version)] = new CachedSerialization(dob.toByteArray());
+                    m.cachedSerializations[MessagingService.getVersionOrdinal(version)] = new CachedSerialization(dob.unsafeToByteArray());
 
                 return m;
             }
@@ -589,7 +687,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
             long size = this.size;
             if (size == 0L)
             {
-                size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
+                if (version >= VERSION_51)
+                    size += TypeSizes.sizeof((byte)ALLOW_POTENTIAL_TRANSACTION_CONFLICTS); // flags
+                size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
                 this.size = size;
@@ -609,16 +709,28 @@ public class Mutation implements IMutation, Supplier<Mutation>
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
+        private PotentialTxnConflicts potentialTxnConflicts;
+
         public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
+        {
+            this(keyspaceName, key, PotentialTxnConflicts.DISALLOW);
+        }
+
+        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key, PotentialTxnConflicts potentialTxnConflicts)
         {
             this.keyspaceName = keyspaceName;
             this.key = key;
+            this.potentialTxnConflicts = potentialTxnConflicts;
         }
 
         public PartitionUpdateCollector add(PartitionUpdate partitionUpdate)
         {
-            assert partitionUpdate != null;
-            assert partitionUpdate.partitionKey().getPartitioner() == key.getPartitioner();
+            assert partitionUpdate != null : "Null updates are not allowed";
+            assert partitionUpdate.partitionKey().getPartitioner() == key.getPartitioner(): String.format("Update to key %s with partitioner %s (%s) had an update (%s) with a different partitioner! %s (%s)",
+                                                                                                          key,
+                                                                                                          key.getPartitioner(), key.getPartitioner().getClass(),
+                                                                                                          partitionUpdate,
+                                                                                                          partitionUpdate.partitionKey().getPartitioner(), partitionUpdate.partitionKey().getPartitioner().getClass());
             // note that ImmutableMap.Builder only allows put:ing the same key once, it will fail during build() below otherwise
             modifications.put(partitionUpdate.metadata().id, partitionUpdate);
             empty = false;
@@ -642,7 +754,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos);
+            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos, potentialTxnConflicts);
         }
     }
 }

@@ -143,7 +143,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
-        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), true, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), true, PreviewKind.NONE, false);
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, SharedContext.Global.instance, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(1, sstables.size());
@@ -158,7 +158,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
-        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), false, PreviewKind.NONE, false);
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, SharedContext.Global.instance, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(2, sstables.size());
@@ -174,7 +174,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         modifySSTables();
 
         // get sstables for repair
-        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), false, PreviewKind.NONE);
+        Validator validator = new Validator(new ValidationState(Clock.Global.clock(), desc, coordinator), FBUtilities.nowInSeconds(), false, PreviewKind.NONE, false);
         Set<SSTableReader> sstables = Sets.newHashSet(getSSTablesToValidate(cfs, SharedContext.Global.instance, validator.desc.ranges, validator.desc.parentSessionId, validator.isIncremental));
         Assert.assertNotNull(sstables);
         Assert.assertEquals(3, sstables.size());

@@ -59,10 +59,10 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         {
             KeyRangeIterator currentIterator = ranges.get(current);
 
-            if (currentIterator.hasNext() && currentIterator.peek().compareTo(nextKey) >= 0)
+            if (currentIterator.hasNext() && currentIterator.peek().compareTo(nextKey, false) >= 0)
                 break;
 
-            if (currentIterator.getMaximum().compareTo(nextKey) >= 0)
+            if (currentIterator.getMaximum().compareTo(nextKey, false) >= 0)
             {
                 currentIterator.skipTo(nextKey);
                 break;
@@ -178,7 +178,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
                 {
                     min = range.getMinimum();
                 }
-                else if (count > 0 && max.compareTo(range.getMinimum()) > 0)
+                else if (count > 0 && max.compareTo(range.getMinimum(), false) > 0)
                 {
                     throw new IllegalArgumentException(String.format(MUST_BE_SORTED_ERROR, max, range.getMinimum()));
                 }

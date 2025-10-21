@@ -87,3 +87,5 @@ authenticator:
   class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
   parameters :
     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+accord:
+  journal_directory: build/test/cassandra/accord_journal

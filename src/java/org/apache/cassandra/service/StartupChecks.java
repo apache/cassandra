@@ -54,6 +54,7 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -73,14 +74,13 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
-import org.apache.cassandra.utils.SigarLibrary;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_KERNEL_BUG_1057843_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Verifies that the system and environment is in a fit state to be started.
@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * Each individual test is modelled as an implementation of StartupCheck, these are run
  * at the start of CassandraDaemon#setup() before any local state is mutated. The default
  * checks are a mix of informational tests (inspectJvmOptions), initialization
- * (initSigarLibrary, checkCacheServiceInitialization) and invariant checking
+ * (checkProcessEnvironment, checkCacheServiceInitialization) and invariant checking
  * (checkValidLaunchDate, checkSystemKeyspaceState, checkSSTablesFormat).
  *
  * In addition, if checkSystemKeyspaceState determines that the release version has
@@ -108,8 +108,6 @@ public class StartupChecks
         // non-configurable check is always enabled for execution
         non_configurable_check,
         check_filesystem_ownership(true),
-        check_dc,
-        check_rack,
         check_data_resurrection(true);
 
         public final boolean disabledByDefault;
@@ -140,14 +138,12 @@ public class StartupChecks
                                                                       checkJMXProperties,
                                                                       inspectJvmOptions,
                                                                       checkNativeLibraryInitialization,
-                                                                      initSigarLibrary,
+                                                                      checkProcessEnvironment,
                                                                       checkMaxMapCount,
                                                                       checkReadAheadKbSetting,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
-                                                                      checkDatacenter,
-                                                                      checkRack,
                                                                       checkLegacyAuthTables,
                                                                       new DataResurrectionCheck());
 
@@ -220,7 +216,7 @@ public class StartupChecks
             {
                 try
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                    if (affectedFileSystemTypes.contains(toLowerCaseLocalized(Files.getFileStore(path).type())))
                         affectedPaths.add(path);
                 }
                 catch (IOException e)
@@ -314,17 +310,21 @@ public class StartupChecks
         {
             if (options.isDisabled(getStartupCheckType()))
                 return;
-            String jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT.getString();
-            if (jmxPort == null)
+
+            JMXServerOptions jmxServerOptions = DatabaseDescriptor.getJmxServerOptions();
+            if (!jmxServerOptions.enabled)
             {
-                logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
-                jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
-                if (jmxPort == null)
-                    logger.error(CASSANDRA_JMX_LOCAL_PORT.getKey() + " missing from cassandra-env.sh, unable to start local JMX service.");
+                logger.warn("JMX connection server is not enabled for either local or remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info");
+            }
+            if (!jmxServerOptions.remote)
+            {
+                logger.warn("JMX is not enabled to receive remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info.");
             }
             else
             {
-                logger.info("JMX is enabled to receive remote connections on port: {}", jmxPort);
+                logger.info("JMX is enabled to receive remote connections on port: {}", jmxServerOptions.jmx_port);
             }
         }
     };
@@ -419,14 +419,17 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck initSigarLibrary = new StartupCheck()
+    public static final StartupCheck checkProcessEnvironment = new StartupCheck()
     {
         @Override
         public void execute(StartupChecksOptions options)
         {
-            if (options.isDisabled(getStartupCheckType()))
-                return;
-            SigarLibrary.instance.warnIfRunningInDegradedMode();
+            Optional<String> degradations = FBUtilities.getSystemInfo().isDegraded();
+
+            if (degradations.isPresent())
+                logger.warn("Cassandra server running in degraded mode. " + degradations.get());
+            else
+                logger.info("Checked OS settings and found them configured for optimal performance.");
         }
     };
 
@@ -730,80 +733,6 @@ public class StartupChecks
             {
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG, "Fatal exception during initialization", e);
             }
-        }
-    };
-
-    public static final StartupCheck checkDatacenter = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            boolean enabled = options.isEnabled(getStartupCheckType());
-            if (CassandraRelevantProperties.IGNORE_DC.isPresent())
-            {
-                logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
-                                          "use startup check configuration in cassandra.yaml",
-                                          CassandraRelevantProperties.IGNORE_DC.getKey()));
-                enabled = !CassandraRelevantProperties.IGNORE_DC.getBoolean();
-            }
-            if (enabled)
-            {
-                String storedDc = SystemKeyspace.getDatacenter();
-                if (storedDc != null)
-                {
-                    String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
-                    if (!storedDc.equals(currentDc))
-                    {
-                        String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
-                                               "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_dc=true.";
-
-                        throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentDc, storedDc));
-                    }
-                }
-            }
-        }
-
-        @Override
-        public StartupCheckType getStartupCheckType()
-        {
-            return StartupCheckType.check_dc;
-        }
-    };
-
-    public static final StartupCheck checkRack = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            boolean enabled = options.isEnabled(getStartupCheckType());
-            if (CassandraRelevantProperties.IGNORE_RACK.isPresent())
-            {
-                logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
-                                          "use startup check configuration in cassandra.yaml",
-                                          CassandraRelevantProperties.IGNORE_RACK.getKey()));
-                enabled = !CassandraRelevantProperties.IGNORE_RACK.getBoolean();
-            }
-            if (enabled)
-            {
-                String storedRack = SystemKeyspace.getRack();
-                if (storedRack != null)
-                {
-                    String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
-                    if (!storedRack.equals(currentRack))
-                    {
-                        String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
-                                               "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_rack=true.";
-
-                        throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentRack, storedRack));
-                    }
-                }
-            }
-        }
-
-        @Override
-        public StartupCheckType getStartupCheckType()
-        {
-            return StartupCheckType.check_rack;
         }
     };
 

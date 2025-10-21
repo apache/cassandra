@@ -17,8 +17,8 @@
 
 
 if [ "$1" == "-h" ]; then
-   echo "$0 [-h] [rpm|noboolean] [<java_version>]"
-   echo " build redhat packages, specify noboolean for legacy (centos7) compatibility"
+   echo "$0 [-h] [rpm] [<java_version>]"
+   echo " build redhat packages"
    exit 1
 fi
 
@@ -26,6 +26,10 @@ fi
 rpm_dist=$1
 java_version=$2
 
+if [ -n "${rpm_dist}" ] && [ "rpm" != "${rpm_dist}" ]; then
+   echo >&2 "Only rpm is a valid dist_type arguments. Got ${rpm_dist}"
+   exit 1
+fi
 
 echo
 echo "==="
@@ -36,5 +40,5 @@ echo
 #
 # Creates the redhat package
 
-$(dirname "$0")/_docker_run.sh almalinux-build.docker docker/_build-redhat.sh "${java_version}" ${rpm_dist}
+$(dirname "$0")/_docker_run.sh almalinux-build.docker docker/_build-redhat.sh "${java_version}"
 exit $?

@@ -454,9 +454,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             {
                 valueOut.int32(subValues.size());
                 for (ByteBuffer value : subValues)
-                {
-                    valueOut.bytes(BytesStore.wrap(value));
-                }
+                    valueOut.bytes(value == null ? null : BytesStore.wrap(value));
             }
         }
 

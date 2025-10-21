@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -68,10 +69,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         // Disable tombstone histogram rounding for tests
         CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.setInt(1);
         ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.setBoolean(true);
-
-
-        SchemaLoader.prepareServer();
-
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
@@ -299,11 +297,13 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore1 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore1), null));
 
         // Wait for the expiration of the first sstable
         Thread.sleep(TimeUnit.SECONDS.toMillis(TTL_SECONDS + 1));
-        AbstractCompactionTask t = twcs.getNextBackgroundTask(nowInSeconds());
+        long gcBefore = nowInSeconds();
+        AbstractCompactionTask t = Iterables.getOnlyElement(twcs.getNextBackgroundTasks(gcBefore), null);
         assertNotNull(t);
         assertEquals(1, Iterables.size(t.transaction.originals()));
         SSTableReader sstable = t.transaction.originals().iterator().next();
@@ -354,11 +354,13 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore2 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore2), null));
 
         // Wait for the expiration of the first sstable
         Thread.sleep(TimeUnit.SECONDS.toMillis(TTL_SECONDS + 1));
-        assertNull(twcs.getNextBackgroundTask(nowInSeconds()));
+        long gcBefore1 = nowInSeconds();
+        assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(twcs.getNextBackgroundTasks(gcBefore1), null));
 
         options.put(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY, "true");
         twcs = new TimeWindowCompactionStrategy(cfs, options);
@@ -366,7 +368,8 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             twcs.addSSTable(sstable);
 
         twcs.startup();
-        AbstractCompactionTask t = twcs.getNextBackgroundTask(nowInSeconds());
+        long gcBefore = nowInSeconds();
+        AbstractCompactionTask t = Iterables.getOnlyElement(twcs.getNextBackgroundTasks(gcBefore), null);
         assertNotNull(t);
         assertEquals(1, Iterables.size(t.transaction.originals()));
         SSTableReader sstable = t.transaction.originals().iterator().next();

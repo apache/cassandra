@@ -25,15 +25,14 @@ import java.util.SortedMap;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "describecluster", description = "Print the name, snitch, partitioner and schema version of a cluster")
-public class DescribeCluster extends NodeToolCmd
+public class DescribeCluster extends WithPortDisplayAbstractCommand
 {
     private boolean resolveIp = false;
     private String keyspace = null;
@@ -46,15 +45,19 @@ public class DescribeCluster extends NodeToolCmd
         // display cluster name, snitch and partitioner
         out.println("Cluster Information:");
         out.println("\tName: " + probe.getClusterName());
-        String snitch = probe.getEndpointSnitchInfoProxy().getSnitchName();
+        LocationInfoMBean locationInfoProxy = probe.getLocationInfoProxy();
+        String nodeProximityName = locationInfoProxy.getNodeProximityName();
         boolean dynamicSnitchEnabled = false;
-        if (snitch.equals(DynamicEndpointSnitch.class.getName()))
+        boolean legacySnitchAdapter = locationInfoProxy.hasLegacySnitchAdapter();
+        if (nodeProximityName.equals(DynamicEndpointSnitch.class.getName()))
         {
-            snitch = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
+            nodeProximityName = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
             dynamicSnitchEnabled = true;
         }
-        out.println("\tSnitch: " + snitch);
+        out.println("\tSnitch: " + nodeProximityName);
         out.println("\tDynamicEndPointSnitch: " + (dynamicSnitchEnabled ? "enabled" : "disabled"));
+        out.println("\tNodeProximity: " + nodeProximityName);
+        out.println("\tLegacySnitchAdapter: " + (legacySnitchAdapter ? "enabled" : "disabled"));
         out.println("\tPartitioner: " + probe.getPartitioner());
 
         // display schema version for each node
@@ -109,7 +112,7 @@ public class DescribeCluster extends NodeToolCmd
             System.exit(1);
         }
 
-        SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
+        SortedMap<String, SetHostStatWithPort> dcs = CommandUtils.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
         out.println("\nData Centers: ");
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())

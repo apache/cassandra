@@ -14,7 +14,7 @@ to various Cassandra configuration files. Some examples that require
 non-default configuration are deploying a multi-node cluster or using
 clients that are not running on a cluster node.
 
-* `cassandra.yaml`: the main configuration file for Cassandra
+* `cassandra.yaml`: the main configuration file for Cassandra, it contains sensitive settings and therefore should not be accessed or modified by untrusted users
 * `cassandra-env.sh`: environment variables can be set
 * `cassandra-rackdc.properties` OR `cassandra-topology.properties`: set
 rack and datacenter information for a cluster

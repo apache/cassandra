@@ -22,13 +22,12 @@ import java.util.Objects;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.util.DataInputPlus;
-
 import org.apache.cassandra.streaming.IncomingStream;
-import org.apache.cassandra.streaming.StreamingChannel;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class IncomingStreamMessage extends StreamMessage
 {

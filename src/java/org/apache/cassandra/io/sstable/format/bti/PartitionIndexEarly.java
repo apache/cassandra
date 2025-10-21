@@ -42,6 +42,19 @@ class PartitionIndexEarly extends PartitionIndex
         this.tail = tail;
     }
 
+    protected PartitionIndexEarly(PartitionIndexEarly partitionIndexEarly)
+    {
+        super(partitionIndexEarly);
+        this.cutoff = partitionIndexEarly.cutoff;
+        this.tail = partitionIndexEarly.tail;
+    }
+
+    @Override
+    public PartitionIndex sharedCopy()
+    {
+        return new PartitionIndexEarly(this);
+    }
+
     @Override
     protected Rebufferer instantiateRebufferer()
     {

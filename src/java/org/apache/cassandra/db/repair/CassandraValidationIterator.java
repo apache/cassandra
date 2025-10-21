@@ -52,11 +52,13 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -159,7 +161,6 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     private final ColumnFamilyStore cfs;
-    private final SharedContext ctx;
     private final Refs<SSTableReader> sstables;
     private final String snapshotName;
     private final boolean isGlobalSnapshotValidation;
@@ -174,24 +175,23 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final long estimatedPartitions;
     private final Map<Range<Token>, Long> rangePartitionCounts;
 
-    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
-        this.ctx = ctx;
 
-        isGlobalSnapshotValidation = cfs.snapshotExists(parentId.toString());
+        isGlobalSnapshotValidation = SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), parentId.toString());
         if (isGlobalSnapshotValidation)
             snapshotName = parentId.toString();
         else
             snapshotName = sessionID.toString();
-        isSnapshotValidation = cfs.snapshotExists(snapshotName);
+        isSnapshotValidation = SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName);
 
         if (isSnapshotValidation)
         {
             // If there is a snapshot created for the session then read from there.
             // note that we populate the parent repair session when creating the snapshot, meaning the sstables in the snapshot are the ones we
             // are supposed to validate.
-            sstables = cfs.getSnapshotSSTableReaders(snapshotName);
+            sstables = TableSnapshot.getSnapshotSSTableReaders(cfs, snapshotName);
         }
         else
         {
@@ -219,7 +219,8 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
                     cfs.getKeyspaceName(),
                     cfs.getTableName());
 
-        controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
+        long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : getDefaultGcBefore(cfs, nowInSec);
+        controller = new ValidationCompactionController(cfs, gcBefore);
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active, topPartitionCollector);
 
@@ -269,7 +270,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         {
             // we can only clear the snapshot if we are not doing a global snapshot validation (we then clear it once anticompaction
             // is done).
-            cfs.clearSnapshot(snapshotName);
+            SnapshotManager.instance.clearSnapshot(cfs.getKeyspaceName(), cfs.getTableName(), snapshotName);
         }
 
         if (sstables != null)

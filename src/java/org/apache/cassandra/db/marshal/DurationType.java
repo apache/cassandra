@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.DurationSerializer;
 import org.apache.cassandra.serializers.MarshalException;

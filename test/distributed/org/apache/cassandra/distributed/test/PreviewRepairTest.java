@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
@@ -434,11 +435,11 @@ public class PreviewRepairTest extends TestBaseImpl
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
             if(shouldBeEmpty)
             {
-                assertTrue(cfs.listSnapshots().isEmpty());
+                assertTrue(Util.listSnapshots(cfs).isEmpty());
             }
             else
             {
-                while (cfs.listSnapshots().isEmpty())
+                while (Util.listSnapshots(cfs).isEmpty())
                     Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
             }
         }));

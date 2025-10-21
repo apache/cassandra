@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * Bin log is a is quick and dirty binary log that is kind of a NIH version of binary logging with a traditional logging
@@ -389,7 +390,7 @@ public class BinLog implements Runnable
         public Builder rollCycle(String rollCycle)
         {
             Preconditions.checkNotNull(rollCycle, "rollCycle was null");
-            rollCycle = rollCycle.toUpperCase();
+            rollCycle = toUpperCaseLocalized(rollCycle);
             Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
             this.rollCycle = rollCycle;
             return this;

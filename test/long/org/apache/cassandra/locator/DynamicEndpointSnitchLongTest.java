@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
@@ -37,6 +38,7 @@ public class DynamicEndpointSnitchLongTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServerNoRegister();
     }
 
     @Test
@@ -52,8 +54,8 @@ public class DynamicEndpointSnitchLongTest
 
             // do this because SS needs to be initialized before DES can work properly.
             StorageService.instance.unsafeInitialize();
-            SimpleSnitch ss = new SimpleSnitch();
-            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+            NodeProximity proximity = new NoOpProximity();
+            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(proximity, String.valueOf(proximity.hashCode()));
             InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
             EndpointsForRange.Builder replicasBuilder = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE);

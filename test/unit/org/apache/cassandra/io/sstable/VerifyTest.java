@@ -43,6 +43,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -50,7 +51,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -68,10 +69,9 @@ import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -108,6 +108,7 @@ public class VerifyTest
     public static final String COUNTER_CF4 = "Counter4";
     public static final String CORRUPT_CF = "Corrupt1";
     public static final String CORRUPT_CF2 = "Corrupt2";
+    public static final String CORRUPT_CF3 = "Corrupt3";
     public static final String CORRUPTCOUNTER_CF = "CounterCorrupt1";
     public static final String CORRUPTCOUNTER_CF2 = "CounterCorrupt2";
 
@@ -130,6 +131,7 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, CF4),
                        standardCFMD(KEYSPACE, CORRUPT_CF),
                        standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       standardCFMD(KEYSPACE, CORRUPT_CF3),
                        counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF3),
@@ -497,21 +499,17 @@ public class VerifyTest
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         fillCF(cfs, 100);
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().checkOwnsTokens(true).extendedVerification(true).build()))
         {
             verifier.verify();
-        }
-        finally
-        {
-            StorageService.instance.getTokenMetadata().clearUnsafe();
         }
     }
 
@@ -520,7 +518,7 @@ public class VerifyTest
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF3);
 
         fillCF(cfs, 2);
 
@@ -729,12 +727,11 @@ public class VerifyTest
     @Test
     public void testVerifyLocalPartitioner() throws UnknownHostException
     {
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+//        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+//        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         // write some bogus to a localpartitioner table
         Batch bogus = Batch.createLocal(nextTimeUUID(), 0, Collections.emptyList());
         BatchlogManager.store(bogus);
@@ -769,6 +766,23 @@ public class VerifyTest
         }
     }
 
+    @Test
+    public void testVerifyReversedPartitioner()
+    {
+        for (long i = 0; i < 10; i++)
+            QueryProcessor.executeInternal("insert into system.local_metadata_log (epoch) values (?)", i);
+        ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("local_metadata_log");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertFalse(cfs.getLiveSSTables().isEmpty());
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options()
+                                                                                                              .checkOwnsTokens(true).build()))
+            {
+                verifier.verify();
+            }
+        }
+    }
 
     private DecoratedKey dk(long l)
     {

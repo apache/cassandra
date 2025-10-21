@@ -1,4 +1,3 @@
-package org.apache.cassandra;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -18,6 +17,7 @@ package org.apache.cassandra;
  * under the License.
  *
  */
+package org.apache.cassandra;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -25,6 +25,7 @@ import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -35,10 +36,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -54,11 +56,14 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
@@ -77,6 +82,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -108,6 +114,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -125,6 +132,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -132,8 +140,15 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.service.snapshot.SnapshotLoader;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -141,12 +156,13 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ThrowingRunnable;
 import org.hamcrest.Matcher;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
@@ -158,8 +174,6 @@ public class Util
 {
     private static final Logger logger = LoggerFactory.getLogger(Util.class);
 
-    private static List<UUID> hostIdPool = new ArrayList<>();
-
     public static IPartitioner testPartitioner()
     {
         return DatabaseDescriptor.getPartitioner();
@@ -168,6 +182,11 @@ public class Util
     public static DecoratedKey dk(String key)
     {
         return testPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    public static DecoratedKey dk(int key)
+    {
+        return dk(String.valueOf(key), Int32Type.instance);
     }
 
     public static DecoratedKey dk(String key, AbstractType<?> type)
@@ -223,7 +242,7 @@ public class Util
             private AtomicBoolean exhausted = new AtomicBoolean();
             public Iterator<T> iterator()
             {
-                Preconditions.checkState(!exhausted.getAndSet(true));
+                checkState(!exhausted.getAndSet(true));
                 return source;
             }
         };
@@ -275,13 +294,19 @@ public class Util
     /**
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
-    public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
-                                         List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
-        throws UnknownHostException
+    public static void createInitialRing(List<Token> endpointTokens, List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany) throws UnknownHostException
     {
-        // Expand pool of host IDs as necessary
+        createInitialRing(endpointTokens, keyTokens, hosts, hostIds, howMany, true);
+    }
+
+    public static void createInitialRing(List<Token> endpointTokens, List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany, boolean bootstrap) throws UnknownHostException
+    {
+        // TODO should probably rewrite tests that use this post CEP-21
+        List<UUID> hostIdPool = new ArrayList<>(howMany);
         for (int i = hostIdPool.size(); i < howMany; i++)
-            hostIdPool.add(UUID.randomUUID());
+        {
+            hostIdPool.add(ClusterMetadataTestHelper.register(i + 1).toUUID());
+        }
 
         boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();
         for (int i=0; i<howMany; i++)
@@ -294,21 +319,37 @@ public class Util
 
         for (int i=0; i<endpointTokens.size(); i++)
         {
-            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
-            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), MessagingService.current_version, 1);
-            Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
-            ss.onChange(ep,
-                        ApplicationState.STATUS_WITH_PORT,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
-            ss.onChange(ep,
-                        ApplicationState.STATUS,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
+            if (bootstrap)
+                ClusterMetadataTestHelper.join(ep, keyTokens.get(i));
             hosts.add(ep);
         }
 
         // check that all nodes are in token metadata
         for (int i=0; i<endpointTokens.size(); ++i)
-            assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
+            assertTrue(!bootstrap || ClusterMetadata.current().directory.allAddresses().contains(hosts.get(i)));
+    }
+
+    public static void initGossipTokens(IPartitioner partitioner,
+                                        List<Token> endpointTokens,
+                                        List<InetAddressAndPort> hosts,
+                                        List<UUID> hostIds,
+                                        int howMany) throws UnknownHostException
+    {
+        for (int i=0; i<howMany; i++)
+        {
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
+            hosts.add(ep);
+            UUID hostId = new UUID(0L, (long)i+1);
+            hostIds.add(hostId);
+            Token t = partitioner.getRandomToken();
+            endpointTokens.add(t);
+            Collection<Token> tokens = Collections.singleton(partitioner.getRandomToken());
+
+            Gossiper.instance.initializeNodeUnsafe(ep, hostId, MessagingService.current_version, 1);
+            VersionedValue.VersionedValueFactory values = new VersionedValue.VersionedValueFactory(partitioner);
+            Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, values.tokens(tokens));
+        }
     }
 
     public static Future<?> compactAll(ColumnFamilyStore cfs, long gcBefore)
@@ -344,7 +385,8 @@ public class Util
         }
         catch (Throwable e)
         {
-            assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
+            // Use name because in-jvm dtests will have different instances of the class
+            Invariants.require(e.getClass().getName().equals(exception.getName()), e.getClass().getName() + " is not " + exception.getName());
             thrown = true;
         }
 
@@ -670,20 +712,32 @@ public class Util
 
     public static class PartitionerSwitcher implements AutoCloseable
     {
-        final IPartitioner oldP;
         final IPartitioner newP;
+
+        boolean closed;
 
         public PartitionerSwitcher(IPartitioner partitioner)
         {
             newP = partitioner;
-            oldP = StorageService.instance.setPartitionerUnsafe(partitioner);
+            StorageService.instance.setPartitionerUnsafe(partitioner);
         }
 
         public void close()
         {
-            IPartitioner p = StorageService.instance.setPartitionerUnsafe(oldP);
-            assert p == newP;
+            checkState(!closed, "Already reset");
+            closed = true;
+            StorageService.instance.resetPartitionerUnsafe();
         }
+    }
+
+    public static void spinAssertEquals(int expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals((long)expected, () -> ((Number)actualSupplier.get()).longValue());
+    }
+
+    public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals(null, expected, actualSupplier, 10, TimeUnit.SECONDS);
     }
 
     public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier, int timeoutInSeconds)
@@ -703,6 +757,55 @@ public class Util
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, actualSupplier.get(), matcher));
+    }
+
+    public static void spinAssertEquals(Object expected, int timeoutInSeconds, Callable<Object> call)
+    {
+        spinAssertEquals(null, expected, timeoutInSeconds, TimeUnit.SECONDS,  call);
+    }
+
+    public static <T> void spinAssertEquals(String message, T expected, long timeout, TimeUnit timeUnit, Callable<? extends T> call)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeout, timeUnit)
+                  .untilAsserted(() -> assertThat(message, call.call(), equalTo(expected)));
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test)
+    {
+        spinUntilTrue(test, 10, TimeUnit.SECONDS);
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeoutInSeconds)
+    {
+        spinUntilTrue(test, timeoutInSeconds, TimeUnit.SECONDS);
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeout, TimeUnit unit)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeout, unit)
+                  .ignoreExceptions()
+                  .untilAsserted(() -> assertThat(test.call(), equalTo(true)));
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable)
+    {
+        spinUntilSuccess(runnable, 10);
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable, int timeoutInSeconds)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeoutInSeconds, TimeUnit.SECONDS)
+                  .ignoreExceptions()
+                  .untilAsserted(runnable);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
@@ -797,6 +900,13 @@ public class Util
     }
 
     public static UnfilteredPartitionIterator executeLocally(PartitionRangeReadCommand command,
+                                                             ColumnFamilyStore cfs,
+                                                             ReadExecutionController controller)
+    {
+        return command.queryStorage(cfs, controller);
+    }
+
+    public static UnfilteredPartitionIterator executeLocally(SinglePartitionReadCommand command,
                                                              ColumnFamilyStore cfs,
                                                              ReadExecutionController controller)
     {
@@ -1094,29 +1204,11 @@ public class Util
             assertEquals(0, ((SSTableReaderWithFilter) reader).getFilterOffHeapSize());
     }
 
-    /**
-     * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
-     * or {@link Gossiper#hasMajorVersion3OrUnknownNodes()} is called.
-     */
     public static void setUpgradeFromVersion(String version)
     {
-        int v = Optional.ofNullable(Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort()))
-                        .map(ep -> ep.getApplicationState(ApplicationState.RELEASE_VERSION))
-                        .map(rv -> rv.version)
-                        .orElse(0);
-
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
-                                                   VersionedValue.unsafeMakeVersionedValue(version, v + 1));
-        try
-        {
-            // add dummy host to avoid returning early in Gossiper.instance.upgradeFromVersionSupplier
-            Gossiper.instance.initializeNodeUnsafe(InetAddressAndPort.getByName("127.0.0.2"), UUID.randomUUID(), 1);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-        Gossiper.instance.expireUpgradeFromVersion();
+        InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.10");
+        Register.register(new NodeAddresses(ep),
+                          new NodeVersion(new CassandraVersion(version), Version.OLD));
     }
 
     /**
@@ -1160,23 +1252,6 @@ public class Util
                        .stream()
                        .map(sstr -> sstr.descriptor)
                        .collect(Collectors.toSet());
-    }
-
-    public static Set<Descriptor> getSnapshots(String ks, String tableName, String snapshotTag)
-    {
-        try
-        {
-            return Keyspace.open(ks)
-                           .getColumnFamilyStore(tableName)
-                           .getSnapshotSSTableReaders(snapshotTag)
-                           .stream()
-                           .map(sstr -> sstr.descriptor)
-                           .collect(Collectors.toSet());
-        }
-        catch (IOException e)
-        {
-            throw Throwables.unchecked(e);
-        }
     }
 
     public static Set<Descriptor> getBackups(String ks, String tableName)
@@ -1274,5 +1349,26 @@ public class Util
     public static RuntimeException testMustBeImplementedForSSTableFormat()
     {
         return new UnsupportedOperationException("Test must be implemented for sstable format " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
+    }
+
+    public static Map<String, TableSnapshot> listSnapshots(ColumnFamilyStore cfs)
+    {
+        Set<TableSnapshot> snapshots = new SnapshotLoader(cfs.getDirectories()).loadSnapshots();
+        Map<String, TableSnapshot> tagSnapshotsMap = new HashMap<>();
+
+        for (TableSnapshot snapshot : snapshots)
+            tagSnapshotsMap.put(snapshot.getTag(), snapshot);
+
+        return tagSnapshotsMap;
+    }
+
+    // Replaces the global auto-repair config with a new config where auto-repair schedulling is enabled/disabled
+    public static void setAutoRepairEnabled(boolean enabled) throws Exception
+    {
+        Config config = DatabaseDescriptor.getRawConfig();
+        config.auto_repair = new AutoRepairConfig(enabled);
+        Field configField = DatabaseDescriptor.class.getDeclaredField("conf");
+        configField.setAccessible(true);
+        configField.set(null, config);
     }
 }

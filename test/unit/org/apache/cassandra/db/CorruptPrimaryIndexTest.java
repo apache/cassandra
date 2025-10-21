@@ -41,7 +41,7 @@ public class CorruptPrimaryIndexTest extends CQLTester.InMemory
             if (!path.getFileName().toString().endsWith(endsWith))
                 return false;
             Descriptor desc = Descriptor.fromFile(new File(path));
-            if (!desc.ksname.equals(keyspace) && desc.cfname.equals(currentTable()))
+            if (!desc.ksname.equals(keyspace) || !desc.cfname.equals(currentTable()))
                 return false;
             return true;
         };

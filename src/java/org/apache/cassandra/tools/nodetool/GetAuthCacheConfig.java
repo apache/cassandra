@@ -18,18 +18,16 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "getauthcacheconfig", description = "Get configuration of Auth cache")
-public class GetAuthCacheConfig extends NodeTool.NodeToolCmd
+public class GetAuthCacheConfig extends AbstractCommand
 {
-    @SuppressWarnings("unused")
-    @Option(title = "cache-name",
-            name = {"--cache-name"},
+    @Option(paramLabel = "cache-name",
+            names = { "--cache-name" },
             description = "Name of Auth cache (required)",
             required = true)
     private String cacheName;

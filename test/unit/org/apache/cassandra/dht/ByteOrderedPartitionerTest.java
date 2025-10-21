@@ -17,6 +17,12 @@
  */
 package org.apache.cassandra.dht;
 
+import java.util.Arrays;
+
+import org.junit.Assert;
+
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+
 public class ByteOrderedPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
@@ -27,5 +33,15 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
     protected boolean shouldStopRecursion(Token left, Token right)
     {
         return false;
+    }
+
+    @Override
+    protected void checkRoundTrip(Token original, Token roundTrip)
+    {
+        BytesToken orig = (BytesToken) original;
+        BytesToken rt = (BytesToken) roundTrip;
+        Assert.assertArrayEquals(orig.token, Arrays.copyOf(rt.token, orig.token.length));
+        for (int i = orig.token.length ; i < rt.token.length ; ++i)
+            Assert.assertEquals((byte)0, rt.token[i]);
     }
 }

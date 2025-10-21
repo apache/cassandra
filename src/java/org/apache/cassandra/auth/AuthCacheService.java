@@ -77,4 +77,18 @@ public class AuthCacheService
             Roles.init();
         }
     }
+
+    /**
+     * Invalidates all registered caches, which is useful for tests that make changes to roles, identities, cidr
+     * permissions and so on.
+     */
+    @VisibleForTesting
+    public synchronized void invalidateCaches()
+    {
+        logger.info("Bulk invalidating {} auth cache(s)", caches.size());
+        for (AuthCache<?, ?> cache : caches)
+        {
+            cache.invalidate();
+        }
+    }
 }

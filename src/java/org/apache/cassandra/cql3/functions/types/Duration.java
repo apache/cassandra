@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import com.google.common.base.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents a duration. A duration stores separately months, days, and seconds due to the fact
@@ -237,7 +238,7 @@ public final class Duration
 
     private static Builder add(Builder builder, long number, String symbol)
     {
-        String s = symbol.toLowerCase();
+        String s = toLowerCaseLocalized(symbol);
         if (s.equals("y"))
         {
             return builder.addYears(number);

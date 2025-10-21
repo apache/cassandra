@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 
 import java.util.AbstractList;
 import java.util.AbstractMap;
@@ -98,6 +99,18 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
             if (index > size)
                 throw new IndexOutOfBoundsException();
             return contents[begin + index];
+        }
+
+        public ReplicaList map(Function<Replica, Replica> map)
+        {
+            Replica[] contents = new Replica[size];
+            for (int i = 0; i < contents.length; i++)
+            {
+                if (this.contents[i] != null)
+                    contents[i] = map.apply(this.contents[i]);
+            }
+
+            return new ReplicaList(contents, begin, contents.length);
         }
 
         public void add(Replica replica)
@@ -591,33 +604,30 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
 
     /**
      *  <p>
-     *  It's not clear whether {@link AbstractReplicaCollection} should implement the order sensitive {@link Object#equals(Object) equals}
-     *  of {@link java.util.List} or the order oblivious {@link Object#equals(Object) equals} of {@link java.util.Set}. We never rely on equality
-     *  in the database so rather then leave in a potentially surprising implementation we have it throw {@link UnsupportedOperationException}.
-     *  </p>
-     *  <p>
-     *  Don't implement this and pick one behavior over the other. If you want equality you can static import {@link com.google.common.collect.Iterables#elementsEqual(Iterable, Iterable)}
-     *  and use that to get order sensitive equals.
+     *  Implements order sensitive {@link Object#equals(Object)} #equals() equals} of {@link java.util.List}.
      *  </p>
      */
     public final boolean equals(Object o)
     {
-        throw new UnsupportedOperationException("AbstractReplicaCollection equals unsupported");
+        if (!(o instanceof AbstractReplicaCollection))
+            return false;
+
+        return Iterators.elementsEqual(iterator(), ((AbstractReplicaCollection) o).iterator());
     }
 
     /**
      *  <p>
-     *  It's not clear whether {@link AbstractReplicaCollection} should implement the order sensitive {@link Object#hashCode() hashCode}
-     *  of {@link java.util.List} or the order oblivious {@link Object#hashCode() equals} of {@link java.util.Set}. We never rely on hashCode
-     *  in the database so rather then leave in a potentially surprising implementation we have it throw {@link UnsupportedOperationException}.
-     *  </p>
-     *  <p>
-     *  Don't implement this and pick one behavior over the other.
+     *  Implements order sensitive {@link Object#hashCode() hashCode} of {@link java.util.List}.
      *  </p>
      */
     public final int hashCode()
     {
-        throw new UnsupportedOperationException("AbstractReplicaCollection hashCode unsupported");
+        int result = 1;
+
+        for (Replica e : this)
+            result = 31 * result + (e == null ? 0 : e.hashCode());
+
+        return result;
     }
 
     @Override

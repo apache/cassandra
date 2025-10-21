@@ -59,4 +59,10 @@ public class BufferClustering extends AbstractBufferClusteringPrefix implements 
     {
         return new BufferClustering(values);
     }
+
+    @Override
+    public Clustering<?> ensureAccessorFactorySupport()
+    {
+        return this;
+    }
 }

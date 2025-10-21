@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -48,26 +47,35 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.function.Function.identity;
 import static org.apache.cassandra.simulator.Action.Modifier.INFO;
 import static org.apache.cassandra.simulator.Action.Modifier.WAKEUP;
+import static org.apache.cassandra.simulator.ActionListener.recursive;
 import static org.apache.cassandra.simulator.ActionListener.runAfter;
 import static org.apache.cassandra.simulator.ActionListener.runAfterAndTransitivelyAfter;
-import static org.apache.cassandra.simulator.ActionListener.recursive;
-import static org.apache.cassandra.simulator.Debug.EventType.*;
+import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
+import static org.apache.cassandra.simulator.Debug.EventType.PARTITION;
 import static org.apache.cassandra.simulator.Debug.Info.LOG;
-import static org.apache.cassandra.simulator.Debug.Level.*;
+import static org.apache.cassandra.simulator.Debug.Level.PLANNED;
 import static org.apache.cassandra.simulator.paxos.Ballots.paxosDebugInfo;
 
 // TODO (feature): move logging to a depth parameter
 // TODO (feature): log only deltas for schema/cluster data
 public class Debug
 {
-    private static final Logger logger = LoggerFactory.getLogger(Debug.class);
+    private static class LoggerHandle
+    {
+        private static final Logger logger = LoggerFactory.getLogger(Debug.class);
+    }
+
+    private static Logger logger()
+    {
+        return LoggerHandle.logger;
+    }
 
     public enum EventType { PARTITION, CLUSTER }
     public enum Level
@@ -219,15 +227,15 @@ public class Debug
         @Override
         public void before(Action action, Before before)
         {
-            if (logger.isWarnEnabled()) // invoke toString() eagerly to ensure we have the task's descriptin
-                logger.warn(String.format("%6ds %s %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), before, action));
+            if (logger().isWarnEnabled()) // invoke toString() eagerly to ensure we have the task's descriptin
+                logger().warn(String.format("%6ds %s %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), before, action));
         }
 
         @Override
         public void consequences(ActionList consequences)
         {
-            if (logConsequences && !consequences.isEmpty() && logger.isWarnEnabled())
-                logger.warn(String.format("%6ds Next: %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), consequences));
+            if (logConsequences && !consequences.isEmpty() && logger().isWarnEnabled())
+                logger().warn(String.format("%6ds Next: %s", TimeUnit.NANOSECONDS.toSeconds(time.nanoTime()), consequences));
         }
     }
 
@@ -241,7 +249,7 @@ public class Debug
         @Override
         public void transitivelyAfter(Action finished)
         {
-            logger.warn("Terminated {}", finished);
+            logger().warn("Terminated {}", finished);
         }
     }
 
@@ -268,7 +276,7 @@ public class Debug
                 for (InetAddressAndPort ep : Gossiper.instance.getLiveMembers())
                 {
                     EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
-                    logger.warn("Gossip {}: {} {}", ep, epState.isAlive(), epState.states().stream()
+                    logger().warn("Gossip {}: {} {}", ep, epState.isAlive(), epState.states().stream()
                                                                                    .map(e -> e.getKey().toString() + "=(" + e.getValue().value + ',' + e.getValue().version + ')')
                                                                                    .collect(Collectors.joining(", ", "[", "]")));
                 }
@@ -305,11 +313,11 @@ public class Debug
                         TableMetadata metadata = Keyspace.open(keyspace).getColumnFamilyStore("tbl").metadata.get();
                         ByteBuffer pkbb = Int32Type.instance.decompose(pkint);
                         DecoratedKey key = new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getToken(pkbb), pkbb);
-                        logger.warn("node{}({}): {}", num, primaryKey, paxosDebugInfo(key, metadata, FBUtilities.nowInSeconds()));
+                        logger().warn("node{}({}): {}", num, primaryKey, paxosDebugInfo(key, metadata, FBUtilities.nowInSeconds()));
                     }
                     catch (Throwable t)
                     {
-                        logger.warn("node{}({})", num, primaryKey, t);
+                        logger().warn("node{}({})", num, primaryKey, t);
                     }
                 }, node, primaryKey);
             }
@@ -320,7 +328,7 @@ public class Debug
     {
         return ignore -> {
             cluster.forEach(i -> i.unsafeRunOnThisThread(() -> {
-                logger.warn("{} {}",
+                logger().warn("{} {}",
                         Schema.instance.getKeyspaceMetadata(keyspace) == null ? "" : Schema.instance.getKeyspaceMetadata(keyspace).params.replication.toString(),
                         Schema.instance.getKeyspaceMetadata(keyspace) == null ? "" : Keyspace.open(keyspace).getReplicationStrategy().configOptions.toString());
             }));
@@ -332,7 +340,7 @@ public class Debug
         return ignore -> {
             for (int node = 1 ; node <= cluster.size() ; ++node)
             {
-                logger.warn("node{}({}): {}", node, primaryKey, cluster.get(node).unsafeApplyOnThisThread(v -> {
+                logger().warn("node{}({}): {}", node, primaryKey, cluster.get(node).unsafeApplyOnThisThread(v -> {
                     try
                     {
                         return ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspace), Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(v))).all().endpointList().toString();
@@ -350,7 +358,7 @@ public class Debug
     {
         return ignore -> cluster.forEach(i -> i.unsafeRunOnThisThread(() -> {
             if (Schema.instance.getKeyspaceMetadata(keyspace) != null)
-                logger.warn("{}", StorageService.instance.getTokenMetadata().toString());
+                logger().warn("{}", ClusterMetadata.current());
         }));
     }
 

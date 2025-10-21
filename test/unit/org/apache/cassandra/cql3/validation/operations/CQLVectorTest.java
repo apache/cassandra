@@ -63,6 +63,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2], [1, 2])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN (?)", vector), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ?", list(vector)), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + 1])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row);
@@ -202,7 +203,7 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         execute("INSERT INTO %s (pk, value) VALUES (0, {z: [{y:1}, {y:2}]})");
         assertRows(execute("SELECT * FROM %s"),
-                   row(0, userType("z", vector(userType("y", 1), userType("y", 2)))));
+                   row(0, userType("z", vector((Object)userType("y", 1), (Object)userType("y", 2)))));
     }
 
     @Test
@@ -315,7 +316,7 @@ public class CQLVectorTest extends CQLTester.InMemory
                                   InvalidRequestException.class,
                                   "INSERT INTO %s (k, v) VALUES (0, 0x)");
 
-        assertInvalidThrowMessage("Invalid empty vector value",
+        assertInvalidThrowMessage(format("Not enough bytes to read a vector<%s, 2>", type),
                                   InvalidRequestException.class,
                                   "INSERT INTO %s (k, v) VALUES (0, ?)",
                                   ByteBufferUtil.EMPTY_BYTE_BUFFER);

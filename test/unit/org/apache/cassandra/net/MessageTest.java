@@ -19,8 +19,8 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -28,7 +28,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -36,28 +38,37 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService.Version;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FreeRunningClock;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static org.apache.cassandra.exceptions.RemoteExceptionTest.normalizeThrowable;
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_51;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
 import static org.apache.cassandra.net.ParamType.TRACE_TYPE;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public class MessageTest
 {
     @BeforeClass
     public static void setUpClass() throws Exception
     {
+        ServerTestUtils.prepareServer();
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCrossNodeTimeout(true);
 
@@ -91,6 +102,7 @@ public class MessageTest
     {
         Message<Integer> msg =
             Message.builder(Verb._TEST_2, 37)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(FBUtilities.getLocalAddressAndPort())
                    .withCreatedAt(approxTime.now())
@@ -118,11 +130,11 @@ public class MessageTest
 
             // should return -1 - fail to infer size - for all lengths of buffer until payload length can be read
             for (int limit = 0; limit < serializedSize - payloadSize; limit++)
-                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit));
+                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit, version));
 
             // once payload size can be read, should correctly infer message size
             for (int limit = serializedSize - payloadSize; limit < serializedSize; limit++)
-                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit));
+                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit, version));
         }
     }
 
@@ -138,6 +150,7 @@ public class MessageTest
 
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(from)
                    .withCreatedAt(createAtNanos)
@@ -160,10 +173,11 @@ public class MessageTest
     }
 
     @Test
-    public void testCycleNoPayload() throws IOException
+    public void testCycleNoPayload() throws Exception
     {
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(FBUtilities.getLocalAddressAndPort())
                    .withCreatedAt(approxTime.now())
@@ -184,15 +198,20 @@ public class MessageTest
     }
 
     @Test
-    public void testFailureResponse() throws IOException
+    public void testFailureResponse() throws Exception
     {
         long expiresAt = approxTime.now();
-        Message<RequestFailureReason> msg = Message.failureResponse(1, expiresAt, RequestFailureReason.INCOMPATIBLE_SCHEMA);
+        ExecutionException cause = new ExecutionException("test", new NullPointerException());
+        Throwable root = new Throwable(cause);
+        Throwable suppressed = new Throwable();
+        root.addSuppressed(suppressed);
+        Message<RequestFailure> msg = Message.failureResponse(1, expiresAt, new RequestFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, root));
 
         assertEquals(1, msg.id());
         assertEquals(Verb.FAILURE_RSP, msg.verb());
         assertEquals(expiresAt, msg.expiresAtNanos());
-        assertEquals(RequestFailureReason.INCOMPATIBLE_SCHEMA, msg.payload);
+        assertEquals(RequestFailureReason.INCOMPATIBLE_SCHEMA, msg.payload.reason);
+        assertEquals(getStackTraceAsString(root), getStackTraceAsString(msg.payload.failure));
         assertTrue(msg.isFailureResponse());
 
         testCycle(msg);
@@ -207,23 +226,31 @@ public class MessageTest
     @Test
     public void testBuilderNotAddTraceHeaderWithNoTraceSession()
     {
-        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().withEpoch(Epoch.EMPTY).build();
         assertNull(msg.header.traceSession());
     }
 
     @Test
-    public void testCustomParams() throws CharacterCodingException, IOException
+    public void testCustomParams() throws IOException
+    {
+        for (Version version : MessagingService.Version.values())
+            if (version.value >= VERSION_40)
+                testCustomParams(version.value);
+    }
+
+    private void testCustomParams(int version) throws IOException
     {
         long id = 1;
         InetAddressAndPort from = FBUtilities.getLocalAddressAndPort();
 
         Message<NoPayload> msg =
-            Message.builder(Verb._TEST_1, noPayload)
-                   .withId(1)
-                   .from(from)
-                   .withCustomParam("custom1", "custom1value".getBytes(StandardCharsets.UTF_8))
-                   .withCustomParam("custom2", "custom2value".getBytes(StandardCharsets.UTF_8))
-                   .build();
+        Message.builder(Verb._TEST_1, noPayload)
+               .withEpoch(Epoch.EMPTY)
+               .withId(1)
+               .from(from)
+               .withCustomParam("custom1", "custom1value".getBytes(StandardCharsets.UTF_8))
+               .withCustomParam("custom2", "custom2value".getBytes(StandardCharsets.UTF_8))
+               .build();
 
         assertEquals(id, msg.id());
         assertEquals(from, msg.from());
@@ -232,9 +259,10 @@ public class MessageTest
         assertEquals("custom2value", new String(msg.header.customParams().get("custom2"), StandardCharsets.UTF_8));
 
         DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get();
-        Message.serializer.serialize(msg, out, VERSION_40);
+        out.clear();
+        Message.serializer.serialize(msg, out, version);
         DataInputBuffer in = new DataInputBuffer(out.buffer(), true);
-        msg = Message.serializer.deserialize(in, from, VERSION_40);
+        msg = Message.serializer.deserialize(in, from, version);
 
         assertEquals(id, msg.id());
         assertEquals(from, msg.from());
@@ -248,7 +276,7 @@ public class MessageTest
         try
         {
             TimeUUID sessionId = Tracing.instance.newSession(traceType);
-            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withEpoch(Epoch.FIRST).withTracingParams().build();
             assertEquals(sessionId, msg.header.traceSession());
             assertEquals(traceType, msg.header.traceType());
         }
@@ -258,13 +286,13 @@ public class MessageTest
         }
     }
 
-    private void testCycle(Message msg) throws IOException
+    private void testCycle(Message msg) throws Exception
     {
         testCycle(msg, VERSION_40);
     }
 
     // serialize (using both variants, all in one or header then rest), verify serialized size, deserialize, compare to the original
-    private void testCycle(Message msg, int version) throws IOException
+    private void testCycle(Message msg, int version) throws Exception
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -276,7 +304,7 @@ public class MessageTest
             {
                 Message msgOut = serializer.deserialize(in, msg.from(), version);
                 assertEquals(0, in.available());
-                assertMessagesEqual(msg, msgOut);
+                assertMessagesEqual(msg, msgOut, version);
             }
 
             // extract header first, then deserialize the rest of the message and compare outcomes
@@ -286,12 +314,12 @@ public class MessageTest
                 Message.Header headerOut = serializer.extractHeader(buffer, msg.from(), approxTime.now(), version);
                 Message msgOut = serializer.deserialize(in, headerOut, version);
                 assertEquals(0, in.available());
-                assertMessagesEqual(msg, msgOut);
+                assertMessagesEqual(msg, msgOut, version);
             }
         }
     }
 
-    private static void assertMessagesEqual(Message msg1, Message msg2)
+    private static void assertMessagesEqual(Message msg1, Message msg2, int version) throws Exception
     {
         assertEquals(msg1.id(),                msg2.id());
         assertEquals(msg1.verb(),              msg2.verb());
@@ -309,6 +337,19 @@ public class MessageTest
             assertTrue(payload2 == noPayload || payload2 == null);
         else if (null == payload2)
             assertSame(payload1, noPayload);
+        else if (msg1.verb() == Verb.FAILURE_RSP)
+        {
+            RequestFailure reason1 = (RequestFailure)msg1.payload;
+            RequestFailure reason2 = (RequestFailure)msg2.payload;
+            assertEquals(reason1.reason, reason2.reason);
+            if (version >= VERSION_51)
+            {
+                if (reason1.failure == null)
+                    assertNull(reason2.failure);
+                else
+                   assertEquals(getStackTraceAsString(normalizeThrowable(reason1.failure)), getStackTraceAsString(reason2.failure));
+            }
+        }
         else
             assertEquals(payload1, payload2);
     }

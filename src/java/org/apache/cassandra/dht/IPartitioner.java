@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.function.Function;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import javax.annotation.Nullable;
 
@@ -34,21 +38,7 @@ public interface IPartitioner
 {
     static IPartitioner global()
     {
-        return StorageService.instance.getTokenMetadata().partitioner;
-    }
-
-    static void validate(Collection<? extends AbstractBounds<?>> allBounds)
-    {
-        for (AbstractBounds<?> bounds : allBounds)
-            validate(bounds);
-    }
-
-    static void validate(AbstractBounds<?> bounds)
-    {
-        if (global() != bounds.left.getPartitioner())
-            throw new AssertionError(String.format("Partitioner in bounds serialization. Expected %s, was %s.",
-                                                   global().getClass().getName(),
-                                                   bounds.left.getPartitioner().getClass().getName()));
+        return DatabaseDescriptor.getPartitioner();
     }
 
     /**
@@ -82,11 +72,20 @@ public interface IPartitioner
      * The biggest token for this partitioner, unlike getMinimumToken, this token is actually used and users wanting to
      * include all tokens need to do getMaximumToken().maxKeyBound()
      *
-     * Not implemented for the ordered partitioners
+     * THIS IS NOT SAFE FOR PURPOSES BESIDES SPLITTING/BALANCING
      */
-    default Token getMaximumToken()
+    default Token getMaximumTokenForSplitting()
     {
         throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
+    }
+
+    /**
+     *
+     * @return true if supports splitting as per {@link IPartitioner#split(Token, Token, double)}, false otherwise. Defaults to false.
+     */
+    default boolean supportsSplitting()
+    {
+        return false;
     }
 
     /**
@@ -95,6 +94,16 @@ public interface IPartitioner
      * for that, use TokenFactory.fromString.)
      */
     public Token getToken(ByteBuffer key);
+
+    /**
+     * @return a Token that can be used to route a given key
+     * (This is NOT a method to create a Token from its string representation;
+     * for that, use TokenFactory.fromString.)
+     */
+    default int compareToken(ByteBuffer key, Token token)
+    {
+        return getToken(key).compareTo(token);
+    }
 
     /**
      * @return a randomly generated token
@@ -150,8 +159,24 @@ public interface IPartitioner
         return Optional.empty();
     }
 
+    Function<accord.primitives.Ranges, AccordSplitter> accordSplitter();
+
+    default boolean isFixedLength()
+    {
+        return false;
+    }
+
     default public int getMaxTokenSize()
     {
         return Integer.MIN_VALUE;
     }
+
+    default boolean accordSupported() { return false; }
+    default void accordSerialize(Token token, DataOutputPlus out) throws IOException { throw new UnsupportedOperationException(); }
+    default void accordSerialize(Token token, ByteBuffer out) { throw new UnsupportedOperationException(); }
+    default Token accordDeserialize(DataInputPlus in, int length) throws IOException { throw new UnsupportedOperationException(); }
+    default Token accordDeserialize(ByteBuffer in, int length) { throw new UnsupportedOperationException(); }
+    default <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length) { throw new UnsupportedOperationException(); }
+    default int accordSerializedSize(Token token) { throw new UnsupportedOperationException(); }
+    default int accordFixedLength() { throw new UnsupportedOperationException(); }
 }

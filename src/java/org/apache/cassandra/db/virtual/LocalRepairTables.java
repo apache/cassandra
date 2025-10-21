@@ -49,6 +49,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class LocalRepairTables
 {
     private LocalRepairTables()
@@ -134,7 +136,7 @@ public class LocalRepairTables
         {
             result.row(state.id);
             addState(result, state);
-            result.column("type", getType(state));
+            result.column("type", state.getType());
             result.column("keyspace_name", state.keyspace);
             result.column("command_id", state.cmd);
 
@@ -142,7 +144,7 @@ public class LocalRepairTables
             result.column("options_primary_range", state.options.isPrimaryRange());
             result.column("options_trace", state.options.isTraced());
             result.column("options_job_threads", state.options.getJobThreads());
-            result.column("options_subrange_repair", state.options.isSubrangeRepair());
+            result.column("options_subrange_repair", false);
             result.column("options_pull_repair", state.options.isPullRepair());
             result.column("options_force_repair", state.options.isForcedRepair());
             result.column("options_preview_kind", state.options.getPreviewKind().name());
@@ -166,26 +168,6 @@ public class LocalRepairTables
 
             ranges = state.getCommonRanges();
             result.column("unfiltered_ranges", ranges == null ? null : ranges.stream().map(c -> c.ranges).map(LocalRepairTables::toStringList).collect(Collectors.toList()));
-        }
-
-        private String getType(CoordinatorState state)
-        {
-            if (state.options.isPreview())
-            {
-                switch (state.options.getPreviewKind())
-                {
-                    case ALL: return "preview full";
-                    case REPAIRED: return "preview repaired";
-                    case UNREPAIRED: return "preview unrepaired";
-                    case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
-                    default: throw new AssertionError("Unknown preview kind: " + state.options.getPreviewKind());
-                }
-            }
-            else if (state.options.isIncremental())
-            {
-                return "incremental";
-            }
-            return "full";
         }
     }
 
@@ -385,7 +367,7 @@ public class LocalRepairTables
 
     private static String timestampColumnName(Enum<?> e)
     {
-        return timestampColumnName(e.name().toLowerCase());
+        return timestampColumnName(toLowerCaseLocalized(e.name()));
     }
 
     private static String timestampColumnName(String e)
@@ -431,7 +413,7 @@ public class LocalRepairTables
 
         T currentState = state.getStatus();
         State.Result result = state.getResult();
-        ds.column("status", result != null ? result.kind.name().toLowerCase() : currentState == null ? "init" : currentState.name().toLowerCase());
+        ds.column("status", result != null ? toLowerCaseLocalized(result.kind.name()) : currentState == null ? "init" : toLowerCaseLocalized(currentState.name()));
         for (Map.Entry<T, Long> e : state.getStateTimesMillis().entrySet())
         {
             if (e.getValue().longValue() != 0)

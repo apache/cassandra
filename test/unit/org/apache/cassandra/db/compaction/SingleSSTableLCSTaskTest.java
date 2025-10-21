@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Random;
 
+import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
@@ -101,14 +102,14 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         }
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
-        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        AbstractCompactionTask act = Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
         act.execute(ActiveCompactionsTracker.NOOP);
 
         // now all sstables are laid out non-overlapping in L1, this means that the rest of the compactions
         // will be single sstable ones, make sure that we use SingleSSTableLCSTask if singleSSTUplevel is true:
         while (lcs.getEstimatedRemainingTasks() > 0)
         {
-            act = lcs.getNextBackgroundTask(0);
+            act = Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
             assertEquals(singleSSTUplevel, act instanceof SingleSSTableLCSTask);
             act.execute(ActiveCompactionsTracker.NOOP);
         }

@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,6 +141,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
 
         public RequestTime(long enqueuedAtNanos, long startedAtNanos)
         {
+            Preconditions.checkArgument(enqueuedAtNanos != -1);
             this.enqueuedAtNanos = enqueuedAtNanos;
             this.startedAtNanos = startedAtNanos;
         }
@@ -147,6 +149,11 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         public static RequestTime forImmediateExecution()
         {
             return new RequestTime(MonotonicClock.Global.preciseTime.now());
+        }
+
+        public RequestTime withStartedAt(long startedAtNanos)
+        {
+            return new RequestTime(enqueuedAtNanos, startedAtNanos);
         }
 
         public long startedAtNanos()
@@ -424,7 +431,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         connection.applyStateTransition(request.type, response.type);
         return response;
     }
-    
+
     /**
      * Note: this method may be executed on the netty event loop.
      */

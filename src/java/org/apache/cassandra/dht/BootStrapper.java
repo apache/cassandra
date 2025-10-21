@@ -17,70 +17,133 @@
  */
 package org.apache.cassandra.dht;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifierSupport;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 public class BootStrapper extends ProgressEventNotifierSupport
 {
     private static final Logger logger = LoggerFactory.getLogger(BootStrapper.class);
+    private static final AtomicLong bootstrapFilesTotal = new AtomicLong();
+    private static final AtomicLong bootstrapFilesReceived = new AtomicLong();
+    private static final AtomicReference<String> bootstrapLastSeenStatus = new AtomicReference<>();
+    private static final AtomicReference<String> bootstrapLastSeenError = new AtomicReference<>();
 
     /* endpoint that needs to be bootstrapped */
     protected final InetAddressAndPort address;
     /* token of the node being bootstrapped. */
-    protected final Collection<Token> tokens;
-    protected final TokenMetadata tokenMetadata;
+    protected final ClusterMetadata metadata;
+    private final MovementMap movements;
+    private final MovementMap strictMovements;
 
-    public BootStrapper(InetAddressAndPort address, Collection<Token> tokens, TokenMetadata tmd)
+    static
     {
-        assert address != null;
-        assert tokens != null && !tokens.isEmpty();
-
-        this.address = address;
-        this.tokens = tokens;
-        this.tokenMetadata = tmd;
+        Metrics.<Gauge<Long>>register(StorageMetrics.factory.createMetricName("BootstrapFilesTotal"), bootstrapFilesTotal::get);
+        Metrics.<Gauge<Long>>register(StorageMetrics.factory.createMetricName("BootstrapFilesReceived"), bootstrapFilesReceived::get);
+        Metrics.<Gauge<String>>register(StorageMetrics.factory.createMetricName("BootstrapLastSeenStatus"), bootstrapLastSeenStatus::get);
+        Metrics.<Gauge<String>>register(StorageMetrics.factory.createMetricName("BootstrapLastSeenError"), bootstrapLastSeenError::get);
     }
 
-    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
+    public BootStrapper(InetAddressAndPort address,
+                        ClusterMetadata metadata,
+                        MovementMap movements,
+                        MovementMap strictMovements)
+    {
+        assert address != null;
+
+        this.address = address;
+        this.metadata = metadata;
+        this.movements = movements;
+        this.strictMovements = strictMovements;
+
+        addProgressListener((tag, event) -> {
+            ProgressEventType type = event.getType();
+            switch (type)
+            {
+                case START:
+                    bootstrapFilesTotal.set(0);
+                    bootstrapFilesReceived.set(0);
+                    bootstrapLastSeenStatus.set(event.getMessage());
+                    bootstrapLastSeenError.set("");
+                    break;
+                case PROGRESS:
+                    bootstrapFilesTotal.set(event.getTotal());
+                    bootstrapFilesReceived.set(event.getProgressCount());
+                    break;
+                case SUCCESS:
+                case COMPLETE:
+                    bootstrapLastSeenStatus.set(event.getMessage());
+                    break;
+                case ERROR:
+                    bootstrapLastSeenError.set(event.getMessage());
+                    break;
+            }
+        });
+    }
+
+    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency, InetAddressAndPort beingReplaced)
     {
         logger.trace("Beginning bootstrap process");
 
-        RangeStreamer streamer = new RangeStreamer(tokenMetadata,
-                                                   tokens,
-                                                   address,
+        RangeStreamer streamer = new RangeStreamer(metadata,
                                                    StreamOperation.BOOTSTRAP,
                                                    useStrictConsistency,
-                                                   DatabaseDescriptor.getEndpointSnitch(),
+                                                   DatabaseDescriptor.getNodeProximity(),
                                                    stateStore,
                                                    true,
-                                                   DatabaseDescriptor.getStreamingConnectionsPerHost());
-        final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.distributedKeyspaces().names();
+                                                   DatabaseDescriptor.getStreamingConnectionsPerHost(),
+                                                   movements,
+                                                   strictMovements,
+                                                   true);
+
+        if (beingReplaced != null)
+            streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(beingReplaced)));
+
+        final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
         for (String keyspaceName : nonLocalStrategyKeyspaces)
         {
-            AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-            streamer.addRanges(keyspaceName, strategy.getPendingAddressRanges(tokenMetadata, tokens, address));
+            KeyspaceMetadata ksm = metadata.schema.getKeyspaces().get(keyspaceName).get();
+            if (ksm.params.replication.isMeta())
+                continue;
+            streamer.addKeyspaceToFetch(keyspaceName);
         }
+
+        fireProgressEvent("bootstrap", new ProgressEvent(ProgressEventType.START, 0, 0, "Beginning bootstrap process"));
 
         StreamResultFuture bootstrapStreamResult = streamer.fetchAsync();
         bootstrapStreamResult.addEventListener(new StreamEventHandler()
@@ -104,6 +167,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                         StreamEvent.ProgressEvent progress = (StreamEvent.ProgressEvent) event;
                         if (progress.progress.isCompleted())
                         {
+                            StorageMetrics.bootstrapFilesThroughputMetric.mark();
                             int received = receivedFiles.incrementAndGet();
                             ProgressEvent currentProgress = new ProgressEvent(ProgressEventType.PROGRESS, received, totalFilesToReceive.get(), "received file " + progress.progress.fileName);
                             fireProgressEvent("bootstrap", currentProgress);
@@ -153,7 +217,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
      * otherwise, if allocationKeyspace is specified use the token allocation algorithm to generate suitable tokens
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, long schemaTimeoutMillis, long ringTimeoutMillis) throws ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final ClusterMetadata metadata, InetAddressAndPort address) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
         Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();
@@ -174,10 +238,10 @@ public class BootStrapper extends ProgressEventNotifierSupport
             throw new ConfigurationException("num_tokens must be >= 1");
 
         if (allocationKeyspace != null)
-            return allocateTokens(metadata, address, allocationKeyspace, numTokens, schemaTimeoutMillis, ringTimeoutMillis);
+            return allocateTokens(metadata, address, allocationKeyspace, numTokens);
 
         if (allocationLocalRf != null)
-            return allocateTokens(metadata, address, allocationLocalRf, numTokens, schemaTimeoutMillis, ringTimeoutMillis);
+            return allocateTokens(metadata, address, allocationLocalRf, numTokens);
 
         if (numTokens == 1)
             logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
@@ -187,32 +251,26 @@ public class BootStrapper extends ProgressEventNotifierSupport
         return tokens;
     }
 
-    private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
+    private static Collection<Token> getSpecifiedTokens(final ClusterMetadata metadata,
                                                         Collection<String> initialTokens)
     {
         logger.info("tokens manually specified as {}",  initialTokens);
         List<Token> tokens = new ArrayList<>(initialTokens.size());
         for (String tokenString : initialTokens)
         {
-            Token token = metadata.partitioner.getTokenFactory().fromString(tokenString);
-            if (metadata.getEndpoint(token) != null)
+            Token token = metadata.tokenMap.partitioner().getTokenFactory().fromString(tokenString);
+            if (metadata.tokenMap.owner(token) != null)
                 throw new ConfigurationException("Bootstrapping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
             tokens.add(token);
         }
         return tokens;
     }
 
-    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+    static Collection<Token> allocateTokens(final ClusterMetadata metadata,
                                             InetAddressAndPort address,
                                             String allocationKeyspace,
-                                            int numTokens,
-                                            long schemaTimeoutMillis,
-                                            long ringTimeoutMillis)
+                                            int numTokens)
     {
-        StorageService.instance.waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
-        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-            Gossiper.waitToSettle();
-
         Keyspace ks = Keyspace.open(allocationKeyspace);
         if (ks == null)
             throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
@@ -224,33 +282,35 @@ public class BootStrapper extends ProgressEventNotifierSupport
     }
 
 
-    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+    static Collection<Token> allocateTokens(final ClusterMetadata metadata,
                                             InetAddressAndPort address,
                                             int rf,
-                                            int numTokens,
-                                            long schemaTimeoutMillis,
-                                            long ringTimeoutMillis)
+                                            int numTokens)
     {
-        StorageService.instance.waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
-        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-            Gossiper.waitToSettle();
-
         Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rf, address, numTokens);
         BootstrapDiagnostics.tokensAllocated(address, metadata, rf, numTokens, tokens);
         return tokens;
     }
 
-    public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
+    public static Set<Token> getRandomTokens(ClusterMetadata metadata, int numTokens)
     {
         Set<Token> tokens = new HashSet<>(numTokens);
         while (tokens.size() < numTokens)
         {
-            Token token = metadata.partitioner.getRandomToken();
-            if (metadata.getEndpoint(token) == null)
+            Token token = metadata.tokenMap.partitioner().getRandomToken();
+            if (metadata.tokenMap.owner(token) == null)
                 tokens.add(token);
         }
 
         logger.info("Generated random tokens. tokens are {}", tokens);
         return tokens;
+    }
+
+    public String toString()
+    {
+        return "BootStrapper{" +
+               "address=" + address +
+               ", metadata=" + metadata +
+               '}';
     }
 }

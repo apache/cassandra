@@ -117,6 +117,6 @@ public class MD5Digest
     public int size()
     {
         return bytes.length + //bytes
-               4; // int hashCode
+                4; // int hashCode
     }
 }

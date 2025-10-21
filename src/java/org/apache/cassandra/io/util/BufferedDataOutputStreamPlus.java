@@ -27,6 +27,7 @@ import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NIO_DATA_OUTPUT_STREAM_PLUS_BUFFER_SIZE;
 
@@ -139,6 +140,25 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     }
 
     @Override
+    public void writeMemory(long address, int length) throws IOException
+    {
+        assert buffer != null : "Attempt to use a closed data output";
+        long srcPos = address;
+        int srcCount = length;
+        int trgAvailable;
+        while (srcCount > (trgAvailable = buffer.remaining()))
+        {
+            MemoryUtil.getBytes(srcPos, buffer, trgAvailable);
+            buffer.position(buffer.position() + trgAvailable);
+            srcPos += trgAvailable;
+            srcCount -= trgAvailable;
+            doFlush(srcCount);
+        }
+        MemoryUtil.getBytes(srcPos, buffer, srcCount);
+        buffer.position(buffer.position() + srcCount);
+    }
+
+    @Override
     public void write(int b) throws IOException
     {
         assert buffer != null : "Attempt to use a closed data output";
@@ -174,6 +194,22 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         {
             int pos = buffer.position();
             buffer.putLong(pos, register);
+            buffer.position(pos + bytes);
+        }
+    }
+
+    @Override
+    public void writeLeastSignificantBytes(long register, int bytes) throws IOException
+    {
+        assert buffer != null : "Attempt to use a closed data output";
+        if (buffer.remaining() < Long.BYTES)
+        {
+            super.writeLeastSignificantBytes(register, bytes);
+        }
+        else
+        {
+            int pos = buffer.position();
+            buffer.putLong(pos, register << (64 - (bytes * 8)));
             buffer.position(pos + bytes);
         }
     }
@@ -287,7 +323,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
 
         doFlush(0);
         channel.close();
-        FileUtils.clean(buffer);
+        MemoryUtil.clean(buffer);
         buffer = null;
     }
 

@@ -18,15 +18,14 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "setmaxhintwindow", description = "Set the specified max hint window in ms")
-public class SetMaxHintWindow extends NodeTool.NodeToolCmd
+public class SetMaxHintWindow extends AbstractCommand
 {
-    @Arguments(title = "max_hint_window", usage = "<value_in_ms>", description = "Value of maxhintwindow in ms", required = true)
+    @Parameters(paramLabel = "max_hint_window", description = "Value of maxhintwindow in ms", arity = "1")
     private Integer maxHintWindow = null;
 
     @Override

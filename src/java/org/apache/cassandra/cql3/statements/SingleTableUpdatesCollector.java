@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -94,25 +96,36 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
      * @return a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state)
+    public List<IMutation> toMutations(ClientState state, PotentialTxnConflicts potentialTxnConflicts)
     {
+        if (puBuilders.size() == 1)
+        {
+            PartitionUpdate.Builder builder = puBuilders.values().iterator().next();
+            return Collections.singletonList(createMutation(state, builder, potentialTxnConflicts));
+        }
         List<IMutation> ms = new ArrayList<>(puBuilders.size());
         for (PartitionUpdate.Builder builder : puBuilders.values())
         {
-            IMutation mutation;
-
-            if (metadata.isVirtual())
-                mutation = new VirtualMutation(builder.build());
-            else if (metadata.isCounter())
-                mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
-            else
-                mutation = new Mutation(builder.build());
-
-            mutation.validateIndexedColumns(state);
-            mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
+            IMutation mutation = createMutation(state, builder, potentialTxnConflicts);
             ms.add(mutation);
         }
 
         return ms;
+    }
+
+    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, PotentialTxnConflicts potentialTxnConflicts)
+    {
+        IMutation mutation;
+
+        if (metadata.isVirtual())
+            mutation = new VirtualMutation(builder.build());
+        else if (metadata.isCounter())
+            mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
+        else
+            mutation = new Mutation(builder.build(), potentialTxnConflicts);
+
+        mutation.validateIndexedColumns(state);
+        mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
+        return mutation;
     }
 }

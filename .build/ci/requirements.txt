@@ -18,4 +18,4 @@
 # Changes to this file must also be put into
 
 beautifulsoup4==4.12.3
-jinja2==3.1.3
+jinja2==3.1.5

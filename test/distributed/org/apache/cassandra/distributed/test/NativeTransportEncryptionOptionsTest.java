@@ -40,6 +40,9 @@ import com.datastax.shaded.netty.handler.ssl.SslContext;
 import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.transport.TlsTestUtils;
+
+import static org.junit.Assert.assertNotNull;
 
 public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
@@ -79,13 +82,12 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         }
     }
 
-
     @Test
     public void optionalTlsConnectionAllowedWithKeystoreTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
-            c.set("client_encryption_options", validKeystore);
+            c.set("client_encryption_options", validFileBasedKeystores);
         }).createWithoutStarting())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
@@ -101,62 +103,11 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         }
     }
 
-    @Test
-    public void optionalTlsConnectionAllowedToRegularPortTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NATIVE_PROTOCOL);
-            c.set("native_transport_port_ssl", 9043);
-            c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("enabled", false)
-                              .put("optional", true)
-                              .build());
-        }).createWithoutStarting())
-        {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
-            int unencrypted_port = (int) cluster.get(1).config().get("native_transport_port");
-            int ssl_port = (int) cluster.get(1).config().get("native_transport_port_ssl");
-
-            // Create the connections and prove they cannot connect before server start
-            TlsConnection connectionToUnencryptedPort = new TlsConnection(address.getHostAddress(), unencrypted_port);
-            connectionToUnencryptedPort.assertCannotConnect();
-
-            TlsConnection connectionToEncryptedPort = new TlsConnection(address.getHostAddress(), ssl_port);
-            connectionToEncryptedPort.assertCannotConnect();
-
-            cluster.startup();
-
-            Assert.assertEquals("TLS native connection should be possible to native_transport_port_ssl",
-                                ConnectResult.NEGOTIATED, connectionToEncryptedPort.connect());
-            Assert.assertEquals("TLS native connection should not be possible on the regular port if an SSL port is specified",
-                                ConnectResult.FAILED_TO_NEGOTIATE, connectionToUnencryptedPort.connect()); // but did connect
-        }
-    }
-
-    @Test
-    public void unencryptedNativeConnectionNotlisteningOnTlsPortTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NATIVE_PROTOCOL);
-            c.set("native_transport_port_ssl", 9043);
-            c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("enabled", false)
-                              .put("optional", false)
-                              .build());
-        }).createWithoutStarting())
-        {
-            assertCannotStartDueToConfigurationException(cluster);
-        }
-    }
-
-
     /**
      * Tests that the negotiated protocol is the highest common protocol between the client and server.
-     * <p> 
-     * Note: This test uses TLSV1.1, which is disabled by default in JDK 8 and higher. If the test fails with 
-     * FAILED_TO_NEGOTIATE, it may be necessary to check the java.security file in your JDK installation and remove 
+     * <p>
+     * Note: This test uses TLSV1.1, which is disabled by default in JDK 8 and higher. If the test fails with
+     * FAILED_TO_NEGOTIATE, it may be necessary to check the java.security file in your JDK installation and remove
      * TLSv1.1 from the jdk.tls.disabledAlgorithms.
      * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-18540">CASSANDRA-18540</a>
      * @see <a href="https://senthilnayagan.medium.com/tlsv1-and-tlsv1-1-protocols-disabled-by-default-in-javas-latest-patch-released-on-april-20-2021-52c309f6b16d">
@@ -168,7 +119,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
                               .build());
@@ -205,7 +156,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
                               .put("cipher_suites", Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
@@ -278,12 +229,162 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         testEndpointVerification(true, true);
     }
 
+    @Test
+    public void testOptionalMtlsModeAllowNonSSLConnections() throws Exception
+    {
+        // When server is configured in optional mTLS mode and allowing ssl connections, it should accept
+        // non-ssl, ssl, mTLS based connections
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
+                              .put("enabled", true)
+                              .put("require_client_auth", "optional")
+                              .put("optional", true)
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+
+            // non-ssl connections should succeed
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                            .addContactPoint(address.getHostAddress())
+                                                                                            .build())
+            {
+                assertNotNull(nonSSLDriver.connect());
+            }
+
+            // ssl connections should succeed
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                         .addContactPoint(address.getHostAddress())
+                                                                                         .withSSL(sslOptions(false))
+                                                                                         .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
+
+            // mtls connections should succeed
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                          .addContactPoint(address.getHostAddress())
+                                                                                          .withSSL(sslOptions(true))
+                                                                                          .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
+        }
+    }
+
+    @Test
+    public void testOptionalMtlsModeDoNotAllowNonSSLConnections() throws Exception
+    {
+        // When server is configured in optional mTLS mode restricting non-ssl connections, it should accept
+        // ssl, mTLS based connections and reject any non-ssl based connections
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
+                              .put("enabled", true)
+                              .put("require_client_auth", "optional")
+                              .put("optional", false)
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+
+            // ssl connections should succeed
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                              .addContactPoint(address.getHostAddress())
+                                                                                              .withSSL(sslOptions(false))
+                                                                                              .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
+
+            // mtls connections should succeed
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                          .addContactPoint(address.getHostAddress())
+                                                                                          .withSSL(sslOptions(true))
+                                                                                          .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
+
+            // non-ssl connections should not succeed
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                            .addContactPoint(address.getHostAddress())
+                                                                                            .build())
+            {
+                expectedException.expect(NoHostAvailableException.class);
+                nonSSLDriver.connect();
+            }
+        }
+    }
+
+    @Test
+    public void testOptionalSSLMode() throws Exception
+    {
+        // When server is configured in optional ssl mode, it should accept
+        // non-ssl, ssl
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            // Server configuration for optional mTLS mode
+            c.with(Feature.NATIVE_PROTOCOL);
+            c.set("client_encryption_options",
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
+                              .put("enabled", true)
+                              .put("require_client_auth", "false")
+                              .put("optional", true)
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+
+            // non-ssl connections should succeed
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                                 .addContactPoint(address.getHostAddress())
+                                                                                                 .build())
+            {
+                assertNotNull(nonSSLDriver.connect());
+            }
+
+            // ssl connections should succeed
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                              .addContactPoint(address.getHostAddress())
+                                                                                              .withSSL(sslOptions(false))
+                                                                                              .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
+
+            // mtls connections should succeed
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                               .addContactPoint(address.getHostAddress())
+                                                                                               .withSSL(sslOptions(true))
+                                                                                               .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
+        }
+    }
+
+    private SSLOptions sslOptions(boolean withKeyStore) throws Exception
+    {
+        SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
+        sslContextBuilder.trustManager(createTrustManagerFactory(TlsTestUtils.SERVER_TRUSTSTORE_PATH, TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD));
+        if (withKeyStore)
+        {
+            sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH, TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD));
+        }
+
+        SslContext sslContext = sslContextBuilder.build();
+        return socketChannel -> sslContext.newHandler(socketChannel.alloc());
+    }
+
     private void testEndpointVerification(boolean requireEndpointVerification, boolean ipInSAN) throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL);
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("require_client_auth", true)
                               .put("require_endpoint_verification", requireEndpointVerification)
@@ -293,24 +394,26 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
             SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
             if (ipInSAN)
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_endpoint_verify.keystore", "cassandra"));
+                sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PATH, TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PASSWORD));
             else
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra"));
+                sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH, TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD));
 
-            SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory("test/conf/cassandra_ssl_test.truststore", "cassandra"))
+            SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory(TlsTestUtils.SERVER_TRUSTSTORE_PATH, TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD))
                                                      .build();
             final SSLOptions sslOptions = socketChannel -> sslContext.newHandler(socketChannel.alloc());
-            com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
-                                                                                             .addContactPoint(address.getHostAddress())
-                                                                                             .withSSL(sslOptions)
-                                                                                             .build();
 
-            if (!ipInSAN)
+            try (com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
+                                                                                                  .addContactPoint(address.getHostAddress())
+                                                                                                  .withSSL(sslOptions)
+                                                                                                  .build())
             {
-                expectedException.expect(NoHostAvailableException.class);
-            }
+                if (!ipInSAN)
+                {
+                    expectedException.expect(NoHostAvailableException.class);
+                }
 
-            driverCluster.connect();
+                driverCluster.connect();
+            }
         }
     }
 

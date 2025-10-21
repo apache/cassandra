@@ -39,18 +39,15 @@ import org.apache.cassandra.cql3.CQLTester;
 @RunWith(Parameterized.class)
 public class InsertUpdateIfConditionStaticsTest extends CQLTester
 {
-    @Parameterized.Parameter(0)
-    public String clusterMinVersion;
-
-    @Parameterized.Parameter(1)
-    public Runnable assertion;
-
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
         ServerTestUtils.daemonInitialization();
         return InsertUpdateIfConditionTest.data();
     }
+
+    @Parameterized.Parameter(0)
+    public String clusterMinVersion;
 
     @BeforeClass
     public static void beforeClass()
@@ -61,7 +58,7 @@ public class InsertUpdateIfConditionStaticsTest extends CQLTester
     @Before
     public void before()
     {
-        InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion, assertion);
+        InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion);
     }
 
     @AfterClass

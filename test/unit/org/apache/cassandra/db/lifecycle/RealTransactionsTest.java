@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,7 +43,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -65,7 +66,7 @@ public class RealTransactionsTest extends SchemaLoader
     @BeforeClass
     public static void setUp()
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, REWRITE_FINISHED_CF),

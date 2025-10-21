@@ -67,6 +67,10 @@ install: build
 	dh_install $(BUILD_DIR)/tools/lib/fqltool.jar \
 		usr/share/cassandra
 
+	# Copy sstableloader jars
+	dh_install $(BUILD_DIR)/tools/lib/sstableloader.jar \
+		usr/share/cassandra
+
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
 
@@ -78,7 +82,7 @@ binary-indep: build install
 	dh_testroot
 	dh_installchangelogs
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
-	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt
+	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt .snyk
 	dh_installexamples tools/*.yaml
 	dh_bash-completion
 	dh_compress

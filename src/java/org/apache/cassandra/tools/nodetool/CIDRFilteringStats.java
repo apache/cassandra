@@ -22,18 +22,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import picocli.CommandLine.Command;
 
 /**
  * Nodetool command to view stats related to CIDR filtering
  */
 @Command(name = "cidrfilteringstats", description = "Print statistics on CIDR filtering")
-public class CIDRFilteringStats extends NodeToolCmd
+public class CIDRFilteringStats extends AbstractCommand
 {
     private void printCountsMetrics(NodeProbe probe, PrintStream out)
     {

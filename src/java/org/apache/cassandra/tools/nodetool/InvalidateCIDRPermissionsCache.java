@@ -20,18 +20,19 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Command;
 
 /**
  * Nodetool command to invalidate CIDR permissions cache, for a give role or for all roles in the cache.
  */
 @Command(name = "invalidatecidrpermissionscache", description = "Invalidate the cidr permissions cache")
-public class InvalidateCIDRPermissionsCache extends NodeToolCmd
+public class InvalidateCIDRPermissionsCache extends AbstractCommand
 {
-    @Arguments(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
+    @CassandraUsage(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
+    @Parameters(paramLabel = "roles", description = "List of roles to invalidate. By default, all roles", index = "0..*")
     private List<String> args = new ArrayList<>();
 
     @Override

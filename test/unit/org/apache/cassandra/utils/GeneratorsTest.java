@@ -18,11 +18,21 @@
 
 package org.apache.cassandra.utils;
 
+import java.util.List;
+import java.util.Objects;
+import java.util.Random;
+
 import com.google.common.net.InternetDomainName;
 import org.junit.Test;
 
+import accord.utils.Property;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.JavaRandom;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.quicktheories.QuickTheory.qt;
 
 public class GeneratorsTest
@@ -44,5 +54,43 @@ public class GeneratorsTest
     public void dnsDomainName()
     {
         qt().forAll(Generators.DNS_DOMAIN_NAME).checkAssert(InternetDomainName::from);
+    }
+
+    @Test
+    public void asciiDeterministic()
+    {
+        AbstractTypeGenerators.TypeSupport<String> support = AbstractTypeGenerators.TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 10), stringComparator(AsciiType.instance));
+        int samples = 100;
+        int attempts = 100;
+        Property.qt().check(rs -> checkDeterministicGeneration(attempts, samples, rs.nextLong(), support.valueGen));
+        Property.qt().check(rs -> checkDeterministicGeneration(attempts, samples, rs.nextLong(), support.bytesGen()));
+    }
+
+    @Test
+    public void asciiThereAndBackAgain()
+    {
+        qt().forAll(SourceDSL.strings().ascii().ofLengthBetween(1, 100)).checkAssert(ascii -> {
+            String accum = ascii;
+            for (int i = 0; i < 100; i++)
+                accum = AsciiType.instance.compose(AsciiType.instance.decompose(accum));
+            Assertions.assertThat(accum).isEqualTo(ascii);
+        });
+    }
+
+    private static <T> void checkDeterministicGeneration(int attempts, int samples, long seed, Gen<T> gen)
+    {
+        List<T> goldSet = null;
+        for (int i = 0; i < attempts; i++)
+        {
+            JavaRandom qt = new JavaRandom(new Random(seed));
+            List<T> sample = SourceDSL.lists().of(gen).ofSize(samples).generate(qt);
+            if (goldSet == null)
+            {
+                goldSet = sample;
+                continue;
+            }
+            if (!Objects.equals(sample, goldSet))
+                throw new AssertionError("seed=" + seed);
+        }
     }
 }

@@ -312,8 +312,9 @@ public class CommitLogArchiver
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
                 if (toFile.exists())
                 {
-                    logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
-                                 fromFile.path(), toFile.path());
+                    if (logger.isTraceEnabled())
+                        logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
+                                     fromFile.path(), toFile.path());
                     continue;
                 }
 

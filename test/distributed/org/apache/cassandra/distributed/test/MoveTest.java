@@ -48,7 +48,6 @@ public class MoveTest extends TestBaseImpl
 
     private void move(boolean forwards) throws Throwable
     {
-        // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(4)
                                       .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP))
                                       .withoutVNodes()
@@ -63,9 +62,9 @@ public class MoveTest extends TestBaseImpl
             }
 
             List<String> initialTokens = new ArrayList<>();
-            for (int i=0; i<cluster.size(); i++)
+            for (int i=1; i<=cluster.size(); i++)
             {
-                String token = cluster.get(i + 1).callsOnInstance(() -> Iterables.getOnlyElement(StorageService.instance.getLocalTokens()).toString()).call();
+                String token = cluster.get(i).callsOnInstance(() -> Iterables.getOnlyElement(StorageService.instance.getLocalTokens()).toString()).call();
                 initialTokens.add(token);
             }
             Assert.assertEquals(Lists.newArrayList("-4611686018427387905",

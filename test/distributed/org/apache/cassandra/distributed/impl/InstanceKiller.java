@@ -45,7 +45,7 @@ public class InstanceKiller extends JVMStabilityInspector.Killer
     }
 
     @Override
-    protected void killCurrentJVM(Throwable t, boolean quiet)
+    public void killCurrentJVM(Throwable t, boolean quiet)
     {
         KILL_ATTEMPTS.incrementAndGet();
         onKill.accept(quiet);

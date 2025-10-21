@@ -21,14 +21,9 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicates;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,15 +34,21 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -82,27 +83,8 @@ public class WriteResponseHandlerTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Register peers with expected DC for NetworkTopologyStrategy.
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.255"));
-        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.2.0.255"));
-
-        DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
+        NodeProximity sorter = new BaseProximity()
         {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return null;
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.getAddress().getAddress();
-                if (address[1] == 1)
-                    return "datacenter1";
-                else
-                    return "datacenter2";
-            }
-
             public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C replicas)
             {
                 return replicas;
@@ -113,24 +95,22 @@ public class WriteResponseHandlerTest
                 return 0;
             }
 
-            public void gossiperStarting()
-            {
-
-            }
-
             public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
             {
                 return false;
             }
-        });
+        };
+        DatabaseDescriptor.setNodeProximity(sorter);
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.1.0.1"));
-        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
-        ks = Keyspace.open("Foo");
-        cfs = ks.getColumnFamilyStore("Bar");
         targets = EndpointsForToken.of(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)),
                                        full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
                                        full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
+        for (InetAddressAndPort ep : targets.endpoints())
+            ClusterMetadataTestHelper.register(ep, ep.addressBytes[1] == 1 ? "datacenter1" : "datacenter2", "rack1");
         pending = EndpointsForToken.empty(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)));
+        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
+        ks = Keyspace.open("Foo");
+        cfs = ks.getColumnFamilyStore("Bar");
     }
 
     @Before
@@ -258,8 +238,8 @@ public class WriteResponseHandlerTest
 
 
         //Fail in remote DC
-        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
 
         assertEquals(startingCountForWriteFailedIdealCL + 1, ks.metric.writeFailedIdealCL.getCount());
@@ -301,14 +281,14 @@ public class WriteResponseHandlerTest
 
 
         //Fail in local DC
-        awr.onFailure(targets.get(0).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(0).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(1).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(2));
 
 
         //Fail in remote DC
-        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
-        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
 
         assertEquals(startingCountForWriteFailedIdealCL, ks.metric.writeFailedIdealCL.getCount());
@@ -323,7 +303,7 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, targets, pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
+        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
                                                                    null, WriteType.SIMPLE, null, requestTime, ideal);
     }
 

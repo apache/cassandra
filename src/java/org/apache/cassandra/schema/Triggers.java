@@ -17,15 +17,24 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+
 import static com.google.common.collect.Iterables.filter;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class Triggers implements Iterable<TriggerMetadata>
 {
+    public static final Serializer serializer = new Serializer();
+
     private final ImmutableMap<String, TriggerMetadata> triggers;
 
     private Triggers(Builder builder)
@@ -149,6 +158,36 @@ public final class Triggers implements Iterable<TriggerMetadata>
         {
             triggers.forEach(this::add);
             return this;
+        }
+    }
+
+    public static class Serializer implements MetadataSerializer<Triggers>
+    {
+        public void serialize(Triggers t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeInt(t.triggers.size());
+            for (TriggerMetadata tm : t.triggers.values())
+                TriggerMetadata.serializer.serialize(tm, out, version);
+        }
+
+        public Triggers deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            int size = in.readInt();
+            Builder builder = builder();
+            for (int i = 0; i < size; i++)
+            {
+                TriggerMetadata tm = TriggerMetadata.serializer.deserialize(in, version);
+                builder.add(tm);
+            }
+            return builder.build();
+        }
+
+        public long serializedSize(Triggers t, Version version)
+        {
+            int size = sizeof(t.triggers.size());
+            for (TriggerMetadata tm : t.triggers.values())
+                size += TriggerMetadata.serializer.serializedSize(tm, version);
+            return size;
         }
     }
 }

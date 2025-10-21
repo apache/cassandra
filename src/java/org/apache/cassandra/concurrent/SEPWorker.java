@@ -33,12 +33,13 @@ import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.T
 import static org.apache.cassandra.config.CassandraRelevantProperties.SET_SEP_THREAD_NAME;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
+final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable, DebuggableTask.DebuggableTaskRunner
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
     private static final boolean SET_THREAD_NAME = SET_SEP_THREAD_NAME.getBoolean();
 
     final Long workerId;
+    final String workerIdThreadSuffix;
     final Thread thread;
     final SharedExecutorPool pool;
 
@@ -55,16 +56,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         this.pool = pool;
         this.workerId = workerId;
+        this.workerIdThreadSuffix = '-' + workerId.toString();
         thread = new FastThreadLocalThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
         thread.start();
     }
 
-    /**
-     * @return the current {@link DebuggableTask}, if one exists
-     */
-    public DebuggableTask currentDebuggableTask()
+    @Override
+    public DebuggableTask running()
     {
         // can change after null check so go off local reference
         Runnable task = currentTask.get();
@@ -75,8 +75,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
         if (task instanceof FutureTask)
             return ((FutureTask<?>) task).debuggableTask();
-            
+
         return null;
+    }
+
+    // note this is not guaranteed to be in sync with running()
+    @Override
+    public String id()
+    {
+        return thread.getName();
     }
 
     public void run()
@@ -122,7 +129,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 if (assigned == null)
                     continue;
                 if (SET_THREAD_NAME)
-                    Thread.currentThread().setName(assigned.name + '-' + workerId);
+                    Thread.currentThread().setName(assigned.name + workerIdThreadSuffix);
 
                 task = assigned.tasks.poll();
                 currentTask.lazySet(task);

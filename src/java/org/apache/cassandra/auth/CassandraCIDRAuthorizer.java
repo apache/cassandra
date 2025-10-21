@@ -19,7 +19,6 @@
 package org.apache.cassandra.auth;
 
 import java.net.InetAddress;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * CassandraCIDRAuthorizer is backend for CIDR authorization checks
@@ -50,7 +51,7 @@ public class CassandraCIDRAuthorizer extends AbstractCIDRAuthorizer
     public CassandraCIDRAuthorizer(Map<String, String> params)
     {
         cidrAuthorizerMode = (params != null && params.containsKey(CIDR_AUTHORIZER_MODE_PARAM))
-                             ? CIDRAuthorizerMode.valueOf(params.get(CIDR_AUTHORIZER_MODE_PARAM).toUpperCase(Locale.US))
+                             ? CIDRAuthorizerMode.valueOf(toUpperCaseLocalized(params.get(CIDR_AUTHORIZER_MODE_PARAM)))
                              : CIDRAuthorizerMode.MONITOR;
     }
 

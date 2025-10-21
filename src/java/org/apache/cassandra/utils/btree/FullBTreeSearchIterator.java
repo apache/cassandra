@@ -79,8 +79,7 @@ public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTre
                     state = END;
                 break;
             case BEFORE_FIRST:
-                seekTo(index = forwards ? lowerBound : upperBound);
-                state = (byte) (upperBound == lowerBound ? LAST : MIDDLE);
+                moveStart();
             case LAST:
             case MIDDLE:
                 state |= ON_ITEM;
@@ -90,6 +89,30 @@ public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTre
         }
 
         return current();
+    }
+
+    private void moveStart()
+    {
+        seekTo(index = forwards ? lowerBound : upperBound);
+        state = (byte) (upperBound == lowerBound ? LAST : MIDDLE);
+    }
+
+    @Override
+    public V peek()
+    {
+        if (state == END)
+            throw new NoSuchElementException();
+
+        if (state == BEFORE_FIRST)
+            moveStart();
+
+        if ((state & ON_ITEM) == 1)
+        {
+            state &= ~ON_ITEM;
+            if (compareToLast(index = moveOne(forwards)) >= 0)
+                state = LAST;
+        }
+        return (V) currentValue();
     }
 
     public V next(K target)

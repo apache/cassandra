@@ -50,6 +50,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.RepairAdmin
+ */
 public class IncRepairAdminTest extends TestBaseImpl
 {
     @Test

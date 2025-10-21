@@ -1,0 +1,130 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.distributed.test.accord;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.accord.AccordService;
+
+public class AccordIntegrationTest extends AccordTestBase
+{
+    private static final Logger logger = LoggerFactory.getLogger(AccordIntegrationTest.class);
+
+    @Override
+    protected Logger logger()
+    {
+        return logger;
+    }
+
+    @BeforeClass
+    public static void setUp() throws IOException
+    {
+        AccordTestBase.setupCluster(Function.identity(), 2);
+    }
+    
+    @Test
+    public void testRecovery() throws Exception
+    {
+        pauseSimpleProgressLog();
+        test(cluster -> {
+            IMessageFilters.Filter lostApply = cluster.filters().verbs(Verb.ACCORD_APPLY_REQ.id).drop();
+            IMessageFilters.Filter lostCommit = cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).to(2).drop();
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "  LET row1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=0 AND c=0);\n" +
+                           "  SELECT row1.v;\n" +
+                           "  IF row1 IS NULL THEN\n" +
+                           "    INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 0, 1);\n" +
+                           "  END IF\n" +
+                           "COMMIT TRANSACTION";
+            // row1.v shouldn't have existed when the txn's SELECT was executed
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, query);
+
+            lostApply.off();
+            lostCommit.off();
+
+            query = "BEGIN TRANSACTION\n" +
+                    "  LET row1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=0 AND c=0);\n" +
+                    "  SELECT row1.v;\n" +
+                    "  IF row1.v = 1 THEN\n" +
+                    "    UPDATE " + qualifiedAccordTableName + " SET v=2 WHERE k = 0 AND c = 0;\n" +
+                    "  END IF\n" +
+                    "COMMIT TRANSACTION";
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1 }, query);
+
+            String check = "BEGIN TRANSACTION\n" +
+                    "  SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ? AND c = ?;\n" +
+                    "COMMIT TRANSACTION";
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 2}, check, 0, 0);
+
+            query = "BEGIN TRANSACTION\n" +
+                    "  LET row1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=0 AND c=0);\n" +
+                    "  SELECT row1.v;\n" +
+                    "  IF row1 IS NULL THEN\n" +
+                    "    INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 0, 3);\n" +
+                    "  END IF\n" +
+                    "COMMIT TRANSACTION";
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2 }, query);
+
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 2}, check, 0, 0);
+        });
+    }
+
+    @Test
+    public void testLostCommitReadTriggersFallbackRead() throws Exception
+    {
+        pauseSimpleProgressLog();
+        test(cluster -> {
+            // It's expected that the required Read will happen regardless of whether this fails to return a read
+            final AtomicBoolean droppedOne = new AtomicBoolean();
+            cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> !droppedOne.getAndSet(true)).drop();
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c = 0);\n" +
+                           "  SELECT row1.v;\n" +
+                           "  IF row1 IS NULL THEN\n" +
+                           "    INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (0, 0, 1);\n" +
+                           "  END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, query);
+
+            String check = "BEGIN TRANSACTION\n" +
+                           "  SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ? AND c = ?;\n" +
+                           "COMMIT TRANSACTION";
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check, 0, 0);
+        });
+    }
+
+    private void pauseSimpleProgressLog()
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop()));
+    }
+}

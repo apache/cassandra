@@ -26,6 +26,7 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -42,8 +43,10 @@ public final class DropIndexStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         TableMetadata table = null == keyspace

@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import io.netty.util.concurrent.Promise; //checkstyle: permit this import
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import org.slf4j.Logger;
@@ -65,6 +66,9 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
@@ -138,8 +142,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("creating outbound bootstrap to {}", settings);
+        logger.trace("creating outbound bootstrap to {}", settings);
 
         if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
         {
@@ -228,7 +231,8 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                if (logger.isTraceEnabled())
+                    logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
@@ -241,14 +245,18 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
         {
-            boolean requireClientAuth = false;
-            if (connectionType == SslFallbackConnectionType.MTLS || connectionType == SslFallbackConnectionType.SSL)
+            EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth = NOT_REQUIRED;
+            if (connectionType == SslFallbackConnectionType.MTLS )
             {
-                requireClientAuth = true;
+                requireClientAuth = REQUIRED;
+            }
+            else if(connectionType == SslFallbackConnectionType.SSL)
+            {
+                requireClientAuth = OPTIONAL;
             }
             else if (connectionType == SslFallbackConnectionType.SERVER_CONFIG)
             {
-                requireClientAuth = settings.withEncryption();
+                requireClientAuth = settings.withEncryption() ? REQUIRED: NOT_REQUIRED;
             }
             return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
         }

@@ -65,6 +65,15 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
         return elem;
     }
 
+    @Override
+    public V peek()
+    {
+        if (!hasNext)
+            throw new NoSuchElementException();
+
+        return (V) keys[nextPos];
+    }
+
     public boolean hasNext()
     {
         return hasNext;

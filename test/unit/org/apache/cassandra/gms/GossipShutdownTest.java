@@ -30,6 +30,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.assertj.core.api.Assertions;
 
 public class GossipShutdownTest
@@ -40,7 +42,9 @@ public class GossipShutdownTest
     @BeforeClass
     public static void beforeClass()
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test

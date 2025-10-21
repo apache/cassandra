@@ -18,13 +18,21 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -115,7 +123,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
-    public AbstractType<?> freeze()
+    public SetType<T> freeze()
     {
         // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
         return isMultiCell ? getInstance(this.elements.freeze(), false) : this;
@@ -215,7 +223,7 @@ public class SetType<T> extends CollectionType<Set<T>>
                     "Expected a list (representing a set), but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
         List<?> list = (List<?>) parsed;
-        Set<Term> terms = new HashSet<>(list.size());
+        List<Term> terms = new ArrayList<>(list.size());
         for (Object element : list)
         {
             if (element == null)
@@ -223,7 +231,7 @@ public class SetType<T> extends CollectionType<Set<T>>
             terms.add(elements.fromJSONObject(element));
         }
 
-        return new Sets.DelayedValue(elements, terms);
+        return new MultiElements.DelayedValue(this, terms);
     }
 
     @Override
@@ -242,5 +250,31 @@ public class SetType<T> extends CollectionType<Set<T>>
     public ByteBuffer getMaskedValue()
     {
         return decompose(Collections.emptySet());
+    }
+
+    @Override
+    public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
+    {
+        SortedSet<ByteBuffer> sorted = new TreeSet<>(elements);
+        for (ByteBuffer buffer: buffers)
+        {
+            if (buffer == null)
+                throw new MarshalException("null is not supported inside collections");
+            elements.validate(buffer);
+            sorted.add(buffer);
+        }
+        return new ArrayList<>(sorted);
+    }
+
+    @Override
+    protected int compareNextCell(Iterator<Cell<?>> cellIterator, Iterator<ByteBuffer> elementIter)
+    {
+        return getElementsType().compare(cellIterator.next().path().get(0), elementIter.next());
+    }
+
+    @Override
+    public boolean contains(ComplexColumnData columnData, ByteBuffer value)
+    {
+        return columnData.getCell(CellPath.create(value)) != null;
     }
 }

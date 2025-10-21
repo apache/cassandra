@@ -65,7 +65,7 @@ CDC logging must be enabled in cassandra.yaml.
 ====
 Before enabling CDC logging, have a plan for moving and consuming the log information.
 After the disk space limit is reached, writes to CDC-enabled tables are rejected until more space is freed.
-See https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/configCassandra_yaml.html#configCassandra_yaml__cdcSpaceSection[Change-data-capture (CDC) space settings] for information about available CDC settings.
+See https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/configCassandra_yaml.html#cdcSpaceSection[Change-data-capture (CDC) space settings] for information about available CDC settings.
 ====
 
 == Storing data in descending order

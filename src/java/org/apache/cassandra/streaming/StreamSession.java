@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,12 +44,11 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -70,9 +68,19 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.messages.*;
+import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
+import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.streaming.messages.PrepareAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynMessage;
+import org.apache.cassandra.streaming.messages.ReceivedMessage;
+import org.apache.cassandra.streaming.messages.SessionFailedMessage;
+import org.apache.cassandra.streaming.messages.StreamInitMessage;
+import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -454,6 +462,7 @@ public class StreamSession
         //Range and if it's transient
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
         List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
+
         addTransferStreams(streams);
         Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
         if (toBeUpdated == null)
@@ -765,19 +774,23 @@ public class StreamSession
 
     /**
      * Prepare this session for sending/receiving files.
+     *
+     * @return the prepare future for testing
      */
-    public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    public Future<Exception> prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
         // prepare tasks
         state(State.PREPARING);
-        ScheduledExecutors.nonPeriodicTasks.execute(() -> {
+        return ScheduledExecutors.nonPeriodicTasks.submit(() -> {
             try
             {
                 prepareAsync(requests, summaries);
+                return null;
             }
             catch (Exception e)
             {
                 onError(e);
+                return e;
             }
         });
     }
@@ -792,7 +805,7 @@ public class StreamSession
      * so the logic should not execute on the main IO thread (read: netty event loop).
      */
     @VisibleForTesting
-    public void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
         if (StreamOperation.REPAIR == streamOperation())
             checkAvailableDiskSpaceAndCompactions(summaries);
@@ -848,6 +861,36 @@ public class StreamSession
         startStreamingFiles(PrepareDirection.ACK);
     }
 
+    protected Future<?> sendControlMessage(StreamMessage message)
+    {
+        return channel.sendControlMessage(message);
+    }
+
+    private void processStreamRequests(Collection<StreamRequest> requests)
+    {
+        List<StreamRequest> rejectedRequests = new ArrayList<>();
+
+        // group requests by keyspace
+        Multimap<String, StreamRequest> requestsByKeyspace = ArrayListMultimap.create();
+        requests.forEach(r -> requestsByKeyspace.put(r.keyspace, r));
+
+        requestsByKeyspace.asMap().forEach((ks, reqs) ->
+                                           {
+                                               OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks, getBroadcastAddressAndPort());
+
+                                               reqs.forEach(req ->
+                                                            {
+                                                                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
+                                                                if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
+                                                                    addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true); // always flush on stream request
+                                                                else
+                                                                    rejectedRequests.add(req);
+                                                            });
+                                           });
+
+        if (!rejectedRequests.isEmpty())
+            throw new StreamRequestOutOfTokenRangeException(rejectedRequests);
+    }
     /**
      * In the case where we have an error checking disk space we allow the Operation to continue.
      * In the case where we do _not_ have available space, this method raises a RTE.
@@ -1005,32 +1048,6 @@ public class StreamSession
         return true;
     }
 
-    private void processStreamRequests(Collection<StreamRequest> requests)
-    {
-        List<StreamRequest> rejectedRequests = new ArrayList<>();
-
-        // group requests by keyspace
-        Multimap<String, StreamRequest> requestsByKeyspace = ArrayListMultimap.create();
-        requests.forEach(r -> requestsByKeyspace.put(r.keyspace, r));
-
-        requestsByKeyspace.asMap().forEach((ks, reqs) ->
-        {
-            OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks);
-
-            reqs.forEach(req ->
-            {
-                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
-                if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
-                    addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true); // always flush on stream request
-                else
-                    rejectedRequests.add(req);
-            });
-        });
-
-        if (!rejectedRequests.isEmpty())
-            throw new StreamRequestOutOfTokenRangeException(rejectedRequests);
-    }
-
     /**
      * Call back after sending StreamMessageHeader.
      *
@@ -1054,12 +1071,6 @@ public class StreamSession
         {
             task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.getStreamTransferTaskTimeout().toMilliseconds(), TimeUnit.MILLISECONDS);
         }
-    }
-
-    @VisibleForTesting
-    protected Future<?> sendControlMessage(StreamMessage message)
-    {
-        return channel.sendControlMessage(message);
     }
 
     /**
@@ -1258,7 +1269,7 @@ public class StreamSession
     {
         failIfFinished();
         if (summary.files > 0)
-            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
+            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.ranges, summary.files, summary.totalSize));
     }
 
     private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)
@@ -1295,8 +1306,16 @@ public class StreamSession
         return requests.size();
     }
 
-    @VisibleForTesting
     public int getNumTransfers()
+    {
+        return transfers.size();
+    }
+
+    //TODO (now, review): there were 2 tests that use this (nothing else) and both are checking that its > 1... but in both cases they are checking if there are transfer tasks, but there isn't any as the range doesn't have data...
+    // This looks like AccordBootstrapTest and LocalSyncTaskTest have a test bug, so rather than fixing this method was created to keep the old semantic...
+    @Deprecated(since = "5.1")
+    @VisibleForTesting
+    public int getNumKeyspaceTransfers()
     {
         return transferredRangesPerKeyspace.size();
     }

@@ -21,7 +21,11 @@ package org.apache.cassandra.schema;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import accord.utils.Gen;
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.utils.ConfigGenBuilder;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.InheritingClass;
@@ -29,6 +33,9 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static accord.utils.Property.qt;
+import static org.apache.cassandra.config.YamlConfigurationLoader.fromMap;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -213,6 +220,26 @@ public class MemtableParamsTest
                      map);
     }
     // Note: The factories constructed from these parameters are tested in the CreateTest and AlterTest.
+
+    @Test
+    public void testExpandDefinitions()
+    {
+        Gen<Map<String, InheritingClass>> gen = new ConfigGenBuilder()
+                                                .buildMemtable()
+                                                .map(m -> fromMap(m, Config.class))
+                                                .map(c -> c.memtable.configurations);
+        qt().forAll(gen).check(configs -> {
+            Map<String, ParameterizedClass> result = MemtableParams.expandDefinitions(configs);
+            assertThat(result.keySet()).isEqualTo(configs.keySet());
+            for (Map.Entry<String, InheritingClass> e : configs.entrySet()) {
+                if (e.getValue().inherits == null) continue;
+                ParameterizedClass parent = result.get(e.getValue().inherits);
+                ParameterizedClass src = result.get(e.getKey());
+                assertThat(src.class_name).isEqualTo(parent.class_name);
+                assertThat(src.parameters).isEqualTo(parent.parameters);
+            }
+        });
+    }
 
     @Test
     public void testInheritsNonExistent()

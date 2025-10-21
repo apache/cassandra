@@ -54,7 +54,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
 import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
@@ -70,6 +70,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
@@ -176,7 +177,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
 
         cfs.getTracker().subscribe(this);
-        logger.trace("{} subscribed to the data tracker.", this);
+        logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
         this.cfs = cfs;
         this.compactionLogger = new CompactionLogger(cfs, this);
         this.boundariesSupplier = boundariesSupplier;
@@ -194,26 +195,26 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Returns a task for the compaction strategy that needs it the most (most estimated remaining tasks)
      */
-    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    public Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
             if (!isEnabled())
-                return null;
+                return Collections.emptyList();
 
             int numPartitions = getNumTokenPartitions();
 
             // first try to promote/demote sstables from completed repairs
-            AbstractCompactionTask repairFinishedTask;
-            repairFinishedTask = pendingRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            Collection<AbstractCompactionTask> repairFinishedTasks;
+            repairFinishedTasks = pendingRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
-            repairFinishedTask = transientRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            repairFinishedTasks = transientRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
             // sort compaction task suppliers by remaining tasks descending
             List<TaskSupplier> suppliers = new ArrayList<>(numPartitions * holders.size());
@@ -225,12 +226,12 @@ public class CompactionStrategyManager implements INotificationConsumer
             // return the first non-null task
             for (TaskSupplier supplier : suppliers)
             {
-                AbstractCompactionTask task = supplier.getTask();
-                if (task != null)
-                    return task;
+                Collection<AbstractCompactionTask> tasks = supplier.getTasks();
+                if (tasks != null && !tasks.isEmpty())
+                    return tasks;
             }
 
-            return null;
+            return Collections.emptyList();
         }
         finally
         {
@@ -904,6 +905,11 @@ public class CompactionStrategyManager implements INotificationConsumer
                 SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
                 handleFlushNotification(flushedNotification.added);
             }
+            else if (notification instanceof InitialSSTableAddedNotification)
+            {
+                InitialSSTableAddedNotification flushedNotification = (InitialSSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
+            }
             else if (notification instanceof SSTableListChangedNotification)
             {
                 SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
@@ -1073,7 +1079,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, OperationType operationType)
+    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, int permittedParallelism, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1091,6 +1097,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                         tasks.add(task.setCompactionType(operationType));
                     }
                 }
+                tasks = CompositeCompactionTask.applyParallelismLimit(tasks, permittedParallelism);
             }
             finally
             {
@@ -1250,7 +1257,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
         maybeReloadDiskBoundaries();
@@ -1266,7 +1273,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               sstableLevel,
                                                                                               header,
                                                                                               indexGroups,
-                                                                                              lifecycleNewTracker);
+                                                                                              txn);
         }
         finally
         {

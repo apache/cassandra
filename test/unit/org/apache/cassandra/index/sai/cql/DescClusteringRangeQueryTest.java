@@ -45,6 +45,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c >= 2 AND c <= 3 AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, 3, "MA"), row (0, 2, "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN 2 AND 3 AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, 3, "MA"), row (0, 2, "MA"));
         });
     }
 
@@ -64,6 +66,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c >= 2 AND c <= 3 AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, 3L, "MA"), row (0, 2L, "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN 2 AND 3 AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, 3L, "MA"), row (0, 2L, "MA"));
         });
     }
 
@@ -83,6 +87,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c >= 2 AND c <= 3 AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, new BigInteger("3"), "MA"), row (0, new BigInteger("2"), "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN 2 AND 3 AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, new BigInteger("3"), "MA"), row (0, new BigInteger("2"), "MA"));
         });
     }
 
@@ -102,6 +108,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c > 1.9 AND c < 3.0 AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, new BigDecimal("2.9"), "MA"), row (0, new BigDecimal("2.1"), "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN 1.9 AND 3.0 AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, new BigDecimal("2.9"), "MA"), row (0, new BigDecimal("2.1"), "MA"));
         });
     }
 
@@ -121,6 +129,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c >= '127.0.0.2' AND c <= '127.0.0.3' AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, InetAddress.getByName("127.0.0.3"), "MA"), row (0, InetAddress.getByName("127.0.0.2"), "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN '127.0.0.2' AND '127.0.0.3' AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, InetAddress.getByName("127.0.0.3"), "MA"), row (0, InetAddress.getByName("127.0.0.2"), "MA"));
         });
     }
 
@@ -140,6 +150,8 @@ public class DescClusteringRangeQueryTest extends SAITester
         {
             ResultSet rangeRowsNet = executeNet("SELECT * FROM %s WHERE c >= 2 AND c <= 3 AND abbreviation = 'MA'");
             assertRowsNet(rangeRowsNet, row (0, 3, "MA"), row (0, 2, "MA"));
+            ResultSet betweenRowsNet = executeNet("SELECT * FROM %s WHERE c BETWEEN 2 AND 3 AND abbreviation = 'MA'");
+            assertRowsNet(betweenRowsNet, row (0, 3, "MA"), row (0, 2, "MA"));
         });
     }
 }

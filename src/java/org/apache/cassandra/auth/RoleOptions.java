@@ -89,6 +89,11 @@ public class RoleOptions
         return Optional.ofNullable((String)options.get(IRoleManager.Option.PASSWORD));
     }
 
+    public boolean isGeneratedPassword()
+    {
+        return (Boolean) options.getOrDefault(IRoleManager.Option.GENERATED_PASSWORD, Boolean.FALSE);
+    }
+
     /**
      * Return the string value of the hashed password option.
      * @return hashed password option value
@@ -163,6 +168,14 @@ public class RoleOptions
                     {
                         throw new InvalidRequestException("Invalid hashed password value. Please use jBcrypt.");
                     }
+                    break;
+                case GENERATED_PASSWORD:
+                    if (options.containsKey(IRoleManager.Option.PASSWORD))
+                        throw new InvalidRequestException(String.format("Properties '%s' and '%s' are mutually exclusive",
+                                                                        IRoleManager.Option.PASSWORD, IRoleManager.Option.GENERATED_PASSWORD));
+                    if (options.containsKey(IRoleManager.Option.HASHED_PASSWORD))
+                        throw new InvalidRequestException(String.format("Properties '%s' and '%s' are mutually exclusive",
+                                                                        IRoleManager.Option.HASHED_PASSWORD, IRoleManager.Option.GENERATED_PASSWORD));
                     break;
                 case OPTIONS:
                     if (!(option.getValue() instanceof Map))

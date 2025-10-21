@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
@@ -35,19 +36,19 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
@@ -160,22 +161,21 @@ public abstract class CASTestBase extends TestBaseImpl
             UUID hostId = config.hostId();
             Gossiper.runInGossipStageBlocking(() -> {
                 Gossiper.instance.initializeNodeUnsafe(address, hostId, 1);
-                Gossiper.instance.injectApplicationState(address,
-                                                         ApplicationState.TOKENS,
-                                                         new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
-                VersionedValue status = bootstrapping
-                                        ? new VersionedValue.VersionedValueFactory(partitioner).bootstrapping(Collections.singleton(token))
-                                        : new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token));
-                Gossiper.instance.injectApplicationState(address, ApplicationState.STATUS, status);
-                StorageService.instance.onChange(address, ApplicationState.STATUS, status);
+                                Gossiper.instance.injectApplicationState(address,
+                                                                         ApplicationState.TOKENS,
+                                                                         new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
+                                VersionedValue status = bootstrapping
+                                                        ? new VersionedValue.VersionedValueFactory(partitioner).bootstrapping(Collections.singleton(token))
+                                                        : new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token));
+                                Gossiper.instance.injectApplicationState(address, ApplicationState.STATUS, status);
+                                StorageService.instance.onChange(address, ApplicationState.STATUS, status);
                 Gossiper.instance.realMarkAlive(address, Gossiper.instance.getEndpointStateForEndpoint(address));
             });
             int version = Math.min(MessagingService.current_version, peer.getMessagingVersion());
             MessagingService.instance().versions.set(address, version);
 
             if (!bootstrapping)
-                assert StorageService.instance.getTokenMetadata().isMember(address);
-            PendingRangeCalculatorService.instance.blockUntilFinished();
+                assert ClusterMetadata.current().directory.allAddresses().contains(address);
         }
         catch (Throwable e) // UnknownHostException
         {
@@ -186,32 +186,14 @@ public abstract class CASTestBase extends TestBaseImpl
     public static void assertVisibleInRing(IInstance peer)
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(peer.broadcastAddress());
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline && !Gossiper.instance.isAlive(endpoint));
         Assert.assertTrue(Gossiper.instance.isAlive(endpoint));
     }
 
-    // reset gossip state so we know of the node being alive only
-    public static void removeFromRing(IInstance peer)
+    public static void removeFromRing(IInvokableInstance peer)
     {
-        try
-        {
-            IInstanceConfig config = peer.config();
-            IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
-            Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
-            InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
-
-            Gossiper.runInGossipStageBlocking(() -> {
-                StorageService.instance.onChange(address,
-                                                 ApplicationState.STATUS,
-                                                 new VersionedValue.VersionedValueFactory(partitioner).left(Collections.singleton(token), 0L, 0));
-                Gossiper.instance.unsafeAnnulEndpoint(address);
-                Gossiper.instance.realMarkAlive(address, new EndpointState(new HeartBeatState(0, 0)));
-            });
-            PendingRangeCalculatorService.instance.blockUntilFinished();
-        }
-        catch (Throwable e) // UnknownHostException
-        {
-            throw new RuntimeException(e);
-        }
+        peer.runOnInstance(() -> ClusterMetadataTestHelper.leave(FBUtilities.getBroadcastAddressAndPort()));
     }
 
     public static void assertNotVisibleInRing(IInstance peer)
@@ -223,7 +205,7 @@ public abstract class CASTestBase extends TestBaseImpl
     public static void addToRingNormal(IInstance peer)
     {
         addToRing(false, peer);
-        assert StorageService.instance.getTokenMetadata().isMember(InetAddressAndPort.getByAddress(peer.broadcastAddress()));
+        assert ClusterMetadata.current().directory.allAddresses().contains(InetAddressAndPort.getByAddress(peer.broadcastAddress()));
     }
 
     public static void addToRingBootstrapping(IInstance peer)

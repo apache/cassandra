@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "getbatchlogreplaythrottle", description = "Print batchlog replay throttle in KB/s. " +
                                                            "This is reduced proportionally to the number of nodes in the cluster.")
-public class GetBatchlogReplayTrottle extends NodeToolCmd
+public class GetBatchlogReplayTrottle extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

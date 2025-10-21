@@ -19,7 +19,10 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.ForwardingInfo;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -41,7 +44,6 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         Tracing.trace("Payload application resulted in WriteTimeout, not replying");
     }
 
-    @Override
     public void doVerb(Message<Mutation> message)
     {
         if (approxTime.now() > message.expiresAtNanos())
@@ -69,7 +71,6 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         }
     }
 
-    @Override
     protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
         message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());

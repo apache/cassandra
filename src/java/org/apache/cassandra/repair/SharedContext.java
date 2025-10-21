@@ -32,17 +32,18 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.IGossiper;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Access methods to shared resources and services.
@@ -51,6 +52,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
  *
  * See {@link Global#instance} for the main production path
  */
+// TODO (required, clarity): move under Util since this is a class with shared logic
 public interface SharedContext
 {
     InetAddressAndPort broadcastAddressAndPort();
@@ -74,15 +76,23 @@ public interface SharedContext
         };
     }
     IFailureDetector failureDetector();
-    IEndpointSnitch snitch();
+    Locator locator();
     IGossiper gossiper();
     ICompactionManager compactionManager();
     ActiveRepairService repair();
     IValidationManager validationManager();
     TableRepairManager repairManager(ColumnFamilyStore store);
     StreamExecutor streamExecutor();
-    PendingRangeCalculatorService pendingRangeCalculator();
     PaxosRepairState paxosRepairState();
+    default Supplier<TimeUUID> timeUUID()
+    {
+        return TimeUUID.Generator::nextTimeUUID;
+    }
+
+    default ClusterMetadataService cms()
+    {
+        return ClusterMetadataService.instance();
+    }
 
     class Global implements SharedContext
     {
@@ -149,9 +159,9 @@ public interface SharedContext
         }
 
         @Override
-        public IEndpointSnitch snitch()
+        public Locator locator()
         {
-            return DatabaseDescriptor.getEndpointSnitch();
+            return DatabaseDescriptor.getLocator();
         }
 
         @Override
@@ -188,12 +198,6 @@ public interface SharedContext
         public StreamExecutor streamExecutor()
         {
             return StreamPlan::execute;
-        }
-
-        @Override
-        public PendingRangeCalculatorService pendingRangeCalculator()
-        {
-            return PendingRangeCalculatorService.instance;
         }
 
         @Override
@@ -278,9 +282,9 @@ public interface SharedContext
         }
 
         @Override
-        public IEndpointSnitch snitch()
+        public Locator locator()
         {
-            return delegate().snitch();
+            return delegate().locator();
         }
 
         @Override
@@ -317,12 +321,6 @@ public interface SharedContext
         public StreamExecutor streamExecutor()
         {
             return delegate().streamExecutor();
-        }
-
-        @Override
-        public PendingRangeCalculatorService pendingRangeCalculator()
-        {
-            return delegate().pendingRangeCalculator();
         }
 
         @Override

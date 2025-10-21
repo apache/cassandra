@@ -49,7 +49,7 @@ public class PartitionIteratorMergeListener<E extends Endpoints<E>>
         return new RowIteratorMergeListener<>(partitionKey, columns(versions), isReversed(versions), replicaPlan, command, readRepair);
     }
 
-    protected RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
+    public static RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
     {
         Columns statics = Columns.NONE;
         Columns regulars = Columns.NONE;

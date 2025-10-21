@@ -28,50 +28,61 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.netty.util.concurrent.Future;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.messages.SessionFailedMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
+import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.*;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.generateRangesAtEndpoint;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.setLocalTokens;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import static org.apache.cassandra.streaming.StreamTestUtils.session;
-import static org.apache.cassandra.streaming.messages.StreamMessage.Type.COMPLETE;
-import static org.apache.cassandra.streaming.messages.StreamMessage.Type.PREPARE_SYNACK;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.generateRangesAtEndpoint;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.setLocalTokens;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.token;
 
 public class StreamSessionOwnedRangesTest
 {
-    private static final String TEST_NAME = "strmsn_owned_ranges_test_";
+    private static final String TEST_NAME = "stream_owned_ranges_test_";
     private static final String KEYSPACE = TEST_NAME + "cql_keyspace";
     private static final String TABLE = "table1";
+
+    static
+    {
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+    }
 
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.loadSchema();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.recreateCMS();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ServerTestUtils.markCMS();
+        StorageService.instance.unsafeSetInitialized();
     }
 
     @Before
     public void setup() throws Exception
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
+        ServerTestUtils.resetCMS();
         // All tests suppose a 2 node ring, with the other peer having the tokens 0, 200, 300
         // Initially, the local node has no tokens so when indivividual test set owned tokens or
         // pending ranges for the local node, they're always in relation to this.
@@ -86,10 +97,7 @@ public class StreamSessionOwnedRangesTest
         // e.g. test calls setPendingRanges(0, 100, 200, 300)
         // the pending ranges for local would be calculated as:
         // local -> (0, 100], (200, 300]
-        StorageService.instance.getTokenMetadata().updateNormalTokens(Lists.newArrayList(token(0),
-                                                                                         token(200),
-                                                                                         token(400)),
-                                                                      node1);
+        ClusterMetadataTestHelper.addEndpoint(node1, Lists.newArrayList(token(0), token(200), token(400)));
     }
 
     @Test
@@ -100,15 +108,11 @@ public class StreamSessionOwnedRangesTest
         Collection<StreamRequest> requests = streamRequests(generateRangesAtEndpoint(endpoint, 0, 10, 70, 80),
                                                             RangesAtEndpoint.empty(endpoint));
 
-        // prepare request should succeed with or without rejection enabled
-        tryPrepareExpectingSuccess(requests, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryPrepareExpectingSuccess(requests, false);
+        tryPrepareExpectingSuccess(requests);
     }
 
     @Test
-    public void testPrepareWithAllRequestedRangesOutsideOwned()
+    public void testPrepareWithAllRequestedRangesOutsideOwned() throws Exception
     {
         setLocalTokens(100);
         InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
@@ -117,13 +121,10 @@ public class StreamSessionOwnedRangesTest
                                                             RangesAtEndpoint.empty(endpoint));
 
         tryPrepareExpectingFailure(requests);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryPrepareExpectingSuccess(requests, true);
     }
 
     @Test
-    public void testPrepareWithSomeRequestedRangesOutsideOwned()
+    public void testPrepareWithSomeRequestedRangesOutsideOwned() throws Exception
     {
         setLocalTokens(100);
         InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
@@ -132,12 +133,9 @@ public class StreamSessionOwnedRangesTest
                                                             RangesAtEndpoint.empty(endpoint));
 
         tryPrepareExpectingFailure(requests);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        tryPrepareExpectingSuccess(requests, true);
     }
 
-    private static void tryPrepareExpectingSuccess(Collection<StreamRequest> requests, boolean isOutOfRange)
+    private static void tryPrepareExpectingSuccess(Collection<StreamRequest> requests)
     {
         final List<StreamMessage> sent = new ArrayList<>();
         StreamSession session = session(sent);
@@ -152,26 +150,29 @@ public class StreamSessionOwnedRangesTest
         assertEquals(PREPARE_SYNACK, sent.get(0).type);
         assertEquals(COMPLETE, sent.get(1).type);
 
-        assertEquals(startMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
+        assertEquals(startMetricCount, StorageMetrics.totalOpsForInvalidToken.getCount());
     }
 
-    private static void tryPrepareExpectingFailure(Collection<StreamRequest> requests)
+    private static void tryPrepareExpectingFailure(Collection<StreamRequest> requests) throws Exception
     {
         final List<StreamMessage> sent = new ArrayList<>();
         StreamSession session = session(sent);
         sent.clear();
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
-        try
-        {
-            session.state(StreamSession.State.PREPARING);
-            session.prepareAsync(requests, Collections.emptySet());
-            fail("Expected StreamRequestOfTokenRangeException");
+
+        session.state(StreamSession.State.PREPARING);
+        java.util.concurrent.Future<Exception> f = session.prepare(requests, Collections.emptySet());
+        Exception ex = f.get();
+        assertNotNull(ex);
+        if (!(ex instanceof StreamRequestOutOfTokenRangeException))
+        {   // Unexpected exception
+            throw ex;
         }
-        catch (StreamRequestOutOfTokenRangeException e)
-        {
-            // expected
-        }
-        assertTrue(sent.isEmpty());
+
+        // make sure we sent a SessionFailedMessage
+        assertEquals(1, sent.size());
+        for (StreamMessage msg : sent)
+            assertTrue(msg instanceof SessionFailedMessage);
         assertEquals(startMetricCount + 1, StorageMetrics.totalOpsForInvalidToken.getCount());
     }
 
@@ -183,5 +184,38 @@ public class StreamSessionOwnedRangesTest
                                                        transientRanges,
                                                        Collections.singleton(TABLE)));
 
+    }
+
+    static StreamSession session(List<StreamMessage> sentMessages)
+    {
+        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.REPAIR, 1, streamingFactory(), false, false, null, PreviewKind.NONE);
+        StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.REPAIR, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+
+        StreamSession session = new StreamSession(StreamOperation.REPAIR,
+                                                  node1,
+                                                  StreamReaderTest.channelFactory,
+                                                  null,
+                                                  current_version,
+                                                  true,
+                                                  0,
+                                                  null,
+                                                  PreviewKind.NONE)
+        {
+            @Override
+            public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
+            {
+                //no-op
+            }
+
+            @Override
+            protected Future<?> sendControlMessage(StreamMessage message)
+            {
+                sentMessages.add(message);
+                return ImmediateFuture.success(null);
+            }
+
+        };
+        session.init(future);
+        return session;
     }
 }

@@ -36,7 +36,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -72,10 +72,10 @@ public abstract class AbstractCompactionStrategy
     protected static final boolean DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION = false;
     protected static final boolean DEFAULT_LOG_ALL_OPTION = false;
 
-    protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
+    public static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
     // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
-    protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
+    public static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
     protected static final String LOG_ALL_OPTION = "log_all";
     protected static final String COMPACTION_ENABLED = "enabled";
     public static final String ONLY_PURGE_REPAIRED_TOMBSTONES = "only_purge_repaired_tombstones";
@@ -92,7 +92,7 @@ public abstract class AbstractCompactionStrategy
     private final Directories directories;
 
     /**
-     * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
+     * pause/resume/getNextBackgroundTasks must synchronize.  This guarantees that after pause completes,
      * no new tasks will be generated; or put another way, pause can't run until in-progress tasks are
      * done being created.
      *
@@ -176,21 +176,22 @@ public abstract class AbstractCompactionStrategy
     /**
      * @param gcBefore throw away tombstones older than this
      *
-     * @return the next background/minor compaction task to run; null if nothing to do.
+     * @return the next background/minor compaction tasks to run; an empty collection if nothing to do.
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final long gcBefore);
+    public abstract Collection<AbstractCompactionTask> getNextBackgroundTasks(final long gcBefore);
 
     /**
-     * @param gcBefore throw away tombstones older than this
-     *
-     * @return a compaction task that should be run to compact this columnfamilystore
-     * as much as possible.  Null if nothing to do.
-     *
+     * @param gcBefore             throw away tombstones older than this
+     * @return A list of compaction tasks that should be run to compact this columnfamilystore
+     *         as much as possible. Empty if nothing to do.
+     *         Order matters if a parallelism limit is applied, as the tasks are run in way that parallelizes ones that
+     *         are close together in the list.
+     * <p>
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput);
+    public abstract List<AbstractCompactionTask> getMaximalTasks(final long gcBefore, boolean splitOutput);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -418,7 +419,7 @@ public abstract class AbstractCompactionStrategy
             // there is no overlap, tombstones are safely droppable
             return true;
         }
-        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), overlaps, gcBefore).size() > 0)
+        else if (CompactionController.getFullyExpiredSSTables(cfs, Collections.singleton(sstable), s -> overlaps, gcBefore).size() > 0)
         {
             return true;
         }
@@ -561,7 +562,7 @@ public abstract class AbstractCompactionStrategy
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         return SimpleSSTableMultiWriter.create(descriptor,
                                                keyCount,
@@ -573,7 +574,7 @@ public abstract class AbstractCompactionStrategy
                                                sstableLevel,
                                                header,
                                                indexGroups,
-                                               lifecycleNewTracker, cfs);
+                                               txn, cfs);
     }
 
     public boolean supportsEarlyOpen()

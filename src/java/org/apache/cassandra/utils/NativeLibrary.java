@@ -35,6 +35,7 @@ import org.apache.cassandra.io.FSWriteError;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
@@ -102,7 +103,7 @@ public final class NativeLibrary
             default: wrappedLibrary = new NativeLibraryLinux();
         }
 
-        if (OS_ARCH.getString().toLowerCase().contains("ppc"))
+        if (toLowerCaseLocalized(OS_ARCH.getString()).contains("ppc"))
         {
             if (osType == LINUX)
             {
@@ -134,7 +135,7 @@ public final class NativeLibrary
      */
     private static OSType getOsType()
     {
-        String osName = OS_NAME.getString().toLowerCase();
+        String osName = toLowerCaseLocalized(OS_NAME.getString());
         if  (osName.contains("linux"))
             return LINUX;
         else if (osName.contains("mac"))
@@ -432,5 +433,10 @@ public final class NativeLibrary
         }
 
         return -1;
+    }
+
+    public static boolean isEnabled()
+    {
+        return REQUIRE;
     }
 }

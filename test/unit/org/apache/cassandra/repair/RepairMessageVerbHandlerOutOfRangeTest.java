@@ -26,18 +26,19 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.apache.cassandra.utils.Clock;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
@@ -55,20 +56,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.*;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
-
-import static org.apache.cassandra.utils.TokenRangeTestUtil.MessageDelivery;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.broadcastAddress;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.generateRange;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.generateRanges;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.randomInt;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.registerOutgoingMessageSink;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.setLocalTokens;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.token;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.uuid;
 
 public class RepairMessageVerbHandlerOutOfRangeTest
 {
@@ -78,23 +72,28 @@ public class RepairMessageVerbHandlerOutOfRangeTest
     private static final String TABLE = "table1";
     private static List<TableId> tableIds;
 
+    static
+    {
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+    }
+
     @BeforeClass
     public static void init() throws Exception
     {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.loadSchema();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.recreateCMS();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ServerTestUtils.markCMS();
+        StorageService.instance.unsafeSetInitialized();
         tableIds = Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata().id);
     }
 
     @Before
     public void setup() throws Exception
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
+        ServerTestUtils.resetCMS();
         // All tests suppose a 2 node ring, with the other peer having the tokens 0, 200, 300
         // Initially, the local node has no tokens so when indivividual test set owned tokens or
         // pending ranges for the local node, they're always in relation to this.
@@ -109,21 +108,23 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         // e.g. test calls setPendingRanges(0, 100, 200, 300)
         // the pending ranges for local would be calculated as:
         // local -> (0, 100], (200, 300]
-        StorageService.instance.getTokenMetadata().updateNormalTokens(Lists.newArrayList(token(0),
-                                                                                         token(200),
-                                                                                         token(400)),
-                                                                      node1);
+        ClusterMetadataTestHelper.addEndpoint(node1, Lists.newArrayList(token(0), token(200), token(400)));
     }
+
+    /*******************************************************************************
+     *
+     * PrepareMessage handling tests. A prepare request contains the entire set of ranges to be repaired.
+     * Where subrange repairs are not being used (or potentially where the specified range intersects the
+     * ranges of multiple instances) asserting the ranges at this point could cause the PREPARE message to
+     * be rejected by some or all participants and so the parent repair fails.
+     *
+     ******************************************************************************/
 
     @Test
     public void testPrepareWithAllRequestedRangesWithinOwned() throws Exception
     {
         setLocalTokens(100);
         PrepareMessage prepare = prepareMsg(generateRanges(10, 20));
-        tryPrepareExpectingSuccess(prepare);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        prepare = prepareMsg(generateRanges(10, 20)); // recreate same request with unused parent id
         tryPrepareExpectingSuccess(prepare);
     }
 
@@ -133,10 +134,6 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         setLocalTokens(100);
         PrepareMessage prepare = prepareMsg(generateRanges(110, 120));
         tryPrepareExpectingSuccess(prepare);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        prepare = prepareMsg(generateRanges(110, 120)); // recreate same request with unused parent id
-        tryPrepareExpectingSuccess(prepare);
     }
 
     @Test
@@ -145,21 +142,20 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         setLocalTokens(100);
         PrepareMessage prepare = prepareMsg(generateRanges(10, 20, 110, 120));
         tryPrepareExpectingSuccess(prepare);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        prepare = prepareMsg(generateRanges(10, 20, 110, 120)); // recreate same request with unused parent id
-        tryPrepareExpectingSuccess(prepare);
     }
+
+    /*******************************************************************************
+     *
+     * ValidationRequest handling tests. The ranges in Validation requests _are_ verified
+     * as the repair coordinator should tailor the ranges for these to the specific endpoint.
+     *
+     ******************************************************************************/
 
     @Test
     public void testValidationRequestWithRequestedRangeWithinOwned() throws Exception
     {
         setLocalTokens(100);
         ValidationRequest request = validationMsg(generateRange(10, 20));
-        tryValidationExpectingSuccess(request, false);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        request = validationMsg(generateRange(10, 20)); // recreate same request with unused parent id
         tryValidationExpectingSuccess(request, false);
     }
 
@@ -169,10 +165,6 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         setLocalTokens(100);
         ValidationRequest request = validationMsg(generateRange(110, 120));
         tryValidationExpectingFailure(request);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        request = validationMsg(generateRange(110, 120)); // recreate same request with unused parent id
-        tryValidationExpectingSuccess(request, true);
     }
 
     @Test
@@ -181,10 +173,6 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         setLocalTokens(100);
         ValidationRequest request = validationMsg(generateRange(10, 120));
         tryValidationExpectingFailure(request);
-
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        request = validationMsg(generateRange(10, 120)); // recreate same request with unused parent id
-        tryValidationExpectingSuccess(request, true);
     }
 
     private static void tryValidationExpectingFailure(ValidationRequest request) throws Exception
@@ -202,23 +190,32 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink(true);
-        RepairMessageVerbHandler handler = new RepairMessageVerbHandler();
+        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink(Verb.REPAIR_RSP);
+        RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
         int messageId = randomInt();
         // message must be prepared first as validate checks it is registered.
         PrepareMessage prepare = prepareMsg(request.desc.parentSessionId, request.desc.ranges);
-        ActiveRepairService.instance().register(new ParticipateState(new Clock.Default(), node1, prepare));
+        ActiveRepairService.instance().register(new ParticipateState(SharedContext.Global.instance.clock(), node1, prepare));
         Message<RepairMessage> message = Message.builder(Verb.VALIDATION_REQ, (RepairMessage)request).from(node1).withId(messageId).build();
         handler.doVerb(message);
-        // Then sends the real response
-        MessageDelivery response = messageSink.get(500, TimeUnit.MILLISECONDS);
-        assertEquals(Verb.VALIDATION_RSP, response.message.verb());
-        assertEquals(broadcastAddress, response.message.from());
-        assertEquals(node1, response.to);
-        assertTrue(response.message.payload instanceof ValidationResponse);
-        ValidationResponse completion = (ValidationResponse) response.message.payload;
-        assertEquals(expectSuccess, completion.success());
-        assertEquals(startMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
+        ClusterMetadataTestHelper.MessageDelivery response = messageSink.get(500, TimeUnit.MILLISECONDS);
+        if (expectSuccess)
+        {
+            assertEquals(Verb.VALIDATION_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertTrue(response.message.payload instanceof ValidationResponse);
+            ValidationResponse completion = (ValidationResponse) response.message.payload;
+            assertTrue(completion.success());
+            assertEquals(startMetricCount, StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
+        else
+        {
+            assertEquals(Verb.FAILURE_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertEquals(startMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
     }
 
     private static void tryPrepareExpectingSuccess(PrepareMessage prepare) throws Exception
@@ -226,8 +223,8 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink(false);
-        RepairMessageVerbHandler handler = new RepairMessageVerbHandler();
+        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
+        RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
         int messageId = randomInt();
         Message<RepairMessage> message = Message.builder(Verb.PREPARE_MSG, (RepairMessage)prepare).from(node1).withId(messageId).build();
         handler.doVerb(message);
@@ -247,7 +244,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
     }
     private static PrepareMessage prepareMsg(TimeUUID parentRepairSession, Collection<Range<Token>> ranges)
     {
-        return new PrepareMessage(parentRepairSession, tableIds, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE);
+        return new PrepareMessage(parentRepairSession, tableIds, Murmur3Partitioner.instance, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE);
     }
 
     private static ValidationRequest validationMsg(Range<Token> range)
@@ -265,7 +262,12 @@ public class RepairMessageVerbHandlerOutOfRangeTest
                                                                  true,
                                                                  PreviewKind.NONE);
         return new ValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
-                                     randomInt());
+                                     randomInt(), false);
+    }
+
+    public static TimeUUID uuid()
+    {
+        return nextTimeUUID();
     }
 }
 

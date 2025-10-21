@@ -90,7 +90,7 @@ Tombstoned records within the grace period are excluded from xref:managing/opera
 ====
 +
 In a single-node cluster, this property can safely be set to zero.
-You can also reduce this value for tables whose data is not explicitly deleted -- for example, tables containing only data with https://cassandra.apache.org/_/glossary.html#gloss_ttl[TTL] set, or tables with `default_time_to_live` set.
+You can also reduce this value for tables whose data is not explicitly deleted -- for example, tables containing only data with https://cassandra.apache.org/_/glossary.html#ttl[TTL] set, or tables with `default_time_to_live` set.
 However, if you lower the `gc_grace_seconds` value, consider its interaction with these operations:
 +
 
@@ -127,7 +127,7 @@ The max_index_interval is the sparsest possible sampling in relation to memory p
 
 *speculative_retry* ::
 Configures https://www.datastax.com/dev/blog/rapid-read-protection-in-cassandra-2-0-2[rapid read protection].
-Normal read requests are sent to just enough replica nodes to satisfy the https://cassandra.apache.org/_/glossary.html#gloss_consistency_level[consistency level].
+Normal read requests are sent to just enough replica nodes to satisfy the https://cassandra.apache.org/_/glossary.html#consistency-level[consistency level].
 In rapid read protection, extra read requests are sent to other replicas, even after the consistency level has been met.
 The speculative retry property specifies the trigger for these extra read requests.
 +

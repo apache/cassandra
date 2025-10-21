@@ -1,0 +1,626 @@
+= Developers guide to CQL on Accord
+
+== Intro
+
+Accord is implemented as a library that is agnostic to the underlying
+database it integrates with. It has little to no awareness of schema,
+query language, messaging, threading etc. Instead it presents interfaces
+for the database to implement that describe the configuration and
+topology of the database, what reads and writes need to execute and what
+their dependencies are, and how to actually execute reads and writes at
+the configured locations.
+
+This guide describes how Cassandra goes about leveraging those
+interfaces to implement reading and writing CQL as well as live
+migrating from CQL running on Cassandra to CQL running on Accord.
+
+This guide doesn't cover how Accord works and doesn't cover all parts of
+Accord that are implemented in Cassandra like threading, caching,
+persistence, and messaging. It also isn't intended to be a user guide
+and doesn't fully overlap with the xref:cassandra:managing/operating/onboarding-to-accord.adoc[user guide]. You should start with the
+xref:cassandra:managing/operating/onboarding-to-accord.adoc[user guide] to get any context that may be missing here.
+
+== Anatomy of a transaction
+
+The primary way of interacting with Accord is to define a transaction
+using
+https://github.com/apache/cassandra-accord/blob/134df57677bbd5092994923a4dc2f15cd1d033d1/accord-core/src/main/java/accord/primitives/Txn.java#L42[Txn/Txn.InMemory]
+and then asking Accord to execute the transaction. Transactions express
+what they touch by declaring a set of keys or ranges that will be
+read/written to. This set needs to be declared up front and can't change
+during transaction execution and the transaction can be either a key
+transaction or range transaction but not both.
+
+Range transactions are more expensive for Accord to execute as the
+dependency tracking work Accord has to do is more CPU and memory
+intensive and the transactions are more likely to conflict and block
+execution of other transactions.
+
+Accord is not aware of tables only ranges and keys. Keys and ranges can
+span any tables managed by Accord and the keys and ranges encode the
+tables they apply to. So a range transaction covering multiple tables
+would have a range per table and from Accord's perspective these are
+completely different ranges.
+
+Transactions also declare a `Kind` which can be `Read`, `Write`
+(Read/Write), `EphemeralRead`, and `ExclusiveSyncPoint`. `Read`, and
+`Write` are what you would expect. `EphemeralRead` is a read that only
+provides per key linearizability, but offers better performance compared
+to `Read` .
+
+`ExclusiveSyncPoint` is transaction that can be used to establish a
+happens before relationship with its dependencies without interfering
+with their execution. `ExclusiveSyncPoint` is used for live migration
+and repair to ensure the visibility at `ALL` of all committed Accord
+transactions to non-transactional reads.
+
+=== Keys and Ranges
+
+`Keys` and `Ranges` are prefixed with `TableId` in the most significant
+position to allow Accord to interact with multiple tables without
+knowing anything about schema. From Accord's perspective there is just a
+set of ranges that it is responsible for replicating and transacting
+over, and they can be compared, sorted, and split, but beyond that they
+are completely opaque. A follow on effect from this is that token ranges
+(or token ring) are per table.
+
+`Key` is conceptually similar to `DecoratedKey` and is implemented by
+`https://github.com/apache/cassandra/blob/63d3538ba7352635b7b61a205b40e035e62b8d5d/src/java/org/apache/cassandra/service/accord/api/PartitionKey.java#L43[PartitionKey]`
+. `RoutingKey` is conceptually similar to `Token` and is implemented by
+`https://github.com/apache/cassandra/blob/63d3538ba7352635b7b61a205b40e035e62b8d5d/src/java/org/apache/cassandra/service/accord/api/TokenKey.java#L51[TokenKey]`
+.
+
+Accord `Range` is conceptually equivalent to Cassandra's
+`Range++<++RingPosition++>++` and is implemented by
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/TokenRange.java[TokenRange]`.
+Accord `Range` is start exclusive and end inclusive just like
+Cassandra's `Range` and we use it exclusively in that mode. There are no
+other forms of inclusive/exclusive bound or range used directly by
+`Accord`. Accord `Range`'s implementation suggests support for other
+forms of bounds but it's not currently supported. It's theoretically
+possible to use something similar to `Range++<++PartitionPosition++>++`
+as the implementation of Accord's `Range` but we don't do that because
+Cassandra doesn't support splitting partitions.
+
+To integrate Cassandra with Accord it's necessary to have a few
+different versions of `TokenKey` that make it possible to describe
+cluster topology and perform query routing to Accord across a range of
+partitioners. A `TokenKey` can be a sentinel for a given table which
+maps to `-inf` or `{plus}inf` for that table and it's possible to create
+a minimum sentinel that is ++<++ `-inf` or ++>++ `{plus}inf` .
+Additionally it's possible to declare a `TokenKey` that is between
+`token` and either `token - 1` or `token {plus} 1` .
+
+Accord expects to be able to convert a `RoutingKey` to a `Range` which
+is facilitated by being able to create these in between tokens without
+requiring the partitioner to support increment or decrement on token.
+Partition range reads also leverage these in between tokens to convert
+`Range` bounds from inclusive to exclusive and vice versa to match the
+inclusivity/exclusivity of the query that is being executed.
+
+=== Seekable, Unseekable, Routable
+
+The implementations of these interfaces are always prefixed with
+`TableId` most of which were just discussed.
+
+A `Seekable` has enough information that it can be used to both route a
+query and then execute it because it identifies what exactly to read and
+write. An `Unseekable` is more compact (just a token) for Accord to work
+with and can be used to route and schedule transaction execution. A
+`Routable` could be either `Seekable` or `Unseekable` and is generally
+used when you need to handle both.
+
+`Seekable` can be either a `Key` or an Accord `Range`. `Key` has both
+routing (token) and partition key/clustering information. `Range` is
+`Seekable` but its bounds are only `Routable`. `Range` is in an odd
+place in terms of being `Seekable` . It's helpful because APIs can
+accept `Seekable` and then handle both `Key` and `Range` domains.
+
+`Seekables` is the collection version of `Seekable` and can be either
+`Keys` or `Ranges`.
+
+`Unseekable` can either a `RoutingKey` (`TokenKey`) or `Range`
+(`TokenRange`) and `Unseekables` is either `RoutingKeys` or `Ranges`.
+`Route` and various kinds of `Routables` exists, but are primarily used
+inside Accord.
+
+=== Data
+
+`https://github.com/apache/cassandra-accord/blob/134df57677bbd5092994923a4dc2f15cd1d033d1/accord-core/src/main/java/accord/api/Data.java#L28[Data]`
+is an opaque container for data that has been read during execution of a
+transaction. Accord doesn't know anything about the contents and the
+only required interface for `Data` is that they can be merged since
+Accord will execute multiple reads at different command stores and will
+need to merge the result.
+
+`Data` is implemented by
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnData.java#L47[TxnData]`
+which is a glorified map from a unique integer identifying each piece of
+data read to `TxnDataValue` which can be either
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnDataKeyValue.java[TxnDataKeyValue]`
+or
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnDataRangeValue.java[TxnDataRangeValue]`
+. `TxnDataKeyValue` doesn't support merging because Accord only reads
+from a single replica, but `TxnDataRangeValue` does because the integer
+key for `TxnData` identifies the logical read in the transaction, but
+the actual execution of the range read could touch an arbitrary number
+of command stores covered by the range and each will produce their own
+`TxnDataRangeValue` for their portion of the read.
+
+=== Result
+
+`https://github.com/apache/cassandra-accord/blob/134df57677bbd5092994923a4dc2f15cd1d033d1/accord-core/src/main/java/accord/api/Result.java[Result]`
+is the interface for what is returned by `Query` and ends up being
+returned as the non-error result by Accord to the coordinator of a
+transaction. This is also implemented by `TxnData` for key read results
+and by `TxnRangeReadResult` for range reads.
+
+There is also `RetryNewProtocolResult` which can be returned by
+Cassandra's integration with Accord during live migration. This retry
+error indicates that Accord determined the transaction's execute time is
+in an epoch where Accord does not manage some or all of that data for
+read or write so the transaction should be retried on whatever system
+currently manages that data.
+
+=== Read
+
+`https://github.com/apache/cassandra-accord/blob/trunk/accord-core/src/main/java/accord/api/Read.java#L32[Read]`
+is where a transaction defines how data should be read during execution
+in order to return a result, and it will have its `read` method invoked
+along with specific keys to be read at command stores.
+
+A `Read` has to define all the keys it will access up front and needs to
+support `slice/intersecting/merge` so Accord can send only the relevant
+parts of a transactions reads to the command stores that are responsible
+for persisting metadata about the transaction and executing the read.
+
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnRead.java[TxnRead]`
+implements `Read` and is a sorted collection of
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnNamedRead.java#L77[TxnNamedRead]`.
+The name in `TxnNamedRead` refers to what is now the integer identifier
+for each logical read in the transaction. `TxnNamedRead` supports both
+key and range reads although not both in the same transaction.
+
+The name for a read is an incrementing integer encoded at planning time with the higher order bits storing
+the kind of read and the lower order bits storing the index of the read. Kinds of reads include:
+
+* USER - let statements
+* RETURNING - Returning select in `TransactionStatement`
+* AUTO++_++READ - Automatically generated reads like list index set
+* CAS++_++READ - Read for CAS statements
+
+Every read in a transaction is executed concurrently in the read stage
+threadpool and the resulting `Data` (`TxnData`) is merged into a single
+value.
+
+`TxnRead` contains a read consistency level that is not visible to
+Accord that is used to declare the read consistency level that a
+transaction requires. This will be discussed more later when we cover
+interoperability, but if this is set then the transaction will actually
+read from multiple replicas complete with short read protection and
+blocking read repair.
+
+=== Query
+
+`https://github.com/apache/cassandra-accord/blob/trunk/accord-core/src/main/java/accord/api/Query.java#L31[Query]`
+is the portion of the transaction definition responsible for computing
+the `Result` of the transaction that will be returned at the
+coordinator. It's implemented by
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnQuery.java[TxnQuery]`
+which has several different modes it can operate in.
+
+`Query` only has one method `compute` to compute the result and is run
+on the coordinator of a transaction. There are few things `TxnQuery` is
+responsible for such as validating the query is accessing data managed
+by Accord generating a retry error if needed. For CAS statements it's
+also responsible for checking the CAS condition and returning the
+appropriate result. For range reads it's also responsible for merging
+the range read results and reapplying the limit.
+
+`TxnQuery` also has an implementation, `UNSAFE++_++EMPTY`, used for
+Accord system transactions that does no validation that Accord owns the
+ranges in question. This is because from Accord's perspective it
+immediately adopts all the ranges in a table when that table begins
+migration to Accord, but from live migration's perspective (which Accord
+can't see) there is a
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/migration/TableMigrationState.java[TableMigrationState]`
+that specifies which ranges within a table are managed by Accord.
+
+Accord system transactions only impact Accord metadata so “they don't
+exist” from the perspective of live migration and concurrent reading and
+writing to data.
+
+=== Update
+
+`https://github.com/apache/cassandra-accord/blob/trunk/accord-core/src/main/java/accord/api/Update.java[Update]`
+is invoked via the `apply` method on the Accord coordinator and is
+responsible for taking in the `Data` from `Read` and producing the
+`Write` that contains all the writes that we applied as part of
+committing the transaction.
+
+`Update` requires support for `slice`/`intersecting`/`merge` so that
+Accord only needs to distribute and persist the potentially sizable
+partial or complete updates to the shards that actually need them.
+
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnUpdate.java[TxnUpdate]`
+implements `Update` and can contain completed or partial updates which
+are completed when `apply` is called with the `TxnData` from `TxnRead`.
+Updates that are not data dependent (blind writes) are handled
+differently from non-data dependent updates. Data dependent updates are
+computed at the coordinator and returned in the `TxnWrite` but non-data
+dependent updates are omitted and instead are retrieved from `TxnUpdate`
+at each replica when `TxnWrite.apply` is called.
+
+`TxnUpdate` is also responsible for populating the update with the
+monotonic transactional hybrid logical clock for the execution time of
+the transaction. During migration, normal CQL operations will use the
+Accord timestamp once a range starts migration, but will fall back to
+server timestamp when migrating away from Accord. For normal CQL operations,
+`USING TIMESTAMP` is supported and will cause the data to use the user
+timestamp instead of the Accord one, though this breaks linearizability
+and should be avoided when possible.
+
+For BATCH operations, timestamp handling is more complex: if the batch
+uses `USING TIMESTAMP`, the user timestamp will be used. If all mutations
+in a BATCH use `USING TIMESTAMP`, the user timestamp will be used. If not
+using `USING TIMESTAMP` and all partition keys are on Accord, the Accord
+timestamp is used. If the BATCH has some partitions on Accord and others
+not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table
+batches where one table is not migrating to Accord). If a batch mixes
+server timestamp and `USING TIMESTAMP` mutations, the default behavior
+is to reject the batch, configurable via `accord.mixed_time_source_handling`
+with values: `reject` (default), `log` (accept and log operations where writes to the Accord table will not be linearizable),
+or `ignore` (accept silently).
+
+`TxnUpdate` has a write consistency level that is not visible to Accord
+and is it similar to the commit consistency level for CAS writes. If the
+write consistency level is set then Accord will do synchronous commit at
+the specified consistency level. Otherwise Accord defaults to
+asynchronous commit. How consistency levels are handled will be covered
+in interoperability and live migration.
+
+=== Write
+
+`https://github.com/apache/cassandra-accord/blob/trunk/accord-core/src/main/java/accord/api/Write.java[Write]`
+is produced by invoking `Update.apply` and is not required to be
+splittable/mergeable because all writes are sent to all shards. `Write`
+is implemented by
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/txn/TxnWrite.java#L74[TxnWrite]`
+which each command store will invoke via `apply` for each intersecting
+key. This will cause all writes in a transaction to run concurrently on
+the mutation stage.
+
+=== Putting it all together
+
+With all the components of a transaction available they can be assembled
+and provided to Accord to coordinate to implement all the existing CQL
+interfaces as well as the new `TransactionStatement` interface.
+
+See
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/cql3/statements/TransactionStatement.java#L435[TransactionStatement.createTxn]`
+,
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/cql3/statements/CQL3CasRequest.java#L484[CQL3CasRequest.toAccordTxn]`,
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/migration/ConsensusMigrationMutationHelper.java#L236[ConsensusMigrationHelper.mutateWithAccordAsync]`,
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/StorageProxy.java#L2206[StorageProxy.readWithAccord]`,
+and
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/reads/repair/BlockingReadRepair.java#L219[BlockingReadRepair.repairViaAccordTransaction]`
+.
+
+There isn't as much magic as you would think in how Accord executes
+transactions when operating with exclusive access to a table. Accord is
+able to mostly execute `ReadCommands` unmodified with some
+accommodations for the fact that reads are strongly consistent from a
+single replica so filtering can be pushed down. The majority of the work
+is just making the description of things like CAS serializable so it can
+be persisted by Accord for transaction recovery.
+
+Where things get complicated is live migrating to Accord and supporting
+interoperability with non-Accord reads and writes.
+
+== Live migration
+
+=== Core challenges
+
+Accord and Paxos operate fundamentally different in terms of what they
+perform consensus on and how the transactions are recovered. Paxos
+performs consensus on the exact set of writes to apply and recovering a
+transaction only requires the writes to be applied. Accord consensus is
+on the transaction definition, a superset of the dependencies, and the
+execution timestamp of the transaction.
+
+Accord needs to recompute the writes during transaction recovery which
+means it may need to repeat any reads necessary to compute those writes
+which means Accord needs reads to be repeatable during transaction
+execution and recovery. Non-Accord writes cause non-determinism for
+Accord reads. Accord also reads at `ONE` so it would miss `QUORUM`
+writes.
+
+The big hammer we use to deal with this is to avoid ever requiring
+Accord to read data that is not replicated at `ALL`. If we did it would
+lead to non-deterministic transaction recovery. This isn't something
+that can be addressed by having Accord read at `QUORUM` and then
+performing blocking read repair because different Accord coordinators
+can still witness different sets of non-Accord writes.
+
+Accord also defaults to asynchronous commit so when migrating away from
+Accord it's not safe for Paxos and non-SERIAL reads to read committed
+Accord writes
+
+=== Bridging the gap
+
+Cassandra needs to be highly available while transitioning, but
+operations that propagate data at `ALL` like Cassandra's Data Repair
+{plus} Paxos Repair, or Accord's repair syncs are not highly available.
+Going forward these will be referred to as range barriers.
+
+At every point during migration there has to be some system safely
+capable of executing every operation type. Highly available key barriers
+solve this problem by allowing the migration of a single key at `QUORUM`
+to meet the requirements for execution on the migration target system.
+
+A key barrier on Paxos uses the existing Paxos repair mechanism to apply
+any partially committed transactions at `QUORUM` which can then be
+safely read by Accord if Accord read's at `QUORUM`. A key barrier on
+Accord uses Accord's sync mechanism to wait until all transactions in an
+epoch that could have modified the key are applied at `QUORUM`.
+
+There is a system table and small in memory cache for key barriers to
+avoid repeatedly performing key migrations, but the key migration is
+only recorded if the coordinator is a replica to avoid the cache growing
+too large.
+
+=== No non-SERIAL key migration
+
+One wrinkle is that it is not possible to do key migration for
+non-SERIAL Cassandra writes because there is no metadata to check for
+uncommitted operations like there is with Paxos and Accord. Non-SERIAL
+writes include _all_ sources of non-SERIAL writes such as read repair,
+logged batches, and hints. Accord doesn't have this issue as any data
+managed by Accord always has metadata available since all operations are
+routed through Accord.
+
+Splitting migration to Accord into two phases solves this issue
+because while Accord is unable to safely read non-SERIAL writes it can
+safely apply non-SERIAL writes as recovery of blind write transactions
+is still deterministic in Accord. In the first phase of migration to
+Accord all non-SERIAL writes are executed on Accord and synchronously
+applied at the requested consistency level while a data repair (full or
+incremental) runs and makes it safe for Accord to read non-SERIAL
+writes. Paxos continues to execute all SERIAL writes because Accord is
+unable to execute SERIAL writes since it can't read yet.
+
+After a data repair completes the second phase of migration to Accord
+begins and all operations are executed on Accord after Paxos key
+migration is run to ensure that the key being read by Accord has no
+unapplied Paxos transactions. After a Paxos repair {plus} data repair
+(full only) the remaining Paxos writes will be visible at `ALL` and
+Accord can begin executing reads at `ONE` instead of the requested
+consistency level and performing asynchronous commit and ignore the
+requested commit/write consistency level.
+
+A quirk of incremental repair is that it flushes memtables before Paxos
+repair runs and as a result it doesn't replicate at `ALL` the data that
+Paxos repair propagated at `QUORUM`. Thus a full repair is required for
+the second phase of migration to Accord so that the Paxos data ends up
+repaired at `ALL`. It's possible, but difficult, to make the
+migration three phases and track the Paxos repair independently so that
+you could do Paxos repair and then use IR, but this is not currently
+implemented.
+
+=== Supported consistency levels
+
+Live migration to/from Accord requires Accord to honor requested
+consistency levels for read and write. Cassandra's Accord integration
+only adds support for a subset of consistency levels listed in
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/IAccordService.java#L75[IAccordService]`
+. DC aware consistency levels are not supported along with `TWO` and
+`THREE`.
+
+Accord will always reject unsupported consistency levels even if it will
+not actually be honoring them during execution to ensure that your
+application remains ready to migrate away from Accord in the future.
+
+In the case of `ONE` as a write/commit consistency level the commit will
+silently be performed at `QUORUM`
+
+=== Interoperability support
+
+Interoperability aims to extend Accord to support reading and writing at
+configurable consistency levels as well as to add support for
+synchronous commit. This is facilitated by extension points in Accord
+that allow injecting custom implementations for various protocol steps
+via
+`https://github.com/apache/cassandra-accord/blob/134df57677bbd5092994923a4dc2f15cd1d033d1/accord-core/src/main/java/accord/coordinate/CoordinationAdapter.java#L64[CoordinationAdapter]`
+and
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/interop/AccordInteropAdapter.java[AccordInteropAdapter]`.
+
+`AccordInteropAdapter` can inject custom versions of the `execute` and
+`persist` phases and does conditionally at transaction execution time
+based on the read and write consistency levels provided by `TxnRead` and
+`TxnUpdate` . These consistency levels can differ from the ones
+requested by the application because live migration may choose to ignore
+the consistency levels when they aren't needed.
+
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/interop/AccordInteropExecution.java[AccordInteropExecution]`
+allows reading at a requested consistency level. It largely inverts
+control of reading in Accord and uses Cassandra's existing Read Executor
+functionality to determine what nodes to contact and what commands to
+send them while providing short read protection and blocking read
+repair. Read executors interface with Accord via the
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/reads/ReadCoordinator.java#L37[ReadCoordinator]`
+interface which can either send a regular read message or go through
+Accord to send an Accord specific read message which causes the read to
+execute at the appropriate command store in the appropriate
+transactional context after all dependencies have been applied.
+
+`ReadCoordinator` also intercepts blocking read repair during execution
+of an Accord transaction and executes it through the appropriate command
+store. The only legitimate way for this to occur is after Paxos key
+migration the data is only propagated at `QUORUM` so it is possible that
+Accord reading at `QUORUM` will find replicas to read repair. It's not
+strictly necessary as we already know the data is propagated at
+`QUORUM`, but the support is there.
+
+`ReadCoordinator` also helps apply read repair mutations via Accord in
+`TransactionalMode.MIXED` and during migration by applying the read
+repair mutations in Accord's execute phase instead of waiting for apply.
+This is safe because read repair only proposes already committed Accord
+writes or already unsafe non-SERIAL writes which aren't allowed anyways.
+
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/accord/interop/AccordInteropPersist.java#L48[AccordInteropPersist]`
+adds support for synchronous commit and commit at a requested
+consistency level. It sends `AccordInteropApply` which is a synchronous
+apply message that only responds once application is complete.
+
+https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/TransactionalMode.java#L34[`TransactionalMode`]
+defines the supported modes and
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/TransactionalMode.java#L140[commitCLForMode]`
+determines the commit consistency level and
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/TransactionalMode.java#L170[readCLForMode]`
+determines the read consistency level. These two methods take into
+account both the requested consistency level, the table specific
+migration state, the current transactional mode, and the target
+transactional mode in order to decide whether to honor the requested
+consistency level.
+
+=== Routing requests during migration
+
+During migration, requests race with changes to
+https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/migration/TableMigrationState.java[`TableMigrationState`]
+to execute and may complete or partially complete on the system they
+were originally routed to. This race is resolved by allowing requests to
+return a new retry on different system error response that has to be
+handled by the coordinator. It's possible that a request may still
+complete after receiving a retry different system error because the
+target consistency level was still met.
+
+Migration is per table and per token range so it's possible for part of
+a table to be running on Accord and part of it to be running on Paxos.
+Requests can end up executing partially on Cassandra and partially on
+Accord.
+
+==== Detecting misrouted requests
+
+For Paxos this is resolved in the prepare phase where a failure to meet
+the required consistency level at the prepare phase means the operation
+does not run on Paxos. If the prepare phase is being performed to
+recover an existing transaction then it is allowed to proceed because
+recovery will deterministically create the same state every time it runs
+so it's safe to repeat even after key or range migration has occurred
+since those would have already recovered the transaction.
+
+Accord determines an `executeAt` timestamp, that is deterministic even
+during transaction recovery, for each transaction that includes an epoch
+that corresponds to the epoch used by `TableMigrationState` and this is
+used to check all the tables and keys being touched in a transaction.
+`TxnQuery` then returns a retry on different system error if the any
+part of the transaction is not eligible to run on Accord.
+
+`ColumnFamilyStore` checks every `Mutation` to see if it is marked as
+allowing potential transaction conflicts. Paxos and Accord always mark
+their `Mutation`s as allowing potential transaction conflicts because
+they do the work to check for them directly, but non-SERIAL sources of
+`Mutation`s will be subject to that check and a
+`RetryOnDifferentSystemException` is thrown if the mutation is detected
+to be misrouted according to the latest cluster metadata available at
+the node attempting to apply that mutation.
+
+`ReadCommand` has a similar arrangement where each read command is
+marked with whether it allows potential transaction conflicts and when
+`executeLocally` is run the check is done against cluster metadata to
+determine whether or not to throw `RetryOnDifferentSystemException`.
+Accord always allows potential transaction conflicts on its read
+commands, but Paxos does not because Paxos does not need to read data in
+order to recover transactions.
+
+==== Splitting write requests
+
+For non-SERIAL writes the `Mutation` is split into the portion that will
+execute on Accord and the portion that will execute on Cassandra and the
+Accord portion is executed asynchronously while the Cassandra portion is
+executed synchronously. If either attempt fails due to misrouting the
+write is re-split with updated cluster metadata and retried without
+raising an error.
+
+Logged batches are currently always written to the system table and then
+split for execution, and if part of the batch fails then batchlog replay
+will replay the entire batch and re-split it in the process. Batchlog
+replay only makes a single attempt to replay before converting the batch
+contents to hints. If part of the batch was routed to Accord then there
+is no node to hint so there is a fake node that a hint is written to and
+when that hint is dispatched it will be split and then executed
+appropriately. In https://issues.apache.org/jira/browse/CASSANDRA-20588[CASSANDRA-20588] this needs to be simplified to writing the
+entire batch through Accord if any part of it should be written through
+Accord because it also addresses an atomicity issue with single token
+batches which can be torn when part is applied through Accord and part
+is applied through Cassandra.
+
+Hints can be for multiple tables some of which may be Accord and some
+non-Accord so splitting occurs. It's also possible a hint will be for an
+operation that was sent to Accord (not a real node) via the batchlog and
+it's possible that splitting discovers the hint now needs to be executed
+without Accord. In that scenario the hint is converted to a hint for
+every replica. This conversion can only occur once so the write
+amplification is bounded.
+
+Splitting of mutations is done in
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/consensus/migration/ConsensusMigrationMutationHelper.java#L219[ConsensusMigrationMutationHelper]`
+with the retry loop being implemented at each caller (batch mutation,
+mutation, batch log, hints).
+
+Paxos has a retry loop but does not do any splitting because Paxos only
+supports a single key.
+
+==== Partition range reads
+
+Partition range reads are managed by
+`https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/reads/range/RangeCommandIterator.java#L75[RangeCommandIterator]`
+which continues to split range reads using the existing algorithm that
+is agnostic as to how the range command will be executed. Each generated
+range read
+https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/reads/range/RangeCommandIterator.java#L247[is
+then split on the boundaries of which system is responsible for reading
+that range] and that is wrapped in a
+https://github.com/apache/cassandra/blob/122f5300855d56131948575f80ce0594547c9040/src/java/org/apache/cassandra/service/reads/range/RangeCommandIterator.java#L378[retrying
+iterator] which repeats the splitting if any part of the range read ends
+up routed to the wrong system.
+
+Range reads do not execute any key barriers and when migrating away from
+Accord you will see weaker consistency compared to Paxos because Accord
+does not necessarily honor commit consistency levels and does
+asynchronous commit. As things currently stand it's uncertain the key
+barriers would run fast enough to avoid timing out range read requests
+so they are not done.
+
+Range reads also consume more memory when executed on Accord when a
+limit is used. A single range read command is split into intersecting
+command store number of range read commands that execute concurrently
+and each one can return up to the limit number of results before they
+are merged at the coordinator and the limit is re-applied. This could be
+improved by applying the limit again before serializing or by executing
+the reads serially at command stores until the limit is met.
+
+=== Transactional modes
+
+Transactional modes are set per table and define how Accord, Paxos, and
+non-SERIAL operations will execute. The three supported modes are
+`FULL`, `MIXED++_++READS`, and `OFF`.
+
+`FULL` routes all reads and writes through Accord once migration is
+complete and allows Accord to ignore read and write consistency levels.
+This allows Accord to perform asynchronous commit reducing the number of
+WAN roundtrips from 2 to 1.
+
+`MIXED++_++READS` routes all writes through Accord once migration is
+complete, but allows non-SERIAL reads to safely execute outside of
+Accord and still read Accord writes because Accord will honor the
+provided commit consistency level. This means Accord will need to
+perform synchronous commit requiring an 1 extra WAN roundtrips for 2
+total.
+
+`OFF` is the default where everything runs either on Paxos if it is
+`SERIAL` or on the usual eventually consistent paths for everything
+else.
+
+Other modes exist for testing purposes and are disabled by default
+unless unlocked via system property.

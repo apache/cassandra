@@ -29,11 +29,16 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
+import org.apache.cassandra.service.paxos.PaxosPrepare.Rejected;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_AND_PREPARE_REQ;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getKeyMigrationState;
 import static org.apache.cassandra.service.paxos.Paxos.newBallot;
 import static org.apache.cassandra.service.paxos.PaxosPrepare.start;
 
@@ -45,12 +50,12 @@ public class PaxosCommitAndPrepare
     static PaxosPrepare commitAndPrepare(Agreed commit, Paxos.Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadSuccess)
     {
         Ballot ballot = newBallot(commit.ballot, participants.consistencyForConsensus);
-        Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite);
+        Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite, true);
         PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadSuccess, null);
 
         Tracing.trace("Committing {}; Preparing {}", commit.ballot, ballot);
-        Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request);
-//                .permitsArtificialDelay(participants.consistencyForConsensus);
+        Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request, participants.isUrgent());
+
         start(prepare, participants, message, RequestHandler::execute);
         return prepare;
     }
@@ -59,21 +64,21 @@ public class PaxosCommitAndPrepare
     {
         final Agreed commit;
 
-        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, read, isWrite);
+            super(ballot, electorate, read, isWrite, isForRecovery);
             this.commit = commit;
         }
 
-        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, partitionKey, table, isWrite);
+            super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
             this.commit = commit;
         }
 
         Request withoutRead()
         {
-            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite);
+            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
         public String toString()
@@ -84,14 +89,14 @@ public class PaxosCommitAndPrepare
 
     public static class RequestSerializer extends PaxosPrepare.AbstractRequestSerializer<Request, Agreed>
     {
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, read, isWrite);
+            return new Request(param, ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, partitionKey, table, isWrite);
+            return new Request(param, ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         @Override
@@ -121,6 +126,8 @@ public class PaxosCommitAndPrepare
         @Override
         public void doVerb(Message<Request> message)
         {
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+
             PaxosPrepare.Response response = execute(message.payload, message.from());
             if (response == null)
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);
@@ -134,10 +141,19 @@ public class PaxosCommitAndPrepare
             if (!Paxos.isInRangeAndShouldProcess(from, commit.update.partitionKey(), commit.update.metadata(), request.read != null))
                 return null;
 
+            // This can be done outside the lock
+            ClusterMetadata cm = ClusterMetadata.current();
+            KeyMigrationState keyMigrationState = getKeyMigrationState(cm, commit.update.metadata().id, commit.update.partitionKey());
+            // Make sure the operation is safe and there is no Accord state that needs application
+            // Also need to know max HLC in order to accept this ballot
+            long maxHLC = keyMigrationState.maybePerformAccordToPaxosKeyMigration(true);
+            if (maxHLC >= commit.ballot.unixMicros())
+                return new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, commit.ballot.flag()));
+
             try (PaxosState state = PaxosState.get(commit))
             {
                 state.commit(commit);
-                return PaxosPrepare.RequestHandler.execute(request, state);
+                return PaxosPrepare.RequestHandler.execute(request, state, cm);
             }
         }
     }

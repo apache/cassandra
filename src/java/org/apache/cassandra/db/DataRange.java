@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.filter.*;
@@ -291,46 +292,46 @@ public class DataRange
         if (isUnrestricted(metadata))
             return rowFilter.toCQLString();
 
-        StringBuilder sb = new StringBuilder();
+        CqlBuilder builder = new CqlBuilder();
 
         boolean needAnd = false;
         if (!startKey().isMinimum())
         {
-            appendClause(startKey(), sb, metadata, true, keyRange.isStartInclusive());
+            appendClause(startKey(), builder, metadata, true, keyRange.isStartInclusive());
             needAnd = true;
         }
         if (!stopKey().isMinimum())
         {
             if (needAnd)
-                sb.append(" AND ");
-            appendClause(stopKey(), sb, metadata, false, keyRange.isEndInclusive());
+                builder.append(" AND ");
+            appendClause(stopKey(), builder, metadata, false, keyRange.isEndInclusive());
             needAnd = true;
         }
 
         String filterString = clusteringIndexFilter.toCQLString(metadata, rowFilter);
         if (!filterString.isEmpty())
-            sb.append(needAnd ? " AND " : "").append(filterString);
+            builder.append(needAnd ? " AND " : "").append(filterString);
 
-        return sb.toString();
+        return builder.toString();
     }
 
-    private void appendClause(PartitionPosition pos, StringBuilder sb, TableMetadata metadata, boolean isStart, boolean isInclusive)
+    private void appendClause(PartitionPosition pos, CqlBuilder builder, TableMetadata metadata, boolean isStart, boolean isInclusive)
     {
-        sb.append("token(");
-        sb.append(ColumnMetadata.toCQLString(metadata.partitionKeyColumns()));
-        sb.append(") ");
+        builder.append("token(");
+        builder.append(ColumnMetadata.toCQLString(metadata.partitionKeyColumns()));
+        builder.append(") ");
         if (pos instanceof DecoratedKey)
         {
-            sb.append(getOperator(isStart, isInclusive)).append(" ");
-            sb.append("token(");
-            appendKeyString(sb, metadata.partitionKeyType, ((DecoratedKey)pos).getKey());
-            sb.append(")");
+            builder.append(getOperator(isStart, isInclusive)).append(" ");
+            builder.append("token(");
+            appendKeyString(builder, metadata.partitionKeyType, ((DecoratedKey)pos).getKey());
+            builder.append(")");
         }
         else
         {
             Token.KeyBound keyBound = (Token.KeyBound) pos;
-            sb.append(getOperator(isStart, isStart == keyBound.isMinimumBound)).append(" ");
-            sb.append(keyBound.getToken());
+            builder.append(getOperator(isStart, isStart == keyBound.isMinimumBound)).append(" ");
+            builder.append(keyBound.getToken());
         }
     }
 
@@ -341,18 +342,18 @@ public class DataRange
              : (isInclusive ? "<=" : "<");
     }
 
-    public static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
+    public static void appendKeyString(CqlBuilder builder, AbstractType<?> type, ByteBuffer key)
     {
         if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)type;
             ByteBuffer[] values = ct.split(key);
             for (int i = 0; i < ct.types.size(); i++)
-                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).toCQLString(values[i]));
+                builder.append(i == 0 ? "" : ", ").append(ct.types.get(i).toCQLString(values[i]));
         }
         else
         {
-            sb.append(type.toCQLString(key));
+            builder.append(type.toCQLString(key));
         }
     }
 

@@ -141,12 +141,6 @@ public class TableLevelIncrementalBackupsTest extends TestBaseImpl
             cluster.get(i).flush(keyspace);
     }
 
-    private void disableCompaction(Cluster cluster, String keyspace, String table)
-    {
-        for (int i = 1; i < cluster.size() + 1; i++)
-            cluster.get(i).nodetool("disableautocompaction", keyspace, table);
-    }
-
     private static  void assertBackupSSTablesCount(Cluster cluster, int expectedTablesCount, boolean enable, String ks, String... tableNames)
     {
         for (int i = 1; i < cluster.size() + 1; i++)

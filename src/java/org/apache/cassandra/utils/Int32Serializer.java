@@ -22,25 +22,44 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class Int32Serializer implements IVersionedSerializer<Integer>
+public class Int32Serializer implements UnversionedSerializer<Integer>, IVersionedSerializer<Integer>
 {
     public static final Int32Serializer serializer = new Int32Serializer();
 
-    public void serialize(Integer t, DataOutputPlus out, int version) throws IOException
+    public void serialize(Integer t, DataOutputPlus out) throws IOException
     {
         out.writeInt(t);
     }
 
-    public Integer deserialize(DataInputPlus in, int version) throws IOException
+    @Override
+    public void serialize(Integer t, DataOutputPlus out, int version) throws IOException
+    {
+        serialize(t, out);
+    }
+
+    public Integer deserialize(DataInputPlus in) throws IOException
     {
         return in.readInt();
     }
 
-    public long serializedSize(Integer t, int version)
+    @Override
+    public Integer deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return deserialize(in);
+    }
+
+    public long serializedSize(Integer t)
     {
         return TypeSizes.sizeof(t.intValue());
+    }
+
+    @Override
+    public long serializedSize(Integer t, int version)
+    {
+        return serializedSize(t);
     }
 }

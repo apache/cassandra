@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents a positive time duration. Wrapper class for Cassandra duration configuration parameters, providing to the
@@ -108,7 +111,7 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid duration: " + value + ". It shouldn't be more than " +
-                                             (max - 1) + " in " + minUnit.name().toLowerCase());
+                                             (max - 1) + " in " + toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(long quantity, TimeUnit sourceUnit, TimeUnit minUnit, long max)
@@ -118,8 +121,8 @@ public abstract class DurationSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid duration: %d %s. It shouldn't be more than %d in %s",
-                                                           quantity, sourceUnit.name().toLowerCase(),
-                                                           max - 1, minUnit.name().toLowerCase()));
+                                                           quantity, toLowerCaseLocalized(sourceUnit.name()),
+                                                           max - 1, toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -135,13 +138,18 @@ public abstract class DurationSpec
         return unit;
     }
 
+    public Duration toDuration()
+    {
+        return Duration.of(quantity(), unit().toChronoUnit());
+    }
+
     /**
      * @param symbol the time unit symbol
      * @return the time unit associated to the specified symbol
      */
-    static TimeUnit fromSymbol(String symbol)
+    public static TimeUnit fromSymbol(String symbol)
     {
-        switch (symbol.toLowerCase())
+        switch (toLowerCaseLocalized(symbol))
         {
             case "d": return DAYS;
             case "h": return HOURS;

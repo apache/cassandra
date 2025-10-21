@@ -142,8 +142,9 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             // so we will live with the inaccuracy.)
             int nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
             int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(limit, nRows, graph.size()));
-            logger.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                         nRows, maxBruteForceRows, graph.size(), limit);
+            if (logger.isTraceEnabled())
+                logger.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                             nRows, maxBruteForceRows, graph.size(), limit);
             Tracing.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
                           nRows, maxBruteForceRows, graph.size(), limit);
             if (nRows <= maxBruteForceRows)
@@ -269,8 +270,9 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     {
         // if we have a small number of results then let TopK processor do exact NN computation
         int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
-        logger.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                     numRows, maxBruteForceRows, graph.size(), limit);
+        if (logger.isTraceEnabled())
+            logger.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                         numRows, maxBruteForceRows, graph.size(), limit);
         Tracing.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
                       numRows, maxBruteForceRows, graph.size(), limit);
         return numRows <= maxBruteForceRows;

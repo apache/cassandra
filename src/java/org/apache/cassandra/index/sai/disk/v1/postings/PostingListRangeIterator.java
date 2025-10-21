@@ -89,7 +89,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        if (skipToKey != null && skipToKey.compareTo(nextKey) > 0)
+        if (skipToKey != null && skipToKey.compareTo(nextKey, false) > 0)
             return;
 
         skipToKey = nextKey;
@@ -137,7 +137,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
 
     private boolean exhausted()
     {
-        return needsSkipping && skipToKey.compareTo(getMaximum()) > 0;
+        return needsSkipping && skipToKey.compareTo(getMaximum(), false) > 0;
     }
 
     /**

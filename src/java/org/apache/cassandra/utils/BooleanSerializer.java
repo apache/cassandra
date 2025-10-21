@@ -20,24 +20,26 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class BooleanSerializer implements IVersionedSerializer<Boolean>
+public class BooleanSerializer implements UnversionedSerializer<Boolean>
 {
     public static BooleanSerializer serializer = new BooleanSerializer();
+    public static IVersionedSerializer<Boolean> messagingSerializer = IVersionedSerializer.from(serializer);
 
-    public void serialize(Boolean b, DataOutputPlus out, int version) throws IOException
+    public void serialize(Boolean b, DataOutputPlus out) throws IOException
     {
         out.writeBoolean(b);
     }
 
-    public Boolean deserialize(DataInputPlus in, int version) throws IOException
+    public Boolean deserialize(DataInputPlus in) throws IOException
     {
         return in.readBoolean();
     }
 
-    public long serializedSize(Boolean aBoolean, int version)
+    public long serializedSize(Boolean aBoolean)
     {
         return 1;
     }

@@ -118,7 +118,7 @@ public class Expression
     @VisibleForTesting
     public Expression(String name, AbstractType<?> validator)
     {
-        this(null, new ColumnIndex(UTF8Type.instance, ColumnMetadata.regularColumn("sasi", "internal", name, validator), null));
+        this(null, new ColumnIndex(UTF8Type.instance, ColumnMetadata.regularColumn("sasi", "internal", name, validator, ColumnMetadata.NO_UNIQUE_ID), null));
     }
 
     public Expression setLower(Bound newLower)

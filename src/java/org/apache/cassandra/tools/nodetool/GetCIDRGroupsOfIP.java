@@ -17,34 +17,24 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.List;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.printSet;
 
 /**
  * Nodetool command to get CIDR groups(s) of given IP
  */
 @Command(name = "getcidrgroupsofip", description = "Print CIDR groups associated with given IP")
-public class GetCIDRGroupsOfIP extends NodeToolCmd
+public class GetCIDRGroupsOfIP extends AbstractCommand
 {
-    @Arguments(usage = "<IP address>", description = "Requires IP address as a string")
-    private List<String> args = new ArrayList<>();
+    @Parameters(paramLabel = "ip_address", description = "Requires IP address as a string", arity = "1", index = "0")
+    private String ipStr;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        PrintStream out = probe.output().out;
-
-        checkArgument(args.size() == 1, "Requires IP address as input");
-
-        String ipStr = args.get(0);
-        probe.printSet(out, "CIDR Groups", probe.getCidrGroupsOfIp(ipStr));
+        printSet(probe.output().out, "CIDR Groups", probe.getCidrGroupsOfIp(ipStr));
     }
 }

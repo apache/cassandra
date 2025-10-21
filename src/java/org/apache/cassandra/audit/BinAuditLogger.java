@@ -31,6 +31,9 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
+import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_FIELD_SEPARATOR;
+import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_KEY_VALUE_SEPARATOR;
+
 public class BinAuditLogger implements IAuditLogger
 {
     public static final long CURRENT_VERSION = 0;
@@ -38,9 +41,24 @@ public class BinAuditLogger implements IAuditLogger
     public static final String AUDITLOG_MESSAGE = "message";
     private static final Logger logger = LoggerFactory.getLogger(BinAuditLogger.class);
 
+    private final String keyValueSeparator;
+    private final String fieldSeparator;
+
     private volatile BinLog binLog;
 
     public BinAuditLogger(AuditLogOptions auditLoggingOptions)
+    {
+        this(auditLoggingOptions, DEFAULT_KEY_VALUE_SEPARATOR, DEFAULT_FIELD_SEPARATOR);
+    }
+
+    public BinAuditLogger(Map<String, String> params)
+    {
+        this(DatabaseDescriptor.getAuditLoggingOptions(),
+             getFromParamsOrDefault(params, "key_value_separator", DEFAULT_KEY_VALUE_SEPARATOR),
+             getFromParamsOrDefault(params, "field_separator", DEFAULT_FIELD_SEPARATOR));
+    }
+
+    BinAuditLogger(AuditLogOptions auditLoggingOptions, String keyValueSeparator, String fieldSeparator)
     {
         this.binLog = new BinLog.Builder().path(File.getPath(auditLoggingOptions.audit_logs_dir))
                                           .rollCycle(auditLoggingOptions.roll_cycle)
@@ -50,11 +68,8 @@ public class BinAuditLogger implements IAuditLogger
                                           .archiveCommand(auditLoggingOptions.archive_command)
                                           .maxArchiveRetries(auditLoggingOptions.max_archive_retries)
                                           .build(false);
-    }
-
-    public BinAuditLogger(Map<String, String> params)
-    {
-        this(DatabaseDescriptor.getAuditLoggingOptions());
+        this.keyValueSeparator = keyValueSeparator;
+        this.fieldSeparator = fieldSeparator;
     }
 
     /**
@@ -91,7 +106,14 @@ public class BinAuditLogger implements IAuditLogger
         {
             return;
         }
-        binLog.logRecord(new Message(auditLogEntry.getLogString()));
+        binLog.logRecord(new Message(auditLogEntry.getLogString(keyValueSeparator, fieldSeparator)));
+    }
+
+    static String getFromParamsOrDefault(Map<String, String> params, String key, String defaultValue)
+    {
+        return params != null
+               ? params.getOrDefault(key, defaultValue)
+               : defaultValue;
     }
 
 

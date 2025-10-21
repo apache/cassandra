@@ -41,8 +41,6 @@ import org.apache.cassandra.utils.logging.LoggingSupportFactory;
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
  * if explicitly enabled.
  * <p>
- * This implementation gives no measurable performance penalty
- * (see <a href="http://cstar.datastax.com/tests/id/1d461628-12ba-11e5-918f-42010af0688f">see cstar test</a>).
  * This is better than the penalty of 1 to 3 percent using a standard {@code SecurityManager} with an <i>allow all</i> policy.
  * </p>
  */
@@ -216,6 +214,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
         // required by JavaDriver 2.2.0-rc3 and 3.0.0-a2 or newer
         // code in com.datastax.driver.core.CodecUtils uses Guava stuff, which in turns requires this permission
+        // TODO: Evaluate removing this once the driver is removed as a dependency (see CASSANDRA-20326).
         if (CHECK_MEMBER_ACCESS_PERMISSION.equals(perm))
             return;
 

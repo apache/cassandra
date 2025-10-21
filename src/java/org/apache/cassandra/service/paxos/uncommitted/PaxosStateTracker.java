@@ -46,6 +46,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -253,7 +254,7 @@ public class PaxosStateTracker
 
         Ballot lowBound = null;
         ListType<ByteBuffer> listType = ListType.getInstance(BytesType.instance, false);
-        ColumnMetadata pointsColumn = ColumnMetadata.regularColumn(SYSTEM_KEYSPACE_NAME, PAXOS_REPAIR_HISTORY, "points", listType);
+        ColumnMetadata pointsColumn = ColumnMetadata.regularColumn(SYSTEM_KEYSPACE_NAME, PAXOS_REPAIR_HISTORY, "points", listType, ColumnMetadata.NO_UNIQUE_ID);
         try (ReadExecutionController controller = query.executionController(); PartitionIterator partitions = query.executeInternal(controller))
         {
             while (partitions.hasNext())
@@ -270,12 +271,13 @@ public class PaxosStateTracker
                         Row row = partition.next();
                         Clustering clustering = row.clustering();
                         String tableName = UTF8Type.instance.compose(clustering.get(0), clustering.accessor());
-                        if (Schema.instance.getTableMetadata(keyspaceName, tableName) == null)
+                        TableMetadata tm = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                        if (tm == null)
                             continue;
 
                         Cell pointsCell = row.getCell(pointsColumn);
                         List<ByteBuffer> points = listType.compose(pointsCell.value(), pointsCell.accessor());
-                        PaxosRepairHistory history = PaxosRepairHistory.fromTupleBufferList(points);
+                        PaxosRepairHistory history = PaxosRepairHistory.fromTupleBufferList(tm.partitioner, points);
                         lowBound = Commit.latest(lowBound, history.maxLowBound());
                     }
                 }

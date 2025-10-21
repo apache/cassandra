@@ -19,11 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.Collections;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
-
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -41,6 +38,11 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
+import org.apache.cassandra.tcm.transformations.Unregister;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -53,7 +55,6 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.dcAndRack;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.networkTopology;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 /*
@@ -81,13 +82,6 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
                                             row(username));
     }
 
-    static void assertRoleAbsent(IInstance instance)
-    {
-        assertRows(instance.executeInternal(String.format("SELECT role FROM %s.%s WHERE role = ?",
-                                                          SchemaConstants.AUTH_KEYSPACE_NAME, ROLES),
-                                            username));
-    }
-
     static void assertQueryThrowsConfigurationException(Cluster cluster, String query)
     {
         cluster.forEach(instance -> {
@@ -99,7 +93,11 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
             }
             catch (Throwable tr)
             {
-                assertEquals("org.apache.cassandra.exceptions.ConfigurationException", tr.getClass().getCanonicalName());
+                if (tr.getClass().getCanonicalName().equals("java.lang.AssertionError") ||
+                    tr.getClass().getCanonicalName().equals("org.apache.cassandra.exceptions.ConfigurationException"))
+                    return;
+
+                throw tr;
             }
         });
     }
@@ -157,9 +155,7 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
             config.set("auto_bootstrap", true);
             cluster.bootstrap(config).startup();
 
-            // Check that the role is on node1 but has not made it to node2
             assertRolePresent(cluster.get(1));
-            assertRoleAbsent(cluster.get(2));
 
             // Update options to make sure a replica is in the remote DC
             logger.debug("Altering '{}' keyspace to use NTS with dc1 & dc2", SchemaConstants.AUTH_KEYSPACE_NAME);
@@ -197,15 +193,16 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
 
             // Forcibly shutdown and have node2 evicted by FD
             logger.debug("Force shutdown node2");
-            String node2hostId = cluster.get(2).callOnInstance(() -> StorageService.instance.getLocalHostId());
+            int node2hostId = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().myNodeId().id());
             cluster.get(2).shutdown(false);
 
             logger.debug("removeNode node2");
             cluster.get(1).runOnInstance(() -> {
-                UUID hostId = UUID.fromString(node2hostId);
-                InetAddressAndPort endpoint = StorageService.instance.getEndpointForHostId(hostId);
+                NodeId nodeId = new NodeId(node2hostId);
+                InetAddressAndPort endpoint = ClusterMetadata.current().directory.endpoint(nodeId);
                 FailureDetector.instance.forceConviction(endpoint);
-                StorageService.instance.removeNode(node2hostId);
+                SingleNodeSequences.removeNode(nodeId, true);
+                Unregister.unregister(nodeId);
             });
 
             logger.debug("Remove replication to decomissioned dc2");

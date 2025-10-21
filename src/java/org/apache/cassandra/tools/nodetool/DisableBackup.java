@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "disablebackup", description = "Disable incremental backup")
-public class DisableBackup extends NodeToolCmd
+public class DisableBackup extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

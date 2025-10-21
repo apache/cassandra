@@ -25,7 +25,6 @@ import org.junit.Test;
 
 import ch.qos.logback.classic.Level;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
-import org.apache.cassandra.db.virtual.LogMessagesTable.LogMessage;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
@@ -47,8 +46,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class VirtualTableLogsTest extends TestBaseImpl
+public class VirtualTableLogsTest extends AbstractVirtualLogsTableTest
 {
+    @Override
+    public String getTableName()
+    {
+        return format("%s.%s", SchemaConstants.VIRTUAL_VIEWS, LogMessagesTable.TABLE_NAME);
+    }
+
     @Test
     public void testVTableOutput() throws Throwable
     {
@@ -56,9 +61,9 @@ public class VirtualTableLogsTest extends TestBaseImpl
              Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.values()))
                                       .start();
-             )
+        )
         {
-            List<TestingLogMessage> rows = getRows(cluster);
+            List<LogMessage> rows = getRows(cluster);
             assertFalse(rows.isEmpty());
 
             rows.forEach(message -> assertTrue(Level.toLevel(message.level).isGreaterOrEqual(Level.INFO)));
@@ -91,39 +96,36 @@ public class VirtualTableLogsTest extends TestBaseImpl
         }
     }
 
-    private List<TestingLogMessage> getRows(Cluster cluster)
+    private List<LogMessage> getRows(Cluster cluster)
     {
         SimpleQueryResult simpleQueryResult = cluster.coordinator(1).executeWithResult(query("select * from %s"), ONE);
-        List<TestingLogMessage> rows = new ArrayList<>();
+        List<LogMessage> rows = new ArrayList<>();
         simpleQueryResult.forEachRemaining(row -> {
             long timestamp = row.getTimestamp(TIMESTAMP_COLUMN_NAME).getTime();
             String logger = row.getString(LOGGER_COLUMN_NAME);
             String level = row.getString(LEVEL_COLUMN_NAME);
             String message = row.getString(MESSAGE_COLUMN_NAME);
             int order = row.getInteger(ORDER_IN_MILLISECOND_COLUMN_NAME);
-            TestingLogMessage logMessage = new TestingLogMessage(timestamp, logger, level, message, order);
+            LogMessage logMessage = new LogMessage(timestamp, logger, level, message, order);
             rows.add(logMessage);
         });
         return rows;
     }
 
-    private String query(String template)
+    private static class LogMessage
     {
-        return format(template, getTableName());
-    }
+        public final long timestamp;
+        public final String logger;
+        public final String level;
+        public final String message;
+        public final int order;
 
-    private String getTableName()
-    {
-        return format("%s.%s", SchemaConstants.VIRTUAL_VIEWS, LogMessagesTable.TABLE_NAME);
-    }
-
-    private static class TestingLogMessage extends LogMessage
-    {
-        private int order;
-
-        public TestingLogMessage(long timestamp, String logger, String level, String message, int order)
+        public LogMessage(long timestamp, String logger, String level, String message, int order)
         {
-            super(timestamp, logger, level, message);
+            this.timestamp = timestamp;
+            this.logger = logger;
+            this.level = level;
+            this.message = message;
             this.order = order;
         }
     }

@@ -50,53 +50,6 @@ public class CompactionStatsTest extends CQLTester
     }
 
     @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "compactionstats");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool compactionstats - Print statistics on compactions\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] compactionstats\n" +
-                      "                [(-H | --human-readable)] [(-V | --vtable)]\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -H, --human-readable\n" +
-                      "            Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        -V, --vtable\n" +
-                      "            Display fields matching vtable output\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testCompactionStats()
     {
         createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))");
@@ -140,6 +93,9 @@ public class CompactionStatsTest extends CQLTester
         assertThat(stdout).containsPattern("15 minute rate\\s+[0-9]*.[0-9]*[0-9]*/minute");
         assertThat(stdout).containsPattern("mean rate\\s+[0-9]*.[0-9]*[0-9]*/hour");
         assertThat(stdout).containsPattern("compaction throughput \\(MiB/s\\)\\s+throttling disabled \\(0\\)");
+        assertThat(stdout).containsPattern("current compaction throughput \\(1 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(5 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
+        assertThat(stdout).containsPattern("current compaction throughput \\(15 minute\\)\\s+[0-9]*.[0-9]*[0-9]* MiB/s");
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
         waitForNumberOfPendingTasks(0, "compactionstats");

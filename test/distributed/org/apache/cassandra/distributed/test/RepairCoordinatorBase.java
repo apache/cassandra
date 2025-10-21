@@ -35,6 +35,7 @@ import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParall
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class RepairCoordinatorBase extends TestBaseImpl
 {
@@ -98,7 +99,7 @@ public class RepairCoordinatorBase extends TestBaseImpl
 
     protected String postfix()
     {
-        return repairType.name().toLowerCase() + "_" + parallelism.name().toLowerCase() + "_" + withNotifications;
+        return toLowerCaseLocalized(repairType.name()) + "_" + toLowerCaseLocalized(parallelism.name()) + "_" + withNotifications;
     }
 
     protected NodeToolResult repair(int node, String... args) {

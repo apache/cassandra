@@ -30,10 +30,10 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ChecksumType;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static java.lang.Math.max;
 import static java.lang.String.format;
@@ -146,7 +146,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
                 // with poorly compressible data, it's possible for a compressed chunk to be larger than
                 // configured uncompressed chunk size - depending on data, min_compress_ratio, and compressor;
                 // we may need to resize the compressed buffer.
-                FileUtils.clean(compressedChunk);
+                MemoryUtil.clean(compressedChunk);
                 compressedChunk = ByteBuffer.allocateDirect(max((int) (compressedChunk.capacity() * GROWTH_FACTOR), chunkLength));
             }
 
@@ -212,13 +212,13 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     {
         if (null != buffer)
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             buffer = null;
         }
 
         if (null != compressedChunk)
         {
-            FileUtils.clean(compressedChunk);
+            MemoryUtil.clean(compressedChunk);
             compressedChunk = null;
         }
     }

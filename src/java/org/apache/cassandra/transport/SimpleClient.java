@@ -27,8 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
-import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,17 +47,18 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.apache.cassandra.transport.PipelineConfigurator.SSL_FACTORY_CONTEXT_DESCRIPTION;
-import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
-
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
+import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 
 public class SimpleClient implements Closeable
 {
@@ -75,7 +74,7 @@ public class SimpleClient implements Closeable
 
     public final String host;
     public final int port;
-    private final EncryptionOptions encryptionOptions;
+    private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
@@ -93,7 +92,7 @@ public class SimpleClient implements Closeable
     {
         private final String host;
         private final int port;
-        private EncryptionOptions encryptionOptions = new EncryptionOptions();
+        private EncryptionOptions.ClientEncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions();
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
@@ -104,7 +103,7 @@ public class SimpleClient implements Closeable
             this.port = port;
         }
 
-        public Builder encryption(EncryptionOptions options)
+        public Builder encryption(EncryptionOptions.ClientEncryptionOptions options)
         {
             this.encryptionOptions = options;
             return this;
@@ -150,22 +149,22 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = builder.largeMessageThreshold;
     }
 
-    public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this(host, port, version, false, encryptionOptions);
     }
 
-    public SimpleClient(String host, int port, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this(host, port, ProtocolVersion.CURRENT, encryptionOptions);
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version)
     {
-        this(host, port, version, new EncryptionOptions());
+        this(host, port, version, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
         this.port = port;
@@ -173,7 +172,7 @@ public class SimpleClient implements Closeable
             throw new IllegalArgumentException(String.format("Beta version of server used (%s), but USE_BETA flag is not set", version));
 
         this.version = version;
-        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
+        this.encryptionOptions = encryptionOptions.applyConfig();
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
@@ -181,7 +180,7 @@ public class SimpleClient implements Closeable
 
     public SimpleClient(String host, int port)
     {
-        this(host, port, new EncryptionOptions());
+        this(host, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
     public SimpleClient connect(boolean useCompression) throws IOException
@@ -423,12 +422,13 @@ public class SimpleClient implements Closeable
                     }
                     break;
                 case SUPPORTED:
+                case ERROR:
                     // just pass through
                     results.add(response);
                     break;
                 default:
                     throw new ProtocolException(String.format("Unexpected %s response expecting " +
-                                                              "READY, AUTHENTICATE or SUPPORTED",
+                                                              "READY, AUTHENTICATE, ERROR or SUPPORTED",
                                                               response.header.type));
             }
         }
@@ -525,9 +525,9 @@ public class SimpleClient implements Closeable
                                         errorHandler,
                                         ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
                 {
-                    protected boolean processRequest(Envelope request)
+                    protected boolean processRequest(Envelope request, Overload overload)
                     {
-                        boolean continueProcessing = super.processRequest(request);
+                        boolean continueProcessing = super.processRequest(request, overload);
                         releaseCapacity(Ints.checkedCast(request.header.bodySizeInBytes));
                         return continueProcessing;
                     }
@@ -641,7 +641,7 @@ public class SimpleClient implements Closeable
         protected void initChannel(Channel channel) throws Exception
         {
             super.initChannel(channel);
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth,
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.getClientAuth(),
                                                                      ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
             InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? new InetSocketAddress(host, port) : null;
             channel.pipeline().addFirst("ssl", newSslHandler(channel, sslContext, peer));

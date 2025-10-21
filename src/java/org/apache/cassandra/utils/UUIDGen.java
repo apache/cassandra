@@ -30,7 +30,12 @@ public class UUIDGen
     /** creates a type 1 uuid from raw bytes. */
     public static UUID getUUID(ByteBuffer raw)
     {
-        return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
+        return getUUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
+    }
+
+    public static UUID getUUID(long mostSigBits, long leastSigBits)
+    {
+        return new UUID(mostSigBits, leastSigBits);
     }
 
     public static ByteBuffer toByteBuffer(UUID uuid)
@@ -45,13 +50,16 @@ public class UUIDGen
     /** decomposes a uuid into raw bytes. */
     public static byte[] decompose(UUID uuid)
     {
-        long most = uuid.getMostSignificantBits();
-        long least = uuid.getLeastSignificantBits();
+        return decompose(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    }
+
+    public static byte[] decompose(long msb, long lsb)
+    {
         byte[] b = new byte[16];
         for (int i = 0; i < 8; i++)
         {
-            b[i] = (byte)(most >>> ((7-i) * 8));
-            b[8+i] = (byte)(least >>> ((7-i) * 8));
+            b[i] = (byte)(msb >>> ((7-i) * 8));
+            b[8+i] = (byte)(lsb >>> ((7-i) * 8));
         }
         return b;
     }

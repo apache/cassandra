@@ -33,6 +33,11 @@ import org.yaml.snakeyaml.Yaml;
  */
 public interface StatsPrinter<T extends StatsHolder>
 {
+    default void print(T data, PrintStream out, boolean verbose)
+    {
+        print(data, out);
+    }
+
     void print(T data, PrintStream out);
 
     static class JsonPrinter<T extends StatsHolder> implements StatsPrinter<T>

@@ -19,18 +19,28 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.management.openmbean.CompositeData;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -40,35 +50,20 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.repair.Scheduler;
-import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointsByRange;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.repair.state.CoordinatorState;
-import org.apache.cassandra.repair.state.ParticipateState;
-import org.apache.cassandra.repair.state.ValidationState;
-import org.apache.cassandra.utils.Simulate;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -76,25 +71,26 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.RepairMetrics;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
-import org.apache.cassandra.service.paxos.PaxosRepair;
-import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
+import org.apache.cassandra.repair.Scheduler;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.repair.consistent.RepairedState;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
 import org.apache.cassandra.repair.consistent.admin.RepairStats;
-import org.apache.cassandra.repair.consistent.RepairedState;
 import org.apache.cassandra.repair.consistent.admin.SchemaArgsParser;
 import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.PrepareMessage;
@@ -102,9 +98,24 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
+import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Simulate;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -120,7 +131,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.reject;
-import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolFullStrategy;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateExpires;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
@@ -437,14 +455,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
+                                             boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
+                                             boolean repairData,
                                              boolean repairPaxos,
-                                             boolean paxosOnly,
+                                             boolean dontPurgeTombstones,
+                                             boolean repairAccord,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -458,9 +479,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
+                                                        range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                                                        previewKind, optimiseStreams, repairData, repairPaxos,
+                                                        dontPurgeTombstones, repairAccord, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -569,10 +592,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // same as withoutSelf(), but done this way for testing
         EndpointsForRange neighbors = replicaSets.get(rangeSuperSet).filter(r -> !ctx.broadcastAddressAndPort().equals(r.endpoint()));
 
+        ClusterMetadata metadata = ClusterMetadata.current();
         if (dataCenters != null && !dataCenters.isEmpty())
         {
-            TokenMetadata.Topology topology = ss.getTokenMetadata().cloneOnlyTokenMap().getTopology();
-            Multimap<String, InetAddressAndPort> dcEndpointsMap = topology.getDatacenterEndpoints();
+            Multimap<String, InetAddressAndPort> dcEndpointsMap = metadata.directory.allDatacenterEndpoints();
             Iterable<InetAddressAndPort> dcEndpoints = concat(transform(dataCenters, dcEndpointsMap::get));
             return neighbors.select(dcEndpoints, true);
         }
@@ -647,6 +670,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
+        if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind()))
+            failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
+
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
 
@@ -656,11 +682,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         Set<String> failedNodes = synchronizedSet(new HashSet<>());
         AsyncPromise<Void> promise = new AsyncPromise<>();
 
+        Set<IPartitioner> partitioners = new HashSet<>(1);
         List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
+        {
             tableIds.add(cfs.metadata.id);
+            partitioners.add(cfs.getPartitioner());
+        }
 
-        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+        if (partitioners.size() > 1)
+            failRepair(parentRepairSession, "The tables involved in repair are configured with multiple partitioners.");
+
+        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, columnFamilyStores.get(0).getPartitioner(), options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         register(new ParticipateState(ctx.clock(), ctx.broadcastAddressAndPort(), message));
         for (InetAddressAndPort neighbour : endpoints)
         {
@@ -697,6 +730,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return promise;
     }
 
+    public static boolean verifyDiskHeadroomThreshold(TimeUUID parentRepairSession, PreviewKind previewKind)
+    {
+        double diskUsage = DiskUsageMonitor.instance.getDiskUsage();
+        double rejectRatio = ActiveRepairService.instance().getIncrementalRepairDiskHeadroomRejectRatio();
+
+        if (diskUsage + rejectRatio > 1)
+        {
+            logger.error("[{}] Rejecting incoming repair, disk usage ({}%) above threshold ({}%)",
+                         previewKind.logPrefix(parentRepairSession), String.format("%.2f", diskUsage * 100), String.format("%.2f", (1 - rejectRatio) * 100));
+            return false;
+        }
+
+        return true;
+    }
+
     private void sendPrepareWithRetries(TimeUUID parentRepairSession,
                                         AtomicInteger pending,
                                         Set<String> failedNodes,
@@ -713,10 +761,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 failedNodes.add(from.toString());
-                if (failureReason == RequestFailureReason.TIMEOUT)
+                if (failure.reason == RequestFailureReason.TIMEOUT)
                 {
                     pending.set(-1);
                     promise.setFailure(failRepairException(parentRepairSession, "Did not get replies from all endpoints."));
@@ -769,7 +817,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                         }
 
                         @Override
-                        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                        public void onFailure(InetAddressAndPort from, RequestFailure failure)
                         {
                             logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
                                          "be removed on a node restart. This should not be a problem unless you see thousands " +
@@ -825,9 +873,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     /**
-     * We assume when calling this method that a parent session for the provided identifier
-     * exists, and that session is still in progress. When it doesn't, that should mean either
-     * {@link #abort(Predicate, String)} or {@link #failRepair(TimeUUID, String)} have removed it.
+     * We assume when calling this method that a parent session for the provided identifier 
+     * exists, and that session is still in progress. When it doesn't, that should mean either 
+     * {@link #abort(Predicate, String)} or failRepair(UUID, String) have removed it.
      *
      * @param parentSessionId an identifier for an active parent repair session
      * @return the {@link ParentRepairSession} associated with the provided identifier
@@ -867,10 +915,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                       .map(cfs -> cfs.metadata().toString()).collect(Collectors.joining(", ")));
                 long startNanos = ctx.clock().nanoTime();
                 for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
-                {
-                    if (cfs.snapshotExists(snapshotName))
-                        cfs.clearSnapshot(snapshotName);
-                }
+                    SnapshotManager.instance.clearSnapshot(cfs.keyspace.getName(), cfs.name, snapshotName);
+
                 logger.info("[repair #{}] Cleared snapshots in {}ms", parentSessionId, TimeUnit.NANOSECONDS.toMillis(ctx.clock().nanoTime() - startNanos));
             });
         }
@@ -1059,6 +1105,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(value);
     }
 
+    public double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return DatabaseDescriptor.getRepairDiskHeadroomRejectRatio();
+    }
+
+    public void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(value);
+    }
+
     /**
      * Remove any parent repair sessions matching predicate
      */
@@ -1091,30 +1147,49 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public Future<?> repairPaxosForTopologyChange(String ksName, Collection<Range<Token>> ranges, String reason)
     {
+        List<Supplier<Future<?>>> work = repairPaxosForTopologyChangeAsync(ksName,ranges, reason);
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (Supplier<Future<?>> futureSupplier : work)
+            futures.add(futureSupplier.get());
+
+        return FutureCombiner.allOf(futures);
+    }
+
+    public List<Supplier<Future<?>>> repairPaxosForTopologyChangeAsync(String ksName, Collection<Range<Token>> ranges, String reason)
+    {
         if (!paxosRepairEnabled())
         {
             logger.warn("Not running paxos repair for topology change because paxos repair has been disabled");
-            return ImmediateFuture.success(null);
+            return Arrays.asList(() -> ImmediateFuture.success(null));
         }
 
         if (ranges.isEmpty())
         {
             logger.warn("Not running paxos repair for topology change because there are no ranges to repair");
-            return ImmediateFuture.success(null);
+            return Arrays.asList(() -> ImmediateFuture.success(null));
         }
-        List<TableMetadata> tables = Lists.newArrayList(Schema.instance.getKeyspaceMetadata(ksName).tables);
-        List<Future<Void>> futures = new ArrayList<>(ranges.size() * tables.size());
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<TableMetadata> tables = Lists.newArrayList(metadata.schema.getKeyspaces().getNullable(ksName).tables);
+        List<Supplier<Future<?>>> futures = new ArrayList<>(ranges.size() * tables.size());
         Keyspace keyspace = Keyspace.open(ksName);
-        AbstractReplicationStrategy replication = keyspace.getReplicationStrategy();
+
         for (Range<Token> range: ranges)
         {
             for (TableMetadata table : tables)
             {
-                Set<InetAddressAndPort> endpoints = replication.getNaturalReplicas(range.right).filter(FailureDetector.isReplicaAlive).endpoints();
-                if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, endpoints))
+
+                ReplicationParams replication = keyspace.getMetadata().params.replication;
+                // Special case meta keyspace as it uses a custom partitioner/tokens, but the paxos table and repairs
+                // are based on the system partitioner
+                EndpointsForRange endpoints = replication.isMeta()
+                                              ? ClusterMetadata.current().fullCMSMembersAsReplicas()
+                                              : ClusterMetadata.current().placements.get(replication).reads.forRange(range).get();
+
+                Set<InetAddressAndPort> liveEndpoints = endpoints.filter(FailureDetector.isReplicaAlive).endpoints();
+                if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, liveEndpoints))
                 {
-                    Set<InetAddressAndPort> downEndpoints = replication.getNaturalReplicas(range.right).filter(e -> !endpoints.contains(e)).endpoints();
-                    downEndpoints.removeAll(endpoints);
+                    Set<InetAddressAndPort> downEndpoints = endpoints.filter(e -> !liveEndpoints.contains(e.endpoint())).endpoints();
 
                     throw new RuntimeException(String.format("Insufficient live nodes to repair paxos for %s in %s for %s.\n" +
                                                              "There must be enough live nodes to satisfy EACH_QUORUM, but the following nodes are down: %s\n" +
@@ -1128,20 +1203,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              "Skipping this check can lead to paxos correctness issues",
                                                              range, ksName, reason, downEndpoints, SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE.getKey(), SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES.getKey()));
                 }
-                EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(range.right, ksName);
-                if (pending.size() > 1 && !PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getBoolean())
+                // todo: can probably be removed with TrM
+                if (ClusterMetadata.current().hasPendingRangesFor(keyspace.getMetadata(), range.right) && PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getBoolean())
                 {
-                    throw new RuntimeException(String.format("Cannot begin paxos auto repair for %s in %s.%s, multiple pending endpoints exist for range (%s). " +
+                    throw new RuntimeException(String.format("Cannot begin paxos auto repair for %s in %s.%s, multiple pending endpoints exist for range (metadata = %s). " +
                                                              "Set -D%s=true to skip this check",
-                                                             range, table.keyspace, table.name, pending, PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
+                                                             range, table.keyspace, table.name, ClusterMetadata.current(), PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
-                Future<Void> future = PaxosCleanup.cleanup(ctx, endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
-                futures.add(future);
+                futures.add(() -> PaxosCleanup.cleanup(ctx, liveEndpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
             }
         }
 
-        return FutureCombiner.allOf(futures);
+        return futures;
     }
 
     public int getPaxosRepairParallelism()

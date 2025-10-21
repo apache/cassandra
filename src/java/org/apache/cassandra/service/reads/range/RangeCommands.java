@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -55,10 +56,11 @@ public class RangeCommands
 
     public static PartitionIterator partitions(PartitionRangeReadCommand command,
                                                ConsistencyLevel consistencyLevel,
+                                               ReadCoordinator readCoordinator,
                                                Dispatcher.RequestTime requestTime)
     {
         // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, requestTime);
+        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, readCoordinator, requestTime);
         return command.limits().filter(command.postReconciliationProcessing(rangeCommands),
                                        command.nowInSec(),
                                        command.selectsFullPartition(),
@@ -68,6 +70,7 @@ public class RangeCommands
     @VisibleForTesting
     static RangeCommandIterator rangeCommandIterator(PartitionRangeReadCommand command,
                                                      ConsistencyLevel consistencyLevel,
+                                                     ReadCoordinator readCoordinator,
                                                      Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Computing ranges to query");
@@ -76,10 +79,11 @@ public class RangeCommands
         ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(),
                                                                    command.indexQueryPlan(),
                                                                    keyspace,
+                                                                   command.metadata().id(),
                                                                    consistencyLevel);
 
         if (command.isTopK())
-            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), requestTime);
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, readCoordinator, replicaPlans.size(), requestTime);
 
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
@@ -94,8 +98,9 @@ public class RangeCommands
             concurrencyFactor = resultsPerRange == 0.0
                                 ? 1
                                 : Math.max(1, Math.min(maxConcurrencyFactor, (int) Math.ceil(command.limits().count() / resultsPerRange)));
-            logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
-                         resultsPerRange, command.limits().count(), replicaPlans.size(), concurrencyFactor);
+            if (logger.isTraceEnabled())
+                logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+                             resultsPerRange, command.limits().count(), replicaPlans.size(), concurrencyFactor);
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)",
                           replicaPlans.size(), concurrencyFactor, resultsPerRange);
         }
@@ -106,9 +111,10 @@ public class RangeCommands
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {}", replicaPlans.size(), concurrencyFactor);
         }
 
-        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, consistencyLevel);
+        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, command.metadata().id(), consistencyLevel);
         return new RangeCommandIterator(mergedReplicaPlans,
                                         command,
+                                        readCoordinator,
                                         concurrencyFactor,
                                         maxConcurrencyFactor,
                                         replicaPlans.size(),
@@ -146,11 +152,12 @@ public class RangeCommands
             ReplicaPlanIterator rangeIterator = new ReplicaPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
                                                                         null,
                                                                         keyspace,
+                                                                        metadata.id,
                                                                         consistency);
 
             // Called for the side effect of running assureSufficientLiveReplicasForRead.
             // Deliberately called with an invalid vnode count in case it is used elsewhere in the future..
-            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, null, consistency, r.range(), -1));
+            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, metadata.id, null, consistency, r.range(), -1));
             return true;
         }
         catch (UnavailableException e)

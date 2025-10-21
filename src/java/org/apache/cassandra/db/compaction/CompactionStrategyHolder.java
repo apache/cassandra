@@ -29,7 +29,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -106,7 +106,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     {
         List<TaskSupplier> suppliers = new ArrayList<>(strategies.size());
         for (AbstractCompactionStrategy strategy : strategies)
-            suppliers.add(new TaskSupplier(strategy.getEstimatedRemainingTasks(), () -> strategy.getNextBackgroundTask(gcBefore)));
+            suppliers.add(new TaskSupplier(strategy.getEstimatedRemainingTasks(), () -> strategy.getNextBackgroundTasks(gcBefore)));
 
         return suppliers;
     }
@@ -117,7 +117,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
         List<AbstractCompactionTask> tasks = new ArrayList<>(strategies.size());
         for (AbstractCompactionStrategy strategy : strategies)
         {
-            Collection<AbstractCompactionTask> task = strategy.getMaximalTask(gcBefore, splitOutput);
+            Collection<AbstractCompactionTask> task = strategy.getMaximalTasks(gcBefore, splitOutput);
             if (task != null)
                 tasks.addAll(task);
         }
@@ -230,7 +230,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         if (isRepaired)
         {
@@ -255,7 +255,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                  sstableLevel,
                                                  header,
                                                  indexGroups,
-                                                 lifecycleNewTracker);
+                                                 txn);
     }
 
     @Override

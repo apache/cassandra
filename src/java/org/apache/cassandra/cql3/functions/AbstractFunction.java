@@ -46,7 +46,7 @@ public abstract class AbstractFunction implements Function
     {
         this.name = name;
         this.argTypes = argTypes;
-        this.returnType = returnType;
+        this.returnType = returnType != null ? returnType.unwrap() : null;
     }
 
     public FunctionName name()

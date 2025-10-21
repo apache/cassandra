@@ -34,16 +34,17 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
-    // TODO: this doesn't need to be a full ReplicaPlan; just a replica collection
     protected final Supplier<? extends P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
     protected final Accumulator<Message<ReadResponse>> responses;
     protected final Dispatcher.RequestTime requestTime;
 
-    public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
+    public ResponseResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.responses = new Accumulator<>(replicaPlan.get().readCandidates().size());

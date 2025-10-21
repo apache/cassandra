@@ -32,6 +32,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import com.google.common.base.Preconditions;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -40,12 +43,14 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_NETTY_USE_HEAP_ALLOCATOR;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * ByteBuf utility methods.
@@ -160,6 +165,8 @@ public abstract class CBUtil
     public static void writeString(String str, ByteBuf cb)
     {
         int length = encodedUTF8Length(str);
+        Preconditions.checkArgument(length <= Short.MAX_VALUE,
+                                    LazyToString.lazy(() -> String.format("String too large; expected %d <= %d", length, Short.MAX_VALUE)));
         cb.writeShort(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
@@ -298,7 +305,7 @@ public abstract class CBUtil
         String value = CBUtil.readString(cb);
         try
         {
-            return Enum.valueOf(enumType, value.toUpperCase());
+            return Enum.valueOf(enumType, toUpperCaseLocalized(value));
         }
         catch (IllegalArgumentException e)
         {
@@ -412,7 +419,7 @@ public abstract class CBUtil
         Map<String, List<String>> m = new HashMap<String, List<String>>(length);
         for (int i = 0; i < length; i++)
         {
-            String k = readString(cb).toUpperCase();
+            String k = toUpperCaseLocalized(readString(cb));
             List<String> v = readStringList(cb);
             m.put(k, v);
         }

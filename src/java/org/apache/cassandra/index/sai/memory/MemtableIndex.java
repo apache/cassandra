@@ -82,7 +82,7 @@ public class MemtableIndex implements MemtableOrdering
 
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        if (value == null || (value.remaining() == 0 && !type.allowsEmpty()))
+        if (value == null || (value.remaining() == 0 && memoryIndex.index.termType().skipsEmptyValue()))
             return 0;
 
         long ram = memoryIndex.add(key, clustering, value);

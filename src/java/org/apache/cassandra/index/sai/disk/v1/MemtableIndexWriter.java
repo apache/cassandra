@@ -91,14 +91,16 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         // keys and row IDs in the flushing SSTable. This writer, therefore, does nothing in
         // response to the flushing of individual rows except for keeping index-specific statistics.
         boolean isStatic = indexTermType.columnMetadata().isStatic();
+        boolean isPartitionKey = indexTermType.columnMetadata().isPartitionKey();
 
         // Indexes on static columns should only track static rows, and indexes on non-static columns 
         // should only track non-static rows. (Within a partition, the row ID for a static row will always
-        // come before any non-static row.) 
-        if (key.kind() == PrimaryKey.Kind.STATIC && isStatic || key.kind() != PrimaryKey.Kind.STATIC && !isStatic)
+        // come before any non-static row.) The only exception to this is indexes on partition key elements.
+        if ((key.kind() == PrimaryKey.Kind.STATIC && (isStatic || isPartitionKey)) || key.kind() != PrimaryKey.Kind.STATIC && !isStatic)
         {
             if (minKey == null)
                 minKey = key;
+
             maxKey = key;
             rowCount++;
             maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
@@ -144,12 +146,15 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             {
                 final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable);
 
-                try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+                long cellCount = 0;
+                if (iterator.hasNext())
                 {
-                    long cellCount = flush(terms);
-
-                    completeIndexFlush(cellCount, start, stopwatch);
+                    try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+                    {
+                        cellCount = flush(terms);
+                    }
                 }
+                completeIndexFlush(cellCount, start, stopwatch);
             }
         }
         catch (Throwable t)
@@ -159,6 +164,13 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
             throw t;
         }
+    }
+
+    @Override
+    public void onSSTableWriterSwitched(Stopwatch stopwatch) throws IOException
+    {
+        // no-op for memtable index where all terms are already inside memory index, we can't get rid of memory index
+        // until full flush are completed
     }
 
     private long flush(MemtableTermsIterator terms) throws IOException
@@ -215,8 +227,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private void completeIndexFlush(long cellCount, long startTime, Stopwatch stopwatch) throws IOException
     {
-        // create a completion marker indicating that the index is complete and not-empty
-        ColumnCompletionMarkerUtil.create(indexDescriptor, indexIdentifier, false);
+        // create a completion marker indicating that the index is complete
+        ColumnCompletionMarkerUtil.create(indexDescriptor, indexIdentifier, cellCount == 0);
 
         indexMetrics.memtableIndexFlushCount.inc();
 

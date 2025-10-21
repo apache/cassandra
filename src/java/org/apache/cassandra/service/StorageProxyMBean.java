@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public interface StorageProxyMBean
 {
     public long getTotalHints();
@@ -55,6 +54,9 @@ public interface StorageProxyMBean
 
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections);
     public Long getNativeTransportMaxConcurrentConnections();
+
+    public void setNativeTransportMaxConcurrentConnectionsPerIp(Long nativeTransportMaxConcurrentConnections);
+    public Long getNativeTransportMaxConcurrentConnectionsPerIp();
 
     public void reloadTriggerClasses();
 

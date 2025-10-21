@@ -17,37 +17,37 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)")
-public class Rebuild extends NodeToolCmd
+public class Rebuild extends AbstractCommand
 {
-    @Arguments(usage = "<src-dc-name>",
-               description = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)")
+    @Parameters(paramLabel = "src-dc-name",
+                description = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)",
+                index = "0",
+                arity = "0..1")
     private String sourceDataCenterName = null;
 
-    @Option(title = "specific_keyspace",
-            name = {"-ks", "--keyspace"},
+    @Option(paramLabel = "specific_keyspace",
+            names = {"-ks", "--keyspace"},
             description = "Use -ks to rebuild specific keyspace.")
     private String keyspace = null;
 
-    @Option(title = "specific_tokens",
-            name = {"-ts", "--tokens"},
+    @Option(paramLabel = "specific_tokens",
+            names = {"-ts", "--tokens"},
             description = "Use -ts to rebuild specific token ranges, in the format of \"(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]\".")
     private String tokens = null;
 
-    @Option(title = "specific_sources",
-            name = {"-s", "--sources"},
+    @Option(paramLabel = "specific_sources",
+            names = {"-s", "--sources"},
             description = "Use -s to specify hosts that this node should stream from when -ts is used. Multiple hosts should be separated using commas (e.g. 127.0.0.1,127.0.0.2,...)")
     private String specificSources = null;
 
-    @Option(title = "exclude_local_dc",
-            name = {"--exclude-local-dc"},
+    @Option(paramLabel = "exclude_local_dc",
+            names = {"--exclude-local-dc"},
             description = "Use --exclude-local-dc to exclude nodes in local data center as source for streaming.")
     private boolean excludeLocalDatacenterNodes = false;
 

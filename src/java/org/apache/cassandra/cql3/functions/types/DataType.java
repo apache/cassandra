@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.transport.ProtocolVersion;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * Data types supported by cassandra.
  */
@@ -122,7 +124,7 @@ public abstract class DataType
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return toLowerCaseLocalized(super.toString());
         }
     }
 

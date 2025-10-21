@@ -25,17 +25,17 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
-import org.junit.AfterClass;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.*;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -44,42 +44,47 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SyncNodePair;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.MerkleTrees;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class RepairMessageSerializationsTest
+@UseMurmur3Partitioner
+@DDDaemonInitialization
+public class RepairMessageSerializationsTest extends CassandraTestBase
 {
     private static final int PROTOCOL_VERSION = MessagingService.current_version;
     private static final int GC_BEFORE = 1000000;
 
-    private static IPartitioner originalPartitioner;
 
     @BeforeClass
     public static void before()
     {
-        DatabaseDescriptor.daemonInitialization();
-        originalPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-    }
-
-    @AfterClass
-    public static void after()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
+        ClusterMetadataTestHelper.setInstanceForTest();
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("serializationsTestKeyspace",
+                                                                   KeyspaceParams.simple(3)));
+        SchemaTestUtil.announceNewTable(TableMetadata.minimal("serializationsTestKeyspace", "repairMessages"));
     }
 
     @Test
     public void validationRequestMessage() throws IOException
     {
         RepairJobDesc jobDesc = buildRepairJobDesc();
-        ValidationRequest msg = new ValidationRequest(jobDesc, GC_BEFORE);
+        ValidationRequest msg = new ValidationRequest(jobDesc, GC_BEFORE, false);
         ValidationRequest deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
+        Assert.assertEquals(jobDesc, deserialized.desc);
+
+        msg = new ValidationRequest(jobDesc, GC_BEFORE, true);
+        deserialized = serializeRoundTrip(msg, ValidationRequest.serializer);
         Assert.assertEquals(jobDesc, deserialized.desc);
     }
 
@@ -110,7 +115,19 @@ public class RepairMessageSerializationsTest
 
         buf.flip();
         DataInputPlus in = new DataInputBuffer(buf, false);
-        T deserialized = serializer.deserialize(in, PROTOCOL_VERSION);
+
+        T deserialized = null;
+        
+        if (serializer instanceof IPartitionerDependentSerializer)
+        {
+            IPartitionerDependentSerializer<T> pds = (IPartitionerDependentSerializer<T>) serializer;
+            deserialized = pds.deserialize(in, DatabaseDescriptor.getPartitioner(), PROTOCOL_VERSION);
+        }
+        else
+        {
+            deserialized = serializer.deserialize(in, PROTOCOL_VERSION);
+        }
+
         Assert.assertEquals(msg, deserialized);
         Assert.assertEquals(msg.hashCode(), deserialized.hashCode());
         return deserialized;
@@ -162,8 +179,8 @@ public class RepairMessageSerializationsTest
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dst,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 500, 10))
         ));
         SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries);
         serializeRoundTrip(msg, SyncResponse.serializer);
@@ -173,6 +190,7 @@ public class RepairMessageSerializationsTest
     public void prepareMessage() throws IOException
     {
         PrepareMessage msg = new PrepareMessage(nextTimeUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
+                                                Murmur3Partitioner.instance,
                                                 buildTokenRanges(), true, 100000L, false,
                                                 PreviewKind.NONE);
         serializeRoundTrip(msg, PrepareMessage.serializer);

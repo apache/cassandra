@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -29,7 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -38,13 +40,19 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.service.paxos.PaxosPropose.Status.Outcome;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Collections.emptyMap;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_PROPOSE_REQ;
-import static org.apache.cassandra.service.paxos.PaxosPropose.Superseded.SideEffects.NO;
-import static org.apache.cassandra.service.paxos.PaxosPropose.Superseded.SideEffects.MAYBE;
+import static org.apache.cassandra.service.paxos.PaxosPropose.Status.SideEffects.MAYBE;
+import static org.apache.cassandra.service.paxos.PaxosPropose.Status.SideEffects.NO;
+import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newConditionAsConsumer;
 
@@ -54,13 +62,13 @@ import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newCondi
  * indicating (respectively) that we have had no side effect, or that we cannot
  * know if we our proposal produced a side effect.
  */
-public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> extends PaxosRequestCallback<PaxosPropose.Response>
+public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> extends PaxosRequestCallback<PaxosState.AcceptResult>
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosPropose.class);
 
     public static final RequestHandler requestHandler = new RequestHandler();
     public static final RequestSerializer requestSerializer = new RequestSerializer();
-    public static final ResponseSerializer responseSerializer = new ResponseSerializer();
+    public static final AcceptResultSerializer ACCEPT_RESULT_SERIALIZER = new AcceptResultSerializer();
 
     /**
      * Represents the current status of a propose action: it is a status rather than a result,
@@ -77,15 +85,17 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         }
         Superseded superseded() { return (Superseded) this; }
         Paxos.MaybeFailure maybeFailure() { return ((MaybeFailure) this).info; }
-        public String toString() { return "Success"; }
+        public String toString() { return outcome.toString(); }
+
+        enum SideEffects { NO, MAYBE }
     }
 
     static class Superseded extends Status
     {
-        enum SideEffects { NO, MAYBE }
+        @Nullable
         final Ballot by;
         final SideEffects hadSideEffects;
-        Superseded(Ballot by, SideEffects hadSideEffects)
+        Superseded(@Nullable Ballot by, SideEffects hadSideEffects)
         {
             super(Outcome.SUPERSEDED);
             this.by = by;
@@ -107,7 +117,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public String toString() { return info.toString(); }
     }
 
-    private static final Status success = new Status(Status.Outcome.SUCCESS);
+    private static final Status STATUS_SUCCESS = new Status(Status.Outcome.SUCCESS);
 
     private static final AtomicLongFieldUpdater<PaxosPropose> responsesUpdater = AtomicLongFieldUpdater.newUpdater(PaxosPropose.class, "responses");
     private static final AtomicReferenceFieldUpdater<PaxosPropose, Ballot> supersededByUpdater = AtomicReferenceFieldUpdater.newUpdater(PaxosPropose.class, Ballot.class, "supersededBy");
@@ -126,6 +136,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     final int participants;
     /** Number of accepts required */
     final int required;
+
     /** Invoke on reaching a terminal status */
     final OnDone onDone;
 
@@ -160,6 +171,8 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
      * or for the present status if the time elapses without a final result being reached.
      * @param waitForNoSideEffect if true, on failure we will wait until we can say with certainty there are no side effects
      *                            or until we know we will never be able to determine this with certainty
+     * @param isForRecovery if true the value being proposed is not a new value it is a value from an existing in flight proposal
+     *                    and will be allowed to proceed even if the key is migrating to a different consensus protocol
      */
     static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect)
     {
@@ -207,7 +220,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     void start(Paxos.Participants participants)
     {
-        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal));
+        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal), participants.isUrgent());
 
         boolean executeOnSelf = false;
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
@@ -230,9 +243,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         long responses = this.responses;
 
         if (isSuccessful(responses))
-            return success;
+            return STATUS_SUCCESS;
 
-        if (!canSucceed(responses) && supersededBy != null)
+        if (!canSucceed(responses) && (supersededBy != null))
         {
             Superseded.SideEffects sideEffects = hasNoSideEffects(responses) ? NO : MAYBE;
             return new Superseded(supersededBy, sideEffects);
@@ -246,12 +259,12 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         executeOnSelf(proposal, RequestHandler::execute);
     }
 
-    public void onResponse(Response response, InetAddressAndPort from)
+    public void onResponse(AcceptResult acceptResult, InetAddressAndPort from)
     {
         if (logger.isTraceEnabled())
-            logger.trace("{} for {} from {}", response, proposal, from);
+            logger.trace("{} for {} from {}", acceptResult, proposal, from);
 
-        Ballot supersededBy = response.supersededBy;
+        Ballot supersededBy = acceptResult.supersededBy;
         if (supersededBy != null)
             supersededByUpdater.accumulateAndGet(this, supersededBy, (a, b) -> a == null ? b : b.uuidTimestamp() > a.uuidTimestamp() ? b : a);
 
@@ -263,8 +276,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
+        checkArgument(reason.reason != RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, "Repair should never be rejected due to consensus migration");
         if (logger.isTraceEnabled())
             logger.trace("{} {} failure from {}", proposal, reason, from);
 
@@ -380,24 +394,13 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             this.proposal = proposal;
         }
 
+        @Override
         public String toString()
         {
-            return proposal.toString("Propose");
+            return "Request{" +
+                   "proposal=" + proposal.toString("Propose") +
+                   '}';
         }
-    }
-
-    /**
-     * The response to a proposal, indicating success (if {@code supersededBy == null},
-     * or failure, alongside the ballot that beat us
-     */
-    static class Response
-    {
-        final Ballot supersededBy;
-        Response(Ballot supersededBy)
-        {
-            this.supersededBy = supersededBy;
-        }
-        public String toString() { return supersededBy == null ? "Accept" : "RejectProposal(supersededBy=" + supersededBy + ')'; }
     }
 
     /**
@@ -408,14 +411,24 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         @Override
         public void doVerb(Message<Request> message)
         {
-            Response response = execute(message.payload.proposal, message.from());
-            if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
-            else
-                MessagingService.instance().respond(response, message);
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+
+            try
+            {
+                AcceptResult acceptResult = execute(message.payload.proposal, message.from());
+                if (acceptResult == null)
+                    MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                else
+                    MessagingService.instance().respond(acceptResult, message);
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                // Should not actually be thrown here, but continue to catch and response with the error just in case
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
 
-        public static Response execute(Proposal proposal, InetAddressAndPort from)
+        public static AcceptResult execute(Proposal proposal, InetAddressAndPort from)
         {
             if (!Paxos.isInRangeAndShouldProcess(from, proposal.update.partitionKey(), proposal.update.metadata(), false))
                 return null;
@@ -423,7 +436,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long start = nanoTime();
             try (PaxosState state = PaxosState.get(proposal))
             {
-                return new Response(state.acceptIfLatest(proposal));
+                return state.acceptIfLatest(proposal);
             }
             finally
             {
@@ -450,30 +463,35 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         @Override
         public long serializedSize(Request request, int version)
         {
-            return Proposal.serializer.serializedSize(request.proposal, version);
+            long size = Proposal.serializer.serializedSize(request.proposal, version);
+            return size;
         }
     }
 
-    public static class ResponseSerializer implements IVersionedSerializer<Response>
+    public static class AcceptResultSerializer implements IVersionedSerializer<PaxosState.AcceptResult>
     {
-        public void serialize(Response response, DataOutputPlus out, int version) throws IOException
+        public void serialize(PaxosState.AcceptResult acceptResult, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(response.supersededBy != null);
-            if (response.supersededBy != null)
-                response.supersededBy.serialize(out);
+            out.writeBoolean(acceptResult.supersededBy != null);
+            if (acceptResult.supersededBy != null)
+                acceptResult.supersededBy.serialize(out);
         }
 
-        public Response deserialize(DataInputPlus in, int version) throws IOException
+        public AcceptResult deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean isSuperseded = in.readBoolean();
-            return isSuperseded ? new Response(Ballot.deserialize(in)) : new Response(null);
+            Ballot supersededBy = null;
+            if (isSuperseded)
+                supersededBy = Ballot.deserialize(in);
+            return new AcceptResult(supersededBy);
         }
 
-        public long serializedSize(Response response, int version)
+        public long serializedSize(AcceptResult acceptResult, int version)
         {
-            return response.supersededBy != null
+            long size = acceptResult.supersededBy != null
                     ? TypeSizes.sizeof(true) + Ballot.sizeInBytes()
                     : TypeSizes.sizeof(false);
+            return size;
         }
     }
 }

@@ -35,18 +35,17 @@ import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.Sampler;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.Util;
 
-
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,14 +56,14 @@ import static org.junit.Assert.assertTrue;
  */
 public class TopPartitionsTest
 {
-    public static String KEYSPACE = TopPartitionsTest.class.getSimpleName().toLowerCase();
+    public static String KEYSPACE = toLowerCaseLocalized(TopPartitionsTest.class.getSimpleName());
     public static String TABLE = "test";
 
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+        ServerTestUtils.prepareServerNoRegister();
+        executeInternal(format("CREATE KEYSPACE %s WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}", KEYSPACE));
         executeInternal(format("CREATE TABLE %s.%s (k text, c text, v text, PRIMARY KEY (k, c))", KEYSPACE, TABLE));
     }
 

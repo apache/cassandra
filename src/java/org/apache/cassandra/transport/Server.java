@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,6 +158,14 @@ public class Server implements CassandraDaemon.Server
         return connectionTracker.countConnectedClientsByUser();
     }
 
+    /**
+     * @return A count of the number of clients matching the given predicate.
+     */
+    public int countConnectedClients(Predicate<ServerConnection> predicate)
+    {
+        return connectionTracker.countConnectedClients(predicate);
+    }
+
     public List<ConnectedClient> getConnectedClients()
     {
         List<ConnectedClient> result = new ArrayList<>();
@@ -180,7 +189,6 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.protocolVersionTracker.clear();
     }
 
-
     private void close(boolean force)
     {
         if (!force)
@@ -201,6 +209,11 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.closeAll();
 
         logger.info("Stop listening for CQL clients");
+    }
+
+    public void disconnect(Predicate<AuthenticatedUser> userPredicate)
+    {
+        connectionTracker.disconnectByUser(userPredicate);
     }
 
     public static class Builder
@@ -286,7 +299,7 @@ public class Server implements CassandraDaemon.Server
         private final ProtocolVersionTracker protocolVersionTracker = new ProtocolVersionTracker();
         private final BooleanSupplier isRunning;
 
-        private ConnectionTracker(BooleanSupplier isRunning)
+        public ConnectionTracker(BooleanSupplier isRunning)
         {
             for (Event.Type type : Event.Type.values())
                 groups.put(type, new DefaultChannelGroup(type.toString(), GlobalEventExecutor.INSTANCE));
@@ -340,6 +353,24 @@ public class Server implements CassandraDaemon.Server
             return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
         }
 
+        int countConnectedClients(Predicate<ServerConnection> predicate)
+        {
+            int count = 0;
+            for (Channel c : allChannels)
+            {
+                Connection connection = c.attr(Connection.attributeKey).get();
+                if (connection instanceof ServerConnection)
+                {
+                    ServerConnection conn = (ServerConnection) connection;
+                    if (predicate.test(conn))
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
         Map<String, Integer> countConnectedClientsByUser()
         {
             Map<String, Integer> result = new HashMap<>();
@@ -357,6 +388,23 @@ public class Server implements CassandraDaemon.Server
             return result;
         }
 
+        void disconnectByUser(Predicate<AuthenticatedUser> userPredicate)
+        {
+            for (Channel c : allChannels)
+            {
+                Connection connection = c.attr(Connection.attributeKey).get();
+                if (connection instanceof ServerConnection)
+                {
+                    ServerConnection conn = (ServerConnection) connection;
+                    AuthenticatedUser user = conn.getClientState().getUser();
+                    if (user == null || userPredicate.test(user))
+                    {
+                        logger.info("Closing channel with remote address {} with user {}", conn.channel().remoteAddress(), user);
+                        connection.channel().close();
+                    }
+                }
+            }
+        }
     }
 
     private static class LatestEvent

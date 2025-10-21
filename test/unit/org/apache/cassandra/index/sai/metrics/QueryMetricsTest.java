@@ -99,9 +99,4 @@ public class QueryMetricsTest extends AbstractMetricsTest
         dropIndex(String.format("DROP INDEX %s." + index, keyspace));
         assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted")).hasCauseInstanceOf(InstanceNotFoundException.class);
     }
-
-    private long getTableQueryMetrics(String keyspace, String table, String metricsName)
-    {
-        return (long) getMetricValue(objectNameNoIndex(metricsName, keyspace, table, TableQueryMetrics.TABLE_QUERY_METRIC_TYPE));
-    }
 }

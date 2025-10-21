@@ -113,6 +113,16 @@ public abstract class Cells
             // would otherwise always win (unless it had an empty value), until it expired and was translated to a tombstone
             if (leftLocalDeletionTime != rightLocalDeletionTime)
                 return leftLocalDeletionTime > rightLocalDeletionTime ? left : right;
+
+            // Both cells are either tombstones or expiring at the same timestamp. If expiring and the
+            // TTLs differ, write the lower one -- the write is probably from a more recent
+            // UPDATE USING TTL AND TIMESTAMP, so select the most recent one to be deterministic and be
+            // closest to client intent.
+            if (!leftIsTombstone && left.ttl() != right.ttl())
+            {
+                assert !rightIsTombstone;
+                return left.ttl() < right.ttl() ? left : right;
+            }
         }
 
         return compareValues(left, right) >= 0 ? left : right;

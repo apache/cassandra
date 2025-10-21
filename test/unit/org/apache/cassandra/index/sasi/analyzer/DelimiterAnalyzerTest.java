@@ -34,6 +34,7 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertEquals;
 
 public class DelimiterAnalyzerTest
@@ -59,7 +60,7 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ' ' : ""));
 
         Assert.assertEquals(testString, output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(toLowerCaseLocalized(testString).equals(output.toString()));
     }
 
     @Test
@@ -82,21 +83,21 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ',' : ""));
 
         Assert.assertEquals("Nip,it,in,the,bud", output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(toLowerCaseLocalized(testString).equals(output.toString()));
     }
 
     @Test(expected = ConfigurationException.class)
     public void ensureIncompatibleInputOnCollectionTypeSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true)));
+                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true), ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test(expected = ConfigurationException.class)
     public void ensureIncompatibleInputSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance));
+                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test

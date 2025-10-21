@@ -20,11 +20,18 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
-import org.apache.cassandra.db.DecoratedKey;
+import accord.api.RoutingKey;
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -32,6 +39,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -40,17 +48,33 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
+import static accord.utils.Invariants.requireArgument;
+import static java.lang.Integer.max;
+import static java.math.BigInteger.ONE;
+import static java.math.BigInteger.ZERO;
+
 public class OrderPreservingPartitioner implements IPartitioner
 {
     private static final String rndchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     public static final StringToken MINIMUM = new StringToken("");
+    public static final StringToken MAXIMUM = new StringToken("") {
+        public int compareTo(Token o)
+        {
+            if (o == MAXIMUM)
+                return 0;
+
+            return 1;
+        }
+    };
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
 
     public static final OrderPreservingPartitioner instance = new OrderPreservingPartitioner();
+
+    private OrderPreservingPartitioner() {}
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -81,7 +105,7 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         assert str.length() <= sigchars;
 
-        BigInteger big = BigInteger.ZERO;
+        BigInteger big = ZERO;
         for (int i = 0; i < str.length(); i++)
         {
             int charpos = 16 * (sigchars - (i + 1));
@@ -116,6 +140,11 @@ public class OrderPreservingPartitioner implements IPartitioner
         return MINIMUM;
     }
 
+    public StringToken getMaximumTokenForSplitting()
+    {
+        return MAXIMUM;
+    }
+
     public StringToken getRandomToken()
     {
         return getRandomToken(ThreadLocalRandom.current());
@@ -134,6 +163,11 @@ public class OrderPreservingPartitioner implements IPartitioner
         public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
         {
             return new StringToken(ByteSourceInverse.getString(comparableBytes));
+        }
+
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipUnescapedBytes(comparableBytes);
         }
 
         public ByteBuffer toByteArray(Token token)
@@ -208,6 +242,22 @@ public class OrderPreservingPartitioner implements IPartitioner
         {
             return ByteSource.of(token, version);
         }
+
+        @Override
+        public int compareTo(Token o)
+        {
+            // todo (rebase): I have no recollection of why this is needed - investigate
+            if (o == MAXIMUM)
+                    return -1;
+
+            return super.compareTo(o);
+        }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
+        }
     }
 
     public StringToken getToken(ByteBuffer key)
@@ -228,7 +278,7 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
+        List<Range<Token>> sortedRanges = new ArrayList<>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
@@ -243,6 +293,8 @@ public class OrderPreservingPartitioner implements IPartitioner
         {
             for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
+                if (!(cfmd.partitioner instanceof OrderPreservingPartitioner))
+                    continue;
                 for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
@@ -269,5 +321,60 @@ public class OrderPreservingPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return UTF8Type.instance;
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ranges -> new AccordSplitter()
+        {
+            final int charLength = ranges.stream().mapToInt(range -> max(charLength(range.start()), charLength(range.end())))
+                                         .max().orElse(0);
+
+            @Override
+            BigInteger valueForToken(Token token)
+            {
+                String chars = ((StringToken) token).token;
+                requireArgument(chars.length() <= charLength);
+                BigInteger value = ZERO;
+                for (int i = 0 ; i < chars.length() ; ++i)
+                    value = value.add(BigInteger.valueOf(chars.charAt(i) & 0xffffL).shiftLeft((charLength - 1 - i) * 16));
+                return value;
+            }
+
+            @Override
+            Token tokenForValue(BigInteger value)
+            {
+                // TODO (required): test
+                requireArgument(value.compareTo(ZERO) >= 0);
+                char[] chars = new char[charLength];
+                for (int i = 0 ; i < chars.length ; ++i)
+                    chars[i] = (char) value.shiftRight((charLength - 1 - i) * 16).shortValue();
+                return new StringToken(new String(chars));
+            }
+
+            @Override
+            BigInteger minimumValue()
+            {
+                return ZERO;
+            }
+
+            @Override
+            BigInteger maximumValue()
+            {
+                return ONE.shiftLeft(charLength * 16).subtract(ONE);
+            }
+        };
+    }
+
+    private static int charLength(RoutingKey routingKey)
+    {
+        TokenKey accordKey = (TokenKey) routingKey;
+        return charLength(accordKey.token());
+    }
+
+    private static int charLength(Token token)
+    {
+        return ((StringToken) token).token.length();
     }
 }

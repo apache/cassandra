@@ -29,10 +29,12 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.TableId;
 
 public class DropRecreateAndRestoreTest extends CQLTester
 {
+    // don't run CQLTester after test, commitlog is messed up by testCreateWithIdRestore and we now need to commit a ForceSnapshot when resetting the CMS
+    public void afterTest() {}
+
     @Test
     public void testCreateWithIdRestore() throws Throwable
     {
@@ -42,7 +44,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 0, 0, 0, timeInMicroSecond1);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 1, 1, timeInMicroSecond1);
 
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
         Thread.sleep(5);
 
@@ -84,7 +86,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
     public void testCreateWithIdDuplicate() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         execute(String.format("CREATE TABLE %%s (a int, b int, c int, PRIMARY KEY(a, b)) WITH ID = %s", id));
     }
 
@@ -98,7 +100,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
     public void testAlterWithId() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         execute(String.format("ALTER TABLE %%s WITH ID = %s", id));
     }
 }

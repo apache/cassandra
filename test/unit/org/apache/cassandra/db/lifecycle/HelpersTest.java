@@ -31,7 +31,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.junit.Assert;
-import org.apache.cassandra.config.DatabaseDescriptor;
+
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -48,9 +49,8 @@ public class HelpersTest
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     static Set<Integer> a = set(1, 2, 3);

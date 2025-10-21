@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -99,9 +100,9 @@ public class SegmentsSystemView extends AbstractVirtualTable
 
     private void forEachIndex(Consumer<StorageAttachedIndex> process)
     {
-        for (String ks : Schema.instance.getUserKeyspaces())
+        for (KeyspaceMetadata ks : Schema.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks.name);
             if (keyspace == null)
                 throw new IllegalStateException("Unknown keyspace " + ks + ". This can occur if the keyspace is being dropped.");
 

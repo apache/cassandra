@@ -22,7 +22,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -52,9 +55,9 @@ public class StreamDeserializingTask implements Runnable
     public void run()
     {
         StreamingDataInputPlus input = channel.in();
+        StreamMessage message = null;
         try
         {
-            StreamMessage message;
             while (null != (message = StreamMessage.deserialize(input, messagingVersion)))
             {
                 // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
@@ -69,15 +72,30 @@ public class StreamDeserializingTask implements Runnable
                 if (session == null)
                     session = deriveSession(message);
 
-                if (logger.isDebugEnabled())
-                    logger.debug("{} Received {}", createLogTag(session, channel), message);
-
-                session.messageReceived(message);
+                if (session.getStreamOperation() == StreamOperation.BULK_LOAD)
+                {
+                    try
+                    {
+                        Guardrails.bulkLoadEnabled.ensureEnabled(null);
+                        receiveMessage(message);
+                    }
+                    catch (GuardrailViolatedException ex)
+                    {
+                        logger.warn("{} Aborting {}. Bulk load of SSTables is not allowed.", createLogTag(session, channel), message);
+                        session.abort();
+                    }
+                }
+                else
+                {
+                    receiveMessage(message);
+                }
             }
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
+            if ((session == null || session.isFailedOrAborted()) && message instanceof IncomingStreamMessage)
+                t = ((IncomingStreamMessage) message).stream.abort(t);
             if (session != null)
             {
                 session.onError(t);
@@ -109,5 +127,13 @@ public class StreamDeserializingTask implements Runnable
         // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
         streamSession.attachInbound(channel);
         return streamSession;
+    }
+
+    private void receiveMessage(StreamMessage message)
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("{} Received {}", createLogTag(session, channel), message);
+
+        session.messageReceived(message);
     }
 }

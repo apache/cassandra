@@ -28,11 +28,11 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.junit.Assert;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -46,15 +46,15 @@ import static com.google.common.collect.ImmutableSet.of;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
+import static org.apache.cassandra.db.lifecycle.SSTableIntervalTree.buildSSTableIntervalTree;
 
 public class ViewTest
 {
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     @Test
@@ -119,7 +119,7 @@ public class ViewTest
         testFailure(View.updateCompacting(emptySet(), of(r2)), cur);
         // update one compacting, one non-compacting, of the liveset to another instance of the same readers;
         // confirm liveset changes but compacting does not
-        cur = View.updateLiveSet(copyOf(readers.subList(1, 3)), of(r1, r2)).apply(cur);
+        cur = View.updateLiveSet(copyOf(readers.subList(1, 3)), of(r1, r2), cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertSame(readers.get(0), cur.sstablesMap.get(r0));
         Assert.assertSame(r1, cur.sstablesMap.get(r1));
         Assert.assertSame(r2, cur.sstablesMap.get(r2));
@@ -179,7 +179,7 @@ public class ViewTest
         Assert.assertEquals(memtable2, cur.liveMemtables.get(1));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
-        testFailure(View.replaceFlushed(memtable2, null), cur);
+        testFailure(View.replaceFlushed(memtable2, null, cfs.metric.viewSSTableIntervalTree), cur);
 
         cur = View.markFlushing(memtable2).apply(cur);
         Assert.assertTrue(cur.flushingMemtables.contains(memtable2));
@@ -196,14 +196,14 @@ public class ViewTest
         Assert.assertEquals(memtable2, cur.flushingMemtables.get(1));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
-        cur = View.replaceFlushed(memtable2, null).apply(cur);
+        cur = View.replaceFlushed(memtable2, null, cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertEquals(1, cur.liveMemtables.size());
         Assert.assertEquals(1, cur.flushingMemtables.size());
         Assert.assertEquals(memtable1, cur.flushingMemtables.get(0));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
         SSTableReader sstable = MockSchema.sstable(1, cfs);
-        cur = View.replaceFlushed(memtable1, singleton(sstable)).apply(cur);
+        cur = View.replaceFlushed(memtable1, singleton(sstable), cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertEquals(0, cur.flushingMemtables.size());
         Assert.assertEquals(1, cur.liveMemtables.size());
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
@@ -225,6 +225,6 @@ public class ViewTest
         for (int i = 0 ; i < sstableCount ; i++)
             sstables.add(MockSchema.sstable(i, keepRef, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
-                        Collections.<SSTableReader, SSTableReader>emptyMap(), SSTableIntervalTree.build(sstables));
+                        Collections.<SSTableReader, SSTableReader>emptyMap(), buildSSTableIntervalTree(sstables));
     }
 }

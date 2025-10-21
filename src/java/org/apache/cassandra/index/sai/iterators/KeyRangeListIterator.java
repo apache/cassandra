@@ -50,7 +50,7 @@ public class KeyRangeListIterator extends KeyRangeIterator
     {
         while (keyQueue.hasNext())
         {
-            if (keyQueue.peek().compareTo(nextKey) >= 0)
+            if (keyQueue.peek().compareTo(nextKey, false) >= 0)
                 break;
             keyQueue.next();
         }

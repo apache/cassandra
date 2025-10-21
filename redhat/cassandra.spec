@@ -100,7 +100,6 @@ sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 rm -f bin/stop-server
 rm -f bin/*.orig
 rm -f bin/cassandra.in.sh
-rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
@@ -121,6 +120,9 @@ cp -p %{_get_dist_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 # copy fqltool jar
 cp -p %{_get_dist_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
+# copy sstableloader jar
+cp -p %{_get_dist_dir}/tools/lib/sstableloader.jar %{buildroot}/usr/share/%{username}/
+
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
@@ -140,7 +142,7 @@ exit 0
 
 %files
 %defattr(0644,root,root,0755)
-%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
+%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt .snyk
 %attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
@@ -204,6 +206,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/hash_password
+%attr(755,root,root) %{_bindir}/addtocmstool
 
 
 %changelog

@@ -20,27 +20,28 @@ package org.apache.cassandra.service.reads.range;
 
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.UUID;
+import java.util.Set;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Test utility class to set the partitioning tokens in the cluster.
  *
  * The per-endpoint tokens to be set can be specified with the {@code withTokens} and {@code withKeys} methods.
- * The {@link #update()} method will apply the changes, cleaning the previous token metadata info. It will also
- * initialize Gossip in all the endpoints but the local node.
+ * The {@link #update()} method will apply the changes, cleaning the previous token metadata info.
  */
 public class TokenUpdater
 {
@@ -60,6 +61,13 @@ public class TokenUpdater
     {
         for (long val : values)
             endpointTokens.put(endpoint, new Murmur3Partitioner.LongToken(val));
+        return this;
+    }
+
+    public TokenUpdater withTokens(InetAddressAndPort endpoint, Token... tokens)
+    {
+        for (Token token : tokens)
+            endpointTokens.put(endpoint, token);
         return this;
     }
 
@@ -94,13 +102,27 @@ public class TokenUpdater
 
     public TokenUpdater update()
     {
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.clearUnsafe();
-        tmd.updateNormalTokens(endpointTokens);
-        endpointTokens.keySet()
-                      .stream()
-                      .filter(e -> !e.equals(localEndpoint()))
-                      .forEach(e -> Gossiper.instance.initializeNodeUnsafe(e, UUID.randomUUID(), 1));
+        for (InetAddressAndPort ep : endpointTokens.keySet())
+        {
+            NodeId id = ClusterMetadata.current().directory.peerId(ep);
+            if (id == null)
+                ClusterMetadataTestHelper.register(ep);
+
+            Set<Token> tokens = Sets.newHashSet(endpointTokens.get(ep));
+            NodeState state = ClusterMetadata.current().directory.peerState(ep);
+            switch(state)
+            {
+                case REGISTERED:
+                    ClusterMetadataTestHelper.join(ep, tokens);
+                    break;
+                case JOINED:
+                    // note: this would be illegal outside of tests, as move is restricted to single tokens
+                    ClusterMetadataTestHelper.lazyMove(ep, tokens).prepareMove().startMove().midMove().finishMove();
+                    break;
+                default:
+                    throw new IllegalStateException("Cannot update tokens for " + ep + " as it is in state: " + state);
+            }
+        }
         return this;
     }
 

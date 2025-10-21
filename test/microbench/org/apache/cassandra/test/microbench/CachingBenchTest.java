@@ -262,7 +262,7 @@ public class CachingBenchTest extends CQLTester
 
         String hashesBefore = getHashes();
         long startTime = currentTimeMillis();
-        CompactionManager.instance.performMaximal(cfs, true);
+        CompactionManager.instance.performMaximal(cfs, true, 0);
         long endTime = currentTimeMillis();
 
         int endRowCount = countRows(cfs);

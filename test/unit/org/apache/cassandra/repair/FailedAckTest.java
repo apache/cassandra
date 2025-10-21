@@ -66,7 +66,7 @@ public class FailedAckTest extends FuzzTestBase
                 RepairCoordinator repair = coordinator.repair(KEYSPACE, irOption(rs, coordinator, KEYSPACE, ignore -> TABLES), false);
                 repair.run();
                 // make sure the failing node is not the coordinator, else messaging isn't used
-                InetAddressAndPort failingAddress = rs.pick(repair.state.getNeighborsAndRanges().participants);
+                InetAddressAndPort failingAddress = rs.pickUnorderedSet(repair.state.getNeighborsAndRanges().participants);
                 Cluster.Node failingNode = cluster.nodes.get(failingAddress);
                 RepairStage stage = stageGen.next(rs);
                 switch (stage)

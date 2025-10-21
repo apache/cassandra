@@ -22,29 +22,38 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.net.ParamType.SNAPSHOT_RANGES;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
@@ -108,10 +117,10 @@ public class DiagnosticSnapshotService
             || command.snapshot_name.startsWith(DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX);
     }
 
-    public static void snapshot(SnapshotCommand command, List<Range<Token>> ranges, InetAddressAndPort initiator)
+    public static void snapshot(SnapshotCommand command, InetAddressAndPort initiator)
     {
         Preconditions.checkArgument(isDiagnosticSnapshotRequest(command));
-        instance.maybeSnapshot(command, ranges, initiator);
+        instance.maybeSnapshot(command, command.ranges, initiator);
     }
 
     public static String getSnapshotName(String prefix)
@@ -138,14 +147,16 @@ public class DiagnosticSnapshotService
         long interval = DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS.getLong();
         if (now - last > interval && cached.compareAndSet(last, now))
         {
+            if (ranges.size() > MAX_SNAPSHOT_RANGE_COUNT)
+                ranges = Collections.emptyList();
+
             Message<SnapshotCommand> msg = Message.out(Verb.SNAPSHOT_REQ,
                                                        new SnapshotCommand(metadata.keyspace,
                                                                            metadata.name,
+                                                                           ranges,
                                                                            getSnapshotName(prefix),
                                                                            false));
 
-            if (!ranges.isEmpty() && ranges.size() < MAX_SNAPSHOT_RANGE_COUNT)
-                msg = msg.withParam(SNAPSHOT_RANGES, ranges);
             for (InetAddressAndPort replica : endpoints)
                 MessagingService.instance().send(msg, replica);
         }
@@ -188,7 +199,8 @@ public class DiagnosticSnapshotService
                 }
 
                 ColumnFamilyStore cfs = ks.getColumnFamilyStore(command.column_family);
-                if (cfs.snapshotExists(command.snapshot_name))
+
+                if (SnapshotManager.instance.exists(command.keyspace, command.column_family, command.snapshot_name))
                 {
                     logger.info("Received diagnostic snapshot request from {} for {}.{}, " +
                                 "but snapshot with tag {} already exists",
@@ -204,16 +216,14 @@ public class DiagnosticSnapshotService
                             command.column_family,
                             command.snapshot_name);
 
-                if (ranges.isEmpty())
-                    cfs.snapshot(command.snapshot_name);
-                else
-                {
-                    cfs.snapshot(command.snapshot_name,
-                                 (sstable) -> checkIntersection(ranges,
-                                                                sstable.getFirst().getToken(),
-                                                                sstable.getLast().getToken()),
-                                 false, false);
-                }
+                Predicate<SSTableReader> predicate = null;
+                if (!ranges.isEmpty())
+                    predicate = (sstable) -> checkIntersection(ranges,
+                                                               sstable.getFirst().getToken(),
+                                                               sstable.getLast().getToken());
+
+                SnapshotOptions options = SnapshotOptions.systemSnapshot(command.snapshot_name, SnapshotType.DIAGNOSTICS, predicate, cfs.getKeyspaceTableName()).build();
+                SnapshotManager.instance.takeSnapshot(options);
             }
             catch (IllegalArgumentException e)
             {

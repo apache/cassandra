@@ -44,32 +44,22 @@ import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class CassandraNetworkAuthorizerTest extends CQLTester
 {
-    private static void setupSuperUser()
-    {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
-                                                     "xxx"));
-    }
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
         SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
                                new AuthTestUtils.LocalCassandraCIDRAuthorizer());
         AuthCacheService.initializeAndRegisterCaches();
-        setupSuperUser();
+        AuthTestUtils.setupSuperUser();
     }
 
     @Before
@@ -104,7 +94,7 @@ public class CassandraNetworkAuthorizerTest extends CQLTester
 
     private static String createName()
     {
-        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+        return toLowerCaseLocalized(RandomStringUtils.randomAlphabetic(8));
     }
 
     private static DCPermissions dcPerms(String username)

@@ -27,7 +27,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.cql3.CIDR;
 import org.apache.cassandra.cql3.CQLTester;
@@ -40,10 +39,7 @@ public class GetCIDRGroupsOfIPTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-        AuthCacheService.initializeAndRegisterCaches();
-
         startJMXServer();
     }
 
@@ -57,55 +53,6 @@ public class GetCIDRGroupsOfIPTest extends CQLTester
         }};
 
         AuthTestUtils.insertCidrsMappings(cidrsMapping);
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testGetCidrGroupsOfIpDoc()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "getcidrgroupsofip");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool getcidrgroupsofip - Print CIDR groups associated with given IP\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] getcidrgroupsofip [--] <IP\n" +
-                      "                address>\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        --\n" +
-                      "            This option can be used to separate command-line options from the\n" +
-                      "            list of argument, (useful when arguments might be mistaken for\n" +
-                      "            command-line options\n" +
-                      "\n" +
-                      "        <IP address>\n" +
-                      "            Requires IP address as a string\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test

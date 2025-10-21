@@ -33,11 +33,13 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class ThreadPoolMetrics
 {
+    public static final String TYPE_NAME = "ThreadPools";
     public static final String ACTIVE_TASKS = "ActiveTasks";
     public static final String PENDING_TASKS = "PendingTasks";
     public static final String COMPLETED_TASKS = "CompletedTasks";
     public static final String CURRENTLY_BLOCKED_TASKS = "CurrentlyBlockedTasks";
     public static final String TOTAL_BLOCKED_TASKS = "TotalBlockedTasks";
+    public static final String CORE_POOL_SIZE = "CorePoolSize";
     public static final String MAX_POOL_SIZE = "MaxPoolSize";
     public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
     public static final String OLDEST_TASK_QUEUE_TIME = "OldestTaskQueueTime";
@@ -59,6 +61,9 @@ public class ThreadPoolMetrics
 
     /** Number of tasks that had blocked before being accepted (or rejected). */
     public final Counter totalBlocked;
+
+    /** Number of threads always available */
+    public final Gauge<Integer> corePoolSize;
 
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
@@ -89,6 +94,7 @@ public class ThreadPoolMetrics
         activeTasks = executor::getActiveTaskCount;
         pendingTasks = executor::getPendingTaskCount;
         completedTasks = executor::getCompletedTaskCount;
+        corePoolSize = executor::getCorePoolSize;
         maxPoolSize = executor::getMaximumPoolSize;
         maxTasksQueued = executor::getMaxTasksQueued;
         oldestTaskQueueTime = executor::oldestTaskQueueTime;
@@ -101,6 +107,7 @@ public class ThreadPoolMetrics
         Metrics.register(makeMetricName(path, poolName, COMPLETED_TASKS), completedTasks);
         Metrics.register(makeMetricName(path, poolName, CURRENTLY_BLOCKED_TASKS), currentBlocked);
         Metrics.register(makeMetricName(path, poolName, TOTAL_BLOCKED_TASKS), totalBlocked);
+        Metrics.register(makeMetricName(path, poolName, CORE_POOL_SIZE), corePoolSize);
         Metrics.register(makeMetricName(path, poolName, MAX_POOL_SIZE), maxPoolSize);
         Metrics.register(makeMetricName(path, poolName, MAX_TASKS_QUEUED), maxTasksQueued);
         Metrics.register(makeMetricName(path, poolName, OLDEST_TASK_QUEUE_TIME), oldestTaskQueueTime);
@@ -114,6 +121,7 @@ public class ThreadPoolMetrics
         Metrics.remove(makeMetricName(path, poolName, COMPLETED_TASKS));
         Metrics.remove(makeMetricName(path, poolName, CURRENTLY_BLOCKED_TASKS));
         Metrics.remove(makeMetricName(path, poolName, TOTAL_BLOCKED_TASKS));
+        Metrics.remove(makeMetricName(path, poolName, CORE_POOL_SIZE));
         Metrics.remove(makeMetricName(path, poolName, MAX_POOL_SIZE));
         Metrics.remove(makeMetricName(path, poolName, MAX_TASKS_QUEUED));
         Metrics.remove(makeMetricName(path, poolName, OLDEST_TASK_QUEUE_TIME));
@@ -123,10 +131,10 @@ public class ThreadPoolMetrics
     private static MetricName makeMetricName(String path, String poolName, String metricName)
     {
         return new MetricName("org.apache.cassandra.metrics",
-                              "ThreadPools",
+                              TYPE_NAME,
                               metricName,
                               path + '.' + poolName,
-                              format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
-                                     path, poolName, metricName));
+                              format("org.apache.cassandra.metrics:type=%s,path=%s,scope=%s,name=%s",
+                                     TYPE_NAME, path, poolName, metricName));
     }
 }

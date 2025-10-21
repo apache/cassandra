@@ -28,6 +28,8 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -54,6 +56,7 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -61,25 +64,25 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
 public class AbstractEncryptionOptionsImpl extends TestBaseImpl
 {
     final Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
-    final static String validKeyStorePath = "test/conf/cassandra_ssl_test.keystore";
-    final static String validKeyStorePassword = "cassandra";
-    final static String validTrustStorePath = "test/conf/cassandra_ssl_test.truststore";
-    final static String validTrustStorePassword = "cassandra";
+    final static String validKeyStorePath = TlsTestUtils.SERVER_KEYSTORE_PATH;
+    final static String validKeyStorePassword = TlsTestUtils.SERVER_KEYSTORE_PASSWORD;
+    final static String validTrustStorePath = TlsTestUtils.SERVER_TRUSTSTORE_PATH;
+    final static String validTrustStorePassword = TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
 
     // Base configuration map for a valid keystore that can be opened
-    final static Map<String,Object> validKeystore = ImmutableMap.of("keystore", validKeyStorePath,
-                                                                    "keystore_password", validKeyStorePassword,
-                                                                    "truststore", validTrustStorePath,
-                                                                    "truststore_password", validTrustStorePassword);
+    protected final static Map<String,Object> validFileBasedKeystores = ImmutableMap.of("keystore", validKeyStorePath,
+                                                                                        "keystore_password", validKeyStorePassword,
+                                                                                        "truststore", validTrustStorePath,
+                                                                                        "truststore_password", validTrustStorePassword);
 
     // Configuration with a valid keystore, but an unknown protocol
     final static Map<String,Object> nonExistantProtocol = ImmutableMap.<String,Object>builder()
-                                                                           .putAll(validKeystore)
+                                                                           .putAll(validFileBasedKeystores)
                                                                            .put("accepted_protocols", Collections.singletonList("NoProtocolIKnow"))
                                                                            .build();
     // Configuration with a valid keystore, but an unknown cipher suite
     final static Map<String,Object> nonExistantCipher = ImmutableMap.<String,Object>builder()
-                                                                           .putAll(validKeystore)
+                                                                           .putAll(validFileBasedKeystores)
                                                                            .put("cipher_suites", Collections.singletonList("NoCipherIKnow"))
                                                                            .build();
 
@@ -115,10 +118,13 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
         final int port;
         final List<String> acceptedProtocols;
         final List<String> cipherSuites;
-        final EncryptionOptions encryptionOptions = new EncryptionOptions()
-                                                    .withEnabled(true)
-                                                    .withKeyStore(validKeyStorePath).withKeyStorePassword(validKeyStorePassword)
-                                                    .withTrustStore(validTrustStorePath).withTrustStorePassword(validTrustStorePassword);
+        final EncryptionOptions.ClientEncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions.Builder()
+                                                                            .withEnabled(true)
+                                                                            .withKeyStore(validKeyStorePath)
+                                                                            .withKeyStorePassword(validKeyStorePassword)
+                                                                            .withTrustStore(validTrustStorePath)
+                                                                            .withTrustStorePassword(validTrustStorePassword)
+                                                                            .build();
         private Throwable lastThrowable;
         private String lastProtocol;
         private String lastCipher;
@@ -199,8 +205,8 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             setProtocolAndCipher(null, null);
 
             SslContext sslContext = SSLFactory.getOrCreateSslContext(
-                encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
-                true, ISslContextFactory.SocketType.CLIENT, "test");
+            new EncryptionOptions.ClientEncryptionOptions.Builder(encryptionOptions).withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites).build(),
+            REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             Bootstrap b = new Bootstrap();
@@ -337,7 +343,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
     }
 
     /* Provde the cluster cannot start with the configured options */
-    void assertCannotStartDueToConfigurationException(Cluster cluster)
+    protected void assertCannotStartDueToConfigurationException(Cluster cluster)
     {
         Throwable tr = null;
         try

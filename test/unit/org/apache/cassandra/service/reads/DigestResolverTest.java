@@ -33,6 +33,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -68,7 +69,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2));
-        DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
+        DigestResolver resolver = new DigestResolver(ReadCoordinator.DEFAULT, command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
 
         PartitionUpdate response = update(row(1000, 4, 4), row(1000, 5, 5)).build();
 
@@ -101,7 +102,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
             {
                 final long startNanos = System.nanoTime();
                 final Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(startNanos, startNanos);
-                final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver = new DigestResolver<>(command, plan, requestTime);
+                final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver = new DigestResolver<>(ReadCoordinator.DEFAULT, command, plan, requestTime);
                 final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> callback = new ReadCallback<>(resolver, command, plan, requestTime);
                 
                 final CountDownLatch startlatch = new CountDownLatch(2);
@@ -136,7 +137,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2));
-        DigestResolver resolver = new DigestResolver(command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
+        DigestResolver resolver = new DigestResolver(ReadCoordinator.DEFAULT, command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
 
         PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
         PartitionUpdate response2 = update(row(2000, 4, 5)).build();
@@ -157,7 +158,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
-        DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
+        DigestResolver<?, ?> resolver = new DigestResolver<>(ReadCoordinator.DEFAULT, command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
 
         PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
         PartitionUpdate response2 = update(row(1000, 5, 5)).build();
@@ -178,7 +179,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
-        DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
+        DigestResolver<?, ?> resolver = new DigestResolver<>(ReadCoordinator.DEFAULT, command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
 
         PartitionUpdate response2 = update(row(1000, 5, 5)).build();
         Assert.assertFalse(resolver.isDataPresent());
@@ -193,7 +194,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2), trans(EP3));
-        DigestResolver<?, ?> resolver = new DigestResolver<>(command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
+        DigestResolver<?, ?> resolver = new DigestResolver<>(ReadCoordinator.DEFAULT, command, plan(ConsistencyLevel.QUORUM, targetReplicas), new Dispatcher.RequestTime(0L, 0L));
 
         PartitionUpdate fullResponse = update(row(1000, 1, 1)).build();
         PartitionUpdate digestResponse = update(row(1000, 1, 1)).build();
@@ -214,7 +215,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas));
+        return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas, replicas, null, (self) -> null, Epoch.EMPTY));
     }
 
     private void waitForLatch(CountDownLatch startlatch)

@@ -897,7 +897,7 @@ public abstract class Action implements PriorityQueueNode
                 continue;
 
             if (!transitive.is(modifier)) builder.append(modifier.displayId);
-            else builder.append(Character.toUpperCase(modifier.displayId));
+            else builder.append(Character.toUpperCase(modifier.displayId)); // checkstyle: permit this invocation
         }
 
         boolean hasTransitiveOnly = false;

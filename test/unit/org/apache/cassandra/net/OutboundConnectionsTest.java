@@ -34,15 +34,18 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
+import static org.apache.cassandra.tcm.ClusterMetadata.EMPTY_METADATA_IDENTIFIER;
 
 public class OutboundConnectionsTest
 {
@@ -75,6 +78,12 @@ public class OutboundConnectionsTest
     public static void before()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
+        // register the local broadcast address and REMOTE_ADDRESS addresses so the snitch is able to retrieve them
+        // from cluster metadata. This is necessary for the default of OutboundConnectionSettings::tcpNoDelay.
+        // There's no need to register RECONNECT_ADDRESS and it would be incorrect to do so
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.register(REMOTE_ADDR);
         CommitLog.instance.start();
     }
 
@@ -94,7 +103,7 @@ public class OutboundConnectionsTest
     @Test
     public void getConnection_Gossip()
     {
-        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", new ArrayList<>(0));
+        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", EMPTY_METADATA_IDENTIFIER, new ArrayList<>(0));
         Message<GossipDigestSyn> message = Message.out(Verb.GOSSIP_DIGEST_SYN, syn);
         Assert.assertEquals(ConnectionType.URGENT_MESSAGES, connections.connectionFor(message).type());
     }

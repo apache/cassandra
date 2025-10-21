@@ -27,28 +27,32 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.Epoch;
 
 public class DiskBoundaries
 {
     public final List<Directories.DataDirectory> directories;
     public final ImmutableList<PartitionPosition> positions;
-    final long ringVersion;
+    final Epoch epoch;
     final int directoriesVersion;
     private final ColumnFamilyStore cfs;
     private volatile boolean isInvalid = false;
 
     public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, int diskVersion)
     {
-        this(cfs, directories, null, -1, diskVersion);
+        this(cfs, directories, null, Epoch.EMPTY, diskVersion);
     }
 
     @VisibleForTesting
-    public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, List<PartitionPosition> positions, long ringVersion, int diskVersion)
+    public DiskBoundaries(ColumnFamilyStore cfs,
+                          Directories.DataDirectory[] directories,
+                          List<PartitionPosition> positions,
+                          Epoch epoch,
+                          int diskVersion)
     {
         this.directories = directories == null ? null : ImmutableList.copyOf(directories);
         this.positions = positions == null ? null : ImmutableList.copyOf(positions);
-        this.ringVersion = ringVersion;
+        this.epoch = epoch;
         this.directoriesVersion = diskVersion;
         this.cfs = cfs;
     }
@@ -60,7 +64,7 @@ public class DiskBoundaries
 
         DiskBoundaries that = (DiskBoundaries) o;
 
-        if (ringVersion != that.ringVersion) return false;
+        if (!epoch.equals(that.epoch)) return false;
         if (directoriesVersion != that.directoriesVersion) return false;
         if (!directories.equals(that.directories)) return false;
         return positions != null ? positions.equals(that.positions) : that.positions == null;
@@ -70,7 +74,7 @@ public class DiskBoundaries
     {
         int result = directories != null ? directories.hashCode() : 0;
         result = 31 * result + (positions != null ? positions.hashCode() : 0);
-        result = 31 * result + (int) (ringVersion ^ (ringVersion >>> 32));
+        result = 31 * result + epoch.hashCode();
         result = 31 * result + directoriesVersion;
         return result;
     }
@@ -80,7 +84,7 @@ public class DiskBoundaries
         return "DiskBoundaries{" +
                "directories=" + directories +
                ", positions=" + positions +
-               ", ringVersion=" + ringVersion +
+               ", epoch=" + epoch +
                ", directoriesVersion=" + directoriesVersion +
                '}';
     }
@@ -93,8 +97,7 @@ public class DiskBoundaries
         if (isInvalid)
             return true;
         int currentDiskVersion = DisallowedDirectories.getDirectoriesVersion();
-        long currentRingVersion = StorageService.instance.getTokenMetadata().getRingVersion();
-        return currentDiskVersion != directoriesVersion || (ringVersion != -1 && currentRingVersion != ringVersion);
+        return currentDiskVersion != directoriesVersion;
     }
 
     public void invalidate()

@@ -22,11 +22,10 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -71,8 +70,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private final SharedContext ctx;
 
-    @VisibleForTesting
-    public RepairMessageVerbHandler()
+    private RepairMessageVerbHandler()
     {
         this(SharedContext.Global.instance);
     }
@@ -98,6 +96,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     @Override
     public void doVerb(final Message<RepairMessage> message)
     {
+        if (DatabaseDescriptor.getAccordTransactionsEnabled()
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+            return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try
@@ -119,6 +120,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         // error is logged in verifyCompactionsPendingThreshold
                         state.phase.fail("Too many pending compactions");
 
+                        sendFailureResponse(message);
+                        return;
+                    }
+                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
+                    {
+                        // error is logged in verifyDiskHeadroomThreshold
+                        state.phase.fail("Not enough disk headroom to perform incremental repair");
                         sendFailureResponse(message);
                         return;
                     }
@@ -240,19 +248,25 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             sendFailureResponse(message);
                             return;
                         }
+
+                        if (!acceptMessage(validationRequest, ctx.broadcastAddressAndPort(), message.from()))
+                        {
+                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(validationRequest.desc.ranges);
+
+                            logger.error("Got out-of-range repair request from " + message.from() + ": " + validationRequest.desc.ranges, e);
+                            vState.phase.fail(e);
+                            sendFailureResponse(message);
+                            return;
+                        }
+
                         vState.phase.accept();
                         sendAck(message);
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
-                                                            isIncremental(desc.parentSessionId), previewKind);
-                        if (acceptMessage(ctx, validationRequest, message.from()))
-                        {
-                            ctx.validationManager().submitValidation(store, validator);
-                        }
-                        else
-                        {
-                            validator.fail(new RepairOutOfTokenRangeException(validationRequest.desc.ranges));
-                        }
+                                                            isIncremental(desc.parentSessionId),
+                                                            previewKind,
+                                                            validationRequest.dontPurgeTombstones);
+                        ctx.validationManager().submitValidation(store, validator);
                     }
                     catch (Throwable t)
                     {
@@ -442,18 +456,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         RepairMessage.sendAck(ctx, message);
     }
 
-    private static boolean acceptMessage(SharedContext ctx, final ValidationRequest validationRequest, final InetAddressAndPort from)
+    private static boolean acceptMessage(final ValidationRequest validationRequest, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
     {
-        boolean outOfRangeTokenLogging = DatabaseDescriptor.getLogOutOfTokenRangeRequests();
-        boolean outOfRangeTokenRejection = DatabaseDescriptor.getRejectOutOfTokenRangeRequests();
-
-        if (!outOfRangeTokenLogging && !outOfRangeTokenRejection)
-            return true;
-
-        return StorageService.instance.getNormalizedRanges(validationRequest.desc.keyspace, ctx.broadcastAddressAndPort())
-                                      .validateRangeRequest(validationRequest.desc.ranges,
-                                                            "RepairSession #" + validationRequest.desc.parentSessionId,
-                                                            "validation request",
-                                                            from);
+        return StorageService.instance
+               .getNormalizedLocalRanges(validationRequest.desc.keyspace, broadcastAddressAndPort)
+               .validateRangeRequest(validationRequest.desc.ranges,
+                                     "RepairSession #" + validationRequest.desc.parentSessionId,
+                                     "validation request",
+                                     from);
     }
 }

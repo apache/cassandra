@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index;
 
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,15 +34,12 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -128,53 +124,38 @@ public class IndexStatusManagerTest
         }
     }
 
-    IEndpointSnitch snitch = new AbstractNetworkTopologySnitch()
-    {
-        public String getRack(InetAddressAndPort endpoint)
-        {
-            return "rack";
-        }
-
-        public String getDatacenter(InetAddressAndPort endpoint)
-        {
-            return "DC";
-        }
-    };
-
     @Test
-    public void shouldPrioritizeSuccessfulEndpoints() throws UnknownHostException
+    public void shouldPrioritizeSuccessfulEndpoints()
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(
-                        new NetworkTopologyStrategy("ks1", new TokenMetadata(), snitch, Map.of("DC", "5"))
-                )
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
                 .indexStatus(Map.of(
-                        InetAddressAndPort.getByName("127.0.0.251"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.252"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.252"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.253"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.254"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.254"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.255"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.255"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
@@ -184,52 +165,50 @@ public class IndexStatusManagerTest
                 .numRequired(2)
                 .expected(EndpointsForRange.of(
                         // successful
-                        full(InetAddressAndPort.getByName("127.0.0.251")),
-                        full(InetAddressAndPort.getByName("127.0.0.252")),
-                        full(InetAddressAndPort.getByName("127.0.0.254")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.251")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.252")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.254")),
 
                         // queryable, but unknown
-                        full(InetAddressAndPort.getByName("127.0.0.253")),
-                        full(InetAddressAndPort.getByName("127.0.0.255"))
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.253")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.255"))
                 ))
                 .build()
         );
     }
 
     @Test
-    public void shouldNotPrioritizeWhenNoSuccessfulEndpoints() throws UnknownHostException
+    public void shouldNotPrioritizeWhenNoSuccessfulEndpoints()
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(
-                        new NetworkTopologyStrategy("ks1", new TokenMetadata(), snitch, Map.of("DC", "5"))
-                )
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
                 .indexStatus(Map.of(
-                        InetAddressAndPort.getByName("127.0.0.251"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.UNKNOWN
                         ),
-                        InetAddressAndPort.getByName("127.0.0.252"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.252"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.UNKNOWN,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.253"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.254"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.254"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.UNKNOWN
                         ),
-                        InetAddressAndPort.getByName("127.0.0.255"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.255"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.UNKNOWN,
@@ -239,50 +218,48 @@ public class IndexStatusManagerTest
                 .numRequired(2)
                 .expected(EndpointsForRange.of(
                         // unmodified order
-                        full(InetAddressAndPort.getByName("127.0.0.251")),
-                        full(InetAddressAndPort.getByName("127.0.0.252")),
-                        full(InetAddressAndPort.getByName("127.0.0.253")),
-                        full(InetAddressAndPort.getByName("127.0.0.254")),
-                        full(InetAddressAndPort.getByName("127.0.0.255"))
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.251")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.252")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.253")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.254")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.255"))
                 ))
                 .build()
         );
     }
 
     @Test
-    public void shouldFilterOutNonQueryableEndpoints() throws UnknownHostException
+    public void shouldFilterOutNonQueryableEndpoints()
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(
-                        new NetworkTopologyStrategy("ks1", new TokenMetadata(), snitch, Map.of("DC", "5"))
-                )
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
                 .indexStatus(Map.of(
-                        InetAddressAndPort.getByName("127.0.0.251"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.FULL_REBUILD_STARTED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.252"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.252"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.UNKNOWN,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.253"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                         ),
-                        InetAddressAndPort.getByName("127.0.0.254"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.254"),
                         Map.of(
                                 "ks1.idx1", Index.Status.BUILD_FAILED,
                                 "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                 "ks1.idx3", Index.Status.UNKNOWN
                         ),
-                        InetAddressAndPort.getByName("127.0.0.255"),
+                        InetAddressAndPort.getByNameUnchecked("127.0.0.255"),
                         Map.of(
                                 "ks1.idx1", Index.Status.UNKNOWN,
                                 "ks1.idx2", Index.Status.UNKNOWN,
@@ -292,11 +269,11 @@ public class IndexStatusManagerTest
                 .numRequired(1)
                 .expected(EndpointsForRange.of(
                         // successful
-                        full(InetAddressAndPort.getByName("127.0.0.253")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.253")),
 
                         // queryable, but unknown
-                        full(InetAddressAndPort.getByName("127.0.0.252")),
-                        full(InetAddressAndPort.getByName("127.0.0.255"))
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.252")),
+                        full(InetAddressAndPort.getByNameUnchecked("127.0.0.255"))
                 ))
                 .build()
         );
@@ -308,35 +285,33 @@ public class IndexStatusManagerTest
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
-                        .replicationStrategy(
-                                new NetworkTopologyStrategy("ks1", new TokenMetadata(), snitch, Map.of("DC", "5"))
-                        )
+                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
                         .indexStatus(Map.of(
-                                InetAddressAndPort.getByName("127.0.0.251"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx2", Index.Status.UNKNOWN,
                                         "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.252"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.252"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx2", Index.Status.BUILD_FAILED,
                                         "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.253"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.254"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.254"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx3", Index.Status.BUILD_FAILED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.255"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.255"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.UNKNOWN,
                                         "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
@@ -357,23 +332,21 @@ public class IndexStatusManagerTest
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
-                        .replicationStrategy(
-                                new NetworkTopologyStrategy("ks1", new TokenMetadata(), snitch, Map.of("DC", "3"))
-                        )
+                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "3")))
                         .indexStatus(Map.of(
-                                InetAddressAndPort.getByName("127.0.0.253"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.DROPPED,
                                         "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx3", Index.Status.BUILD_SUCCEEDED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.254"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.254"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx2", Index.Status.BUILD_SUCCEEDED,
                                         "ks1.idx3", Index.Status.BUILD_FAILED
                                 ),
-                                InetAddressAndPort.getByName("127.0.0.255"),
+                                InetAddressAndPort.getByNameUnchecked("127.0.0.255"),
                                 Map.of(
                                         "ks1.idx1", Index.Status.UNKNOWN,
                                         "ks1.idx2", Index.Status.FULL_REBUILD_STARTED,
@@ -386,7 +359,7 @@ public class IndexStatusManagerTest
                 .hasMessageStartingWith("Operation failed")
                 .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.253:7000")
                 .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:7000")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.255:7000");
+                .hasMessageContaining("INDEX_BUILD_IN_PROGRESS from /127.0.0.255:7000");
     }
 
     void runTest(Testcase testcase)

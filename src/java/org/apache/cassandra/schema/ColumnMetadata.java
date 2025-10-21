@@ -17,34 +17,65 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Lists;
+import org.github.jamm.Unmetered;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.MarshalException;
-import org.github.jamm.Unmetered;
+import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.db.TypeSizes.BOOL_SIZE;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofVInt;
 
 @Unmetered
 public final class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
 {
+    public static final Serializer serializer = new Serializer();
     public static final Comparator<Object> asymmetricColumnDataComparator =
         (a, b) -> ((ColumnData) a).column().compareTo((ColumnMetadata) b);
 
     public static final int NO_POSITION = -1;
+    public static final int NO_UNIQUE_ID = Integer.MIN_VALUE;
 
     public enum ClusteringOrder
     {
@@ -85,6 +116,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      * the first clustering column is 0.
      */
     private final int position;
+    public final int uniqueId;
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Object> asymmetricCellPathComparator;
@@ -104,6 +136,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     @Nullable
     private final ColumnMask mask;
 
+    @Nonnull
+    private ColumnConstraints columnConstraints;
+
     private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
         assert position >= 0 && position < 1 << 12;
@@ -115,47 +150,68 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public static ColumnMetadata partitionKeyColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(table, name, type, position, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata partitionKeyColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata clusteringColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING, null);
+        return new ColumnMetadata(table, name, type, position, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata clusteringColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
+    public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR, null);
+        return new ColumnMetadata(table, name, type, uniqueId, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type)
+    public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, uniqueId, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
+    public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC, null);
+        return new ColumnMetadata(table, name, type, uniqueId, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type)
+    public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC, null);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, uniqueId, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
     }
 
     public ColumnMetadata(TableMetadata table,
                           ByteBuffer name,
                           AbstractType<?> type,
+                          int uniqueId,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask,
+                          @Nonnull ColumnConstraints columnConstraints)
+    {
+        this(table.keyspace,
+             table.name,
+             ColumnIdentifier.getInterned(name, UTF8Type.instance),
+             type,
+             uniqueId,
+             position,
+             kind,
+             mask,
+             columnConstraints);
+    }
+
+    public ColumnMetadata(TableMetadata table,
+                          ByteBuffer name,
+                          AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask)
@@ -164,9 +220,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
              table.name,
              ColumnIdentifier.getInterned(name, UTF8Type.instance),
              type,
+             uniqueId,
              position,
              kind,
-             mask);
+             mask,
+             ColumnConstraints.NO_OP);
     }
 
     @VisibleForTesting
@@ -174,11 +232,27 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           String cfName,
                           ColumnIdentifier name,
                           AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask)
     {
+        this(ksName, cfName, name, type, uniqueId, position, kind, mask, ColumnConstraints.NO_OP);
+    }
+
+    @VisibleForTesting
+    public ColumnMetadata(String ksName,
+                          String cfName,
+                          ColumnIdentifier name,
+                          AbstractType<?> type,
+                          int uniqueId,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask,
+                          @Nonnull ColumnConstraints columnConstraints)
+    {
         super(ksName, cfName, name, type);
+        this.uniqueId = uniqueId;
         assert name != null && type != null && kind != null;
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
@@ -195,6 +269,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
         this.mask = mask;
+        this.columnConstraints = columnConstraints;
+        this.columnConstraints.setColumnName(name);
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -226,22 +302,22 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata copy()
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, position, kind, mask);
+        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, newMask);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, newMask, columnConstraints);
     }
 
     public boolean isPartitionKey()
@@ -262,6 +338,26 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public boolean isMasked()
     {
         return mask != null;
+    }
+
+    public boolean hasConstraint()
+    {
+        return columnConstraints.hasRelevantConstraints();
+    }
+
+    public static boolean hasFunctionConstraint(ColumnConstraints columnConstraints, String name)
+    {
+        for (ColumnConstraint<?> constraint : columnConstraints.getConstraints())
+        {
+            if (constraint.getConstraintType() == ColumnConstraint.ConstraintType.UNARY_FUNCTION ||
+                constraint.getConstraintType() == ColumnConstraint.ConstraintType.FUNCTION)
+            {
+                if (constraint.name().equals(name))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     public boolean isRegular()
@@ -288,6 +384,27 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return mask;
     }
 
+    public ColumnConstraints getColumnConstraints()
+    {
+        return columnConstraints;
+    }
+
+    public ColumnConstraints setColumnConstraints()
+    {
+        return columnConstraints;
+    }
+
+    public ColumnMetadata withNewColumnConstraints(ColumnConstraints constraints)
+    {
+        constraints.validate(this);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, constraints);
+    }
+
+    public void removeColumnConstraints()
+    {
+        columnConstraints = ColumnConstraints.NO_OP;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -305,11 +422,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     private boolean equalsWithoutType(ColumnMetadata other)
     {
         return name.equals(other.name)
-            && kind == other.kind
-            && position == other.position
-            && ksName.equals(other.ksName)
-            && cfName.equals(other.cfName)
-            && Objects.equals(mask, other.mask);
+               && kind == other.kind
+               && position == other.position
+               && ksName.equals(other.ksName)
+               && cfName.equals(other.cfName)
+               && Objects.equals(mask, other.mask)
+               && Objects.equals(columnConstraints, other.columnConstraints);
     }
 
     Optional<Difference> compare(ColumnMetadata other)
@@ -340,6 +458,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             result = 31 * result + (kind == null ? 0 : kind.hashCode());
             result = 31 * result + position;
             result = 31 * result + (mask == null ? 0 : mask.hashCode());
+            result = 31 * result + (columnConstraints == null ? 0 : columnConstraints.hashCode());
             hash = result;
         }
         return result;
@@ -378,6 +497,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return isMasked();
     }
 
+    @Override
+    public ColumnSpecification specForElementOrSlice(Selectable selected, ColumnSpecification receiver, CollectionType.Kind kind, String selectionType)
+    {
+        return Selectable.super.specForElementOrSlice(selected, receiver, kind, selectionType);
+    }
+
     /**
      * Converts the specified column definitions into column identifiers.
      *
@@ -387,6 +512,28 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public static Collection<ColumnIdentifier> toIdentifiers(Collection<ColumnMetadata> definitions)
     {
         return Collections2.transform(definitions, columnDef -> columnDef.name);
+    }
+
+    /**
+     * Returns the types corresponding to the specified column definitions.
+     *
+     * @param columns the column definitions to convert.
+     * @return the types corresponding to the specified definitions
+     */
+    public static List<AbstractType<?>> types(List<ColumnMetadata> columns)
+    {
+        return Lists.transform(columns, column -> column.type);
+    }
+
+    /**
+     * Returns the CQL names corresponding to the specified column definitions.
+     *
+     * @param columns the column definitions to convert.
+     * @return the CQL names corresponding to the specified definitions
+     */
+    public static List<String> cqlNames(List<ColumnMetadata> columns)
+    {
+        return Lists.transform(columns, column -> column.name.toCQLString());
     }
 
     public int compareTo(ColumnMetadata other)
@@ -477,6 +624,19 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         if (isMasked())
             mask.appendCqlTo(builder);
+
+        if (!columnConstraints.isEmpty())
+        {
+            builder.append(" CHECK ");
+            Iterator<ColumnConstraint<?>> constraintIterator = columnConstraints.getConstraints().iterator();
+            constraintIterator.next().appendCqlTo(builder);
+
+            while (constraintIterator.hasNext())
+            {
+                builder.append(" AND ");
+                constraintIterator.next().appendCqlTo(builder);
+            }
+        }
     }
 
     public static String toCQLString(Iterable<ColumnMetadata> defs)
@@ -495,7 +655,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             sb.append(", ").append(defs.next().name.toCQLString());
         return sb.toString();
     }
-
 
     public void appendNameAndOrderTo(CqlBuilder builder)
     {
@@ -538,5 +697,98 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public AbstractType<?> getExactTypeIfKnown(String keyspace)
     {
         return type;
+    }
+
+    /**
+     * Returns the types of the differents columns.
+     *
+     * @param columns the columns for which the types must be returned.
+     * @return the types of the differents columns.
+     */
+    public static List<AbstractType<?>> typesOf(List<ColumnMetadata> columns)
+    {
+        List<AbstractType<?>> types = new ArrayList<>(columns.size());
+        for (ColumnMetadata column : columns)
+        {
+            types.add(column.type);
+        }
+        return types;
+    }
+
+    public static class Serializer implements UDTAndFunctionsAwareMetadataSerializer<ColumnMetadata>
+    {
+        public void serialize(ColumnMetadata t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.ksName);
+            out.writeUTF(t.cfName);
+            out.writeUTF(t.kind.name());
+            out.writeInt(t.position);
+            out.writeUTF(t.type.asCQL3Type().toString());
+            out.writeBoolean(t.isReversedType());
+            out.writeUTF(t.name.toString());
+            ByteBufferUtil.writeWithShortLength(t.name.bytes, out);
+            out.writeBoolean(t.mask != null);
+            if (t.mask != null)
+                ColumnMask.serializer.serialize(t.mask, out, version);
+            if (version.isAtLeast(Version.V6))
+            {
+                boolean hasConstraints = t.hasConstraint();
+                out.writeBoolean(hasConstraints);
+                if (hasConstraints)
+                    ColumnConstraints.serializer.serialize(t.columnConstraints, out, version);
+            }
+            if (version.isAtLeast(Version.V7))
+                out.writeVInt32(t.uniqueId);
+        }
+
+        public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
+        {
+            String ksName = in.readUTF();
+            String tableName = in.readUTF();
+            Kind kind = Kind.valueOf(in.readUTF());
+            int position = in.readInt();
+            AbstractType<?> type = CQLTypeParser.parse(ksName, in.readUTF(), types);
+            boolean isReversedType = in.readBoolean();
+            if (isReversedType)
+                type = ReversedType.getInstance(type);
+            String name = in.readUTF();
+            ByteBuffer nameBB = ByteBufferUtil.readWithShortLength(in);
+            ColumnMask mask = null;
+            boolean masked = in.readBoolean();
+            if (masked)
+                mask = ColumnMask.serializer.deserialize(in, ksName, type, types, functions, version);
+            ColumnConstraints constraints;
+            if (version.isAtLeast(Version.V6) && in.readBoolean())
+                constraints = ColumnConstraints.serializer.deserialize(in, version);
+            else
+                constraints = ColumnConstraints.NO_OP;
+            int uniqueId = NO_UNIQUE_ID;
+            if (version.isAtLeast(Version.V7))
+                uniqueId = in.readVInt32();
+            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints);
+        }
+
+        public long serializedSize(ColumnMetadata t, Version version)
+        {
+            long constraintsSize = 0;
+            if (version.isAtLeast(Version.V6))
+            {
+                constraintsSize += BOOL_SIZE;
+                if (t.hasConstraint())
+                    constraintsSize += t.getColumnConstraints().serializer().serializedSize(t.columnConstraints, version);
+            }
+            return sizeof(t.ksName) +
+                   sizeof(t.cfName) +
+                   sizeof(t.kind.name()) +
+                   sizeof(t.position) +
+                   sizeof(t.type.asCQL3Type().toString()) +
+                   sizeof(t.isReversedType()) +
+                   sizeof(t.name.toString()) +
+                   ByteBufferUtil.serializedSizeWithShortLength(t.name.bytes) +
+                   BOOL_SIZE +
+                   ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
+                   constraintsSize +
+                   (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0);
+        }
     }
 }

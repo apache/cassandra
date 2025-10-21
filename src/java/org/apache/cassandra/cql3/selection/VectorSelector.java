@@ -26,7 +26,7 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -126,7 +126,7 @@ public class VectorSelector extends Selector
         for (int i = 0, m = elements.size(); i < m; i++)
             buffers.add(elements.get(i).getOutput(protocolVersion));
 
-        return type.decomposeRaw(buffers);
+        return type.pack(buffers);
     }
 
     @Override

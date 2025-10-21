@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
 
 public class InfiniteLoopExecutorTest
 {

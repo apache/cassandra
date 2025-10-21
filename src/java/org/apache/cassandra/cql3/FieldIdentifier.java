@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Locale;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Identifies a field in a UDT.
@@ -41,7 +42,7 @@ public class FieldIdentifier
      */
     public static FieldIdentifier forUnquoted(String text)
     {
-        return new FieldIdentifier(convert(text == null ? null : text.toLowerCase(Locale.US)));
+        return new FieldIdentifier(convert(text == null ? null : toLowerCaseLocalized(text)));
     }
 
     /**

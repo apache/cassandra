@@ -168,7 +168,7 @@ batchlog_replay_throttle: 1024KiB
 #   which mean it offers lower availability guarantee than random_remote or dynamic_remote.
 #
 # - dynamic_remote
-#   Using DynamicEndpointSnitch to select batchlog storage endpoints, prevents the
+#   Recommended, using DynamicEndpointSnitch to select batchlog storage endpoints, prevents the
 #   local rack, if possible. This strategy offers the same availability guarantees
 #   as random_remote but selects the fastest endpoints according to the DynamicEndpointSnitch.
 #   (DynamicEndpointSnitch currently only tracks reads and not writes - i.e. write-only
@@ -180,7 +180,7 @@ batchlog_replay_throttle: 1024KiB
 #   availability guarantee than random_remote or dynamic_remote.
 #   Note: this strategy will fall back to random_remote, if dynamic_snitch is not enabled.
 #
-# batchlog_endpoint_strategy: random_remote
+# batchlog_endpoint_strategy: dynamic_remote
 
 # Authentication backend, implementing IAuthenticator; used to identify users
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
@@ -195,12 +195,13 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator:
+  class_name: AllowAllAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters:
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
@@ -214,7 +215,8 @@ authenticator: AllowAllAuthenticator
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer:
+  class_name: AllowAllAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -229,7 +231,15 @@ authorizer: AllowAllAuthorizer
 #
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
-role_manager: CassandraRoleManager
+role_manager:
+  class_name: CassandraRoleManager
+  parameters:
+    # Controls how often invalid roles are disconnected, such as when a role is altered with LOGIN=false
+    # Task is scheduled with period + random(0, max_jitter) delay between executions
+    # It's recommended to set these longer than the roles cache refresh period, since the invalidation check depends on
+    # cache contents. Disable by setting period=0h.
+    # invalid_role_disconnect_task_period: 4h
+    # invalid_role_disconnect_task_max_jitter: 1h
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
@@ -243,7 +253,8 @@ role_manager: CassandraRoleManager
 # - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-network_authorizer: AllowAllNetworkAuthorizer
+network_authorizer:
+  class_name: AllowAllNetworkAuthorizer
 
 # CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
 # access from certain CIDRs
@@ -1005,13 +1016,13 @@ listen_address: localhost
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
 #internode_authenticator:
-#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters:
 # MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters:
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 #    trusted_peer_identities: "spiffe1,spiffe2"
 #    node_identity: "spiffe1"
@@ -1021,15 +1032,6 @@ start_native_transport: true
 # port for the CQL native transport to listen for clients on
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 native_transport_port: 9042
-# Enabling native transport encryption in client_encryption_options allows you to either use
-# encryption for the standard port or to use a dedicated, additional port along with the unencrypted
-# standard native_transport_port.
-# Enabling client encryption and keeping native_transport_port_ssl disabled will use encryption
-# for native_transport_port. Setting native_transport_port_ssl to a different value
-# from native_transport_port will use encryption for native_transport_port_ssl while
-# keeping native_transport_port unencrypted.
-# This feature is deprecated since Cassandra 5.0 and will be removed. Please consult deprecation section in NEWS.txt.
-# native_transport_port_ssl: 9142
 # The maximum threads for handling requests (note that idle threads are stopped
 # after 30 seconds so there is not corresponding minimum setting).
 # native_transport_max_threads: 128
@@ -1327,16 +1329,16 @@ range_request_timeout: 10000ms
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-write_request_timeout: 2000ms
+write_request_timeout: 10000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-counter_write_request_timeout: 5000ms
+counter_write_request_timeout: 1000ms
 # How long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-cas_contention_timeout: 1000ms
+cas_contention_timeout: 5000ms
 # How long the coordinator should wait for truncates to complete
 # (This can be much longer, because unless auto_snapshot is disabled
 # we need to flush first so we can snapshot before removing the data.)
@@ -1394,6 +1396,10 @@ request_timeout: 10000ms
 # How long before a node logs slow queries. Select queries that take longer than
 # this timeout to execute, will generate an aggregated log message, so that slow queries
 # can be identified. Set this value to zero to disable slow query logging.
+#
+# It is possible to log slow queries into system_views.slow_queries virtual table.
+# Consult logback.xml to uncomment specific appender and logger to enable this functionality.
+#
 # Min unit: ms
 slow_query_log_timeout: 500ms
 
@@ -1470,6 +1476,9 @@ slow_query_log_timeout: 500ms
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
+# IEndpointSnitch has been deprecated in Cassandra 5.1
+# Configuring a cluster with an IEndpointSnitch implementation using the endpoint_snitch setting remains supported,
+# but is superceded by the new settings detailed below.
 # endpoint_snitch -- Set this to a class that implements
 # IEndpointSnitch.  The snitch has two functions:
 #
@@ -1555,6 +1564,97 @@ slow_query_log_timeout: 500ms
 # of the snitch, which will be assumed to be on your classpath.
 endpoint_snitch: SimpleSnitch
 
+# The settings in the following section are intended to supercede the use of endpoint_snitch:
+# initial_location_provider
+# node_proximity
+# addresses_config (optional)
+# prefer_local_connections (optional, defaults to false)
+
+# The initial location provider supplies the datacenter and rack for a new node joining the
+# cluster for the first time. This DC/rack is used to register the node with the cluster and
+# is then persisted in and propagated by cluster metadata. The initial location provider is
+# not used after this initial phase of the node lifecycle is complete. Cassandra provides the
+# following implementations:
+#
+# SimpleLocationProvider:
+#    Hardcoded to supply a static location of `datacenter1/rack1`. Replicates the behaviour of
+#    SimpleSnitch.
+#
+# RackDCFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-rackdc.properties,
+#    and is backwards compatible with the configuration of GossipingPropertyFileSnitch.
+#
+# TopologyFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-topology.properties,
+#    and is backwards compatible with the configuration of PropertyFileSnitch. Only the location
+#    info for the local node is relevant now, rack/dc specifications for other endpoints are
+#    ignored.
+#
+# AlibabaCloudLocationProvider:
+#    Obtains datacenter and rack of the node from the metadata service of Alibaba cloud. This
+#    maps the ECS region to datacenter and the ECS availability zone to the rack. Intended to
+#    replace use of AlibabaCloudSnitch.
+#
+# AzureCloudLocationProvider:
+#    Maps datacenter to `location` and rack to `zone` fields of the `compute` object obtained
+#    from the Azure metadata service. If the availablity zone is not enabled, it will use the
+#    failure domain and get its respective value. Intended to replace use of AzureSnitch.
+#
+# CloudstackLocationProvider:
+#    Assumes a Cloudstack Zone follows the typical convention country-location-az, using a
+#    country/location tuple as a datacenter and the availability zone as a rack. Intended to
+#    replace use of CloudstackSnitch.
+#    WARNING: This legacy snitch has been deprecated and is scheduled to be removed in a future
+#    version of Cassandra.
+#
+# Ec2LocationProvider:
+#    Loads Region and Availability Zone information from the EC2 API. The Region is treated as the
+#    datacenter and the AvailablilityZone as the rack. Intended to replace use of Ec2Snitch and
+#    Ec2MultiRegionSnitch.
+#
+# GoogleCloudLocationProvider:
+#    Fetches source data from the metadata service of Google Cloud. This provider maps the GCE
+#    region to datacenter and the availibility zone to the rack. Intended to replace use of
+#    GoogleCloudSnitch.
+#initial_location_provider: SimpleLocationProvider
+
+# Node proximity controls sorting and ranking of replica lists in order to route requests efficiently.
+# Dynamic snitch (not configured here) provides an additional level of sorting on top of whatever is
+# specified here of sorting based on recorded latencies between peers.
+#
+# Out of the box Cassandra provides:
+#
+# NoOpProximity:
+#    Performs no reordering of replica lists and assigns every endpoint equal proximity, regardless of
+#    actual topology. This replicates the behaviour of SimpleSnitch.
+#
+# NetworkTopologyProximity:
+#    Ranks proximity of nodes based on datacenter and rack. Nodes in the same rack are considered
+#    closest, followed by those in the same datacenter. Nodes in different datacenters are
+#    considered furthest apart. Replicates the behaviour of topology aware snitches such as
+#    GossipingPropertyFileSnitch, PropertyFileSnitch and the multiple cloud platform snitches.
+#node_proximity: NetworkTopologyProximity
+
+# Address configuration (public and private endpoint addresses) is almost always derived directly 
+# from this configuration file using broadcast_address. In certain deployments, both the public and
+# private addresses may be configured from an external source. For instance, in EC2 a node will have
+# discover both of its own addresses at startup by querying the appropriate cloud metadata service.
+# In multi-region EC2 deployments, this should be set to Ec2MultiRegionAddressConfig, to replicate the
+# behaviour of Ec2MultiRegionSnitch.
+#addresses_config: Ec2MultiRegionAddressConfig
+
+# Controls whether or not to ensure that connections to peers in the same datacenter are established
+# using private addresses. Typically, this is for situations like EC2 where a node will have a public
+# address and a private address. We may initially connect on the public, then discover the private, and
+# reconnect on the private.
+# In Ec2MultiRegionSnitch (now deprecated), this behaviour was hard coded so if migrating from that
+# snitch to modern config, set this to true.
+# In GossipingPropertyFileSnitch (now deprecated), this behaviour was configured by the `prefer_local`
+# property so if migrating from that snitch to modern config, set this accordingly.
+# Note that all of the deprecated in-tree snitches can still be used in configuration, so any config
+# migration is currently optional.
+#prefer_local_connections: false
+
 # controls how often to perform the more expensive part of host score
 # calculation
 # Min unit: ms
@@ -1627,6 +1727,10 @@ server_encryption_options:
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
   #keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  # The password in the file should be on the first line
+  #keystore_password_file: conf/keystore_passwordfile.txt
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
@@ -1638,11 +1742,20 @@ server_encryption_options:
   # to create SSLContext. By default, outbound_keystore is the same as keystore indicating mTLS is not enabled.
 #  outbound_keystore: conf/.keystore
 #  outbound_keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When outbound_keystore_password and outbound_keystore_password_file both are specified,
+  # the outbound_keystore_password will take precedence
+  # The password in the file should be on the first line
+  #outbound_keystore_password_file: conf/outbound_keystore_passwordfile.txt
   # Verify peer server certificates
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true
   truststore: conf/.truststore
   #truststore_password: cassandra
+  # Optional configuration to specify password for truststore in a separate file
+  # When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  # The password in the file should be on the first line
+  #truststore_password_file: conf/truststore_passwordfile.txt
   # Verify that the host name in the certificate matches the connected host
   require_endpoint_verification: false
   # More advanced defaults:
@@ -1654,6 +1767,13 @@ server_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum allowed validity period of the client certificate used for the internode
+  # inbound connections. For example, if the specified max_certificate_validity_period is 30 days and the client
+  # uses a certificate that is issued for more than 30 days, the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the internode certificate
+  # validity period, warnings with information about the certificate expiration will be logged.
+  # certificate_validity_warn_threshold: 10d
 
 # Configure client-to-server encryption.
 #
@@ -1677,17 +1797,28 @@ client_encryption_options:
   # Set keystore and keystore_password to valid keystores if enabled is true
   keystore: conf/.keystore
   #keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  # The password in the file should be on the first line
+  #keystore_password_file: conf/keystore_passwordfile.txt
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
   #     # Must be an instance of org.apache.cassandra.security.ISslContextFactory
   #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # Verify client certificates
+  # - true/REQUIRED, Verifies the client and forces the client to send client certificate
+  # - false/NOT_REQUIRED, Doesn't verify the client
+  # - optional, Optionally verifies the client if client certificate is sent, but doesn't force client certificate to send certificates
   require_client_auth: false
   # require_endpoint_verification: false
   # Set trustore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
+  # Optional configuration to specify password for truststore in a separate file
+  # When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  # The password in the file should be on the first line
+  #truststore_password_file: conf/truststore_passwordfile.txt
   # More advanced defaults:
   # protocol: TLS
   # store_type: JKS
@@ -1697,6 +1828,86 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum validity period of the client certificate allowed to establish
+  # connections to the server. For example, if max_certificate_validity_period is configured for 10 days,
+  # and a client attempts to authenticate with a certificate with a longer validity period (say 30 days),
+  # then the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the client certificate
+  # validity, warnings with information about the certificate expiration will be logged. Additionally, client
+  # warnings will be reported during the session establishment.
+  # certificate_validity_warn_threshold: 10d
+
+# Configure SSL for JMX
+#
+# Using system properties via cassandra-env.sh to configure JMX SSL is
+# considered legacy and only supported for backward compatibility. If SSL
+# is enabled via both methods, a configuration error will occur at
+# startup. Hot reloading of the `SSLContext` is not yet supported for the
+# JMX SSL.
+# Similar to `client/server_encryption_options`, you can specify PEM-based
+# key material or customize the SSL configuration using `ssl_context_factory` in `jmx_encryption_options`.
+# If you uncomment this section, please be sure that you comment out configure_jmx function call in cassandra-env.sh
+# as it is errorneous to have JMX set by two ways, both in cassandra-env.sh and in this yaml.
+#jmx_server_options:
+  # enabled: true
+  # remote: false
+  # jmx_port: 7199
+  #
+  # Port used by the RMI registry when remote connections are enabled.
+  # To simplify firewall configs, this can be set to the same as the JMX server port (port). See CASSANDRA-7087.
+  # However, if ssl is enabled the same port cannot be used for both jmx and rmi so either
+  # pick another value for this property. Alternatively, comment out or set to 0 to use a random
+  # port (pre-CASSANDRA-7087 behaviour)
+  # rmi_port: 7199
+  #
+  # jmx ssl options - only apply when remote connections are enabled
+  #
+  # jmx_encryption_options:
+  #   enabled: true
+  #   cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+  #   accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+  #   keystore: conf/cassandra_ssl.keystore
+  #   keystore_password: cassandra
+  #   Optional configuration to specify password for keystore in a separate file
+  #   When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  #   The password in the file should be on the first line
+  #   keystore_password_file: conf/keystore_passwordfile.txt
+  #   truststore: conf/cassandra_ssl.truststore
+  #   truststore_password: cassandra
+  #   Optional configuration to specify password for truststore in a separate file
+  #   When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  #   The password in the file should be on the first line
+  #   truststore_password_file: conf/truststore_passwordfile.txt
+  #
+  # jmx authentication and authorization options.
+  # authenticate: false
+  #
+  # Options for basic file based authentication & authorization
+  # password_file: /etc/cassandra/jmxremote.password
+  # access_file: /etc/cassandra/jmxremote.access
+  #
+  # Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
+  # JAAS login modules can be used for authentication using this property.Cassandra ships with a
+  # LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule - which delegates
+  # to the IAuthenticator configured in cassandra.yaml.
+  #
+  # login_config_name refers to the Application Name in the JAAS configuration under which the
+  # desired LoginModule(s) are configured.
+  # The location of the JAAS config file may be set using the standard JVM mechanism, by setting
+  # the system property "java.security.auth.login.config". If this property is set, it's value
+  # will be used to locate the config file. For convenience, if the property is not already set
+  # at startup, a value can be supplied here via the login_config_file setting.
+  #
+  # The Application Name specified must be present in the JAAS config or an error will be thrown
+  # when authentication is attempted.
+  # See the sample JAAS configuration file conf/cassandra-jaas.config
+  # login_config_name: CassandraLogin
+  # login_config_file: conf/cassandra-jaas.config
+  #
+  # Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
+  # uncomment this to use it. Requires one of the two authentication options to be enabled
+  # authorizer: org.apache.cassandra.auth.jmx.AuthorizationProxy
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
@@ -1729,6 +1940,12 @@ trace_type_repair_ttl: 7d
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 user_defined_functions_enabled: false
+
+# Triggers are enabled by default.
+# `enabled` executes queries and their triggers.
+# `disabled` executes queries but skips trigger execution, and logs a warning.
+# `forbidden` fails queries that would execute triggers with TriggerDisabledException.
+triggers_policy: enabled
 
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
@@ -1763,6 +1980,11 @@ transparent_data_encryption_options:
   ## is split between all SAI indexes being built so more indexes will mean smaller
   ## segment sizes.
   # segment_write_buffer_size: 1024MiB
+  #
+  ## When more than one index exists on a single column, this flag determines whether or not SAI
+  ## should take precedence over legacy table-backed indexes during reads. By default, legacy
+  ## indexes take precedence to maintain continuity during migration. 
+  # prioritize_over_legacy_index: false
 
 #####################
 # SAFETY THRESHOLDS #
@@ -1779,6 +2001,20 @@ transparent_data_encryption_options:
 # using the StorageService mbean.
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
+
+# Controls the granularity of purgeable tombstones reported to PurgeableTombstoneScannedHistogram table metric
+# Possible values:
+# 'disabled' - do not collect the metric at all
+# 'row'      - track only partition/range/row level tombstone,
+#              a good compromise between overheads and usability.
+#              For CPU-bound workload you may get less than 1% of overhead for throughput.
+#              For IO-bound workload the overhead is negligible.
+# 'cell'     - track partition/range/row/cell level tombstones.
+#              This is the most granular option,
+#              but it has some performance overheads due to iteration over cells.
+#              For CPU-bound workload you may get about 5% of overhead for throughput.
+#              For IO-bound workload the overhead is almost negligible.
+# tombstone_read_purgeable_metric_granularity: disabled
 
 # Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
 # mechanism called replica filtering protection to ensure that results from stale replicas do
@@ -1856,10 +2092,16 @@ unlogged_batch_across_partitions_warn_threshold: 10
 
 # Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
 # on audit_logging for full details about the various configuration options and production tips.
+# For BinAuditLogger and FileAuditLogger, the following optional parameters can be configured:
+# - key_value_separator: Specifies the key-value separator to use for the log message. (Defaults to ":")
+# - field_separator: Specifies the separator between fields in the log message. (Defaults to "|")
 audit_logging_options:
   enabled: false
   logger:
     - class_name: BinAuditLogger
+  #   parameters:
+  #     - key_value_separator: ":"
+  #       field_separator: "|"
   # audit_logs_dir:
   # included_keyspaces:
   # excluded_keyspaces: system, system_schema, system_virtual_schema
@@ -1946,6 +2188,13 @@ report_unconfirmed_repaired_data_mismatches: false
 # Materialized views are considered experimental and are not recommended for production use.
 materialized_views_enabled: false
 
+# Specify whether Materialized View mutations are replayed through the write path on streaming, e.g. repair.
+# When enabled, Materialized View data streamed to the destination node will be written into commit log first. When setting to false,
+# the streamed Materialized View data is written into SSTables just the same as normal streaming. The default is true.
+# If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+# (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the Materialized View.
+# materialized_views_on_repair_enabled: true
+
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
 sasi_indexes_enabled: false
@@ -2024,6 +2273,11 @@ drop_compact_storage_enabled: false
 # table_properties_ignored: []
 # table_properties_disallowed: []
 #
+# Guardrail to warn about, ignore or reject properties when creating or modifying keyspaces. By default all properties are allowed.
+# keyspace_properties_warned: []
+# keyspace_properties_ignored: []
+# keyspace_properties_disallowed: []
+
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
 #
@@ -2042,6 +2296,9 @@ drop_compact_storage_enabled: false
 #
 # Guardrail to allow/disallow DROP KEYSPACE statements
 # drop_keyspace_enabled: true
+#
+# Guardrail to allow/disallow bulk load of SSTables
+# bulk_load_enabled: true
 #
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
@@ -2107,6 +2364,39 @@ drop_compact_storage_enabled: false
 # column_value_size_warn_threshold:
 # column_value_size_fail_threshold:
 #
+# Guardrail to warn or fail when writing ascii column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# If this guardrail is enabled along with column_value_size_warn_threshold and column_value_size_fail_threshold, size
+# restriction for the column type will be the smallest of the two.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_ascii_value_size_warn_threshold:
+# column_ascii_value_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing blob column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# If this guardrail is enabled along with column_value_size_warn_threshold and column_value_size_fail_threshold, size
+# restriction for the column type will be the smallest of the two.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_blob_value_size_warn_threshold:
+# column_blob_value_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing text column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# If this guardrail is enabled along with column_value_size_warn_threshold and column_value_size_fail_threshold, size
+# restriction for the column type will be the smallest of the two.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_text_and_varchar_value_size_warn_threshold:
+# column_text_and_varchar_value_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -2117,6 +2407,45 @@ drop_compact_storage_enabled: false
 # collection_size_warn_threshold:
 # Min unit: B
 # collection_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of map data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# When collection_map_size_warn_threshold and/or collection_map_size_fail_threshold are defined, they take the precedence
+# over the cooresponding collection_size_warn_threshold and/or collection_size_fail_threshold.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_map_size_warn_threshold:
+# Min unit: B
+# collection_map_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of set data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# When collection_set_size_warn_threshold and/or collection_set_size_fail_threshold are defined, they take the precedence
+# over the cooresponding collection_size_warn_threshold and/or collection_size_fail_threshold.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_set_size_warn_threshold:
+# Min unit: B
+# collection_set_size_fail_threshold:
+#
+# Guardrail to warn or fail when encountering larger size of list data than threshold.
+# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
+# prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
+# although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
+# When collection_list_size_warn_threshold and/or collection_list_size_fail_threshold are defined, they take the precedence
+# over the cooresponding collection_size_warn_threshold and/or collection_size_fail_threshold.
+# The two thresholds default to null to disable.
+# Min unit: B
+# collection_list_size_warn_threshold:
+# Min unit: B
+# collection_list_size_fail_threshold:
 #
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
@@ -2178,6 +2507,71 @@ drop_compact_storage_enabled: false
 # This would also apply to system keyspaces.
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when setting / altering a password.
+# Supported character sets are (both upper and lower-case): English, Cyrillic and modern Cyrillic, Czech, German, Polish.
+# Password is invalid if all characters are from non-supported character set. If a password is otherwise valid,
+# but it contains characters from unsupported language, these characters contribute only to password length rule.
+# All digits and all following special characters are supported too: !"#$%&()*+,-./:;<=>?@[\]^_`{|}~
+#password_validator:
+#  # Implementation class of a validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.validators is prepended.
+#  # By default, there is no validator.
+#  class_name: CassandraPasswordValidator
+#  # Implementation class of related generator which generates values which are valid when
+#  # tested against this validator. When not in form of FQCN, the
+#  # package name org.apache.cassandra.db.guardrails.generators is prepended.
+#  # By default, there is no generator.
+#  generator_class_name: CassandraPasswordGenerator
+#  # There are four characteristics:
+#  # upper-case, lower-case, special character and digit.
+#  # If this value is set e.g. to 3, a password has to consist of 3 out of 4 characteristics.
+#  # For example, it has to contain at least 2 upper-case characters, 2 lower-case, and 2 digits to pass,
+#  # but it does not have to contain any special characters.
+#  # If number of characteristics found in the password is less than or equal to this number, it will emit warning.
+#  characteristic_warn: 3
+#  # If number of characteristics found in the password is less than or equal to this number, it will emit failure.
+#  characteristic_fail: 2
+#  # Maximum length of a password. Defaults to 1000.
+#  max_length: 1000
+#  # If password is shorter than this value, the validator will emit a warning.
+#  length_warn: 12
+#  # If a password is shorter than this value, the validator will emit a failure.
+#  length_fail: 8
+#  # If a password does not contain at least n upper-case characters, the validator will emit a warning.
+#  upper_case_warn: 2
+#  # If a password does not contain at least n upper-case characters, the validator will emit a failure.
+#  upper_case_fail: 1
+#  # If a password does not contain at least n lower-case characters, the validator will emit a warning.
+#  lower_case_warn: 2
+#  # If a password does not contain at least n lower-case characters, the validator will emit a failure.
+#  lower_case_fail: 1
+#  # If a password does not contain at least n digits, the validator will emit a warning.
+#  digit_warn: 2
+#  # If a password does not contain at least n digits, the validator will emit a failure.
+#  digit_fail: 1
+#  # If a password does not contain at least n special characters, the validator will emit a warning.
+#  special_warn: 2
+#  # If a password does not contain at least n special characters, the validator will emit a failure.
+#  special_fail: 1
+#  # If a password contain illegal sequences that at least this long, it is invalid.
+#  # Illegal sequences might be either alphabetical (form 'abcde'),
+#  # numerical (form '34567'), or US qwerty (form 'asdfg') as well as sequencies from supported character sets.
+#  # The minimum value for this property is 3, by default it is set to 5.
+#  illegal_sequence_length: 5
+#  # Dictionary to check the passwords against. Defaults to no dictionary.
+#  # Whole dictionary is cached into memory. Use with caution with relatively big dictionaries.
+#  # Entries in a dictionary, one per line, have to be sorted per String's compareTo contract.
+#  #dictionary: /path/to/dictionary/file
+#  # If set to true, a user will be informed what policies a suggested password is missing in order to be valid.
+#  # Defaults to true.
+#  detailed_messages: true
+
+# If this is set to false, then it is not possible to call reconfiguration
+# method in GuardrailsMBean. It will effectively forbid the reconfiguration of password validator in runtime.
+# You would need to stop the node, change the configuration in cassandra.yaml and start the node again.
+# Defaults to true, which means that reconfiguration of password validator via JMX is possible.
+# password_validator_reconfiguration_enabled: true
 
 # Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
@@ -2232,12 +2626,6 @@ drop_compact_storage_enabled: false
 #    enabled: false
 #    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
 #    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
-# Prevents a node from starting if snitch's data center differs from previous data center.
-#  check_dc:
-#    enabled: true # (overriden by cassandra.ignore_dc system property)
-# Prevents a node from starting if snitch's rack differs from previous rack.
-#  check_rack:
-#    enabled: true # (overriden by cassandra.ignore_rack system property)
 # Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
 # prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
 # except the ones specified on excluded_keyspaces and excluded_tables.
@@ -2275,4 +2663,189 @@ drop_compact_storage_enabled: false
 #   and ensures stability. If Cassandra was started at the previous version by accident, a node with disabled
 #   compatibility mode would no longer toggle behaviors as when it was running in the UPGRADING mode.
 #
-storage_compatibility_mode: CASSANDRA_4
+storage_compatibility_mode: NONE
+
+#accord:
+#  # Enables the execution of Accord (multi-key) transactions on this node.
+#  enabled: false
+#
+#  # Journal directory for Accord
+#  journal_directory:
+#
+#  # The number of Accord shards on this node; -1 means use the number of cores
+#  queue_shard_count: -1
+#
+#  # The number of Accord shards on this node; -1 means use the number of cores
+#  command_store_shard_count: -1
+#
+#  # Recover delay: the time between a transaction being initiated and a remote replica being willing to interrupt it to complete it
+#  recover_delay: 1s
+#
+#  # how quickly the fast path is reconfigured when nodes go up/down
+#  fast_path_update_delay: 5s
+
+# Prevents preparing a repair session or beginning a repair streaming session if pending compactions is over
+# the given value.  Defaults to disabled.
+# reject_repair_compaction_threshold: 1024
+
+# At least 20% of disk must be unused to run repair. It is useful to avoid disks filling up during
+# repair as anti-compaction during repair may contribute to additional space temporarily.
+# if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
+# then set the ratio to 0.0
+# repair_disk_headroom_reject_ratio: 0.2;
+
+# This is the deprecated config which was used to safeguard incremental repairs. Use repair_disk_headroom_reject_ratio
+# instead as it safeguards against all repairs.
+# incremental_repair_disk_headroom_reject_ratio: 0.2;
+
+# Configuration for Auto Repair Scheduler.
+#
+# This feature is disabled by default.
+#
+# See: https://cassandra.apache.org/doc/latest/cassandra/managing/operating/auto_repair.html for an overview of this
+# feature.
+#
+# auto_repair:
+#   # Enable/Disable the auto-repair scheduler.
+#   # If set to false, the scheduler thread will not be started.
+#   # If set to true, the repair scheduler thread will be created. The thread will
+#   # check for secondary configuration available for each repair type (full, incremental,
+#   # and preview_repaired), and based on that, it will schedule repairs.
+#   enabled: true
+#   repair_type_overrides:
+#     full:
+#       # Enable/Disable full auto-repair
+#       enabled: true
+#       # Minimum duration between repairing the same node again. This is useful for tiny clusters,
+#       # such as clusters with 5 nodes that finish repairs quickly. This means that if the scheduler completes one
+#       # round on all nodes in less than this duration, it will not start a new repair round on a given node until
+#       # this much time has passed since the last repair completed. Consider increasing to a larger value to reduce
+#       # the impact of repairs, however note that one should attempt to run repairs at a smaller interval than
+#       # gc_grace_seconds to avoid potential data resurrection.
+#       min_repair_interval: 24h
+#       token_range_splitter:
+#         # Implementation of IAutoRepairTokenRangeSplitter; responsible for splitting token ranges
+#         # for repair assignments.
+#         #
+#         # Out of the box, Cassandra provides org.apache.cassandra.repair.autorepair.{RepairTokenRangeSplitter,
+#         # FixedTokenRangeSplitter}.
+#         #
+#         # - RepairTokenRangeSplitter (default) attempts to intelligently split ranges based on data size and partition
+#         #   count.
+#         # - FixedTokenRangeSplitter splits into fixed ranges based on the 'number_of_subranges' option.
+#         # class_name: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
+#
+#         # Optional parameters can be specified in the form of:
+#         #   parameters:
+#         #    param_key1: param_value1
+#         parameters:
+#           # The target and maximum amount of compressed bytes that should be included in a repair assignment.
+#           # This scopes the amount of work involved in a repair and includes the data covering the range being
+#           # repaired.
+#           bytes_per_assignment: 50GiB
+#           # The maximum number of bytes to cover in an individual schedule. This serves as
+#           # a mechanism to throttle the work done in each repair cycle. You may reduce this
+#           # value if the impact of repairs is causing too much load on the cluster or increase it
+#           # if writes outpace the amount of data being repaired. Alternatively, adjust the
+#           # min_repair_interval.
+#           # This is set to a large value for full repair to attempt to repair all data per repair schedule.
+#           max_bytes_per_schedule: 100000GiB
+#     incremental:
+#       enabled: false
+#       # Incremental repairs operate over unrepaired data and should finish quickly. Running incremental repair
+#       # frequently keeps the unrepaired set smaller and thus causes repairs to operate over a smaller set of data,
+#       # so a more frequent schedule such as 1h is recommended.
+#       # NOTE: Please consult
+#       # https://cassandra.apache.org/doc/latest/cassandra/managing/operating/auto_repair.html#enabling-ir
+#       # for guidance on enabling incremental repair on ane exiting cluster.
+#       min_repair_interval: 24h
+#       token_range_splitter:
+#         parameters:
+#           # Configured to attempt repairing 50GiB of compressed data per repair.
+#           # This throttles the amount of incremental repair and anticompaction done per schedule after incremental
+#           # repairs are turned on.
+#           bytes_per_assignment: 50GiB
+#           # Restricts the maximum number of bytes to cover in an individual schedule to the configured
+#           # max_bytes_per_schedule value (defaults to 100GiB for incremental).
+#           # Consider increasing this value if more data is written than this limit within the min_repair_interval.
+#           max_bytes_per_schedule: 100GiB
+#     preview_repaired:
+#       # Performs preview repair over repaired SSTables, useful to detect possible inconsistencies in the repaired
+#       # data set.
+#       enabled: false
+#       min_repair_interval: 24h
+#       token_range_splitter:
+#         parameters:
+#           bytes_per_assignment: 50GiB
+#           max_bytes_per_schedule: 100000GiB
+#   # Time interval between successive checks to see if ongoing repairs are complete or if it is time to schedule
+#   # repairs.
+#   repair_check_interval: 5m
+#   # Minimum duration for the execution of a single repair task. This prevents the scheduler from overwhelming
+#   # the node by scheduling too many repair tasks in a short period of time.
+#   repair_task_min_duration: 5s
+#   # The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
+#   # for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
+#   history_clear_delete_hosts_buffer_interval: 2h
+#   # By default repair is disabled if there are mixed major versions detected - which would happen
+#   # if a major version upgrade is being performed on the cluster, but a user can enable it using this flag
+#   mixed_major_version_repair_enabled: false
+#   # NOTE: Each of the below settings can be overridden per repair type under repair_type_overrides
+#   global_settings:
+#     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired
+#     # individually.
+#     repair_by_keyspace: true
+#     # Number of threads to use for each repair job scheduled by the scheduler. Similar to the -j option in nodetool
+#     # repair.
+#     number_of_repair_threads: 1
+#     # Number of nodes running repair in parallel. If parallel_repair_percentage is set, the larger value is used.
+#     parallel_repair_count: 3
+#     # Percentage of nodes in the cluster running repair in parallel. If parallel_repair_count is set, the larger value
+#     # is used.
+#     parallel_repair_percentage: 3
+#     # Whether to allow a node to take its turn running repair while one or more of its replicas are running repair.
+#     # Defaults to false, as running repairs concurrently on replicas can increase load and also cause anticompaction
+#     # conflicts while running incremental repair.
+#     allow_parallel_replica_repair: false
+#     # An addition to allow_parallel_replica_repair that also blocks repairs when replicas (including this node itself)
+#     # are repairing in any schedule. For example, if a replica is executing full repairs, a value of false will
+#     # prevent starting incremental repairs for this node. Defaults to true and is only evaluated when
+#     # allow_parallel_replica_repair is false.
+#     allow_parallel_replica_repair_across_schedules: true
+#     # Repairs materialized views if true.
+#     materialized_view_repair_enabled: false
+#     # Delay before starting repairs after a node restarts to avoid repairs starting immediately after a restart.
+#     initial_scheduler_delay: 5m
+#     # Timeout for retrying stuck repair sessions.
+#     repair_session_timeout: 3h
+#     # Force immediate repair on new nodes after they join the ring.
+#     force_repair_new_node: false
+#     # Threshold to skip repairing tables with too many SSTables. Defaults to 10,000 SSTables to avoid penalizing good
+#     # tables.
+#     sstable_upper_threshold: 50000
+#     # Maximum time allowed for repairing one table on a given node. If exceeded, the repair proceeds to the
+#     # next table.
+#     table_max_repair_time: 6h
+#     # Avoid running repairs in specific data centers. By default, repairs run in all data centers. Specify data
+#     # centers to exclude in this list. Note that repair sessions will still consider all replicas from excluded
+#     # data centers. Useful if you have keyspaces that are not replicated in certain data centers, and you want to
+#     # not run repair schedule in certain data centers.
+#     ignore_dcs: []
+#     # Repair only the primary ranges owned by a node. Equivalent to the -pr option in nodetool repair. Defaults
+#     # to true. General advice is to keep this true.
+#     repair_primary_token_range_only: true
+#     # Maximum number of retries for a repair session.
+#     repair_max_retries: 3
+#     # Backoff time before retrying a repair session.
+#     repair_retry_backoff: 30s
+#     token_range_splitter:
+#       # Splitter implementation to generate repair assignments. Defaults to RepairTokenRangeSplitter.
+#       class_name: org.apache.cassandra.repair.autorepair.RepairTokenRangeSplitter
+#       parameters:
+#         # Maximum number of partitions to include in a repair assignment. Used to reduce number of partitions
+#         # present in merkle tree leaf nodes to avoid overstreaming.
+#         partitions_per_assignment: 1048576
+#         # Maximum number of tables to include in a repair assignment. This reduces the number of repairs,
+#         # especially in keyspaces with many tables. The splitter avoids batching tables together if they
+#         # exceed other configuration parameters like bytes_per_assignment or partitions_per_assignment.
+#         max_tables_per_assignment: 64

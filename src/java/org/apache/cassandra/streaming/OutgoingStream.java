@@ -19,7 +19,10 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.util.List;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -54,4 +57,5 @@ public interface OutgoingStream
     long getEstimatedSize();
     TableId getTableId();
     int getNumFiles();
+    List<Range<Token>> ranges();
 }

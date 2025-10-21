@@ -8,7 +8,7 @@ Each column is defined using the following syntax: `+column_name cql_type_defini
 *Restriction:*
 
 * A table must have at least one `PRIMARY KEY`.
-* When `PRIMARY KEY` is at the end of a column definition, that column is the only primary key for the table, and is defined as the https://cassandra.apache.org/_/glossary.html#[partition-key][partition key].
+* When `PRIMARY KEY` is at the end of a column definition, that column is the only primary key for the table, and is defined as the https://cassandra.apache.org/_/glossary.html#partition-key[partition key].
 * A static column cannot be a primary key.
 * Primary keys can include frozen collections.
 

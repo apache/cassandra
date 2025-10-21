@@ -34,6 +34,7 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
+import accord.utils.async.AsyncResult;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.internal.ThrowableUtil;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackBiConsumerListener;
@@ -317,17 +318,6 @@ public abstract class AbstractFuture<V> implements Future<V>
     }
 
     /**
-     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
-     *
-     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
-     */
-    @Override
-    public <T> Future<T> map(Function<? super V, ? extends T> mapper)
-    {
-        return map(mapper, null);
-    }
-
-    /**
      * Support more fluid version of {@link com.google.common.util.concurrent.Futures#addCallback}
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
@@ -366,12 +356,45 @@ public abstract class AbstractFuture<V> implements Future<V>
      *
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
-    protected <T> Future<T> flatMap(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
+    protected <T> Future<T> flatMap(AbstractFuture<T> result, Function<? super V, ? extends AsyncResult<T>> flatMapper, @Nullable Executor executor)
     {
         addListener(() -> {
             try
             {
-                if (isSuccess()) flatMapper.apply(getNow()).addListener(propagate(result));
+                if (isSuccess()) flatMapper.apply(getNow()).invoke(propagateAsConsumer(result));
+                else result.tryFailure(cause());
+            }
+            catch (Throwable t)
+            {
+                result.tryFailure(t);
+                throw t;
+            }
+        }, executor);
+        return result;
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen)
+    {
+        return andThenAsync(andThen, null);
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    protected <T> Future<T> andThenAsync(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    {
+        addListener(() -> {
+            try
+            {
+                if (isSuccess()) andThen.apply(getNow()).addListener(propagateAsListener(result));
                 else result.tryFailure(cause());
             }
             catch (Throwable t)
@@ -520,11 +543,22 @@ public abstract class AbstractFuture<V> implements Future<V>
     /**
      * @return a listener that will propagate to {@code to} the result of the future it is invoked with
      */
-    private static <V> GenericFutureListener<? extends Future<V>> propagate(AbstractFuture<? super V> to)
+    private static <V> GenericFutureListener<? extends Future<V>> propagateAsListener(AbstractFuture<? super V> to)
     {
         return from -> {
             if (from.isSuccess()) to.trySuccess(from.getNow());
             else to.tryFailure(from.cause());
+        };
+    }
+
+    /**
+     * @return a listener that will propagate to {@code to} the result of the future it is invoked with
+     */
+    private static <V> BiConsumer<? super V, Throwable> propagateAsConsumer(AbstractFuture<? super V> to)
+    {
+        return (success, fail) -> {
+            if (fail == null) to.trySuccess(success);
+            else to.tryFailure(fail);
         };
     }
 }

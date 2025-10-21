@@ -22,8 +22,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,13 +29,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -48,19 +44,20 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.v1.AbstractPaxosVerbHandler;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 
-import static org.apache.cassandra.utils.TokenRangeTestUtil.MessageDelivery;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.broadcastAddress;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.bytesToken;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.randomInt;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.registerOutgoingMessageSink;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
 
-// PaxosV1 out of range tests
-public class PaxosVerbHandlerOutOfRangeTest
+public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 implements OOTR checks at the protocol level
 {
     // For the purposes of this testing, the details of the Commit don't really matter
     // as we're just testing the rejection (or lack of) and not the result of doing
@@ -77,26 +74,25 @@ public class PaxosVerbHandlerOutOfRangeTest
     @BeforeClass
     public static void init() throws Exception
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
+        ServerTestUtils.markCMS();
+        StorageService.instance.unsafeSetInitialized();
     }
 
     @Before
     public void setup() throws Exception
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(0), node1);
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(100), broadcastAddress);
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(broadcastAddress, bytesToken(100));
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
 
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
         startingTotalMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         startingKeyspaceMetricCount = keyspaceMetricValue();
     }
+
     private static DecoratedKey key(TableMetadata metadata, int key)
     {
         return metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key));
@@ -121,7 +117,7 @@ public class PaxosVerbHandlerOutOfRangeTest
         int key = 50;
         Commit commit = commit(key);
         handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, responseVerb, messageId, false, false);
+        getAndVerifyResponse(messageSink, responseVerb, messageId, false);
     }
 
     @Test
@@ -138,19 +134,20 @@ public class PaxosVerbHandlerOutOfRangeTest
 
     private void acceptRequestForPendingEndpoint(Verb requestVerb, Verb responseVerb, AbstractPaxosVerbHandler handler) throws Exception
     {
-        // remove localhost from TM and add it back as pending
-        StorageService.instance.getTokenMetadata().removeEndpoint(broadcastAddress);
-        Multimap<Range<Token>, Replica> pending = HashMultimap.create();
-        Range<Token> range = new Range<>(bytesToken(0), bytesToken(100));
-        pending.put(range, new Replica(broadcastAddress, range, true));
-        StorageService.instance.getTokenMetadata().setPendingRangesUnsafe(KEYSPACE, pending);
+        // reset ClusterMetadata then join the remote node and partially
+        // join the localhost one to emulate pending ranges
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
+        assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
 
         ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int key = 50;
         Commit commit = commit(key);
         handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, responseVerb, messageId, false, false);
+        getAndVerifyResponse(messageSink, responseVerb, messageId, false);
     }
 
     @Test
@@ -173,42 +170,18 @@ public class PaxosVerbHandlerOutOfRangeTest
         int key = 200;
         Commit commit = commit(key);
         handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, responseVerb, messageId, true, true);
-    }
-
-    @Test
-    public void acceptPrepareIfRejectionNotEnabled() throws Exception
-    {
-        acceptRequestIfRejectionNotEnabled(Verb.PAXOS_PREPARE_REQ, Verb.PAXOS_PREPARE_RSP, new PrepareVerbHandler());
-    }
-
-    @Test
-    public void acceptProposeIfRejectionNotEnabled() throws Exception
-    {
-        acceptRequestIfRejectionNotEnabled(Verb.PAXOS_PROPOSE_REQ, Verb.PAXOS_PROPOSE_RSP, new ProposeVerbHandler());
-    }
-
-    private void acceptRequestIfRejectionNotEnabled(Verb requestVerb, Verb responseVerb, AbstractPaxosVerbHandler handler) throws Exception
-    {
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
-        int messageId = randomInt();
-        int key = 200;
-        Commit commit = commit(key);
-        handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, responseVerb, messageId, true, false);
+        getAndVerifyResponse(messageSink, responseVerb, messageId, true);
     }
 
     private void getAndVerifyResponse(ListenableFuture<MessageDelivery> messageSink,
                                       Verb verb,
                                       int messageId,
-                                      boolean isOutOfRange,
-                                      boolean expectFailure) throws InterruptedException, ExecutionException, TimeoutException
+                                      boolean isOutOfRange) throws InterruptedException, ExecutionException, TimeoutException
     {
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(verb, response.message.verb());
         Assert.assertEquals(broadcastAddress, response.message.from());
-        assertEquals(expectFailure, response.message.payload instanceof RequestFailureReason);
+        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
         assertEquals(messageId, response.message.id());
         Assert.assertEquals(node1, response.to);
         assertEquals(startingTotalMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());

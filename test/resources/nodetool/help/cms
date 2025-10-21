@@ -1,0 +1,119 @@
+NAME
+        nodetool cms - Manage cluster metadata
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms <command> [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms describe
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms initialize
+                [(-i <ignored_endpoints> | --ignore <ignored_endpoints>)...]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms reconfigure
+                [(-c | --cancel)] [(-r | --resume)] [--status] [--] [<replication
+                factor>] or <datacenter>:<replication_factor> ...
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms snapshot
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms unregister [--] <nodeId>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms abortinitialization
+                [--initiator <initiator>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms dumpdirectory [--tokens]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms dumplog
+                [--end <endEpoch>] [--start <startEpoch>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms resumedropaccordtable
+                [--] <tableId>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        describe
+            Describe the current Cluster Metadata Service
+        initialize
+            Upgrade from gossip and initialize CMS
+
+            With --ignore option, Hosts to ignore due to them being down
+        reconfigure
+            Reconfigure replication factor of CMS
+
+            With --status option, Poll status of the reconfigure command. All other
+            flags and arguments are ignored when this one is used.
+
+            With --resume option, Whether or not a previously interrupted sequence
+            should be resumed
+
+            With --cancel option, Cancels any in progress CMS reconfiguration
+        snapshot
+            Request a checkpointing snapshot of cluster metadata
+        unregister
+            Unregister nodes in LEFT state
+        abortinitialization
+            Abort an incomplete initialization
+
+            With --initiator option, The address of the node where `cms initialize` was
+            run.
+        dumpdirectory
+            Dump the directory from the current ClusterMetadata
+
+            With --tokens option, Include tokens in output
+        dumplog
+            Dump the metadata log
+
+            With --start option, Start epoch
+
+            With --end option, End epoch
+        resumedropaccordtable
+            Resume a drop accord table operation which has stalled

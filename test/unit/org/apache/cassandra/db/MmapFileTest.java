@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 public class MmapFileTest
 {
@@ -86,8 +87,8 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
                 buffer.putInt(42);
-                
-                FileUtils.clean(buffer);
+
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -114,7 +115,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -139,7 +140,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,48 +33,44 @@ import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -91,6 +85,7 @@ public class Keyspace
     private static int TEST_FAIL_MV_LOCKS_COUNT = CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT.getInt();
 
     public final KeyspaceMetrics metric;
+    public final KeyspaceMetadataRef metadataRef;
 
     // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -100,8 +95,6 @@ public class Keyspace
             DatabaseDescriptor.createAllDirectories();
     }
 
-    private volatile KeyspaceMetadata metadata;
-
     //OpOrder is defined globally since we need to order writes across
     //Keyspaces in the case of Views (batchlog of view mutations)
     public static final OpOrder writeOrder = new OpOrder();
@@ -109,12 +102,11 @@ public class Keyspace
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<TableId, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<>();
 
-    private volatile AbstractReplicationStrategy replicationStrategy;
     public final ViewManager viewManager;
     private final KeyspaceWriteHandler writeHandler;
-    private volatile ReplicationParams replicationParams;
     private final KeyspaceRepairManager repairManager;
     private final SchemaProvider schema;
+    private final String name;
 
     private static volatile boolean initialized = false;
 
@@ -148,23 +140,21 @@ public class Keyspace
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
-        return open(keyspaceName, Schema.instance, true);
+        Keyspace ks = Schema.instance.getKeyspaceInstance(keyspaceName);
+        assert ks != null : "Unknown keyspace " + keyspaceName;
+        return ks;
+    }
+
+    public static Keyspace openIfExists(String keyspaceName)
+    {
+        assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
+        return Schema.instance.getKeyspaceInstance(keyspaceName);
     }
 
     // to only be used by org.apache.cassandra.tools.Standalone* classes
     public static Keyspace openWithoutSSTables(String keyspaceName)
     {
-        return open(keyspaceName, Schema.instance, false);
-    }
-
-    public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
-    {
-        return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
-    }
-
-    public static ColumnFamilyStore openAndGetStore(TableMetadataRef tableRef)
-    {
-        return open(tableRef.keyspace).getColumnFamilyStore(tableRef.id);
+        return Schema.instance.getKeyspaceInstance(keyspaceName);
     }
 
     public static ColumnFamilyStore openAndGetStore(TableMetadata table)
@@ -196,15 +186,9 @@ public class Keyspace
         }
     }
 
-    public void setMetadata(KeyspaceMetadata metadata)
-    {
-        this.metadata = metadata;
-        createReplicationStrategy(metadata);
-    }
-
     public KeyspaceMetadata getMetadata()
     {
-        return metadata;
+        return metadataRef.get();
     }
 
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
@@ -224,7 +208,7 @@ public class Keyspace
     {
         ColumnFamilyStore cfs = columnFamilyStores.get(id);
         if (cfs == null)
-            throw new IllegalArgumentException("Unknown CF " + id);
+            throw new IllegalArgumentException(String.format("Unknown CF %s %s", id, columnFamilyStores));
         return cfs;
     }
 
@@ -238,80 +222,19 @@ public class Keyspace
         return columnFamilyStores.containsKey(id);
     }
 
-    /**
-     * Take a snapshot of the specific column family, or the entire set of column families
-     * if columnFamily is null with a given timestamp
-     *
-     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
-     * @param columnFamilyName the column family to snapshot or all on null
-     * @param skipFlush Skip blocking flush of memtable
-     * @param rateLimiter Rate limiter for hardlinks-per-second
-     * @throws IOException if the column family doesn't exist
-     */
-    public void snapshot(String snapshotName, String columnFamilyName, boolean skipFlush, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime) throws IOException
+    public static void verifyKeyspaceIsValid(String keyspaceName)
     {
-        assert snapshotName != null;
-        boolean tookSnapShot = false;
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            if (columnFamilyName == null || cfStore.name.equals(columnFamilyName))
-            {
-                tookSnapShot = true;
-                cfStore.snapshot(snapshotName, skipFlush, ttl, rateLimiter, creationTime);
-            }
-        }
+        if (null != VirtualKeyspaceRegistry.instance.getKeyspaceNullable(keyspaceName))
+            throw new IllegalArgumentException("Cannot perform any operations against virtual keyspace " + keyspaceName);
 
-        if ((columnFamilyName != null) && !tookSnapShot)
-            throw new IOException("Failed taking snapshot. Table " + columnFamilyName + " does not exist.");
+        if (!Schema.instance.getKeyspaces().contains(keyspaceName))
+            throw new IllegalArgumentException("Keyspace " + keyspaceName + " does not exist");
     }
 
-    /**
-     * Take a snapshot of the specific column family, or the entire set of column families
-     * if columnFamily is null with a given timestamp
-     *
-     * @param snapshotName     the tag associated with the name of the snapshot.  This value may not be null
-     * @param columnFamilyName the column family to snapshot or all on null
-     * @throws IOException if the column family doesn't exist
-     */
-    public void snapshot(String snapshotName, String columnFamilyName) throws IOException
+    public static Keyspace getValidKeyspace(String keyspaceName)
     {
-        snapshot(snapshotName, columnFamilyName, false, null, null, now());
-    }
-
-    /**
-     * @param clientSuppliedName may be null.
-     * @return the name of the snapshot
-     */
-    public static String getTimestampedSnapshotName(String clientSuppliedName)
-    {
-        String snapshotName = Long.toString(currentTimeMillis());
-        if (clientSuppliedName != null && !clientSuppliedName.equals(""))
-        {
-            snapshotName = snapshotName + "-" + clientSuppliedName;
-        }
-        return snapshotName;
-    }
-
-    public static String getTimestampedSnapshotNameWithPrefix(String clientSuppliedName, String prefix)
-    {
-        return prefix + "-" + getTimestampedSnapshotName(clientSuppliedName);
-    }
-
-    /**
-     * Check whether snapshots already exists for a given name.
-     *
-     * @param snapshotName the user supplied snapshot name
-     * @return true if the snapshot exists
-     */
-    public boolean snapshotExists(String snapshotName)
-    {
-        assert snapshotName != null;
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
-            if (cfStore.snapshotExists(snapshotName))
-                return true;
-        }
-        return false;
+        verifyKeyspaceIsValid(keyspaceName);
+        return Keyspace.open(keyspaceName);
     }
 
     /**
@@ -325,43 +248,53 @@ public class Keyspace
         return list;
     }
 
-    public Stream<TableSnapshot> getAllSnapshots()
+    public static Keyspace forSchema(String keyspaceName, SchemaProvider schema)
     {
-        return getColumnFamilyStores().stream().flatMap(cfs -> cfs.listSnapshots().values().stream());
+        return new Keyspace(keyspaceName, schema, true);
     }
 
     private Keyspace(String keyspaceName, SchemaProvider schema, boolean loadSSTables)
     {
+        this(schema,  schema.getKeyspaceMetadata(keyspaceName), loadSSTables, true);
+    }
+
+    public Keyspace(SchemaProvider schema, KeyspaceMetadata metadata, boolean loadSSTables, boolean addIndexes)
+    {
         this.schema = schema;
-        metadata = schema.getKeyspaceMetadata(keyspaceName);
-        assert metadata != null : "Unknown keyspace " + keyspaceName;
-        
+        this.name = metadata.name;
+
+        assert metadata != null : "Unknown keyspace " + metadata.name;
+
         if (metadata.isVirtual())
-            throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + keyspaceName);
-        createReplicationStrategy(metadata);
+            throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + metadata.name);
 
         this.metric = new KeyspaceMetrics(this);
         this.viewManager = new ViewManager(this);
+
+        this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            initCf(schema.getTableMetadataRef(cfm.id), loadSSTables);
+            initCf(cfm, loadSSTables, addIndexes);
         }
-        this.viewManager.reload(false);
+
+        this.viewManager.reload(metadata);
+        this.metadataRef.unsetInitial();
 
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
     }
 
-    private Keyspace(KeyspaceMetadata metadata)
+    public Keyspace(KeyspaceMetadata metadata)
     {
         this.schema = Schema.instance;
-        this.metadata = metadata;
-        createReplicationStrategy(metadata);
+        this.name = metadata.name;
+
         this.metric = new KeyspaceMetrics(this);
         this.viewManager = new ViewManager(this);
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
+        this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
     }
 
     public KeyspaceRepairManager getRepairManager()
@@ -372,18 +305,6 @@ public class Keyspace
     public static Keyspace mockKS(KeyspaceMetadata metadata)
     {
         return new Keyspace(metadata);
-    }
-
-    private void createReplicationStrategy(KeyspaceMetadata ksm)
-    {
-        logger.info("Creating replication strategy " + ksm.name + " params " + ksm.params);
-        replicationStrategy = ksm.createReplicationStrategy();
-        if (!ksm.params.replication.equals(replicationParams))
-        {
-            logger.debug("New replication settings for keyspace {} - invalidating disk boundary caches", ksm.name);
-            columnFamilyStores.values().forEach(ColumnFamilyStore::invalidateLocalRanges);
-        }
-        replicationParams = ksm.params.replication;
     }
 
     // best invoked on the compaction manager.
@@ -446,7 +367,7 @@ public class Keyspace
     /**
      * adds a cf to internal structures, ends up creating disk files).
      */
-    public void initCf(TableMetadataRef metadata, boolean loadSSTables)
+    public void initCf(TableMetadata metadata, boolean loadSSTables, boolean addIndexes)
     {
         ColumnFamilyStore cfs = columnFamilyStores.get(metadata.id);
 
@@ -455,7 +376,8 @@ public class Keyspace
             // CFS being created for the first time, either on server startup or new CF being added.
             // We don't worry about races here; startup is safe, and adding multiple idential CFs
             // simultaneously is a "don't do that" scenario.
-            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(metadata.id, ColumnFamilyStore.createColumnFamilyStore(this, metadata, loadSSTables));
+            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(metadata.id,
+                                                                      ColumnFamilyStore.createColumnFamilyStore(this, metadata, loadSSTables, addIndexes));
             // CFS mbean instantiation will error out before we hit this, but in case that changes...
             if (oldCfs != null)
                 throw new IllegalStateException("added multiple mappings for cf id " + metadata.id);
@@ -465,7 +387,7 @@ public class Keyspace
             // re-initializing an existing CF.  This will happen if you cleared the schema
             // on this node and it's getting repopulated from the rest of the cluster.
             assert cfs.name.equals(metadata.name);
-            cfs.reload();
+            cfs.reload(metadata);
         }
     }
 
@@ -527,16 +449,16 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
-        if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
+        if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
         Lock[] locks = null;
 
-        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
+        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(mutation, false);
 
         if (requiresViewUpdate)
         {
-            mutation.viewLockAcquireStart.compareAndSet(0L, currentTimeMillis());
+            Mutation.viewLockAcquireStartUpdater.compareAndSet(mutation, 0L, currentTimeMillis());
 
             // the order of lock acquisition doesn't matter (from a deadlock perspective) because we only use tryLock()
             Collection<TableId> tableIds = mutation.getTableIds();
@@ -613,7 +535,7 @@ public class Keyspace
                 }
             }
 
-            long acquireTime = currentTimeMillis() - mutation.viewLockAcquireStart.get();
+            long acquireTime = currentTimeMillis() - Mutation.viewLockAcquireStartUpdater.get(mutation);
             // Metrics are only collected for droppable write operations
             // Bulk non-droppable operations (e.g. commitlog replay, hint delivery) are not measured
             if (isDroppable)
@@ -624,6 +546,7 @@ public class Keyspace
         }
         try (WriteContext ctx = getWriteHandler().beginWrite(mutation, makeDurable))
         {
+            ConsensusMigrationMutationHelper.validateSafeToExecuteNonTransactionally(mutation);
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
             {
                 ColumnFamilyStore cfs = columnFamilyStores.get(upd.metadata().id);
@@ -632,14 +555,15 @@ public class Keyspace
                     logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
                     continue;
                 }
-                AtomicLong baseComplete = new AtomicLong(Long.MAX_VALUE);
+                AtomicLong baseComplete = null;
 
                 if (requiresViewUpdate)
                 {
+                    baseComplete = new AtomicLong(Long.MAX_VALUE);
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
-                        viewManager.forTable(upd.metadata().id).pushViewReplicaUpdates(upd, makeDurable, baseComplete);
+                        viewManager.forTable(upd.metadata()).pushViewReplicaUpdates(upd, makeDurable, baseComplete);
                     }
                     catch (Throwable t)
                     {
@@ -674,7 +598,7 @@ public class Keyspace
 
     public AbstractReplicationStrategy getReplicationStrategy()
     {
-        return replicationStrategy;
+        return getMetadata().replicationStrategy;
     }
 
     public List<Future<?>> flush(ColumnFamilyStore.FlushReason reason)
@@ -762,6 +686,11 @@ public class Keyspace
         return Schema.instance.getKeyspaces().stream().map(Schema.instance::getKeyspaceInstance).filter(Objects::nonNull);
     }
 
+    public static Iterable<Keyspace> nonSystem()
+    {
+        return Iterables.transform(Schema.instance.distributedKeyspaces().names(), Keyspace::open);
+    }
+
     public static Iterable<Keyspace> nonLocalStrategy()
     {
         return Iterables.transform(Schema.instance.distributedKeyspaces().names(), Keyspace::open);
@@ -769,7 +698,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> system()
     {
-        return Iterables.transform(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES, Keyspace::open);
+        return Iterables.transform(Schema.instance.localKeyspaces().names(), Keyspace::open);
     }
 
     @Override
@@ -780,6 +709,37 @@ public class Keyspace
 
     public String getName()
     {
-        return metadata.name;
+        return name;
+    }
+
+    private static class KeyspaceMetadataRef
+    {
+        // We need "initial" keyspace metadata for initCF to run, due to circular dependency
+        // between keyspace keyspace -> column family -> keyspace metadata. There are some
+        // calls within initCF that try accessing keyspace metadata, which requires the metadata
+        // of initializing keyspace to already be visible via ClusterMetadata#schema.
+        private KeyspaceMetadata initial;
+
+        private final String name;
+        private final SchemaProvider provider;
+
+        public KeyspaceMetadataRef(KeyspaceMetadata initial, SchemaProvider provider)
+        {
+            this.initial = initial;
+            this.name = initial.name;
+            this.provider = provider;
+        }
+
+        public KeyspaceMetadata get()
+        {
+            if (initial != null)
+                return initial;
+            return provider.getKeyspaceMetadata(name);
+        }
+
+        public void unsetInitial()
+        {
+            this.initial = null;
+        }
     }
 }

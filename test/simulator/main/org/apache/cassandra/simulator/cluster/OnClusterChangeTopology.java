@@ -24,7 +24,7 @@ import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.TopologyChangeValidator;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
 
-import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
 import static org.apache.cassandra.simulator.ActionListener.runAfterTransitiveClosure;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
@@ -37,11 +37,12 @@ abstract class OnClusterChangeTopology extends Action implements Consumer<Action
     final Topology before;
     final Topology after;
 
+
     final TopologyChangeValidator validator;
 
     public OnClusterChangeTopology(Object description, KeyspaceActions actions, Topology before, Topology after, int[] participatingKeys)
     {
-        this(description, actions, STRICT, RELIABLE, before, after, participatingKeys);
+        this(description, actions, STRICT, RELIABLE_NO_TIMEOUTS, before, after, participatingKeys);
     }
 
     public OnClusterChangeTopology(Object description, KeyspaceActions actions, Modifiers self, Modifiers children, Topology before, Topology after, int[] participatingKeys)

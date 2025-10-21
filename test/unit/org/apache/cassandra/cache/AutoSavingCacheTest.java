@@ -79,7 +79,7 @@ public class AutoSavingCacheTest
         cfs.truncateBlocking();
         for (int i = 0; i < 2; i++)
         {
-            ColumnMetadata colDef = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("col1"), AsciiType.instance);
+            ColumnMetadata colDef = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("col1"), AsciiType.instance, ColumnMetadata.NO_UNIQUE_ID);
             RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), currentTimeMillis(), "key1");
             rowBuilder.add(colDef, "val1");
             rowBuilder.build().apply();

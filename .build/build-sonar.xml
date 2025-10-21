@@ -226,9 +226,9 @@
             <arg value="-Dsonar.working.directory=${sonar.workdir}/scanner"/>
             <arg value="-Dsonar.sourceEncoding=UTF-8"/>
             <arg value="-Dsonar.scm.disabled=true"/>
-            <arg value="-Dsonar.sources=${build.src.java},${fqltool.build.src},${stress.build.src}"/>
+            <arg value="-Dsonar.sources=${build.src.java},${fqltool.build.src},${sstableloader.build.src},${stress.build.src}"/>
             <arg value="-Dsonar.java.libraries=${build.dir.lib}/jars/jsr305-*.jar"/>
-            <arg value="-Dsonar.java.binaries=${build.classes.main},${fqltool.build.classes},${stress.build.classes}"/>
+            <arg value="-Dsonar.java.binaries=${build.classes.main},${fqltool.build.classes},${sstableloader.build.classes},${stress.build.classes}"/>
             <arg value="-Dsonar.java.source=11"/>
             <arg value="-Dsonar.projectVersion=${timestamp}"/>
             <arg value="-Dsonar.qualitygate.wait=true"/>

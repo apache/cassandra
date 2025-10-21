@@ -70,7 +70,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
             if (uniqueKeys)
                 return key;
 
-            if (lastKey == null || lastKey.compareTo(key) != 0)
+            if (lastKey == null || lastKey.compareTo(key, false) != 0)
             {
                 next = key;
                 lastKey = key;
@@ -87,7 +87,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
         while (!keys.isEmpty())
         {
             PrimaryKey key = keys.peek();
-            if (key.compareTo(nextKey) >= 0)
+            if (key.compareTo(nextKey, false) >= 0)
                 break;
 
             // consume smaller key

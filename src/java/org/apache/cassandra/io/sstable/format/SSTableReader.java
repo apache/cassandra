@@ -92,6 +92,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -100,6 +101,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.OutputHandler;
@@ -112,6 +114,7 @@ import org.apache.cassandra.utils.concurrent.SharedCloseable;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.TimeUUID.unixMicrosToRawTimestamp;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOrNull;
 
@@ -149,7 +152,7 @@ import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOr
  * <p>
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>
+public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>, Comparable<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -177,11 +180,26 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public static final Comparator<SSTableReader> maxTimestampAscending = Comparator.comparingLong(SSTableReader::getMaxTimestamp);
     public static final Comparator<SSTableReader> maxTimestampDescending = maxTimestampAscending.reversed();
 
-    // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
-    public static final class UniqueIdentifier
+    public static final TimeUUID.Generator.Factory<UniqueIdentifier> UNIQUE_IDENTIFIER_FACTORY = new TimeUUID.Generator.Factory<UniqueIdentifier>()
     {
+        @Override
+        public UniqueIdentifier atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode)
+        {
+            return new UniqueIdentifier(unixMicrosToRawTimestamp(unixMicros), clockSeqAndNode);
+        }
+    };
+
+    // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
+    // Also includes a TimeUUID to make these sortable
+    public static final class UniqueIdentifier extends TimeUUID
+    {
+        private UniqueIdentifier(long unixMicros, long clockSeqAndNode)
+        {
+            super(unixMicros, clockSeqAndNode);
+        }
     }
-    public final UniqueIdentifier instanceId = new UniqueIdentifier();
+
+    public final UniqueIdentifier instanceId = TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY);
 
     public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
     public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
@@ -271,6 +289,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     protected final DecoratedKey first;
     protected final DecoratedKey last;
     public final AbstractBounds<Token> bounds;
+    private final Interval<PartitionPosition, SSTableReader> interval;
 
     /**
      * Calculate approximate key count.
@@ -345,7 +364,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public static SSTableReader open(SSTable.Owner owner, Descriptor desc, TableMetadataRef metadata)
     {
-        return open(owner, desc, null, metadata);
+        return open(owner, desc,  null, metadata);
     }
 
     public static SSTableReader open(SSTable.Owner owner, Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
@@ -393,7 +412,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                      boolean isOffline)
     {
         SSTableReaderLoadingBuilder<?, ?> builder = descriptor.getFormat().getReaderFactory().loadingBuilder(descriptor, metadata, components);
-
         return builder.build(owner, validate, !isOffline);
     }
 
@@ -458,6 +476,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.openReason = builder.getOpenReason();
         this.first = builder.getFirst();
         this.last = builder.getLast();
+        this.interval = first == null || last == null ? null : Interval.create(first, last, this);
         this.bounds = first == null || last == null || AbstractBounds.strictlyWrapsAround(first.getToken(), last.getToken())
                       ? null // this will cause the validation to fail, but the reader is opened with no validation,
                              // e.g. for scrubbing, we should accept screwed bounds
@@ -477,6 +496,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public DecoratedKey getLast()
     {
         return last;
+    }
+
+    public Interval<PartitionPosition, SSTableReader> getInterval()
+    {
+        return interval;
     }
 
     @Override
@@ -535,7 +559,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public void setupOnline()
     {
-         owner().ifPresent(o -> setCrcCheckChance(o.getCrcCheckChance()));
+        owner().ifPresent(o -> setCrcCheckChance(o.getCrcCheckChance()));
     }
 
     /**
@@ -720,7 +744,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
      *
-     * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
+     * @return A sorted list of [offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
     public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
@@ -729,27 +753,110 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         for (Range<Token> range : Range.normalize(ranges))
         {
             assert !range.isWrapAround() || range.right.isMinimum();
-            // truncate the range so it at most covers the sstable
             AbstractBounds<PartitionPosition> bounds = Range.makeRowRange(range);
-            PartitionPosition leftBound = bounds.left.compareTo(first) > 0 ? bounds.left : first.getToken().minKeyBound();
-            PartitionPosition rightBound = bounds.right.isMinimum() ? last.getToken().maxKeyBound() : bounds.right;
-
-            if (leftBound.compareTo(last) > 0 || rightBound.compareTo(first) < 0)
-                continue;
-
-            long left = getPosition(leftBound, Operator.GT);
-            long right = (rightBound.compareTo(last) > 0)
-                         ? uncompressedLength()
-                         : getPosition(rightBound, Operator.GT);
-
-            if (left == right)
-                // empty range
-                continue;
-
-            assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
-            positions.add(new PartitionPositionBounds(left, right));
+            PartitionPositionBounds pb = getPositionsForBounds(bounds);
+            if (pb != null)
+                positions.add(pb);
         }
         return positions;
+    }
+
+    /**
+     * Get a list of data positions in this SSTable that correspond to the given list of bounds. This method will remove
+     * non-covered intervals, but will not correct order or overlap in the supplied list, e.g. if bounds overlap, the
+     * result will be sections of the data file that repeat the same positions.
+     *
+     * @return A sorted list of [offset,end) pairs corresponding to the given boundsList in the datafile for this
+     *         SSTable.
+     */
+    public List<PartitionPositionBounds> getPositionsForBoundsIterator(Iterator<AbstractBounds<PartitionPosition>> boundsList)
+    {
+        // use the index to determine a minimal section for each range
+        List<PartitionPositionBounds> positions = new ArrayList<>();
+        while (boundsList.hasNext())
+        {
+            AbstractBounds<PartitionPosition> bounds = boundsList.next();
+            PartitionPositionBounds pb = getPositionsForBounds(bounds);
+            if (pb != null)
+                positions.add(pb);
+        }
+        return positions;
+    }
+
+    /**
+     * Determine the data positions in this SSTable that cover the given bounds.
+     *
+     * @return An [offset,end) pair that cover the given bounds in the datafile for this SSTable, or null if the range
+     *         is not covered by the sstable or is empty.
+     */
+    public PartitionPositionBounds getPositionsForBounds(AbstractBounds<PartitionPosition> bounds)
+    {
+        long left = getPosition(bounds.left, bounds.inclusiveLeft() ? Operator.GE : Operator.GT);
+        // Note: getPosition will apply a moved start if the sstable is in MOVED_START state.
+        if (left < 0) // empty range
+            return null;
+
+        long right = bounds.right.isMinimum() ? -1
+                                              : getPosition(bounds.right, bounds.inclusiveRight() ? Operator.GT
+                                                                                                  : Operator.GE);
+        if (right < 0) // right is beyond end
+            right = uncompressedLength();   // this should also be correct for EARLY readers
+
+        if (left >= right) // empty range
+            return null;
+
+        return new PartitionPositionBounds(left, right);
+    }
+
+    /**
+     * Return an [offset,end) pair that covers the whole file. This could be null if the sstable's moved start has
+     * made the sstable effectively empty.
+     */
+    public PartitionPositionBounds getPositionsForFullRange()
+    {
+        if (openReason != OpenReason.MOVED_START)
+            return new PartitionPositionBounds(0, uncompressedLength());
+        else
+        {
+            // query a full range, so that the required adjustments can be applied
+            PartitionPosition minToken = getPartitioner().getMinimumToken().minKeyBound();
+            return getPositionsForBounds(new Range<>(minToken, minToken));
+        }
+    }
+
+    /**
+     * Calculate a total on-disk (compressed) size for the given partition positions. For uncompressed files this is
+     * equal to the sum of the size of the covered ranges. For compressed files this is the sum of the size of the
+     * chunks that contain the requested ranges and may be significantly bigger than the size of the requested ranges.
+     *
+     * @param positionBounds a list of [offset,end) pairs that specify the relevant sections of the data file; this must
+     *                       be non-overlapping and in ascending order.
+     */
+    public long onDiskSizeForPartitionPositions(Collection<PartitionPositionBounds> positionBounds)
+    {
+        long total = 0;
+        if (!compression)
+        {
+            for (PartitionPositionBounds position : positionBounds)
+                total += position.upperPosition - position.lowerPosition;
+        }
+        else
+        {
+            final CompressionMetadata compressionMetadata = getCompressionMetadata();
+            long lastEnd = 0;
+            for (PartitionPositionBounds position : positionBounds)
+            {
+                // The end of the chunk that contains the last required byte from the range.
+                long upperChunkEnd = compressionMetadata.chunkFor(position.upperPosition - 1).chunkEnd();
+                // The start of the chunk that contains the first required byte from the range.
+                long lowerChunkStart = compressionMetadata.chunkFor(position.lowerPosition).offset;
+                if (lowerChunkStart < lastEnd)  // if regions include the same chunk, count it only once
+                    lowerChunkStart = lastEnd;
+                total += upperChunkEnd - lowerChunkStart;
+                lastEnd = upperChunkEnd;
+            }
+        }
+        return total;
     }
 
     /**
@@ -822,12 +929,22 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public abstract KeyReader keyReader() throws IOException;
 
     /**
+     * Returns a {@link KeyReader} over all keys in the sstable after a given key.
+     * @param key
+     * @return
+     * @throws IOException
+     */
+    public abstract KeyReader keyReader(PartitionPosition key) throws IOException;
+
+    /**
      * Returns a {@link KeyIterator} over all keys in the sstable.
      */
     public KeyIterator keyIterator() throws IOException
     {
-        return new KeyIterator(keyReader(), getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
+        return new KeyIterator(null, keyReader(), getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
     }
+
+    public abstract KeyIterator keyIterator(AbstractBounds<PartitionPosition> range) throws IOException;
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
@@ -937,15 +1054,23 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         if (range == null)
             return getScanner();
-        return getScanner(Collections.singletonList(range));
+        else
+            return getScanner(Collections.singletonList(range));
     }
 
     /**
-     * Direct I/O SSTableScanner over the entirety of the sstable..
+     * Direct I/O SSTableScanner over the entirety of the sstable.
      *
      * @return A Scanner over the full content of the SSTable.
      */
-    public abstract ISSTableScanner getScanner();
+    public ISSTableScanner getScanner()
+    {
+        PartitionPositionBounds fullRange = getPositionsForFullRange();
+        if (fullRange != null)
+            return new SSTableSimpleScanner(this, Collections.singletonList(fullRange));
+        else
+            return new SSTableSimpleScanner(this, Collections.emptyList());
+    }
 
     /**
      * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
@@ -953,15 +1078,31 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param ranges the range of keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(Collection<Range<Token>> ranges);
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
+    {
+        if (ranges != null)
+            return new SSTableSimpleScanner(this, getPositionsForRanges(ranges));
+        else
+            return getScanner();
+    }
 
     /**
      * Direct I/O SSTableScanner over an iterator of bounds.
      *
-     * @param rangeIterator the keys to cover
+     * @param boundsIterator the keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
+    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
+    {
+        return new SSTableSimpleScanner(this, getPositionsForBoundsIterator(boundsIterator));
+    }
+
+    public ISSTableScanner getScanner(AbstractBounds<PartitionPosition> bounds)
+    {
+        PartitionPositionBounds positionBounds = getPositionsForBounds(bounds);
+        return new SSTableSimpleScanner(this, positionBounds == null ? Collections.emptyList() : Collections.singletonList(positionBounds));
+    }
+
 
     /**
      * Create a {@link FileDataInput} for the data file of the sstable represented by this reader. This method returns
@@ -993,15 +1134,29 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter);
+        createLinks(snapshotDirectoryPath, rateLimiter, false);
+    }
+
+    public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter, boolean ephemeralSnapshot)
+    {
+        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter, ephemeralSnapshot);
     }
 
     public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, null);
+        createLinks(descriptor, components, snapshotDirectoryPath, null, false);
     }
 
-    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter)
+    /**
+     * Create hardlinks for given set of components
+     *
+     * @param descriptor descriptor to use
+     * @param components components to create links for
+     * @param snapshotDirectoryPath directory path for snapshot
+     * @param limiter rate limiter to use
+     * @param force if true, if target link file exists, do not fail, otherwise throw RTE
+     */
+    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter, boolean force)
     {
         for (Component component : components)
         {
@@ -1011,7 +1166,15 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (null != limiter)
                 limiter.acquire();
             File targetLink = new File(snapshotDirectoryPath, sourceFile.name());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            try
+            {
+                FileUtils.createHardLink(sourceFile, targetLink);
+            }
+            catch (DuplicateHardlinkException ex)
+            {
+                if (!force)
+                    throw new RuntimeException(ex.getMessage());
+            }
         }
     }
 
@@ -1243,6 +1406,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return dfile.createReader();
     }
 
+    public RandomAccessReader openDataReaderForScan()
+    {
+        return dfile.createReaderForScan();
+    }
+
     public void trySkipFileCacheBefore(DecoratedKey key)
     {
         long position = getPosition(key, SSTableReader.Operator.GE);
@@ -1376,8 +1544,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         @Override
         public void tidy()
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Running instance tidier for {} with setup {}", descriptor, setup);
+            logger.trace("Running instance tidier for {} with setup {}", descriptor, setup);
 
             // don't try to cleanup if the sstablereader was never fully constructed
             if (!setup)
@@ -1399,14 +1566,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             {
                 public void run()
                 {
-                    if (logger.isTraceEnabled())
-                        logger.trace("Async instance tidier for {}, before barrier", descriptor);
+                    logger.trace("Async instance tidier for {}, before barrier", descriptor);
 
                     if (barrier != null)
                         barrier.await();
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Async instance tidier for {}, after barrier", descriptor);
+                    logger.trace("Async instance tidier for {}, after barrier", descriptor);
 
                     Throwable exceptions = null;
                     if (runOnClose != null) try
@@ -1439,8 +1604,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                     if (exceptions != null)
                         JVMStabilityInspector.inspectThrowable(exceptions);
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Async instance tidier for {}, completed", descriptor);
+                    logger.trace("Async instance tidier for {}, completed", descriptor);
                 }
 
                 @Override
@@ -1740,6 +1904,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                           OutputHandler outputHandler,
                                           boolean isOffline,
                                           IVerifier.Options options);
+
+    public UniqueIdentifier instanceId()
+    {
+        return instanceId;
+    }
+
+    @Override
+    public int compareTo(SSTableReader other)
+    {
+        // Used in IntervalTree with the expectation that compareTo uniquely identifies an SSTableReader
+        // Use accessor for instanceId for mocks
+        return instanceId().compareTo(other.instanceId());
+    }
 
     /**
      * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}

@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.db.view;
 
-import java.util.*;
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,17 +34,40 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTree;
@@ -58,9 +88,9 @@ public class TableViews extends AbstractCollection<View>
     // list is the best option.
     private final List<View> views = new CopyOnWriteArrayList();
 
-    public TableViews(TableId id)
+    public TableViews(TableMetadata tableMetadata)
     {
-        baseTableMetadata = Schema.instance.getTableMetadataRef(id);
+        baseTableMetadata = tableMetadata.ref;
     }
 
     public boolean hasViews()
@@ -144,7 +174,7 @@ public class TableViews extends AbstractCollection<View>
     {
         assert update.metadata().id.equals(baseTableMetadata.id);
 
-        Collection<View> views = updatedViews(update);
+        Collection<View> views = updatedViews(update, ClusterMetadata.currentNullable());
         if (views.isEmpty())
             return;
 
@@ -363,7 +393,7 @@ public class TableViews extends AbstractCollection<View>
      * @param updates the updates applied to the base table.
      * @return the views affected by {@code updates}.
      */
-    public Collection<View> updatedViews(PartitionUpdate updates)
+    public Collection<View> updatedViews(PartitionUpdate updates, ClusterMetadata metadata)
     {
         List<View> matchingViews = new ArrayList<>(views.size());
 
@@ -372,7 +402,8 @@ public class TableViews extends AbstractCollection<View>
             ReadQuery selectQuery = view.getReadQuery();
             if (!selectQuery.selectsKey(updates.partitionKey()))
                 continue;
-
+            if (metadata != null && !metadata.schema.getKeyspaceMetadata(view.getDefinition().keyspace()).hasView(view.name))
+                continue;
             matchingViews.add(view);
         }
         return matchingViews;

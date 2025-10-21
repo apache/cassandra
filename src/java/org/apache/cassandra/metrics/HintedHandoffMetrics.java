@@ -38,9 +38,10 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  */
 public class HintedHandoffMetrics
 {
+    public static final String TYPE_NAME = "HintsService";
     private static final Logger logger = LoggerFactory.getLogger(HintedHandoffMetrics.class);
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("HintsService");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     /** Total number of hints which are not stored, This is not a cache. */
     private final LoadingCache<InetAddressAndPort, DifferencingCounter> notStored = Caffeine.newBuilder()
@@ -52,9 +53,6 @@ public class HintedHandoffMetrics
                                                                                         .executor(ImmediateExecutor.INSTANCE)
                                                                                         .build(address -> Metrics.counter(factory.createMetricName("Hints_created-" + address.toString().replace(':', '.'))));
 
-    /** Counter of hints received whose mutations are for keys outside the owned and pending ranges for this node */
-    private final Counter hintsReceivedForUnownedRanges = Metrics.counter(factory.createMetricName("Hints_for_unowned_ranges"));
-
     public void incrCreatedHints(InetAddressAndPort address)
     {
         createdHintCounts.get(address).inc();
@@ -63,11 +61,6 @@ public class HintedHandoffMetrics
     public void incrPastWindow(InetAddressAndPort address)
     {
         notStored.get(address).mark();
-    }
-
-    public void incrHintsReceivedForUnownedRanges()
-    {
-        hintsReceivedForUnownedRanges.inc();
     }
 
     public void log()

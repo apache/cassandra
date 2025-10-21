@@ -17,51 +17,44 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setauthcacheconfig", description = "Set configuration for Auth cache")
-public class SetAuthCacheConfig extends NodeToolCmd
+public class SetAuthCacheConfig extends AbstractCommand
 {
-    @SuppressWarnings("unused")
-    @Option(title = "cache-name",
-            name = {"--cache-name"},
+    @Option(paramLabel = "cache-name",
+            names = { "--cache-name" },
             description = "Name of Auth cache (required)",
             required = true)
     private String cacheName;
 
-    @SuppressWarnings("unused")
-    @Option(title = "validity-period",
-            name = {"--validity-period"},
+    @Option(paramLabel = "validity-period",
+            names = { "--validity-period" },
             description = "Validity period in milliseconds")
     private Integer validityPeriod;
 
-    @SuppressWarnings("unused")
-    @Option(title = "update-interval",
-            name = {"--update-interval"},
+    @Option(paramLabel = "update-interval",
+            names = { "--update-interval" },
             description = "Update interval in milliseconds")
     private Integer updateInterval;
 
-    @SuppressWarnings("unused")
-    @Option(title = "max-entries",
-            name = {"--max-entries"},
+    @Option(paramLabel = "max-entries",
+            names = { "--max-entries" },
             description = "Max entries")
     private Integer maxEntries;
 
-    @SuppressWarnings("unused")
-    @Option(title = "enable-active-update",
-            name = {"--enable-active-update"},
+    @Option(paramLabel = "enable-active-update",
+            names = { "--enable-active-update" },
             description = "Enable active update")
     private Boolean enableActiveUpdate;
 
-    @SuppressWarnings("unused")
-    @Option(title = "disable-active-update",
-            name = {"--disable-active-update"},
+    @Option(paramLabel = "disable-active-update",
+            names = { "--disable-active-update" },
             description = "Disable active update")
     private Boolean disableActiveUpdate;
 

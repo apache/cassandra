@@ -17,28 +17,36 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "settimeout", description = "Set the specified timeout in ms, or 0 to disable timeout")
-public class SetTimeout extends NodeToolCmd
+public class SetTimeout extends AbstractCommand
 {
-    @Arguments(usage = "<timeout_type> <timeout_in_ms>", description = "Timeout type followed by value in ms " +
-            "(0 disables socket streaming timeout). Type should be one of (" + GetTimeout.TIMEOUT_TYPES + ")",
-            required = true)
+    @CassandraUsage(usage = "<timeout_type> <timeout_in_ms>", description = "Timeout type followed by value in ms " +
+                                                                            "(0 disables socket streaming timeout). Type should be one of (" + GetTimeout.TIMEOUT_TYPES + ")")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(paramLabel = "timeout_type", description = "Timeout type", index = "0", arity = "0..1")
+    private String timeoutType;
+
+    @Parameters(paramLabel = "timeout_in_ms", description = "Timeout in ms", index = "1", arity = "0..1")
+    private String timeoutInMs;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(timeoutType, timeoutInMs);
+
         checkArgument(args.size() == 2, "Timeout type followed by value in ms (0 disables socket streaming timeout)." +
                 " Type should be one of (" + GetTimeout.TIMEOUT_TYPES + ")");
 

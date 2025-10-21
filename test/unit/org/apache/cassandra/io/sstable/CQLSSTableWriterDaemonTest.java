@@ -15,15 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.sstable;
 
+package org.apache.cassandra.io.sstable;
 
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 
 public class CQLSSTableWriterDaemonTest extends CQLSSTableWriterTest
@@ -35,6 +37,8 @@ public class CQLSSTableWriterDaemonTest extends CQLSSTableWriterTest
         CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
+        ServerTestUtils.prepareServerNoRegister();
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
     }
 }

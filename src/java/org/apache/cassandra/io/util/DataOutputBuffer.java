@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_DOUBLING_THRESHOLD_MB;
@@ -60,7 +61,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * Scratch buffers used mostly for serializing in memory. It's important to call #close() when finished
      * to keep the memory overhead from being too large in the system.
      */
-    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
+    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<>()
     {
         @Override
         protected DataOutputBuffer initialValue()
@@ -183,7 +184,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     protected void setBuffer(ByteBuffer newBuffer)
     {
-        FileUtils.clean(buffer); // free if direct
+        // free if direct
+        MemoryUtil.clean(buffer);
         buffer = newBuffer;
     }
 
@@ -285,6 +287,18 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     public byte[] toByteArray()
     {
         ByteBuffer buffer = buffer();
+        byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
+
+    /**
+     * If the calling logic knows that no new calls to this object will happen after calling this
+     * method, then this method can avoid the ByteBuffer copying done in {@link #buffer()}.
+     */
+    public byte[] unsafeToByteArray()
+    {
+        ByteBuffer buffer = unsafeGetBufferAndFlip();
         byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
         return result;

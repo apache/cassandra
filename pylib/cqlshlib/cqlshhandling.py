@@ -16,7 +16,7 @@
 
 import os
 
-from cqlshlib import cqlhandling
+from cqlshlib import cqlhandling, cql3handling
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
@@ -33,6 +33,7 @@ my_commands_ending_with_newline = (
     'debug',
     'tracing',
     'expand',
+    'elapsed',
     'paging',
     'exit',
     'quit',
@@ -71,6 +72,7 @@ cqlsh_special_cmd_command_syntax_rules = r'''
                    | <helpCommand>
                    | <tracingCommand>
                    | <expandCommand>
+                   | <elapsedCommand>
                    | <exitCommand>
                    | <pagingCommand>
                    | <clearCommand>
@@ -143,7 +145,7 @@ cqlsh_source_cmd_syntax_rules = r'''
 '''
 
 cqlsh_capture_cmd_syntax_rules = r'''
-<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral>) | "OFF" )?
+<captureCommand> ::= "CAPTURE" ( switch=( <stringLiteral> | "OFF" ) )?
                    ;
 '''
 
@@ -194,6 +196,11 @@ cqlsh_paging_cmd_syntax_rules = r'''
                   ;
 '''
 
+cqlsh_elapsed_cmd_syntax_rules = r'''
+<elapsedCommand> ::= "ELAPSED" ( switch=( "ON" | "OFF" ) )?
+                  ;
+'''
+
 cqlsh_login_cmd_syntax_rules = r'''
 <loginCommand> ::= "LOGIN" username=<username> (password=<stringLiteral>)?
                  ;
@@ -236,11 +243,24 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_tracing_cmd_syntax_rules + \
     cqlsh_expand_cmd_syntax_rules + \
     cqlsh_paging_cmd_syntax_rules + \
+    cqlsh_elapsed_cmd_syntax_rules + \
     cqlsh_login_cmd_syntax_rules + \
     cqlsh_exit_cmd_syntax_rules + \
     cqlsh_clear_cmd_syntax_rules + \
     cqlsh_history_cmd_syntax_rules + \
     cqlsh_question_mark
+
+
+def get_cqlshruleset():
+    cqlruleset = cql3handling.CqlRuleSet
+    cqlruleset.append_rules(cqlsh_extra_syntax_rules)
+    for rulename, termname, func in cqlsh_syntax_completers:
+        cqlruleset.completer_for(rulename, termname)(func)
+    cqlruleset.commands_end_with_newline.update(my_commands_ending_with_newline)
+    return cqlruleset
+
+
+cqlshruleset = get_cqlshruleset()
 
 
 def complete_source_quoted_filename(ctxt, cqlsh):

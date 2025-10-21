@@ -234,7 +234,7 @@ class TreeCursor<K> extends NodeCursor<K>
                 return;
             }
 
-            int[] sizeMap = getSizeMap(node);
+            int[] sizeMap = sizeMap(node);
             int boundary = Arrays.binarySearch(sizeMap, relativeIndex);
             if (boundary >= 0)
             {

@@ -25,12 +25,17 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.index.transactions.UpdateTransaction;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.Cloner;
@@ -223,9 +228,9 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     }
 
     @Override
-    public Iterator<Row> iterator()
+    public Iterator<Row> iterator(boolean reverse)
     {
-        return allocator.ensureOnHeap().applyToPartition(super.iterator());
+        return allocator.ensureOnHeap().applyToPartition(super.iterator(reverse));
     }
 
     private boolean shouldLock(OpOrder.Group writeOp)

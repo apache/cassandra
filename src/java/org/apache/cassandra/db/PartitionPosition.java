@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public interface PartitionPosition extends RingPosition<PartitionPosition>, ByteComparable
 {
-    public static enum Kind
+    public enum Kind
     {
         // Only add new values to the end of the enum, the ordinal is used
         // during serialization
@@ -55,6 +55,8 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>, Byte
 
     public Kind kind();
     public boolean isMinimum();
+
+    public boolean isMaximum();
 
     /**
      * Produce a prefix-free byte-comparable representation of the key, i.e. such a sequence of bytes that any pair x, y
@@ -100,7 +102,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>, Byte
                 Token.serializer.serialize(pos.getToken(), out, version);
         }
 
-        public PartitionPosition deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public PartitionPosition deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             if (kind == Kind.ROW_KEY)

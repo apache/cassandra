@@ -30,11 +30,14 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
+import static org.junit.Assert.assertEquals;
 
 public class RepairOperationalTest extends TestBaseImpl
 {
@@ -210,5 +213,52 @@ public class RepairOperationalTest extends TestBaseImpl
                 .asserts().success();
         }
     }
+
+    @Test
+    public void repairClusterMetadataKeyspaceAlwaysUsesFullRange() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .start()))
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "2").asserts().success();
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
+            for (int i = 0; i < 5; i++)
+            {
+                for (int j = 0; j < 5; j++)
+                {
+                    cluster.schemaChange(withKeyspace(String.format("alter table %%s.tbl with comment = 'comment " + i + j + "'", i, j)));
+                }
+                cluster.forEach(inst -> inst.flush(METADATA_KEYSPACE_NAME));
+            }
+
+            IInvokableInstance node = cluster.get(1);
+            // run repairs with a very small range and check that the entire range is what actually gets repaired
+            // incremental first
+            node.nodetoolResult("repair", "-st", "1", "-et", "2", METADATA_KEYSPACE_NAME).asserts().success();
+            assertAllRepairsOnEntireRange(node, 1);
+            // now a full repair
+            node.nodetoolResult("repair", "-full", "-st", "1", "-et", "2", METADATA_KEYSPACE_NAME).asserts().success();
+            assertAllRepairsOnEntireRange(node, 2);
+        }
+    }
+
+    private void assertAllRepairsOnEntireRange(IInvokableInstance node, int expectedRepairs)
+    {
+        // check that the range was expanded to cover the entire range
+        Object[][] rows = node.executeInternal("SELECT range_begin, range_end " +
+                                               "FROM system_distributed.repair_history " +
+                                               "WHERE keyspace_name = ? ALLOW FILTERING",
+                                               METADATA_KEYSPACE_NAME);
+        assertEquals(expectedRepairs, rows.length);
+        for (Object[] row : rows)
+        {
+            String st = (String) row[0];
+            String et = (String) row[1];
+            assertEquals(Long.parseLong(st), MetaStrategy.partitioner.getMinimumToken().getLongValue());
+            assertEquals(Long.parseLong(et), MetaStrategy.partitioner.getMinimumToken().getLongValue());
+        }
+    }
+
 
 }

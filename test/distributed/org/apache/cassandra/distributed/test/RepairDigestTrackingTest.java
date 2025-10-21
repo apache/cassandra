@@ -36,7 +36,9 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
@@ -48,6 +50,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
@@ -57,9 +60,13 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.Throwables;
 
@@ -84,10 +91,9 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     {
         try (Cluster cluster = init(builder().withNodes(2).start()))
         {
-
             cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForRangeReads());
 
-            cluster.schemaChange("CREATE TABLE " + KS_TABLE+ " (k INT, c INT, v INT, PRIMARY KEY (k,c)) with read_repair='NONE'");
+            setupSchema(cluster, "CREATE TABLE " + KS_TABLE+ " (k INT, c INT, v INT, PRIMARY KEY (k,c)) with read_repair='NONE' AND compaction = {'class':'SizeTieredCompactionStrategy'};");
             for (int i = 0; i < 10; i++)
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KS_TABLE + " (k, c, v) VALUES (?, ?, ?)",
@@ -128,7 +134,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         {
             cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForRangeReads());
 
-            cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, v2 INT, PRIMARY KEY (k,c)) WITH gc_grace_seconds=0");
+            setupSchema(cluster, "CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, v2 INT, PRIMARY KEY (k,c)) WITH gc_grace_seconds=0");
             // on node1 only insert some tombstones, then flush
             for (int i = 0; i < 10; i++)
             {
@@ -171,11 +177,14 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     @Test
     public void testSnapshottingOnInconsistency() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (WithProperties ignore_ = new WithProperties()
+                                      .set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+             Cluster cluster = init(Cluster.create(2)))
         {
             cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForPartitionReads());
 
-            cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v INT, PRIMARY KEY (k,c))");
+            setupSchema(cluster, "CREATE TABLE " + KS_TABLE + " (k INT, c INT, v INT, PRIMARY KEY (k,c))");
+
             for (int i = 0; i < 10; i++)
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KS_TABLE + " (k, c, v) VALUES (0, ?, ?)",
@@ -228,13 +237,12 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         // limits of the read request.
         try (Cluster cluster = init(Cluster.create(2)))
         {
-
             cluster.get(1).runOnInstance(() -> {
                 StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
                 StorageProxy.instance.enableRepairedDataTrackingForPartitionReads();
             });
 
-            cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, PRIMARY KEY (k,c)) " +
+            setupSchema(cluster, "CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, PRIMARY KEY (k,c)) " +
                                  "WITH CLUSTERING ORDER BY (c DESC)");
 
             // insert data on both nodes and flush
@@ -291,16 +299,15 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         // Asserts that the amount of repaired data read for digest generation is consistent
         // across replicas where one has to read more repaired data to satisfy the original
         // limits of the read request.
-        try (Cluster cluster = init(Cluster.create(2)))
+        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+             Cluster cluster = init(Cluster.create(2)))
         {
-
+            setupSchema(cluster,"CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, PRIMARY KEY (k,c)) " +
+                                "WITH CLUSTERING ORDER BY (c DESC)");
             cluster.get(1).runOnInstance(() -> {
                 StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
                 StorageProxy.instance.enableRepairedDataTrackingForPartitionReads();
             });
-
-            cluster.schemaChange("CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, PRIMARY KEY (k,c)) " +
-                                 "WITH CLUSTERING ORDER BY (c DESC)");
 
             // insert data on both nodes and flush
             for (int i=0; i<10; i++)
@@ -374,12 +381,14 @@ public class RepairDigestTrackingTest extends TestBaseImpl
      * local reads triggered by read repair (after speculative reads) execute at roughly the same time.
      *
      * This test depends on whether node1 gets a data or a digest request first, we force it to be a digest request
-     * in the forTokenReadLiveSorted ByteBuddy rule below.
+     * in the forTokenReadSorted ByteBuddy rule below.
      */
     @Test
     public void testLocalDataAndRemoteRequestConcurrency() throws Exception
     {
-        try (Cluster cluster = init(Cluster.build(3)
+
+        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+             Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BBHelper::install)
                                            .withConfig(config -> config.set("repaired_data_tracking_for_partition_reads_enabled", true)
                                                                        .with(GOSSIP)
@@ -432,7 +441,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
                 new ByteBuddy().rebase(ReplicaLayout.class)
-                               .method(named("forTokenReadLiveSorted").and(takesArguments(AbstractReplicationStrategy.class, Token.class)))
+                               .method(named("forTokenReadSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, TableId.class, Token.class, ReadCoordinator.class)))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -467,7 +476,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
 
         @SuppressWarnings({ "unused" })
-        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(AbstractReplicationStrategy replicationStrategy, Token token)
+        public static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, TableId tableId, Token token, org.apache.cassandra.service.reads.ReadCoordinator coordinator)
         {
             try
             {
@@ -586,7 +595,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             int attempts = 100;
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
 
-            while (cfs.listSnapshots().isEmpty())
+            while (Util.listSnapshots(cfs).isEmpty())
             {
                 Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                 if (attempts-- < 0)
@@ -597,11 +606,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
 
     private IInvokableInstance.SerializableRunnable assertSnapshotNotPresent(String snapshotName)
     {
-        return () ->
-        {
-            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
-            Assert.assertFalse(cfs.snapshotExists(snapshotName));
-        };
+        return () -> Assert.assertFalse(SnapshotManager.instance.exists(KEYSPACE, TABLE, snapshotName));
     }
 
     private long getConfirmedInconsistencies(IInvokableInstance instance)
@@ -618,7 +623,8 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     {
         cluster.schemaChange(cql);
         // disable auto compaction to prevent nodes from trying to compact
-        // new sstables with ones we've modified to mark repaired
+        // new sstables with ones we've modified to mark repaired, as this may lead to races
+        // where repaired digests are goingto be empty, drawing this test meaningless.
         cluster.forEach(i -> i.runOnInstance(() -> Keyspace.open(KEYSPACE)
                                                            .getColumnFamilyStore(TABLE)
                                                            .disableAutoCompaction()));

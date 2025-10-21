@@ -25,6 +25,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class BufferPoolMetrics
 {
+    public static final String TYPE_NAME = "BufferPool";
     /** Total number of hits */
     public final Meter hits;
 
@@ -49,7 +50,7 @@ public class BufferPoolMetrics
 
     public BufferPoolMetrics(String scope, BufferPool bufferPool)
     {
-        MetricNameFactory factory = new DefaultNameFactory("BufferPool", scope);
+        MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME, scope);
 
         hits = Metrics.meter(factory.createMetricName("Hits"));
 

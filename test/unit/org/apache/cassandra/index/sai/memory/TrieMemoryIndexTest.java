@@ -29,8 +29,10 @@ import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
+import org.HdrHistogram.Histogram;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
@@ -242,5 +244,29 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
         index = new StorageAttachedIndex(cfs, indexMetadata);
         return new TrieMemoryIndex(index);
+    }
+
+    @Ignore
+    @Test
+    public void testMemtableRangeQueryPerformance()
+    {
+        createTable("CREATE TABLE %S (pk int, ck int, val int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai'");
+
+        for (int pk = 0; pk < 20; pk++)
+            for (int ck = 0; ck < 10000; ck++)
+                execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?)", pk, ck, ck);
+
+        Histogram histogram = new Histogram(4);
+
+        for (int i = 0; i < 20000; i++)
+        {
+            long start = System.nanoTime();
+            execute("SELECT * FROM %s WHERE pk = 5 AND val > ? LIMIT 10", 4000);
+            histogram.recordValue(System.nanoTime() - start);
+        }
+
+        System.out.println("50th: " + histogram.getValueAtPercentile(0.5));
+        System.out.println("99th: " + histogram.getValueAtPercentile(0.99));
     }
 }

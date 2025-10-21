@@ -66,8 +66,7 @@ public class TraceStateImpl extends TraceState
         final int elapsed = elapsed();
 
         executeMutation(TraceKeyspace.makeEventMutation(sessionIdBytes, message, elapsed, threadName, ttl));
-        if (logger.isTraceEnabled())
-            logger.trace("Adding <{}> to trace events", message);
+        logger.trace("Adding <{}> to trace events", message);
     }
 
     /**
@@ -89,9 +88,7 @@ public class TraceStateImpl extends TraceState
         }
         catch (TimeoutException ex)
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Failed to wait for tracing events to complete in {} seconds",
-                             WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS);
+            logger.trace("Failed to wait for tracing events to complete in {} seconds", WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS);
         }
         catch (Throwable t)
         {

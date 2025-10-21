@@ -23,8 +23,6 @@ simple_cql_types = {'ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'de
                     'varint'}
 simple_cql_types.difference_update(('set', 'map', 'list', 'vector'))
 
-cqldocs = helptopics.CQL3HelpTopics()
-
 
 class UnexpectedTableStructure(UserWarning):
 
@@ -36,8 +34,9 @@ class UnexpectedTableStructure(UserWarning):
 
 
 SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views',
-                    'system_virtual_schema')
-NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_virtual_schema')
+                    'system_metrics', 'system_virtual_schema', 'system_cluster_metadata')
+NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_metrics', 'system_virtual_schema',
+                          'system_cluster_metadata')
 
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
@@ -280,12 +279,14 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <schemaChangeStatement> ::= <createKeyspaceStatement>
                           | <createColumnFamilyStatement>
+                          | <copyTableStatement>
                           | <createIndexStatement>
                           | <createMaterializedViewStatement>
                           | <createUserTypeStatement>
                           | <createFunctionStatement>
                           | <createAggregateStatement>
                           | <createTriggerStatement>
+                          | <addIdentityStatement>
                           | <dropKeyspaceStatement>
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
@@ -294,6 +295,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <dropFunctionStatement>
                           | <dropAggregateStatement>
                           | <dropTriggerStatement>
+                          | <dropIdentityStatement>
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           | <alterUserTypeStatement>
@@ -307,6 +309,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterRoleStatement>
                             | <dropRoleStatement>
                             | <listRolesStatement>
+                            | <listSuperUsersStatement>
                             ;
 
 <authorizationStatement> ::= <grantStatement>
@@ -321,7 +324,24 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <column_mask> )? ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <constraintsExpr> )? ( <column_mask> )? ;
+
+<constraintsExpr> ::= "CHECK" <constraint> ( "AND" <constraint> )*
+                    ;
+
+<constraint> ::= "NOT" "NULL"
+               | <constraintStandaloneFunction>
+               | <constraintComparableFunction> <functionArguments> <cmp> <term>
+               | <cident> <cmp> <term>
+               ;
+
+<constraintComparableFunction> ::= "LENGTH"
+                                 | "OCTET_LENGTH"
+                                 | "REGEXP"
+                                 ;
+
+<constraintStandaloneFunction> ::= "JSON"
+                                 ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
@@ -379,6 +399,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             ( ender="," [propmapkey]=<term> ":" [propmapval]=<term> )*
                       ender="}"
                     ;
+<propertyOrOption> ::= <property>
+                     | "INDEXES"
+                     ;
 
 '''
 
@@ -602,7 +625,7 @@ def cf_prop_val_mapender_completer(ctxt, cass):
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
-    return ['token(']
+    return ['TOKEN']
 
 
 @completer_for('simpleStorageType', 'typename')
@@ -738,14 +761,17 @@ syntax_rules += r'''
                           ( "PER" "PARTITION" "LIMIT" perPartitionLimit=<wholenumber> )?
                           ( "LIMIT" limit=<wholenumber> )?
                           ( "ALLOW" "FILTERING" )?
+                          ( "WITH" <options> )?
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "CONTAINS" ( "KEY" )? ) <term>
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) (<term> | <operandFunctions>)
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
-             | [rel_lhs]=<cident> "IN" "(" <term> ( "," <term> )* ")"
+             | [rel_lhs]=<cident> (( "NOT" )? "IN" ) "(" <term> ( "," <term> )* ")"
+             | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
+             | <operandFunctions>
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -754,14 +780,20 @@ syntax_rules += r'''
                          ;
 <selector> ::= [colname]=<cident> ( "[" ( <term> ( ".." <term> "]" )? | <term> ".." ) )?
              | <udtSubfieldSelection>
-             | "WRITETIME" "(" [colname]=<cident> ")"
-             | "MAXWRITETIME" "(" [colname]=<cident> ")"
-             | "TTL" "(" [colname]=<cident> ")"
-             | "COUNT" "(" star=( "*" | "1" ) ")"
              | "CAST" "(" <selector> "AS" <storageType> ")"
+             | "TTL" "(" [colname]=<cident> ")"
+             | "TOKEN" "(" [colname]=<cident> ")"
+             | <aggregateMathFunctions>
+             | <scalarMathFunctions>
+             | <collectionFunctions>
+             | <currentTimeFunctions>
+             | <maskFunctions>
+             | <timeConversionFunctions>
+             | <writetimeFunctions>
              | <functionName> <selectionFunctionArguments>
              | <term>
              ;
+
 <selectionFunctionArguments> ::= "(" ( <selector> ( "," <selector> )* )? ")"
                           ;
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
@@ -774,6 +806,68 @@ syntax_rules += r'''
 <groupByFunctionArgument> ::= [groupcol]=<cident>
                             | <term>
                             ;
+
+<identifiers> ::= "{" <identifier> ( "," <identifier> )* "}"
+                  ;
+<options> ::= <option> ( "AND" <option> )*
+                  ;
+<option> ::= "included_indexes" "=" <identifiers>
+           | "excluded_indexes" "=" <identifiers>
+           ;
+
+<aggregateMathFunctions> ::= "COUNT" "(" star=( "*" | "1" ) ")"
+             | "AVG" "(" [colname]=<cident> ")"
+             | "MIN" "(" [colname]=<cident> ")"
+             | "MAX" "(" [colname]=<cident> ")"
+             | "SUM" "(" [colname]=<cident> ")"
+             ;
+
+<scalarMathFunctions> ::= "ABS" "(" [colname]=<cident> ")"
+             | "EXP" "(" [colname]=<cident> ")"
+             | "LOG" "(" [colname]=<cident> ")"
+             | "LOG10" "(" [colname]=<cident> ")"
+             | "ROUND" "(" [colname]=<cident> ")"
+             ;
+
+<collectionFunctions> ::= "MAP_KEYS" "(" [colname]=<cident> ")"
+             | "MAP_VALUES" "(" [colname]=<cident> ")"
+             | "COLLECTION_AVG" "(" [colname]=<cident> ")"
+             | "COLLECTION_COUNT" "(" [colname]=<cident> ")"
+             | "COLLECTION_MIN" "(" [colname]=<cident> ")"
+             | "COLLECTION_MAX" "(" [colname]=<cident> ")"
+             | "COLLECTION_SUM" "(" [colname]=<cident> ")"
+             ;
+
+<currentTimeFunctions> ::= "CURRENT_DATE()"
+             | "CURRENT_TIME()"
+             | "CURRENT_TIMESTAMP()"
+             | "CURRENT_TIMEUUID()"
+             ;
+
+<maskFunctions> ::= "MASK_DEFAULT" "(" [colname]=<cident> ")"
+             | "MASK_HASH" "(" [colname]=<cident> ")"
+             | "MASK_INNER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
+             | "MASK_NULL" "(" [colname]=<cident> ")"
+             | "MASK_REPLACE" "(" [colname]=<cident> "," <propertyValue> ")"
+             | "MASK_OUTER" "(" [colname]=<cident> "," <wholenumber> "," <wholenumber> ")"
+             ;
+
+<timeConversionFunctions> ::= "TO_DATE" "(" [colname]=<cident> ")"
+             | "TO_TIMESTAMP" "(" [colname]=<cident> ")"
+             | "TO_UNIX_TIMESTAMP" "(" [colname]=<cident> ")"
+             ;
+
+<timeuuidFunctions> ::= "MAX_TIMEUUID" "(" [colname]=<cident> ")"
+             | "MIN_TIMEUUID" "(" [colname]=<cident> ")"
+             ;
+
+<writetimeFunctions> ::= "MAX_WRITETIME" "(" [colname]=<cident> ")"
+             | "MIN_WRITETIME" "(" [colname]=<cident> ")"
+             | "WRITETIME" "(" [colname]=<cident> ")"
+             ;
+<operandFunctions> ::= <currentTimeFunctions> | <timeuuidFunctions>
+             ;
+
 '''
 
 
@@ -866,7 +960,7 @@ def select_group_column_completer(ctxt, cass):
 
 @completer_for('relation', 'token')
 def relation_token_word_completer(ctxt, cass):
-    return ['TOKEN(']
+    return ['TOKEN']
 
 
 @completer_for('relation', 'rel_tokname')
@@ -1000,7 +1094,7 @@ syntax_rules += r'''
 
 @completer_for('updateStatement', 'updateopt')
 def update_option_completer(ctxt, cass):
-    opts = set('TIMESTAMP TTL'.split())
+    opts = {'TIMESTAMP', 'TTL'}
     for opt in ctxt.get_binding('updateopt', ()):
         opts.discard(opt.split()[0])
     return opts
@@ -1302,6 +1396,27 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
 
 
 syntax_rules += r'''
+<copyTableStatement> ::= "CREATE" wat=("COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
+                                ( tks=<nonSystemKeyspaceName> dot="." )? tcf=<cfOrKsName>
+                                "LIKE" ( sks=<nonSystemKeyspaceName> dot="." )? scf=<cfOrKsName>
+                                ( "WITH" <propertyOrOption> ( "AND" <propertyOrOption> )* )?
+                            ;
+'''
+
+
+@completer_for('copyTableStatement', 'wat')
+def create_tb_wat_completer(ctxt, cass):
+    # would prefer to get rid of the "schema" nomenclature in cql3
+    if ctxt.get_binding('partial', '') == '':
+        return ['TABLE']
+    return ['COLUMNFAMILY', 'TABLE']
+
+
+explain_completion('copyTableStatement', 'tcf', '<new_table_name>')
+explain_completion('copyTableStatement', 'scf', '<old_table_name>')
+
+
+syntax_rules += r'''
 
 <idxName> ::= <identifier>
             | <quotedName>
@@ -1440,7 +1555,7 @@ syntax_rules += r'''
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
                       | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                          ( "AND" existcol=<cident> "TO" newcol=<cident> )*
-                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <column_mask> | "DROP" "MASKED" )
+                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <constraintsExpr> | <column_mask> | "DROP" ( "CHECK" | "MASKED" ) )
                       ;
 
 <alterUserTypeStatement> ::= "ALTER" "TYPE" ("IF" "EXISTS")? ut=<userTypeName>
@@ -1482,12 +1597,12 @@ syntax_rules += r'''
              ;
 
 <createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
-                              ( "WITH" ("HASHED")? "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" ("HASHED")? "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
 <alterUserStatement> ::= "ALTER" "USER" ("IF" "EXISTS")? <username>
-                              ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
 
@@ -1499,9 +1614,9 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<rolename> ::= <identifier>
+<rolename> ::= role=( <identifier>
              | <quotedName>
-             | <unreservedKeyword>
+             | <unreservedKeyword> )
              ;
 
 <createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
@@ -1513,6 +1628,7 @@ syntax_rules += r'''
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
+                 | "GENERATED" "PASSWORD"
                  | "OPTIONS" "=" <mapLiteral>
                  | "SUPERUSER" "=" <boolean>
                  | "LOGIN" "=" <boolean>
@@ -1533,6 +1649,9 @@ syntax_rules += r'''
 
 <listRolesStatement> ::= "LIST" "ROLES"
                               ( "OF" <rolename> )? "NORECURSIVE"?
+                       ;
+
+<listSuperUsersStatement> ::= "LIST" "SUPERUSERS"
                        ;
 '''
 
@@ -1606,32 +1725,22 @@ def permission_completer(ctxt, _):
 
 @completer_for('username', 'name')
 def username_name_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE USER.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<username>')]
 
     session = cass.session
-    return [maybe_quote(list(row.values())[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+    return map(maybe_escape_name, [row['name'] for row in session.execute("LIST USERS")])
 
 
 @completer_for('rolename', 'role')
 def rolename_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE ROLE.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<rolename>')]
 
     session = cass.session
-    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST ROLES")]
+    return map(maybe_escape_name, [row['role'] for row in session.execute("LIST ROLES")])
 
 
 syntax_rules += r'''
@@ -1642,6 +1751,7 @@ syntax_rules += r'''
                              "ON" cf=<columnFamilyName>
                          ;
 '''
+
 explain_completion('createTriggerStatement', 'class', '\'fully qualified class name\'')
 
 
@@ -1657,6 +1767,13 @@ def drop_trigger_completer(ctxt, cass):
     names = get_trigger_names(ctxt, cass)
     return list(map(maybe_escape_name, names))
 
+
+syntax_rules += r'''
+<addIdentityStatement> ::= "ADD" "IDENTITY" ("IF" "NOT" "EXISTS")? <stringLiteral> "TO" "ROLE" <rolename>
+                         ;
+<dropIdentityStatement> ::= "DROP" "IDENTITY" ("IF" "EXISTS")? <stringLiteral>
+                          ;
+'''
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 

@@ -22,26 +22,36 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.primitives.Ranges;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.
@@ -92,7 +102,21 @@ public class RandomPartitioner implements IPartitioner
         {
             return ((BigIntegerToken)token).getTokenValue();
         }
+
+        @Override
+        BigInteger minimumValue()
+        {
+            return MINIMUM.getTokenValue();
+        }
+
+        @Override
+        BigInteger maximumValue()
+        {
+            return MAXIMUM;
+        }
     };
+
+    private RandomPartitioner() {}
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -135,6 +159,11 @@ public class RandomPartitioner implements IPartitioner
         return new BigIntegerToken(newToken);
     }
 
+    public boolean supportsSplitting()
+    {
+        return true;
+    }
+
     public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;
@@ -165,6 +194,12 @@ public class RandomPartitioner implements IPartitioner
         public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
         {
             return fromByteArray(IntegerType.instance.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version));
+        }
+
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            // read and ignore the result
+            IntegerType.instance.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
         }
 
         public ByteBuffer toByteArray(Token token)
@@ -273,7 +308,23 @@ public class RandomPartitioner implements IPartitioner
 
         public Token nextValidToken()
         {
+            if (token.equals(MAXIMUM))
+                throw new IllegalArgumentException("Cannot increase above MAXIMUM");
             return new BigIntegerToken(token.add(BigInteger.ONE));
+        }
+
+        @Override
+        public Token decreaseSlightly()
+        {
+            if (token.equals(MINIMUM.token))
+                throw new IllegalArgumentException("Cannot decrease below MINIMUM");
+            return new BigIntegerToken(token.subtract(BigInteger.ONE));
+        }
+
+        @Override
+        public int tokenHash()
+        {
+            return token.hashCode();
         }
 
         public double size(Token next)
@@ -332,7 +383,7 @@ public class RandomPartitioner implements IPartitioner
         return ownerships;
     }
 
-    public Token getMaximumToken()
+    public Token getMaximumTokenForSplitting()
     {
         return new BigIntegerToken(MAXIMUM);
     }
@@ -355,6 +406,92 @@ public class RandomPartitioner implements IPartitioner
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ignore -> splitter;
+    }
+
+    public final boolean accordSupported()
+    {
+        return true;
+    }
+
+    private static final byte[] ZERO_BYTES = new byte[16];
+
+    @Override
+    public final void accordSerialize(Token token, DataOutputPlus out) throws IOException
+    {
+        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        Invariants.require(bytes.length <= 16);
+        if (bytes.length < 16)
+            out.write(ZERO_BYTES, 0, 16 - bytes.length);
+        out.write(bytes);
+    }
+
+    @Override
+    public final void accordSerialize(Token token, ByteBuffer out)
+    {
+        byte[] bytes = increment(((BigIntegerToken)token).token.toByteArray());
+        Invariants.require(bytes.length <= 16);
+        if (bytes.length < 16)
+            out.put(ZERO_BYTES, 0, 16 - bytes.length);
+        out.put(bytes);
+    }
+
+    @Override
+    public final Token accordDeserialize(DataInputPlus in, int length) throws IOException
+    {
+        Invariants.require(length == 16);
+        byte[] bytes = new byte[16];
+        in.readFully(bytes);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    @Override
+    public final Token accordDeserialize(ByteBuffer in, int length)
+    {
+        byte[] bytes = new byte[16];
+        in.get(bytes);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    @Override
+    public final <V> Token accordDeserialize(V src, ValueAccessor<V> accessor, int offset, int length)
+    {
+        byte[] bytes = accessor.toArray(src, offset, 16);
+        decrement(bytes);
+        return new BigIntegerToken(new BigInteger(bytes));
+    }
+
+    public static byte[] increment(byte[] bytes)
+    {
+        int i = bytes.length;
+        while (--i >= 0 && ++bytes[i] == 0);
+        if (i == -1)
+            return ZERO_BYTES;
+        return bytes;
+    }
+
+    public static void decrement(byte[] bytes)
+    {
+        for (int i = bytes.length - 1 ; i >= 0 && bytes[i]-- == 0 ; --i);
+    }
+
+    @Override
+    public final int accordSerializedSize(Token token)
+    {
+        return 16;
+    }
+
+    @Override
+    public final int accordFixedLength()
+    {
+        return 16;
     }
 
     private static BigInteger hashToBigInteger(ByteBuffer data)

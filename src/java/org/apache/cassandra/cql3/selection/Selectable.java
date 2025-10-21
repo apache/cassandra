@@ -18,21 +18,57 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.functions.AggregateFcts;
+import org.apache.cassandra.cql3.functions.CastFcts;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.FunctionResolver;
+import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Lists;
+import org.apache.cassandra.cql3.terms.Maps;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Tuples;
+import org.apache.cassandra.cql3.terms.UserTypes;
+import org.apache.cassandra.cql3.terms.Vectors;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.selection.SelectorFactories.createFactoriesAndCollectColumnDefinitions;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public interface Selectable extends AssignmentTestable
 {
@@ -411,8 +447,7 @@ public interface Selectable extends AssignmentTestable
                     name = AggregateFcts.countRowsFunction.name();
                     preparedArgs = Collections.emptyList();
                 }
-
-                Function fun = FunctionResolver.get(table.keyspace, name, preparedArgs, table.keyspace, table.name, null);
+                Function fun = FunctionResolver.get(table.keyspace, name, preparedArgs, table.keyspace, table.name, null, UserFunctions.getCurrentUserFunctions(name, table.keyspace));
 
                 if (fun == null)
                     throw new InvalidRequestException(String.format("Unknown function '%s'", functionName));
@@ -439,7 +474,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
-            return String.format("cast(%s as %s)", arg, type.toString().toLowerCase());
+            return String.format("cast(%s as %s)", arg, toLowerCaseLocalized(type.toString()));
         }
 
         public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
@@ -454,7 +489,7 @@ public interface Selectable extends AssignmentTestable
                 return factory;
 
             FunctionName name = FunctionName.nativeFunction(CastFcts.getFunctionName(type));
-            Function fun = FunctionResolver.get(table.keyspace, name, args, table.keyspace, table.name, null);
+            Function fun = FunctionResolver.get(table.keyspace, name, args, table.keyspace, table.name, null, UserFunctions.getCurrentUserFunctions(name, table.keyspace));
 
             if (fun == null)
             {
@@ -568,8 +603,8 @@ public interface Selectable extends AssignmentTestable
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.Raw selected;
-            private final FieldIdentifier field;
+            public final Selectable.Raw selected;
+            public final FieldIdentifier field;
 
             public Raw(Selectable.Raw selected, FieldIdentifier field)
             {
@@ -1393,6 +1428,11 @@ public interface Selectable extends AssignmentTestable
                           : FieldIdentifier.forUnquoted(text);
         }
 
+        public String getText()
+        {
+            return text;
+        }
+
         @Override
         public String toString()
         {
@@ -1462,8 +1502,8 @@ public interface Selectable extends AssignmentTestable
 
         public static class Raw implements Selectable.Raw
         {
-            private final Selectable.Raw selected;
-            private final Term.Raw element;
+            public final Selectable.Raw selected;
+            public final Term.Raw element;
 
             public Raw(Selectable.Raw selected, Term.Raw element)
             {

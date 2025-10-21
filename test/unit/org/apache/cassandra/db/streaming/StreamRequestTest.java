@@ -38,6 +38,8 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamRequest;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 
 public class StreamRequestTest
 {
@@ -49,6 +51,7 @@ public class StreamRequestTest
     public static void setUp() throws Throwable
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
         local = InetAddressAndPort.getByName("127.0.0.1");
     }
 

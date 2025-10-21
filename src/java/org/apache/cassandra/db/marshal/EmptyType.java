@@ -24,8 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * A type that only accept empty data.
@@ -59,7 +60,7 @@ public class EmptyType extends AbstractType<Void>
             return NonEmptyWriteBehavior.FAIL;
         try
         {
-            return NonEmptyWriteBehavior.valueOf(value.toUpperCase().trim());
+            return NonEmptyWriteBehavior.valueOf(toUpperCaseLocalized(value).trim());
         }
         catch (Exception e)
         {

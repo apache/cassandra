@@ -47,10 +47,13 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -107,6 +110,7 @@ public class UncommittedTableData
         private final CloseableIterator<PaxosKeyState> wrapped;
         private final PeekingIterator<PaxosKeyState> peeking;
         private final PeekingIterator<Range<Token>> rangeIterator;
+        private final IPartitioner partitioner;
         private final PaxosRepairHistory.Searcher historySearcher;
 
         FilteringIterator(CloseableIterator<PaxosKeyState> wrapped, List<Range<Token>> ranges, PaxosRepairHistory history)
@@ -114,6 +118,7 @@ public class UncommittedTableData
             this.wrapped = wrapped;
             this.peeking = Iterators.peekingIterator(wrapped);
             this.rangeIterator = Iterators.peekingIterator(Range.normalize(ranges).iterator());
+            this.partitioner = history.partitioner;
             this.historySearcher = history.searcher();
         }
 
@@ -129,7 +134,7 @@ public class UncommittedTableData
                 Token token = peeking.peek().key.getToken();
                 if (!range.contains(token))
                 {
-                    if (range.right.compareTo(token) < 0)
+                    if (!range.right.isMinimum() && range.right.compareTo(token) < 0)
                         rangeIterator.next();
                     else
                         peeking.next();
@@ -137,6 +142,14 @@ public class UncommittedTableData
                 }
 
                 PaxosKeyState next = peeking.next();
+                // If repairing a table with a partioner different from IPartitioner.global(), such as the distributed
+                // metadata log table, we don't filter paxos keys outside the data range of the repair. Instead, we
+                // repair everything present for that table. Replicas of the distributed log table (i.e. CMS members)
+                // always replicate the entire table, so this is not much of an issue at present.
+                // In this case, we also need to obtain the appropriate token for the paxos key, according to the
+                // table specific partitioner, in order to look up the low bound ballot for it the repair history.
+                if (partitioner != IPartitioner.global())
+                    token = partitioner.getToken(next.key.getKey());
 
                 Ballot lowBound = historySearcher.ballotForToken(token);
                 if (Commit.isAfter(lowBound, next.ballot))
@@ -184,8 +197,12 @@ public class UncommittedTableData
             if (table == null)
                 return Range.normalize(FULL_RANGE);
 
+            // for tables using a different partitioner to the globally configured one, don't filter anything
+            if (table.getPartitioner() != IPartitioner.global())
+                return Range.normalize(FULL_RANGE);
+
             String ksName = table.getKeyspaceName();
-            List<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
 
             // don't filter anything if we're not aware of any locally replicated ranges
             if (ranges.isEmpty())
@@ -198,7 +215,12 @@ public class UncommittedTableData
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs == null)
-                return PaxosRepairHistory.EMPTY;
+            {
+                IPartitioner partitioner = tableId.equals(DistributedMetadataLogKeyspace.LOG_TABLE_ID)
+                                           ? MetaStrategy.partitioner
+                                           : IPartitioner.global();
+                return PaxosRepairHistory.empty(partitioner);
+            }
 
             return cfs.getPaxosRepairHistory();
         }
@@ -563,10 +585,10 @@ public class UncommittedTableData
 
     synchronized void maybeScheduleMerge()
     {
-        logger.info("Scheduling uncommitted paxos data merge task for {}.{}", keyspace(), table());
         if (data.files.size() < 2 || merge != null)
             return;
 
+        logger.info("Scheduling uncommitted paxos data merge task for {}.{}", keyspace(), table());
         createMergeTask().maybeSchedule();
     }
 

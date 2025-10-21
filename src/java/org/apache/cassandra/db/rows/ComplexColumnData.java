@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Objects;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
@@ -51,8 +53,8 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("",
                                                                                                                   "",
                                                                                                                   "",
-                                                                                                                  SetType.getInstance(ByteType.instance,
-                                                                                                                                      true)),
+                                                                                                                  SetType.getInstance(ByteType.instance, true),
+                                                                                                                  ColumnMetadata.NO_UNIQUE_ID),
                                                                                      NO_CELLS,
                                                                                      DeletionTime.build(0, 0)));
 
@@ -264,12 +266,27 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         return transformAndFilter(newDeletion, (cell) -> (Cell<?>) cell.updateAllTimestamp(newTimestamp));
     }
 
+    @Override
+    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+    {
+        DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : DeletionTime.build(newTimestamp - 1, newLocalDeletionTime);
+        Function<Cell, CellPath> maybeNewListPath;
+        if (column.type instanceof ListType && column.type.isMultiCell())
+            maybeNewListPath = cellToMaybeNewListPath;
+        else
+            maybeNewListPath = cell -> cell.path();
+        return transformAndFilter(newDeletion, (cell) -> (Cell<?>) cell.updateAllTimesWithNewCellPathForComplexColumnData(maybeNewListPath.apply(cell), newTimestamp, newLocalDeletionTime));
+    }
+
+    @Override
+    public ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public long maxTimestamp()
     {
-        long timestamp = complexDeletion.markedForDeleteAt();
-        for (Cell<?> cell : this)
-            timestamp = Math.max(timestamp, cell.timestamp());
-        return timestamp;
+        return BTree.<Cell>accumulate(cells, (cell, ts) -> Math.max(ts, cell.timestamp()), complexDeletion.markedForDeleteAt());
     }
 
     // This is the partner in crime of ArrayBackedRow.setValue. The exact warning apply. The short

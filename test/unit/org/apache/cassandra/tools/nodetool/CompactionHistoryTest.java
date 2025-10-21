@@ -47,6 +47,12 @@ import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Tests for compaction history.
+ *
+ * @see Compact
+ * @see GarbageCollect
+ */
 @RunWith(Parameterized.class)
 public class CompactionHistoryTest extends CQLTester
 {

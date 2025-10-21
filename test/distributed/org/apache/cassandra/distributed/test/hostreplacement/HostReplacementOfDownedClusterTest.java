@@ -19,13 +19,17 @@
 package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -33,16 +37,21 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.assertGossipInfo;
+
+import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertNotInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokenMetadataTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.startHostReplacement;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAll;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.validateRows;
@@ -70,13 +79,14 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                        .set("progress_barrier_timeout", "1000ms")
+                                                        .set("progress_barrier_backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
             IInvokableInstance seed = cluster.get(1);
             IInvokableInstance nodeToRemove = cluster.get(2);
-            InetSocketAddress addressToReplace = nodeToRemove.broadcastAddress();
 
             setupCluster(cluster);
 
@@ -90,9 +100,6 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
             // with all nodes down, now start the seed (should be first node)
             seed.startup();
 
-            // at this point node2 should be known in gossip, but with generation/version of 0
-            assertGossipInfo(seed, addressToReplace, 0, -1);
-
             // make sure node1 still has node2's tokens
             List<String> currentTokens = getTokenMetadataTokens(seed);
             Assertions.assertThat(currentTokens)
@@ -100,7 +107,10 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
                       .isEqualTo(beforeCrashTokens);
 
             // now create a new node to replace the other node
-            IInvokableInstance replacingNode = replaceHostAndStart(cluster, nodeToRemove);
+            IInvokableInstance replacingNode = addInstance(cluster, nodeToRemove.config(),
+                                                           c -> c.set("auto_bootstrap", true)
+                                                                 .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
+            startHostReplacement(nodeToRemove, replacingNode, (ignore1_, ignore2_) -> {});
 
             awaitRingJoin(seed, replacingNode);
             awaitRingJoin(replacingNode, seed);
@@ -123,14 +133,16 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         int numStartNodes = 3;
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                       .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE)
+                                                        .set("progress_barrier_timeout", "1000ms")
+                                                        .set("progress_barrier_backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {
             IInvokableInstance seed = cluster.get(1);
             IInvokableInstance nodeToRemove = cluster.get(2);
             IInvokableInstance nodeToStartAfterReplace = cluster.get(3);
-            InetSocketAddress addressToReplace = nodeToRemove.broadcastAddress();
 
             setupCluster(cluster);
 
@@ -140,12 +152,8 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
 
             // now stop all nodes
             stopAll(cluster);
-
             // with all nodes down, now start the seed (should be first node)
             seed.startup();
-
-            // at this point node2 should be known in gossip, but with generation/version of 0
-            assertGossipInfo(seed, addressToReplace, 0, -1);
 
             // make sure node1 still has node2's tokens
             List<String> currentTokens = getTokenMetadataTokens(seed);
@@ -153,6 +161,27 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
                       .as("Tokens no longer match after restarting")
                       .isEqualTo(beforeCrashTokens);
 
+            cluster.get(1).runOnInstance(() -> {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+                while (System.nanoTime() < deadline)
+                {
+                    int down = 0;
+                    Set<InetAddressAndPort> downNodes = new HashSet<>();
+                    for (Map.Entry<InetAddressAndPort, EndpointState> e : Gossiper.instance.endpointStateMap.entrySet())
+                    {
+                        if (!e.getValue().isAlive())
+                            downNodes.add(e.getKey());
+                    }
+                    if (downNodes.size() >= 2)
+                    {
+                        logger.info("Found down nodes: " + downNodes);
+                        return;
+                    }
+                    logger.warn(String.format("Only %d down. Sleeping.", down));
+                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+                }
+                throw new RuntimeException("Nodes did not appear as down.");
+            });
             // now create a new node to replace the other node
             IInvokableInstance replacingNode = replaceHostAndStart(cluster, nodeToRemove);
 

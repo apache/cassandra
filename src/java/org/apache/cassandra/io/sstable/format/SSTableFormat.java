@@ -24,7 +24,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
@@ -137,7 +136,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
         /**
          * Returns a new builder which can create instance of {@link SSTableWriter} with the provided parameters.
          * Similarly to the loading builder, it should open the required resources when
-         * the {@link SSTableWriter.Builder#build(LifecycleNewTracker, SSTable.Owner)} method is called.
+         * the {@link SSTableWriter.Builder#build(org.apache.cassandra.db.lifecycle.ILifecycleTransaction, SSTable.Owner)} method is called.
          * It should not let the caller passing any closeable resources directly, that is, via setters.
          * If building fails, all the opened resources should be released.
          */

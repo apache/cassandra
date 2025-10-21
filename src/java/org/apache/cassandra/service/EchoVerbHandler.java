@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
  * under the License.
  *
  */
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,7 +37,7 @@ public class EchoVerbHandler implements IVerbHandler<NoPayload>
     public void doVerb(Message<NoPayload> message)
     {
         // only respond if we are not shutdown
-        if (!StorageService.instance.isShutdown())
+        if (!StorageService.instance.isShutdown() && !Gossiper.instance.shutdownAnnounced.get())
         {
             logger.trace("Sending ECHO_RSP to {}", message.from());
             MessagingService.instance().send(message.emptyResponse(), message.from());

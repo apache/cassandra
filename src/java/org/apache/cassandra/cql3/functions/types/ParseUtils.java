@@ -268,7 +268,7 @@ public abstract class ParseUtils
      * @param value The string to unquote.
      * @return The unquoted string.
      */
-    static String unquote(String value)
+    public static String unquote(String value)
     {
         return unquote(value, '\'');
     }

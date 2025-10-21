@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import java.io.DataOutput;
@@ -42,6 +43,11 @@ public interface DataOutputPlus extends DataOutput
     {
         for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
             write(buffer);
+    }
+
+    default void writeMemory(long address, int length) throws IOException
+    {
+        write(MemoryUtil.getByteBuffer(address, length));
     }
 
     default void writeVInt(long i) throws IOException
@@ -130,7 +136,69 @@ public interface DataOutputPlus extends DataOutput
             default:
                 throw new IllegalArgumentException();
         }
+    }
 
+    private static int numberOfBytes(long value)
+    {
+        return (64 + 7 - Long.numberOfLeadingZeros(value)) / 8;
+    }
+
+    /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @throws IOException
+     */
+    default void writeLeastSignificantBytes(long register) throws IOException
+    {
+        writeLeastSignificantBytes(register, numberOfBytes(register));
+    }
+
+    /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @param bytes - the number of bytes the register occupies. Valid values are between 0 and 8 inclusive.
+     * @throws IOException
+     */
+    default void writeLeastSignificantBytes(long register, int bytes) throws IOException
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                writeByte((int)register);
+                break;
+            case 2:
+                writeShort((int)register);
+                break;
+            case 3:
+                writeShort((int)(register >> 8));
+                writeByte((int)register);
+                break;
+            case 4:
+                writeInt((int)register);
+                break;
+            case 5:
+                writeInt((int)(register >> 8));
+                writeByte((int)register);
+                break;
+            case 6:
+                writeInt((int)(register >> 16));
+                writeShort((int)register);
+                break;
+            case 7:
+                writeInt((int)(register >> 24));
+                writeShort((int)(register >> 8));
+                writeByte((int)register);
+                break;
+            case 8:
+                writeLong(register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
     }
 
     /**
@@ -193,5 +261,66 @@ public interface DataOutputPlus extends DataOutput
     default long paddedPosition()
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    default void writeBoolean(boolean v) throws IOException
+    {
+        write(v ? 1 : 0);
+    }
+
+    @Override
+    default void writeShort(int v) throws IOException
+    {
+        write((v >>> 8) & 0xFF);
+        write((v >>> 0) & 0xFF);
+    }
+
+    @Override
+    default void writeChar(int v) throws IOException
+    {
+        write((v >>> 8) & 0xFF);
+        write((v >>> 0) & 0xFF);
+    }
+
+    @Override
+    default void writeInt(int v) throws IOException
+    {
+        write((v >>> 24) & 0xFF);
+        write((v >>> 16) & 0xFF);
+        write((v >>>  8) & 0xFF);
+        write((v >>>  0) & 0xFF);
+    }
+
+    @Override
+    default void writeFloat(float v) throws IOException
+    {
+        writeInt(Float.floatToIntBits(v));
+    }
+
+    @Override
+    default void writeDouble(double v) throws IOException
+    {
+        writeLong(Double.doubleToLongBits(v));
+    }
+
+    @Override
+    default void writeBytes(String s) throws IOException
+    {
+        int len = s.length();
+        for (int i = 0 ; i < len ; i++) {
+            write((byte)s.charAt(i));
+        }
+    }
+
+    @Override
+    default void writeChars(String s) throws IOException
+    {
+        int len = s.length();
+        for (int i = 0 ; i < len ; i++) {
+            int v = s.charAt(i);
+            write((v >>> 8) & 0xFF);
+            write((v >>> 0) & 0xFF);
+        }
     }
 }

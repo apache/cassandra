@@ -26,14 +26,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -41,6 +43,8 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.transport.Dispatcher;
@@ -54,9 +58,13 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.VERSION_51;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
-import static org.apache.cassandra.utils.vint.VIntCoding.*;
+import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt32;
+import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
 
 /**
  * Immutable main unit of internode communication - what used to be {@code MessageIn} and {@code MessageOut} fused
@@ -64,24 +72,23 @@ import static org.apache.cassandra.utils.vint.VIntCoding.*;
  *
  * @param <T> The type of the message payload.
  */
-public class Message<T>
+public class Message<T> implements ResponseContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
+    private static final Supplier<Epoch> epochSupplier = () -> ClusterMetadata.current().epoch;
+
     public final Header header;
     public final T payload;
+
+    private final IVersionedAsymmetricSerializer<T, ?> payloadSerializer;
 
     Message(Header header, T payload)
     {
         this.header = header;
         this.payload = payload;
-    }
-
-    /** Sender of the message. */
-    public InetAddressAndPort from()
-    {
-        return header.from;
+        this.payloadSerializer = verb().serializer();
     }
 
     /** Whether the message has crossed the node boundary, that is whether it originated from another node. */
@@ -90,15 +97,29 @@ public class Message<T>
         return !from().equals(getBroadcastAddressAndPort());
     }
 
+    /** Sender of the message. */
+    @Override
+    public InetAddressAndPort from()
+    {
+        return header.from;
+    }
+
     /**
      * id of the request/message. In 4.0+ can be shared between multiple messages of the same logical request,
      * whilst in versions above a new id would be allocated for each message sent.
      */
+    @Override
     public long id()
     {
         return header.id;
     }
 
+    public Epoch epoch()
+    {
+        return header.epoch;
+    }
+
+    @Override
     public Verb verb()
     {
         return header.verb;
@@ -118,6 +139,7 @@ public class Message<T>
         return header.createdAtNanos;
     }
 
+    @Override
     public long expiresAtNanos()
     {
         return header.expiresAtNanos;
@@ -192,19 +214,28 @@ public class Message<T>
      */
     public static <T> Message<T> out(Verb verb, T payload)
     {
-        assert !verb.isResponse();
+        assert !verb.isResponse() : verb;
 
         return outWithParam(nextId(), verb, payload, null, null);
     }
 
     public static <T> Message<T> synthetic(InetAddressAndPort from, Verb verb, T payload)
     {
-        return new Message<>(new Header(-1, verb, from, -1, -1, 0, NO_PARAMS), payload);
+        return new Message<>(new Header(-1, epochSupplier.get(), verb, from, -1, -1, 0, NO_PARAMS), payload);
     }
 
     public static <T> Message<T> out(Verb verb, T payload, long expiresAtNanos)
     {
         return outWithParam(nextId(), verb, expiresAtNanos, payload, 0, null, null);
+    }
+
+    public static <T> Message<T> out(Verb verb, T payload, boolean isUrgent)
+    {
+        assert !verb.isResponse();
+        if (isUrgent)
+            return outWithFlag(verb, payload,  MessageFlag.URGENT);
+        else
+            return out(verb, payload);
     }
 
     public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag)
@@ -227,6 +258,7 @@ public class Message<T>
             encodedFlags = flag.addTo(encodedFlags);
 
         return new Message<T>(new Header(nextId(),
+                                         epochSupplier.get(),
                                          verb,
                                          getBroadcastAddressAndPort(),
                                          requestTime.startedAtNanos(),
@@ -261,7 +293,7 @@ public class Message<T>
         if (expiresAtNanos == 0)
             expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
 
-        return new Message<>(new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
+        return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
     }
 
     public static <T> Message<T> internalResponse(Verb verb, T payload)
@@ -274,18 +306,54 @@ public class Message<T>
      * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
      * into single-range responses.
      */
+    @VisibleForTesting
     public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
     {
         assert verb.isResponse();
         long createdAtNanos = approxTime.now();
         long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
-        return new Message<>(new Header(0, verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
+        return new Message<>(new Header(0, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
+    }
+
+    /**
+     * A way to generate messages originating from arbitrary node. Should ONLY be used for testing purposes, as meddling with an
+     * originator can be dangerous.
+     */
+    @VisibleForTesting
+    public static <T> Message<T> remoteResponseForTests(long id, InetAddressAndPort from, Verb verb, T payload)
+    {
+        assert verb.isResponse();
+        long createdAtNanos = approxTime.now();
+        long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
+        return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
+    }
+
+    @VisibleForTesting
+    public static <T> Message<T> forgeIdentityForTests(Message<T> msg, InetAddressAndPort addr)
+    {
+        return new Message<>(new Header(msg.header.id,
+                                        msg.header.epoch,
+                                        msg.header.verb,
+                                        addr,
+                                        msg.header.createdAtNanos,
+                                        msg.header.expiresAtNanos,
+                                        msg.header.flags,
+                                        msg.header.params),
+                             msg.payload);
     }
 
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {
-        return outWithParam(id(), verb().responseVerb, expiresAtNanos(), payload, null, null);
+        Message<T> msg = responseWith(payload, this);
+        if (header.hasFlag(MessageFlag.URGENT))
+            msg = msg.withFlag(MessageFlag.URGENT);
+        return msg;
+    }
+
+    public static <T> Message<T> responseWith(T payload, ResponseContext respondTo)
+    {
+        return outWithParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, null, null);
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -295,12 +363,22 @@ public class Message<T>
     }
 
     /** Builds a failure response Message with an explicit reason, and fields inferred from request Message */
-    public Message<RequestFailureReason> failureResponse(RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason)
     {
-        return failureResponse(id(), expiresAtNanos(), reason);
+        return failureResponse(reason, null);
     }
 
-    static Message<RequestFailureReason> failureResponse(long id, long expiresAtNanos, RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure)
+    {
+        return failureResponse(reason, failure, this);
+    }
+
+    public static Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure, ResponseContext respondTo)
+    {
+        return failureResponse(respondTo.id(), respondTo.expiresAtNanos(), new RequestFailure(reason, failure));
+    }
+
+    static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)
     {
         return outWithParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, null, null);
     }
@@ -328,6 +406,11 @@ public class Message<T>
     public Message<T> withFlag(MessageFlag flag)
     {
         return new Message<>(header.withFlag(flag), payload);
+    }
+
+    public Message<T> withEpoch(Epoch epoch)
+    {
+        return new Message<>(header.withEpoch(epoch), payload);
     }
 
     public Message<T> withParam(ParamType type, Object value)
@@ -437,9 +520,10 @@ public class Message<T>
      * Split into a separate object to allow partial message deserialization without wasting work and allocation
      * afterwards, if the entire message is necessary and available.
      */
-    public static class Header
+    public static class Header implements ResponseContext
     {
         public final long id;
+        public final Epoch epoch;
         public final Verb verb;
         public final InetAddressAndPort from;
         public final long createdAtNanos;
@@ -447,9 +531,10 @@ public class Message<T>
         private final int flags;
         private final Map<ParamType, Object> params;
 
-        private Header(long id, Verb verb, InetAddressAndPort from, long createdAtNanos, long expiresAtNanos, int flags, Map<ParamType, Object> params)
+        private Header(long id, Epoch epoch, Verb verb, InetAddressAndPort from, long createdAtNanos, long expiresAtNanos, int flags, Map<ParamType, Object> params)
         {
             this.id = id;
+            this.epoch = epoch;
             this.verb = verb;
             this.from = from;
             this.expiresAtNanos = expiresAtNanos;
@@ -458,24 +543,34 @@ public class Message<T>
             this.params = params;
         }
 
+        public boolean hasFlag(MessageFlag messageFlag)
+        {
+            return messageFlag.isIn(flags);
+        }
+
         Header withFrom(InetAddressAndPort from)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         Header withFlag(MessageFlag flag)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flag.addTo(flags), params);
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flag.addTo(flags), params);
+        }
+
+        Header withEpoch(Epoch epoch)
+        {
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         Header withParam(ParamType type, Object value)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParam(params, type, value));
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, addParam(params, type, value));
         }
 
         Header withParams(Map<ParamType, Object> values)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParams(params, values));
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, addParams(params, values));
         }
 
         boolean callBackOnFailure()
@@ -493,6 +588,11 @@ public class Message<T>
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
         }
 
+        boolean isFinal()
+        {
+            return !MessageFlag.NOT_FINAL.isIn(flags);
+        }
+
         @Nullable
         ForwardingInfo forwardTo()
         {
@@ -505,6 +605,31 @@ public class Message<T>
             InetAddressAndPort respondTo = (InetAddressAndPort) params.get(ParamType.RESPOND_TO);
             if (respondTo == null) respondTo = from;
             return respondTo;
+        }
+
+        /** Sender of the message. */
+        @Override
+        public InetAddressAndPort from()
+        {
+            return from;
+        }
+
+        @Override
+        public long id()
+        {
+            return id;
+        }
+
+        @Override
+        public Verb verb()
+        {
+            return verb;
+        }
+
+        @Override
+        public long expiresAtNanos()
+        {
+            return expiresAtNanos;
         }
 
         @Nullable
@@ -542,6 +667,7 @@ public class Message<T>
         private long createdAtNanos;
         private long expiresAtNanos;
         private long id;
+        private Epoch epoch;
 
         private boolean hasId;
 
@@ -643,6 +769,12 @@ public class Message<T>
             return this;
         }
 
+        public Builder<T> withEpoch(Epoch epoch)
+        {
+            this.epoch = epoch;
+            return this;
+        }
+
         public Message<T> build()
         {
             if (verb == null)
@@ -651,8 +783,10 @@ public class Message<T>
                 throw new IllegalArgumentException();
             if (payload == null)
                 throw new IllegalArgumentException();
+            if (epoch == null)
+                epoch = epochSupplier.get();
 
-            return new Message<>(new Header(hasId ? id : nextId(), verb, from, createdAtNanos, expiresAtNanos, flags, params), payload);
+            return new Message<>(new Header(hasId ? id : nextId(), epoch, verb, from, createdAtNanos, expiresAtNanos, flags, params), payload);
         }
     }
 
@@ -665,6 +799,7 @@ public class Message<T>
                                .withExpiresAt(message.expiresAtNanos())
                                .withFlags(message.header.flags)
                                .withParams(message.header.params)
+                               .withEpoch(message.header.epoch)
                                .withPayload(message.payload);
     }
 
@@ -702,6 +837,8 @@ public class Message<T>
      *  0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0
      * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * | Message ID (vint)             |
+     * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * | Epoch (vint)                  |
      * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * | Creation timestamp (int)      |
      * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -756,7 +893,7 @@ public class Message<T>
          */
         public <T> Message<T> deserialize(DataInputPlus in, Header header, int version) throws IOException
         {
-            skipHeader(in);
+            skipHeader(in, version);
             skipUnsignedVInt(in); // payload size, not needed by payload deserializer
             T payload = (T) header.verb.serializer().deserialize(in, version);
             return new Message<>(header, payload);
@@ -774,7 +911,7 @@ public class Message<T>
         /**
          * Size of the next message in the stream. Returns -1 if there aren't sufficient bytes read yet to determine size.
          */
-        int inferMessageSize(ByteBuffer buf, int readerIndex, int readerLimit)
+        int inferMessageSize(ByteBuffer buf, int readerIndex, int readerLimit, int version)
         {
             int index = readerIndex;
 
@@ -782,6 +919,14 @@ public class Message<T>
             if (idSize < 0)
                 return -1; // not enough bytes to read id
             index += idSize;
+
+            if (version >= VERSION_51)
+            {
+                int epochSize = computeUnsignedVIntSize(buf, index, readerLimit);
+                if (epochSize < 0)
+                    return -1; // not enough bytes to read epoch
+                index += epochSize;
+            }
 
             index += CREATION_TIME_SIZE;
             if (index > readerLimit)
@@ -836,6 +981,13 @@ public class Message<T>
             long id = getUnsignedVInt(buf, index);
             index += computeUnsignedVIntSize(id);
 
+            Epoch epoch = Epoch.EMPTY;
+            if (version >= VERSION_51)
+            {
+                long epochl = getUnsignedVInt(buf, index);
+                index += computeUnsignedVIntSize(epochl);
+                epoch = Epoch.create(epochl);
+            }
             int createdAtMillis = buf.getInt(index);
             index += sizeof(createdAtMillis);
 
@@ -853,7 +1005,7 @@ public class Message<T>
             long createdAtNanos = calculateCreationTimeNanos(createdAtMillis, timeSnapshot, currentTimeNanos);
             long expiresAtNanos = getExpiresAtNanos(createdAtNanos, TimeUnit.MILLISECONDS.toNanos(expiresInMillis));
 
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         private static long getExpiresAtNanos(long createdAtNanos, long expirationPeriodNanos)
@@ -864,6 +1016,8 @@ public class Message<T>
         private void serializeHeader(Header header, DataOutputPlus out, int version) throws IOException
         {
             out.writeUnsignedVInt(header.id);
+            if (version >= VERSION_51)
+                Epoch.messageSerializer.serialize(header.epoch, out, version);
             // int cast cuts off the high-order half of the timestamp, which we can assume remains
             // the same between now and when the recipient reconstructs it.
             out.writeInt((int) approxTime.translate().toMillisSinceEpoch(header.createdAtNanos));
@@ -873,9 +1027,12 @@ public class Message<T>
             serializeParams(header.params, out, version);
         }
 
-        private Header deserializeHeader(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
+        public Header deserializeHeader(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
             long id = in.readUnsignedVInt();
+            Epoch epoch = Epoch.EMPTY;
+            if (version >= VERSION_51)
+                epoch = Epoch.messageSerializer.deserialize(in, version);
             long currentTimeNanos = approxTime.now();
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
@@ -883,12 +1040,15 @@ public class Message<T>
             Verb verb = Verb.fromId(in.readUnsignedVInt32());
             int flags = in.readUnsignedVInt32();
             Map<ParamType, Object> params = deserializeParams(in, version);
-            return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
+
+            return new Header(id, epoch, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }
 
-        private void skipHeader(DataInputPlus in) throws IOException
+        private void skipHeader(DataInputPlus in, int version) throws IOException
         {
             skipUnsignedVInt(in); // id
+            if (version >= VERSION_51)
+                skipUnsignedVInt(in); // epoch
             in.skipBytesFully(4); // createdAt
             skipUnsignedVInt(in); // expiresIn
             skipUnsignedVInt(in); // verb
@@ -900,6 +1060,8 @@ public class Message<T>
         {
             long size = 0;
             size += sizeofUnsignedVInt(header.id);
+            if (version >= VERSION_51)
+                size += sizeofUnsignedVInt(header.epoch.getEpoch());
             size += CREATION_TIME_SIZE;
             size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
             size += sizeofUnsignedVInt(header.verb.id);
@@ -1093,11 +1255,12 @@ public class Message<T>
 
     private IVersionedAsymmetricSerializer<T, ?> getPayloadSerializer()
     {
-        return verb().serializer();
+        return payloadSerializer;
     }
 
     private int serializedSize40;
     private int serializedSize50;
+    private int serializedSize51;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1114,13 +1277,18 @@ public class Message<T>
                 if (serializedSize50 == 0)
                     serializedSize50 = serializer.serializedSize(this, VERSION_50);
                 return serializedSize50;
+            case VERSION_51:
+                if (serializedSize51 == 0)
+                    serializedSize51 = serializer.serializedSize(this, VERSION_51);
+                return serializedSize51;
             default:
-                throw new IllegalStateException("Unkown serialization version " + version);
+                throw new IllegalStateException("Unknown serialization version " + version);
         }
     }
 
-    private int payloadSize40   = -1;
-    private int payloadSize50   = -1;
+    private int payloadSize40 = -1;
+    private int payloadSize50 = -1;
+    private int payloadSize51 = -1;
 
     private int payloadSize(int version)
     {
@@ -1134,6 +1302,10 @@ public class Message<T>
                 if (payloadSize50 < 0)
                     payloadSize50 = serializer.payloadSize(this, VERSION_50);
                 return payloadSize50;
+            case VERSION_51:
+                if (payloadSize51 < 0)
+                    payloadSize51 = serializer.payloadSize(this, VERSION_51);
+                return payloadSize51;
 
             default:
                 throw new IllegalStateException("Unkown serialization version " + version);

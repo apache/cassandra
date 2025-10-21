@@ -68,8 +68,7 @@ Zero copy streaming is enabled by setting the following setting in
 stream_entire_sstables: true
 ....
 
-By default zero copy streaming is enabled.
-
+Zero copy streaming is enabled by default.
 === SSTables Eligible for Zero Copy Streaming
 
 Zero copy streaming is used if all partitions within the SSTable need to
@@ -88,7 +87,7 @@ network transfer significantly subject to throttling specified by
 Enabling this will reduce the GC pressure on sending and receiving node.
 While this feature tries to keep the disks balanced, it cannot guarantee
 it. This feature will be automatically disabled if internode encryption
-is enabled. Currently this can be used with Leveled Compaction.
+is enabled. Currently, this can be used with Leveled Compaction.
 
 === Configuring for Zero Copy Streaming
 
@@ -161,7 +160,7 @@ Repair with `nodetool repair` involves streaming of repaired SSTables
 and a repair preview has been added to provide an estimate of the amount
 of repair streaming that would need to be performed. Repair preview
 (https://issues.apache.org/jira/browse/CASSANDRA-13257[CASSANDRA-13257])
-is invoke with `nodetool repair --preview` using option:
+is invoked with `nodetool repair --preview` using option:
 
 ....
 -prv, --preview

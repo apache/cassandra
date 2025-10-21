@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.After;
@@ -50,6 +51,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -285,7 +287,12 @@ public class LeveledCompactionStrategyTest
         ISSTableScanner scanner = scanners.get(0);
         // scan through to the end
         while (scanner.hasNext())
-            scanner.next();
+        {
+            try (UnfilteredRowIterator ignored = scanner.next())
+            {
+                // just close the iterator
+            }
+        }
 
         // scanner.getCurrentPosition should be equal to total bytes of L1 sstables
         assertEquals(scanner.getCurrentPosition(), SSTableReader.getTotalUncompressedBytes(sstables));
@@ -593,14 +600,25 @@ public class LeveledCompactionStrategyTest
         {
             for (AbstractCompactionStrategy strategy : strategies)
             {
-                AbstractCompactionTask task = strategy.getNextBackgroundTask(0);
+                AbstractCompactionTask task = Iterables.getOnlyElement(strategy.getNextBackgroundTasks(0), null);
                 if (task != null)
                 {
                     try
                     {
-                        assertTrue(task instanceof LeveledCompactionTask);
-                        LeveledCompactionTask lcsTask = (LeveledCompactionTask) task;
-                        level = Math.max(level, lcsTask.getLevel());
+                        if (task instanceof LeveledCompactionTask)
+                        {
+                            LeveledCompactionTask lcsTask = (LeveledCompactionTask) task;
+                            level = Math.max(level, lcsTask.getLevel());
+                        }
+                        else if (task instanceof SingleSSTableLCSTask)
+                        {
+                            SingleSSTableLCSTask singleSSTableLCSTask = (SingleSSTableLCSTask) task;
+                            level = Math.max(level, singleSSTableLCSTask.getLevel());
+                        }
+                        else
+                        {
+                            Assert.fail("Got unexpected task of type " + task.getClass().getCanonicalName());
+                        }
                     }
                     finally
                     {
@@ -920,9 +938,9 @@ public class LeveledCompactionStrategyTest
         List<SSTableReader> l0sstables = new ArrayList<>();
         for (int i = 10; i < 20; i++)
             l0sstables.add(MockSchema.sstable(i, (i + 1) * 1024 * 1024, cfs));
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, Iterables.concat(l0sstables, l1sstables)))
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.COMPACTION, ImmutableList.copyOf(Iterables.concat(l0sstables, l1sstables))))
         {
-            Set<SSTableReader> nonExpired = Sets.difference(txn.originals(), Collections.emptySet());
+            Set<SSTableReader> nonExpired = new HashSet<>(Sets.difference(txn.originals(), Collections.emptySet()));
             CompactionTask task = new LeveledCompactionTask(cfs, txn, 1, 0, 1024*1024, false);
             SSTableReader lastRemoved = null;
             boolean removed = true;
@@ -974,7 +992,8 @@ public class LeveledCompactionStrategyTest
             for (int i = 0; i < l0sstables.size(); i++)
             {
                 Set<SSTableReader> before = new HashSet<>(txn.originals());
-                removed = task.reduceScopeForLimitedSpace(before, 0);
+                Set<SSTableReader> sources = new HashSet<>(before);
+                removed = task.reduceScopeForLimitedSpace(sources, 0);
                 SSTableReader removedSSTable = Sets.difference(before, txn.originals()).stream().findFirst().orElse(null);
                 if (removed)
                 {

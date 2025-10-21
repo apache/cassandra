@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -27,29 +32,40 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.StatementType;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
-import static java.lang.String.join;
-
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import static java.lang.String.join;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE;
 
 public final class CreateViewStatement extends AlterSchemaStatement
@@ -104,26 +120,27 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     public void validate(ClientState state)
     {
+        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
+            throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
+
         super.validate(state);
 
         // save the query state to use it for guardrails validation in #apply
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
-        if (!DatabaseDescriptor.getMaterializedViewsEnabled())
-            throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
-
         /*
          * Basic dependency validations
          */
-
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
-        if (keyspace.createReplicationStrategy().hasTransientReplicas())
+        if (keyspace.replicationStrategy.hasTransientReplicas())
             throw new InvalidRequestException("Materialized views are not supported on transiently replicated keyspaces");
 
         TableMetadata table = keyspace.tables.getNullable(tableName);
@@ -170,6 +187,11 @@ public final class CreateViewStatement extends AlterSchemaStatement
                       "before being replayed.",
                       viewName, tableName);
         }
+
+        if (table.params.pendingDrop)
+            throw ire("Cannot create materialized view '%s' for base table " +
+                      "'%s' as it is being dropped.",
+                      viewName, tableName);
 
         /*
          * Process SELECT clause
@@ -277,6 +299,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
             new StatementRestrictions(state,
                                       StatementType.SELECT,
                                       table,
+                                      IndexHints.NONE,
                                       whereClause,
                                       VariableSpecifications.empty(),
                                       Collections.emptyList(),
@@ -324,8 +347,10 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         if (attrs.hasProperty(TableAttributes.ID))
             builder.id(attrs.getId());
+        else if (!builder.hasId())
+            builder.id(TableId.get(metadata));
 
-        builder.params(attrs.asNewTableParams())
+        builder.params(attrs.asNewTableParams(keyspaceName))
                .kind(TableMetadata.Kind.VIEW);
 
         partitionKeyColumns.stream()

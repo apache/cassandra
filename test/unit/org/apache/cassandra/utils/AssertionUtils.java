@@ -18,14 +18,29 @@
 
 package org.apache.cassandra.utils;
 
+import java.util.stream.Stream;
+
 import com.google.common.base.Throwables;
 
+import org.assertj.core.api.AbstractThrowableAssert;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
+import org.assertj.core.api.ThrowableAssert;
 
 public class AssertionUtils
 {
     private AssertionUtils()
     {
+    }
+
+    public static <T> Condition<T> anyOf(Stream<Condition<T>> stream) {
+        Iterable<Condition<T>> it = () -> stream.iterator();
+        return Assertions.anyOf(it);
+    }
+
+    public static Condition<Throwable> anyOfThrowable(Class<? extends Throwable>... klasses)
+    {
+        return anyOf(Stream.of(klasses).map(AssertionUtils::isThrowable));
     }
 
     /**
@@ -100,6 +115,11 @@ public class AssertionUtils
         };
     }
 
+    public static Condition<Throwable> isThrowableInstanceof(Class<?> klass)
+    {
+        return (Condition<Throwable>) (Condition<?>) isInstanceof(klass);
+    }
+
     public static Condition<Throwable> rootCause(Condition<Throwable> other)
     {
         return new Condition<Throwable>() {
@@ -119,6 +139,57 @@ public class AssertionUtils
 
     public static Condition<Throwable> rootCauseIs(Class<? extends Throwable> klass)
     {
-        return rootCause((Condition<Throwable>) (Condition<?>) is(klass));
+        return rootCause(isThrowable(klass));
+    }
+
+    public static Condition<Throwable> hasCause(Class<? extends Throwable> klass)
+    {
+        return hasCause(isThrowable(klass));
+    }
+
+    public static Condition<Throwable> hasCauseAnyOf(Class<? extends Throwable>... matchers)
+    {
+        return hasCause(anyOfThrowable(matchers));
+    }
+
+    public static Condition<Throwable> hasCause(Condition<Throwable> matcher)
+    {
+        return new Condition<Throwable>() {
+            @Override
+            public boolean matches(Throwable value)
+            {
+                for (Throwable cause = value; cause != null; cause = cause.getCause())
+                {
+                    if (matcher.matches(cause))
+                        return true;
+                }
+                return false;
+            }
+        };
+    }
+
+    public static ThrowableAssertPlus assertThatThrownBy(ThrowableAssert.ThrowingCallable fn)
+    {
+        return new ThrowableAssertPlus(Assertions.catchThrowable(fn)).hasBeenThrown();
+    }
+
+    public static class ThrowableAssertPlus extends AbstractThrowableAssert<ThrowableAssertPlus, Throwable>
+    {
+        public ThrowableAssertPlus(Throwable actual)
+        {
+            super(actual, ThrowableAssertPlus.class);
+        }
+
+        @Override
+        protected ThrowableAssertPlus hasBeenThrown()
+        {
+            return super.hasBeenThrown();
+        }
+
+        public ThrowableAssertPlus hasRootCause()
+        {
+            Throwable cause = Throwables.getRootCause(actual);
+            return new ThrowableAssertPlus(cause);
+        }
     }
 }

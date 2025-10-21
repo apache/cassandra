@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -71,7 +72,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
         // for the check version to work
         CassandraRelevantProperties.PARTITIONER.setString("org.apache.cassandra.dht.ByteOrderedPartitioner");
         properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.initServer();
     }
 

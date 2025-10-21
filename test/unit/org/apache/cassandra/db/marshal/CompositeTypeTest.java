@@ -23,6 +23,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.collect.Lists;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -68,6 +69,20 @@ public class CompositeTypeTest
     {
         for (int i = 0; i < UUID_COUNT; ++i)
             uuids[i] = nextTimeUUID();
+    }
+
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
     }
 
     @BeforeClass

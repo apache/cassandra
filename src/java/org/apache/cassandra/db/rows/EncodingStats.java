@@ -109,6 +109,13 @@ public class EncodingStats implements IMeasurableMemory
                      ? that.minTTL
                      : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
+        // EncodingStats is immutable, so if the result feilds are the same as in the current object we can avoid new object creation
+        // usually we merge an older object with a newer one and timestamp usually grows, so chances to reuse the object are high
+        if (this.minTimestamp == minTimestamp
+            && this.minLocalDeletionTime == minDelTime
+            && this.minTTL == minTTL) {
+            return this;
+        }
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
     }
 

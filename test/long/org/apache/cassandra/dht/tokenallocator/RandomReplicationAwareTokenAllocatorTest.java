@@ -34,13 +34,13 @@ public class RandomReplicationAwareTokenAllocatorTest extends AbstractReplicatio
     @Test
     public void testExistingCluster()
     {
-        testExistingCluster(new RandomPartitioner(), MAX_VNODE_COUNT);
+        testExistingCluster(RandomPartitioner.instance, MAX_VNODE_COUNT);
     }
 
     @Test
     public void testNewClusterr()
     {
-        testNewCluster(new RandomPartitioner(), MAX_VNODE_COUNT);
+        testNewCluster(RandomPartitioner.instance, MAX_VNODE_COUNT);
     }
 
 }

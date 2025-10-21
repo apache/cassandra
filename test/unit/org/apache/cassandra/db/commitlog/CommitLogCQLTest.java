@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class CommitLogCQLTest extends CQLTester
 {
@@ -89,7 +90,7 @@ public class CommitLogCQLTest extends CQLTester
                             {
                                 QueryProcessor.executeInternal(stmt, i, Integer.toString(i));
                             }
-                            cfs.dumpMemtable();
+                            FBUtilities.waitOnFuture(cfs.dumpMemtable());
                         }
                     }
                     catch (Throwable t)

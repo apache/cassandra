@@ -94,7 +94,10 @@ public class FQLQueryReader implements ReadMarshallable
                     values.add(subValues);
                     int numSubValues = in.int32();
                     for (int zz = 0; zz < numSubValues; zz++)
-                        subValues.add(ByteBuffer.wrap(in.bytes()));
+                    {
+                        byte[] valueBytes = in.bytes();
+                        subValues.add(valueBytes == null ? null : ByteBuffer.wrap(valueBytes));
+                    }
                 }
                 query = new FQLQuery.Batch(keyspace,
                                            protocolVersion,

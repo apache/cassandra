@@ -21,17 +21,16 @@ package org.apache.cassandra.distributed.test.sai;
 import java.io.IOException;
 import java.util.Iterator;
 
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
+
+import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -55,11 +54,30 @@ public class StrictFilteringTest extends TestBaseImpl
     }
 
     @Test
-    public void shouldRejectNonStrictIN()
+    public void shouldDegradeToUnionOnSingleStatic()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.single_static (pk0 int, ck0 int, ck1 int, s0 int static, v0 int, PRIMARY KEY (pk0, ck0, ck1)) " +
+                                          "WITH read_repair = 'NONE' AND CLUSTERING ORDER BY (ck0 ASC, ck1 DESC)"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.single_static(ck0) USING 'sai'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.single_static(s0) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        // To present the coordinator with enough data to find a row match, both replicas must degrade to OR at query
+        // time. The static column match from node 2 and the clustering key match from node 1 must be merged.
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.single_static (pk0, ck0, ck1, s0, v0) VALUES (0, 1, 2, 3, 4)"));
+        CLUSTER.get(1).executeInternal(withKeyspace("UPDATE %s.single_static SET v0 = 5 WHERE pk0 = 0 AND ck0 = 6 AND ck1 = 7"));
+
+        // A static column predicate and ANY other predicate makes strict filtering impossible, as the static match
+        // applies to the entire partition.
+        String select = withKeyspace("SELECT * FROM %s.single_static WHERE s0 = 3 AND ck0 = 6");
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 6, 7, 3, 5));
+    }
+
+    @Test
+    public void shouldPostFilterNonStrictIN()
     {
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.reject_in (k int PRIMARY KEY, a int, b int) WITH read_repair = 'NONE'"));
         CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.reject_in(a) USING 'sai'"));
-        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.reject_in(b) USING 'sai'"));
         SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
 
         // insert an unrepaired row
@@ -68,9 +86,7 @@ public class StrictFilteringTest extends TestBaseImpl
 
         String select = withKeyspace("SELECT * FROM %s.reject_in WHERE a = 1 AND b IN (2, 3) ALLOW FILTERING");
 
-        // This should fail, as strict filtering is not allowed:
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL))
-                  .hasMessageContaining(String.format(StorageAttachedIndexQueryPlan.UNSUPPORTED_NON_STRICT_OPERATOR, Operator.IN));
+        assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0,1,2));
 
         // Repair fixes the split row, although we still only allow the query when reconciliation is not required:
         CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
@@ -90,6 +106,43 @@ public class StrictFilteringTest extends TestBaseImpl
         CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.partial_updates(k, b) VALUES (0, 2) USING TIMESTAMP 2"));
 
         String select = withKeyspace("SELECT * FROM %s.partial_updates WHERE a = 1 AND b = 2");
+        Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL);
+        assertRows(initialRows, row(0, 1, 2));
+    }
+
+    @Test
+    public void testPartialUpdatesOnNonIndexedColumnsAfterRepair()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.partial_updates_non_indexed_columns (k int PRIMARY KEY, a int, b int, c int) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.partial_updates_non_indexed_columns(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.partial_updates_non_indexed_columns(k, a) VALUES (0, 1) USING TIMESTAMP 1"), ConsistencyLevel.ALL);
+        CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+        
+        // insert a split row
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.partial_updates_non_indexed_columns(k, b) VALUES (0, 2) USING TIMESTAMP 2"));
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.partial_updates_non_indexed_columns(k, c) VALUES (0, 3) USING TIMESTAMP 3"));
+
+        String select = withKeyspace("SELECT * FROM %s.partial_updates_non_indexed_columns WHERE a = 1 AND b = 2 AND c = 3 ALLOW FILTERING");
+        Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL);
+        assertRows(initialRows, row(0, 1, 2, 3));
+    }
+
+    @Test
+    public void testPartialUpdateOnNonIndexedColumnAfterRepair()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.partial_updates_non_indexed_column (k int PRIMARY KEY, a int, b int) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.partial_updates_non_indexed_column(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.coordinator(1).execute(withKeyspace("INSERT INTO %s.partial_updates_non_indexed_column(k, a) VALUES (0, 1) USING TIMESTAMP 1"), ConsistencyLevel.ALL);
+        CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+
+        // insert a split row
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.partial_updates_non_indexed_column(k, b) VALUES (0, 2) USING TIMESTAMP 2"));
+
+        String select = withKeyspace("SELECT * FROM %s.partial_updates_non_indexed_column WHERE a = 1 AND b = 2 ALLOW FILTERING");
         Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL);
         assertRows(initialRows, row(0, 1, 2));
     }
@@ -167,6 +220,51 @@ public class StrictFilteringTest extends TestBaseImpl
     }
 
     @Test
+    public void testNoShortReadAtLimit()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.no_srp_at_limit (k int, c int, a int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.no_srp_at_limit(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.no_srp_at_limit(k, c, a) VALUES (0, 2, 1) USING TIMESTAMP 5"));
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.no_srp_at_limit(k, c, a) VALUES (0, 3, 1) USING TIMESTAMP 6"));
+
+        Long srpRequestsBefore = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("no_srp_at_limit").metric.shortReadProtectionRequests.getCount());
+
+        String select = withKeyspace("SELECT * FROM %s.no_srp_at_limit WHERE k = 0 AND a = 1 LIMIT 1");
+        Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL, 2);
+        assertRows(initialRows, row(0, 2, 1));
+
+        Long srpRequestsAfter = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("no_srp_at_limit").metric.shortReadProtectionRequests.getCount());
+        assertEquals(srpRequestsBefore, srpRequestsAfter);
+    }
+
+    @Test
+    public void testNecessaryShortRead()
+    {
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.necessary_short_read (k int, c int, a int, PRIMARY KEY (k, c)) WITH read_repair = 'NONE'"));
+        CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s.necessary_short_read(a) USING 'sai'"));
+        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read(k, c, a) VALUES (0, 2, 1) USING TIMESTAMP 5"));
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read(k, c, a) VALUES (0, 2, 2) USING TIMESTAMP 6"));
+
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read(k, c, a) VALUES (0, 3, 1) USING TIMESTAMP 7"));
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read(k, c, a) VALUES (0, 3, 2) USING TIMESTAMP 8"));
+
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s.necessary_short_read(k, c, a) VALUES (0, 4, 1) USING TIMESTAMP 9"));
+
+        Long srpRequestsBefore = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("necessary_short_read").metric.shortReadProtectionRequests.getCount());
+
+        String select = withKeyspace("SELECT * FROM %s.necessary_short_read WHERE k = 0 AND a = 1 LIMIT 1");
+        Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL);
+        assertRows(initialRows, row(0, 4, 1));
+
+        Long srpRequestsAfter = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("necessary_short_read").metric.shortReadProtectionRequests.getCount());
+        assertEquals(srpRequestsBefore + 2L, srpRequestsAfter.longValue());
+    }
+
+    @Test
     public void testShortReadWithStaticColumn()
     {
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.partial_updates_short_read_static (k int, c int, a int, b int static, PRIMARY KEY(k, c)) WITH read_repair = 'NONE'"));
@@ -200,7 +298,7 @@ public class StrictFilteringTest extends TestBaseImpl
         
         String select = withKeyspace("SELECT * FROM %s.timestamp_collision WHERE a = 2 AND b = 2");
         Object[][] initialRows = CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL);
-        assertRows(initialRows, AssertUtils.row(0, 2, 2));
+        assertRows(initialRows, row(0, 2, 2));
     }
 
     @Test

@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -35,12 +36,13 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.PendingHintsInfo;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.Location;
 
-final class PendingHintsTable extends AbstractVirtualTable
+public final class PendingHintsTable extends AbstractVirtualTable
 {
     private static final String HOST_ID = "host_id";
     private static final String ADDRESS = "address";
@@ -51,8 +53,11 @@ final class PendingHintsTable extends AbstractVirtualTable
     private static final String FILES = "files";
     private static final String NEWEST = "newest";
     private static final String OLDEST = "oldest";
+    private static final String TOTAL_FILES_SIZE = "total_size";
+    private static final String CORRUPTED_FILES = "corrupted_files";
+    private static final String TOTAL_CORRUPTED_FILES_SIZE = "total_corrupted_files_size";
 
-    PendingHintsTable(String keyspace)
+    public PendingHintsTable(String keyspace)
     {
         super(TableMetadata.builder(keyspace, "pending_hints")
                            .comment("Pending hints that this node has for other nodes")
@@ -65,6 +70,9 @@ final class PendingHintsTable extends AbstractVirtualTable
                            .addRegularColumn(DC, UTF8Type.instance)
                            .addRegularColumn(STATUS, UTF8Type.instance)
                            .addRegularColumn(FILES, Int32Type.instance)
+                           .addRegularColumn(TOTAL_FILES_SIZE, LongType.instance)
+                           .addRegularColumn(CORRUPTED_FILES, Int32Type.instance)
+                           .addRegularColumn(TOTAL_CORRUPTED_FILES_SIZE, LongType.instance)
                            .addRegularColumn(NEWEST, TimestampType.instance)
                            .addRegularColumn(OLDEST, TimestampType.instance)
                            .build());
@@ -74,7 +82,7 @@ final class PendingHintsTable extends AbstractVirtualTable
     public DataSet data()
     {
         List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        Locator locator = DatabaseDescriptor.getLocator();
 
         SimpleDataSet result = new SimpleDataSet(metadata());
 
@@ -84,6 +92,7 @@ final class PendingHintsTable extends AbstractVirtualTable
         else
             simpleStates = Collections.emptyMap();
 
+        Location location = Location.UNKNOWN;
         for (PendingHintsInfo info : pendingHints)
         {
             InetAddressAndPort addressAndPort = StorageService.instance.getEndpointForHostId(info.hostId);
@@ -94,10 +103,11 @@ final class PendingHintsTable extends AbstractVirtualTable
             String status = "Unknown";
             if (addressAndPort != null)
             {
+                location = locator.location(addressAndPort);
                 address = addressAndPort.getAddress();
                 port = addressAndPort.getPort();
-                rack = snitch.getRack(addressAndPort);
-                dc = snitch.getDatacenter(addressAndPort);
+                rack = location.rack;
+                dc = location.datacenter;
                 status = simpleStates.getOrDefault(addressAndPort.toString(), status);
             }
             result.row(info.hostId)
@@ -107,6 +117,9 @@ final class PendingHintsTable extends AbstractVirtualTable
                   .column(DC, dc)
                   .column(STATUS, status)
                   .column(FILES, info.totalFiles)
+                  .column(TOTAL_FILES_SIZE, info.totalSize)
+                  .column(CORRUPTED_FILES, info.corruptedFiles)
+                  .column(TOTAL_CORRUPTED_FILES_SIZE, info.corruptedFilesSize)
                   .column(NEWEST, new Date(info.newestTimestamp))
                   .column(OLDEST, new Date(info.oldestTimestamp));
         }

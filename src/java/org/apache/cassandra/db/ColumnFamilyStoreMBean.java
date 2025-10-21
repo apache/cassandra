@@ -53,6 +53,15 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction(boolean splitOutput) throws ExecutionException, InterruptedException;
 
     /**
+     * force a major compaction of this column family
+     *
+     * @param permittedParallelism The maximum number of compaction threads that can be used by the operation.
+     *                             If 0, the operation can use all available threads.
+     *                             If <0, the default parallelism will be used.
+     */
+    public void forceMajorCompaction(int permittedParallelism) throws ExecutionException, InterruptedException;
+
+    /**
      * Forces a major compaction of specified token ranges in this column family.
      * <p>
      * The token ranges will be interpreted as closed intervals to match the closed interval defined by the first and

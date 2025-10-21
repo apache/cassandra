@@ -22,25 +22,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -50,17 +47,20 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.MessageDelivery;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.broadcastAddress;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.bytesToken;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.node1;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.randomInt;
-import static org.apache.cassandra.utils.TokenRangeTestUtil.registerOutgoingMessageSink;
 
 public class MutationVerbHandlerOutOfRangeTest
 {
@@ -75,21 +75,18 @@ public class MutationVerbHandlerOutOfRangeTest
     @BeforeClass
     public static void init() throws Exception
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
-        StorageService.instance.initServer(0);
-
+        ServerTestUtils.markCMS();
+        StorageService.instance.unsafeSetInitialized();
     }
 
     @Before
     public void setup() throws Exception
     {
-        DatabaseDescriptor.setLogOutOfTokenRangeRequests(true);
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(true);
-
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(0), node1);
-        StorageService.instance.getTokenMetadata().updateNormalToken(bytesToken(100), broadcastAddress);
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(broadcastAddress, bytesToken(100));
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
 
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
@@ -119,7 +116,7 @@ public class MutationVerbHandlerOutOfRangeTest
         int key = 50;
         Mutation mutation = mutation(key, value);
         handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, key, value, false, false);
+        getAndVerifyResponse(messageSink, messageId, key, value, false);
     }
 
     @Test
@@ -136,12 +133,13 @@ public class MutationVerbHandlerOutOfRangeTest
 
     private void acceptMutationForPendingEndpoint(IVerbHandler<Mutation> handler ) throws Exception
     {
-        // remove localhost from TM and add it back as pending
-        StorageService.instance.getTokenMetadata().removeEndpoint(broadcastAddress);
-        Multimap<Range<Token>, Replica> pending = HashMultimap.create();
-        Range<Token> range = new Range<>(bytesToken(0), bytesToken(100));
-        pending.put(range, new Replica(broadcastAddress, range, true));
-        StorageService.instance.getTokenMetadata().setPendingRangesUnsafe(KEYSPACE, pending);
+        // reset ClusterMetadata then join the remote node and partially
+        // join the localhost one to emulate pending ranges
+        ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
+        ClusterMetadataTestHelper.register(broadcastAddress);
+        ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
+        assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
 
         ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
@@ -149,7 +147,7 @@ public class MutationVerbHandlerOutOfRangeTest
         int key = 50;
         Mutation mutation = mutation(key, value);
         handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, key, value, false, false);
+        getAndVerifyResponse(messageSink, messageId, key, value, false);
     }
 
     @Test
@@ -167,37 +165,21 @@ public class MutationVerbHandlerOutOfRangeTest
     private void rejectMutationForTokenOutOfRange(IVerbHandler<Mutation> handler) throws Exception
     {
         // reject a mutation for a token the node neither owns nor is pending
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int value = randomInt();
         int key = 200;
         Mutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, key, value, true, true);
-    }
-
-    @Test
-    public void acceptMutationIfRejectionNotEnabled() throws Exception
-    {
-        acceptMutationIfRejectionNotEnabled(new MutationVerbHandler());
-    }
-
-    @Test
-    public void acceptReadRepairIfRejectionNotEnabled() throws Exception
-    {
-        acceptMutationIfRejectionNotEnabled(new ReadRepairVerbHandler());
-    }
-
-    private void acceptMutationIfRejectionNotEnabled(IVerbHandler<Mutation> handler) throws Exception
-    {
-        DatabaseDescriptor.setRejectOutOfTokenRangeRequests(false);
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
-        int messageId = randomInt();
-        int value = randomInt();
-        int key = 200;
-        Mutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, key, value, true, false);
+        try
+        {
+            // note that the failure response is now sent by the InboundSink, so we can't use getAndVerifyResponse
+            handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+            fail("mutation verb handler now throws exception");
+        }
+        catch (InvalidRoutingException ignore)
+        {
+            assertEquals(startingTotalMetricCount + 1, StorageMetrics.totalOpsForInvalidToken.getCount());
+            assertEquals(startingKeyspaceMetricCount + 1, keyspaceMetricValue(cfs));
+        }
     }
 
     static <V> int toInt(Cell<V> cell)
@@ -209,18 +191,17 @@ public class MutationVerbHandlerOutOfRangeTest
                                       int messageId,
                                       int key,
                                       int value,
-                                      boolean isOutOfRange,
-                                      boolean expectFailure) throws InterruptedException, ExecutionException, TimeoutException
+                                      boolean isOutOfRange) throws InterruptedException, ExecutionException, TimeoutException
     {
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
-        assertEquals(expectFailure ? Verb.FAILURE_RSP : Verb.MUTATION_RSP, response.message.verb());
+        assertEquals(isOutOfRange ? Verb.FAILURE_RSP : Verb.MUTATION_RSP, response.message.verb());
         assertEquals(broadcastAddress, response.message.from());
-        assertEquals(expectFailure, response.message.payload instanceof RequestFailureReason);
+        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
         assertEquals(messageId, response.message.id());
         assertEquals(node1, response.to);
         assertEquals(startingTotalMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
         assertEquals(startingKeyspaceMetricCount + (isOutOfRange ? 1 : 0), keyspaceMetricValue(cfs));
-        if (!expectFailure)
+        if (!isOutOfRange)
         {
             ReadCommand read = Util.cmd(cfs, bytes(key)).build();
             ColumnMetadata col = cfs.metadata().getColumn(bytes("v1"));
@@ -238,7 +219,7 @@ public class MutationVerbHandlerOutOfRangeTest
         TableMetadata cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         DecoratedKey dk = cfs.decorateKey(bytes(key));
         ColumnMetadata col = cfs.metadata().getColumn(bytes("v1"));
-        Cell<?> cell = BufferCell.live(col, FBUtilities.timestampMicros(), bytes(columnValue));
+        Cell cell = BufferCell.live(col, FBUtilities.timestampMicros(), bytes(columnValue));
         Row row = BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, row);
         return new Mutation(update);

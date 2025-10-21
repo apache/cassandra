@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -51,13 +49,8 @@ public class JsonTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-        if (ROW_CACHE_SIZE_IN_MIB > 0)
-            DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
-
+        daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        // Once per-JVM is enough
         prepareServer();
     }
 
@@ -1489,5 +1482,14 @@ public class JsonTest extends CQLTester
         res = execute("SELECT JSON * FROM %s WHERE pk = 1");
         assertEquals(json, res.one().getString("[json]"));
 
+    }
+
+    @Test
+    public void testJsonInsertWithNullPrimaryKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, col ascii)");
+
+        assertInvalidMessage("Invalid null value for column pk",
+                             "INSERT INTO %s JSON '{\"col\": \"bar\"}'");
     }
 }

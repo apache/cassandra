@@ -84,7 +84,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DECAYING_E
  *
  * @see ExponentiallyDecayingReservoir
  */
-public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoir
+public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
 {
     private static final Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoir.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
@@ -343,6 +343,20 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         return rescaleIfNeeded(clock.now());
     }
 
+    @Override
+    public long[] buckets(int length)
+    {
+        if (length == bucketOffsets.length)
+            return bucketOffsets;
+        return EstimatedHistogram.newOffsets(length, bucketOffsets[0] == 0);
+    }
+
+    @Override
+    public BucketStrategy bucketStrategy()
+    {
+        return bucketOffsets[0] == 0 ? BucketStrategy.exp_12 : BucketStrategy.exp_12_nozero;
+    }
+
     /**
      * @return true if this histogram has overflowed -- that is, a value larger than our largest bucket could bound was added
      */
@@ -571,6 +585,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                 elements += bCount;
                 sum += bCount * bucketOffsets[i];
             }
+
+            if (elements == 0)
+                return 0d;
 
             return (double) sum / elements;
         }

@@ -49,8 +49,10 @@ package org.apache.cassandra.utils.vint;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -106,6 +108,90 @@ public class VIntCoding
             retval |= b & 0xff;
         }
 
+        return retval;
+    }
+
+    @DontInline
+    private static long readUnsignedVIntSlow(ByteBuffer in, byte firstByte)
+    {
+        int size = numberOfExtraBytesToRead(firstByte);
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = in.get();
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    @DontInline
+    private static long readUnsignedVIntSlow(ByteBuffer in, int position, byte firstByte)
+    {
+        int size = numberOfExtraBytesToRead(firstByte);
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = in.get(position++);
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    public static long readUnsignedVInt(ByteBuffer in)
+    {
+        byte firstByte = in.get();
+        if (firstByte >= 0)
+            return firstByte;
+
+        int position = in.position();
+        int limit = in.limit();
+        if (limit - position < 8)
+            return readUnsignedVIntSlow(in, firstByte);
+
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
+        int extraBits = extraBytes * 8;
+
+        long retval = in.getLong(position);
+        if (in.order() == ByteOrder.LITTLE_ENDIAN)
+            retval = Long.reverseBytes(retval);
+        in.position(position + extraBytes);
+
+        // truncate the bytes we read in excess of those we needed
+        retval >>>= 64 - extraBits;
+        // remove the non-value bits from the first byte
+        firstByte &= VIntCoding.firstByteValueMask(extraBytes);
+        // shift the first byte up to its correct position
+        retval |= (long) firstByte << extraBits;
+        return retval;
+    }
+
+    public static long readUnsignedVInt(ByteBuffer in, int position)
+    {
+        byte firstByte = in.get(position++);
+        if (firstByte >= 0)
+            return firstByte;
+
+        int limit = in.limit();
+        if (limit - position < 8)
+            return readUnsignedVIntSlow(in, position, firstByte);
+
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
+        int extraBits = extraBytes * 8;
+
+        long retval = in.getLong(position);
+        if (in.order() == ByteOrder.LITTLE_ENDIAN)
+            retval = Long.reverseBytes(retval);
+
+        // truncate the bytes we read in excess of those we needed
+        retval >>>= 64 - extraBits;
+        // remove the non-value bits from the first byte
+        firstByte &= VIntCoding.firstByteValueMask(extraBytes);
+        // shift the first byte up to its correct position
+        retval |= (long) firstByte << extraBits;
         return retval;
     }
 
@@ -222,6 +308,17 @@ public class VIntCoding
         return retval;
     }
 
+    public static <V> int readLengthOfVInt(V input, ValueAccessor<V> accessor, int position)
+    {
+        byte firstByte = accessor.getByte(input, position);
+        if (firstByte >= 0)
+            return 1;
+
+        int extraBytes = accord.utils.VIntCoding.numberOfExtraBytesToRead(firstByte);
+        return 1 + extraBytes;
+    }
+
+
     /**
      * Computes size of an unsigned vint that starts at readerIndex of the provided ByteBuf.
      *
@@ -241,6 +338,11 @@ public class VIntCoding
     }
 
     public static long readVInt(DataInput input) throws IOException
+    {
+        return decodeZigZag64(readUnsignedVInt(input));
+    }
+
+    public static long readVInt(ByteBuffer input)
     {
         return decodeZigZag64(readUnsignedVInt(input));
     }
@@ -269,6 +371,34 @@ public class VIntCoding
     public static int readUnsignedVInt32(DataInput input) throws IOException
     {
         return checkedCast(readUnsignedVInt(input));
+    }
+
+    /**
+     * Read up to a 32-bit integer.
+     *
+     * This method assumes the original integer was written using {@link #writeUnsignedVInt32(int, DataOutputPlus)}
+     * or similar that doesn't zigzag encodes the vint.
+     *
+     * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
+     */
+    public static int readUnsignedVInt32(ByteBuffer input)
+    {
+        return checkedCast(readUnsignedVInt(input));
+    }
+
+    public static int readUnsignedVInt32(ByteBuffer input, int position)
+    {
+        return checkedCast(readUnsignedVInt(input, position));
+    }
+
+    public static int readLengthOfVInt(ByteBuffer in, int position)
+    {
+        byte firstByte = in.get(position);
+        if (firstByte >= 0)
+            return 1;
+
+        int extraBytes = numberOfExtraBytesToRead(firstByte);
+        return 1 + extraBytes;
     }
 
     // & this with the first byte to give the value part for a given extraBytesToRead encoded in the byte

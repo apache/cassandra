@@ -78,7 +78,8 @@ files having the required PEM data as shown below,
 * Configuration: PEM keys/certs defined in-line (mind the spaces in the
 YAML!)
 
-....
+[source,yaml]
+----
    client/server_encryption_options:
      ssl_context_factory:
         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
@@ -97,17 +98,53 @@ YAML!)
               -----BEGIN CERTIFICATE-----
               <your base64 encoded certificate>
               -----END CERTIFICATE-----
-....
+----
+
+* Configuration: PEM private key's password specified via a file
+
+[source,yaml]
+----
+   client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+        parameters:
+            private_key: |
+             -----BEGIN ENCRYPTED PRIVATE KEY----- OR -----BEGIN PRIVATE KEY-----
+             <your base64 encoded private key>
+             -----END ENCRYPTED PRIVATE KEY----- OR -----END PRIVATE KEY-----
+             -----BEGIN CERTIFICATE-----
+             <your base64 encoded certificate chain>
+             -----END CERTIFICATE-----
+            trusted_certificates: |
+              -----BEGIN CERTIFICATE-----
+              <your base64 encoded certificate>
+              -----END CERTIFICATE-----
+     keystore_password_file: "<file having your password for the encrypted private key>"
+----
 
 * Configuration: PEM keys/certs defined in files
-....
+
+[source,yaml]
+----
     client/server_encryption_options:
      ssl_context_factory:
         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
      keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
      keystore_password: "<your password if the private key is encrypted with a password>"
      truststore: <file path to the truststore file in the PEM format>
-....
+----
+
+* Configuration: PEM private key's password specified via a file
+
+[source,yaml]
+----
+   client/server_encryption_options:
+     ssl_context_factory:
+        class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+     keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
+     keystore_password_file: "<file having your password for the encrypted private key>"
+     truststore: <file path to the truststore file in the PEM format>
+----
 
 == SSL Certificate Hot Reloading
 
@@ -161,6 +198,11 @@ configured for secure and unsecure connections where operational
 requirements demand it. To do so, set `optional` to false and use the
 `native_transport_port_ssl` setting in `cassandra.yaml` to specify the
 port to be used for secure client communication.
+
+[NOTE]
+====
+`native_transport_port_ssl` property was deprecated in Cassandra 5.0.
+====
 
 [[operation-roles]]
 == Roles
@@ -350,6 +392,12 @@ reconnect, the enforcement of the granted permissions will begin.
 See also: xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PERMISSION`],
 xref:cassandra:developing/cql/security.adoc#grant-all[`GRANT ALL`] and
 xref:cassandra:developing/cql/security.adoc#revoke-permission[`REVOKE PERMISSION`].
+
+== Password validation
+
+If you are interested into the application of a certain security policy for password strength for
+user passwords, you are welcome to read about it more in xref:cassandra:managing/operating/password_validation.adoc[here]
+which implements https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=228494146[CEP-24].
 
 [[auth-caching]]
 == Caching
@@ -559,8 +607,77 @@ See also: xref:cassandra:developing/cql/security.adoc#permissions[`Permissions`]
 
 === JMX With SSL
 
-JMX SSL configuration is controlled by a number of system properties,
-some of which are optional. To turn on SSL, edit the relevant lines in
+JMX SSL configuration should be specified in `cassandra.yaml` under
+`encryption_options`, similar to how `client/server_encryption_options`
+are configured. Using system properties to configure JMX SSL is
+considered legacy and only supported for backward compatibility. If SSL
+is enabled via both methods, a configuration error will occur at
+startup. Hot reloading of the `SSLContext` is not yet supported for the
+JMX SSL.
+
+==== JMX SSL configuration in cassandra.yaml
+Below is an example of configuring JMX SSL in `cassandra.yaml`
+
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    keystore: test/conf/cassandra_ssl_test.keystore
+    keystore_password: cassandra
+    truststore: test/conf/cassandra_ssl_test.truststore
+    truststore_password: cassandra
+----
+
+Below is an example of configuring JMX SSL in `cassandra.yaml` with password files for keystore and truststore.
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    keystore: test/conf/cassandra_ssl_test.keystore
+    keystore_password_file: test/conf/keystore_passwordfile.txt
+    truststore: test/conf/cassandra_ssl_test.truststore
+    truststore_password: cassandra
+    truststore_password_file: test/conf/truststore_passwordfile.txt
+----
+
+Similar to `client/server_encryption_options`, you can specify PEM-based
+key material or customize the SSL configuration using
+`ssl_context_factory` in `jmx_encryption_options`.
+
+Below is an example of configuring PEM based key material. You can use `keystore_password_file`
+configuration with in-line PEM as documented priorly in case you have stored the password for the
+keystore in a file.
+[source,yaml]
+----
+jmx_encryption_options:
+    enabled: true
+    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+    ssl_context_factory:
+      class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
+      parameters:
+          private_key: |
+           -----BEGIN ENCRYPTED PRIVATE KEY----- OR -----BEGIN PRIVATE KEY-----
+           <your base64 encoded private key>
+           -----END ENCRYPTED PRIVATE KEY----- OR -----END PRIVATE KEY-----
+           -----BEGIN CERTIFICATE-----
+           <your base64 encoded certificate chain>
+           -----END CERTIFICATE-----
+
+          private_key_password: "<your password if the private key is encrypted with a password>"
+
+          trusted_certificates: |
+            -----BEGIN CERTIFICATE-----
+            <your base64 encoded certificate>
+            -----END CERTIFICATE-----
+----
+
+==== (Legacy) JMX SSL configuration with system properties
+To turn on SSL this way, edit the relevant lines in
 `cassandra-env.sh` to uncomment and
 set the values of these properties as required:
 
@@ -596,72 +713,3 @@ http://docs.oracle.com/javase/7/docs/technotes/guides/management/agent.html#gdem
 Java7 Docs],
 https://www.lullabot.com/articles/monitor-java-with-jmx[Monitor Java
 with JMX]
-
-
-== Crypto providers
-
-The ability to specify a custom Java Crypto Provider was done as part of https://issues.apache.org/jira/browse/CASSANDRA-18624[CASSANDRA-18624]
-
-The default configuration of `crypto_provider` in `cassandra.yaml` looks like this:
-
-[source,none]
-----
-# Configures Java crypto provider. By default, it will use
-# DefaultCryptoProvider which will install Amazon Correto
-# Crypto Provider.
-#
-# Amazon Correto Crypto Provider works currently for
-# x86_64 and aarch_64 platforms. If this provider fails it will
-# fall back to the default crypto provider in the JRE.
-#
-# To force failure when the provider was not installed properly,
-# set the property "fail_on_missing_provider" to "true".
-#
-# To bypass the installation of a crypto provider use
-# class 'org.apache.cassandra.security.JREProvider'
-#
-crypto_provider:
-  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
-    parameters:
-      - fail_on_missing_provider: "false"
-----
-
-For older nodes, when they upgrade to Cassandra 5.0 with the same `cassandra.yaml`
-where `crypto_provider` section is not set yet, they will default to `JREProvider` which does not
-install any provider, and it will use the one which is in a JRE Cassandra runs with.
-
-As the above snippet shows, `DefaultCryptoProvider` is installing
-https://github.com/corretto/amazon-corretto-crypto-provider[Amazon Corretto Crypto provider] which is proven to be
-way more performant than default crypto providers in a JRE installation.
-
-If you want to use other crypto provider, you have two options.
-
-The first one is to configure your JRE, specifically
-`java.security` file, to instruct JRE what crypto provider to use. You would need to put respective implementation
-of such crypto provider to the class path of JRE as well.
-
-The second option is to implement your own crypto provider by extending
-`org.apache.cassandra.security.AbstractCryptoProvider` and implementing four methods:
-
-getProviderName::
-  Returns name of your provider
-getProviderClassAsString::
-  Returns FQCN of your actual crypto provider which extends `java.security.Provider`.
-installator::
-  Returns `Runnable` which installs your `java.security.Provider` in runtime.
-isHealthyInstallation::
-  Returns `true` if the installation is _healthy_, false otherwise. This serves as a way
-  to check if the installation of your provider was successful or not.
-
-Upon installation of a crypto provider, `AbstractCryptoProvider` checks whether the provider you want to
-install is already installed or not. If it is installed and its installation position is `1` (as providers are
-installed in an order), a message will be logged about this fact. This case may happen if you configured
-your JRE directly via `java.security` and you try to install same provider by Cassandra itself as well.
-
-If it is installed already but not on the first position, if `fail_on_missing_provider` is set to `true`,
-an exception will be thrown and a node will fail to start. Same happens if the installation of
-a provider is not successful as such.
-
-Platform-specific libraries are added to Cassandra's class path automatically by `cassandra.in.sh` script.
-Currently, there are `lib/aarch64` and `lib/x86_64` directories with JAR files for each respective architecture.
-A platform is determined by the output of `uname -m` command.

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collections;
 
+import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,7 +32,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -100,7 +101,8 @@ public class AbstractCompactionStrategyTest
         }
 
         // Check they are returned on the next background task
-        try (LifecycleTransaction txn = strategy.getNextBackgroundTask(FBUtilities.nowInSeconds()).transaction)
+        long gcBefore1 = FBUtilities.nowInSeconds();
+        try (ILifecycleTransaction txn = Iterables.getOnlyElement(strategy.getNextBackgroundTasks(gcBefore1), null).transaction)
         {
             Assert.assertEquals(cfs.getLiveSSTables(), txn.originals());
         }
@@ -109,7 +111,8 @@ public class AbstractCompactionStrategyTest
         cfs.getTracker().removeUnsafe(cfs.getLiveSSTables());
 
         // verify the compaction strategy will return null
-        Assert.assertNull(strategy.getNextBackgroundTask(FBUtilities.nowInSeconds()));
+        long gcBefore = FBUtilities.nowInSeconds();
+        Assert.assertNull(Iterables.<AbstractCompactionTask>getOnlyElement(strategy.getNextBackgroundTasks(gcBefore), null));
     }
 
 

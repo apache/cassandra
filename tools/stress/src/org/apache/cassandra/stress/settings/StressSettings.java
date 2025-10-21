@@ -29,6 +29,8 @@ import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.transport.SimpleClient;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class StressSettings implements Serializable
 {
     public final SettingsCommand command;
@@ -137,7 +139,7 @@ public class StressSettings implements Serializable
                 if (client != null)
                     return client;
 
-                EncryptionOptions encOptions = transport.getEncryptionOptions();
+                EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
                 JavaDriverClient c = new JavaDriverClient(this, node.nodes, port.nativePort, encOptions);
                 c.connect(mode.compression());
                 if (keyspace != null)
@@ -247,7 +249,7 @@ public class StressSettings implements Serializable
             {
                 if (i > 0)
                     putParam(key, params.toArray(new String[0]), r);
-                key = args[i].toLowerCase();
+                key = toLowerCaseLocalized(args[i]);
                 params.clear();
             }
             else

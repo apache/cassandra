@@ -18,19 +18,14 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Special compaction task that does not do any compaction, instead it
@@ -50,17 +45,15 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
         this.level = level;
     }
 
-    @Override
-    public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
+    protected int getLevel()
     {
-        throw new UnsupportedOperationException("This method should never be called on SingleSSTableLCSTask");
+        return level;
     }
 
     @Override
-    protected int executeInternal(ActiveCompactionsTracker activeCompactions)
+    protected void executeInternal(ActiveCompactionsTracker activeCompactions)
     {
         run();
-        return 1;
     }
 
     @Override

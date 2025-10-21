@@ -17,61 +17,71 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "verify", description = "Verify (check data checksum for) one or more tables")
-public class Verify extends NodeToolCmd
+public class Verify extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "extended_verify",
-            name = {"-e", "--extended-verify"},
+    @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1..*", description = "The tables to upgrade", arity = "0..*")
+    private List<String> tables;
+
+    @Option(paramLabel = "extended_verify",
+            names = { "-e", "--extended-verify" },
             description = "Verify each cell data, beyond simply checking sstable checksums")
     private boolean extendedVerify = false;
 
-    @Option(title = "check_version",
-            name = {"-c", "--check-version"},
+    @Option(paramLabel = "check_version",
+            names = { "-c", "--check-version" },
             description = "Also check that all sstables are the latest version")
     private boolean checkVersion = false;
 
-    @Option(title = "override-disable",
-    name = {"-f", "--force"},
-    description = "Override disabling of verify tool - see CASSANDRA-9947 for caveats")
+    @Option(paramLabel = "override-disable",
+            names = { "-f", "--force" },
+            description = "Override disabling of verify tool - see CASSANDRA-9947 for caveats")
     private boolean overrideDisable = false;
 
-    @Option(title = "dfp",
-            name = {"-d", "--dfp"},
+    @Option(paramLabel = "dfp",
+            names = { "-d", "--dfp" },
             description = "Invoke the disk failure policy if a corrupt sstable is found")
     private boolean diskFailurePolicy = false;
 
-    @Option(title = "repair_status_change",
-            name = {"-r", "--rsc"},
+    @Option(paramLabel = "repair_status_change",
+            names = { "-r", "--rsc" },
             description = "Mutate the repair status on corrupt sstables")
     private boolean mutateRepairStatus = false;
 
-    @Option(title = "check_owns_tokens",
-            name = {"-t", "--check-tokens"},
+    @Option(paramLabel = "check_owns_tokens",
+            names = { "-t", "--check-tokens" },
             description = "Verify that all tokens in sstables are owned by this node")
     private boolean checkOwnsTokens = false;
 
-    @Option(title = "quick",
-    name = {"-q", "--quick"},
-    description = "Do a quick check - avoid reading all data to verify checksums")
+    @Option(paramLabel = "quick",
+            names = { "-q", "--quick" },
+            description = "Do a quick check - avoid reading all data to verify checksums")
     private boolean quick = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, tables);
         PrintStream out = probe.output().out;
         if (!overrideDisable)
         {

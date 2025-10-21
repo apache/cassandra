@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -357,11 +357,12 @@ public abstract class AbstractCommitLogSegmentManager
     void forceRecycleAll(Collection<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
-        CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
+        CommitLogSegment last = segmentsToRecycle.isEmpty() ? null : segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
 
         // wait for the commit log modifications
-        last.waitForModifications();
+        if (last != null)
+            last.waitForModifications();
 
         // make sure the writes have materialized inside of the memtables by waiting for all outstanding writes
         // to complete
@@ -387,7 +388,7 @@ public abstract class AbstractCommitLogSegmentManager
             }
 
             CommitLogSegment first;
-            if ((first = activeSegments.peek()) != null && first.id <= last.id)
+            if ((first = activeSegments.peek()) != null && last != null && first.id <= last.id)
                 logger.error("Failed to force-recycle all segments; at least one segment is still in use with dirty CFs.");
         }
         catch (Throwable t)

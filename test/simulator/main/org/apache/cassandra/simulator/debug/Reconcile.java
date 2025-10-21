@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.Simulation;
 import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
@@ -60,7 +61,7 @@ public class Reconcile
     private static final Pattern STRIP_TRACES = Pattern.compile("(Wakeup|Continue|Timeout|Waiting)\\[(((([a-zA-Z]\\.)*[a-zA-Z0-9_$]+\\.[a-zA-Z0-9_<>$]+:[\\-0-9]+; )*(([a-zA-Z]\\.)*[a-zA-Z0-9_$]+\\.[a-zA-Z0-9_<>$]+:[\\-0-9]+))( #\\[.*?]#)?) ?(by\\[.*?])?]");
     private static final Pattern STRIP_NOW_TRACES = Pattern.compile("( #\\[.*?]#)");
     private static final Pattern NORMALISE_THREAD_RECORDING_IN = Pattern.compile("(Thread\\[[^]]+:[0-9]+),?[0-9]+(,node[0-9]+)]");
-    static final Pattern NORMALISE_LAMBDA = Pattern.compile("((\\$\\$Lambda\\$[0-9]+/[0-9]+)?(@[0-9a-f]+)?)");
+    static final Pattern NORMALISE_LAMBDA = Pattern.compile("((\\$\\$Lambda\\$[0-9]+/(0x)?[a-f0-9]+)?(@[0-9a-f]+)?)");
     static final Pattern NORMALISE_THREAD = Pattern.compile("(Thread\\[[^]]+:[0-9]+),[0-9](,node[0-9]+)(_[0-9]+)?]");
 
     public static class AbstractReconciler
@@ -491,7 +492,8 @@ public class Reconcile
 
             class Line { int line = 1; } Line line = new Line(); // box for heap dump analysis
             try (ClusterSimulation<?> cluster = builder.create(seed);
-                 CloseableIterator<?> iter = cluster.simulation.iterator())
+                 Simulation simulation = cluster.simulation();
+                 CloseableIterator<?> iter = simulation.iterator())
             {
                 try
                 {

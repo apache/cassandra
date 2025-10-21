@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.view;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
@@ -123,6 +124,20 @@ public class RangeTermTree
         public String toString()
         {
             return MoreObjects.toStringHelper(this).add("term", indexTermType.asString(term)).toString();
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (other == null || getClass() != other.getClass()) return false;
+            Term otherTerm = (Term) other;
+            return Objects.equals(term, otherTerm.term) && Objects.equals(indexTermType, otherTerm.indexTermType);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(term, indexTermType);
         }
     }
 }

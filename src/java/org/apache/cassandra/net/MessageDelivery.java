@@ -18,19 +18,241 @@
 
 package org.apache.cassandra.net;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.utils.Invariants;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.WaitStrategy;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Accumulator;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.net.MessageFlag.CALL_BACK_ON_FAILURE;
 
 public interface MessageDelivery
 {
+    Logger logger = LoggerFactory.getLogger(MessageDelivery.class);
+    static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload)
+    {
+        return fanoutAndWait(messaging, sendTo, verb, payload, DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+    }
+    static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload, long timeout, TimeUnit timeUnit)
+    {
+        Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());
+        CountDownLatch cdl = CountDownLatch.newCountDownLatch(sendTo.size());
+        RequestCallback<RSP> callback = new RequestCallbackWithFailure<>()
+        {
+            @Override
+            public void onResponse(Message<RSP> msg)
+            {
+                logger.info("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
+                responses.add(Pair.create(msg.from(), msg.payload));
+                cdl.decrement();
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailure reason)
+            {
+                logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
+                cdl.decrement();
+            }
+        };
+
+        sendTo.forEach((ep) -> {
+            logger.info("Election for metadata migration sending {} ({}) to {}", verb, payload.toString(), ep);
+            messaging.sendWithCallback(Message.out(verb, payload), ep, callback);
+        });
+        cdl.awaitUninterruptibly(timeout, timeUnit);
+        return responses.snapshot();
+    }
+
     public <REQ> void send(Message<REQ> message, InetAddressAndPort to);
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb);
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection);
     public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to);
+
+    public default <REQ, RSP> Future<Message<RSP>> sendWithRetries(WaitStrategy backoff, RetryScheduler retryThreads,
+                                                                   Verb verb, REQ request,
+                                                                   Iterator<InetAddressAndPort> candidates,
+                                                                   RetryPredicate shouldRetry,
+                                                                   RetryErrorMessage errorMessage)
+    {
+        Promise<Message<RSP>> promise = new AsyncPromise<>();
+        this.<REQ, RSP>sendWithRetries(backoff, retryThreads, verb, request, candidates,
+                                       (attempt, success, failure) -> {
+                                           if (failure != null) promise.tryFailure(failure);
+                                           else promise.trySuccess(success);
+                                       },
+                                       shouldRetry, errorMessage);
+        return promise;
+    }
+
+    public default <REQ, RSP> void sendWithRetries(WaitStrategy backoff, RetryScheduler retryThreads,
+                                                   Verb verb, REQ request,
+                                                   Iterator<InetAddressAndPort> candidates,
+                                                   OnResult<RSP> onResult,
+                                                   RetryPredicate shouldRetry,
+                                                   RetryErrorMessage errorMessage)
+    {
+        sendWithRetries(this, backoff, retryThreads, verb, request, candidates, onResult, shouldRetry, errorMessage, 1);
+    }
     public <V> void respond(V response, Message<?> message);
     public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
+        respondWithFailure(RequestFailure.forReason(reason), message);
+    }
+
+    public default void respondWithFailure(RequestFailure reason, Message<?> message)
+    {
         send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+    }
+
+    interface OnResult<T>
+    {
+        void result(int attempt, @Nullable Message<T> success, @Nullable Throwable failure);
+    }
+
+    interface RetryPredicate
+    {
+        static RetryPredicate times(int n) { return (attempt, from, failure) -> attempt < n; }
+        RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
+        RetryPredicate NEVER_RETRY = (i1, i2, i3) -> false;
+        boolean test(int attempt, InetAddressAndPort from, RequestFailure failure);
+    }
+
+    interface RetryErrorMessage
+    {
+        RetryErrorMessage EMPTY = (i1, i2, i3, i4) -> null;
+        String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailure reason);
+    }
+
+    private static <REQ, RSP> void sendWithRetries(MessageDelivery messaging,
+                                                   WaitStrategy backoff,
+                                                   RetryScheduler retryThreads,
+                                                   Verb verb, REQ request,
+                                                   Iterator<InetAddressAndPort> candidates,
+                                                   OnResult<RSP> onResult,
+                                                   RetryPredicate shouldRetry,
+                                                   RetryErrorMessage errorMessage,
+                                                   int attempt)
+    {
+        Invariants.require(backoff != null);
+        if (Thread.currentThread().isInterrupted())
+        {
+            onResult.result(attempt, null, new InterruptedException(errorMessage.apply(attempt, ResponseFailureReason.Interrupted, null, null)));
+            return;
+        }
+        if (!candidates.hasNext())
+        {
+            onResult.result(attempt, null, new NoMoreCandidatesException(errorMessage.apply(attempt, ResponseFailureReason.NoMoreCandidates, null, null)));
+            return;
+        }
+        class Request implements RequestCallbackWithFailure<RSP>
+        {
+            @Override
+            public void onResponse(Message<RSP> msg)
+            {
+                onResult.result(attempt, msg, null);
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
+            {
+                long retryDelay = backoff.computeWait(attempt + 1, NANOSECONDS);
+                // TODO (required): we already have a separate retry predicate, retries should not be taken into consideration when retrying
+                if (retryDelay < 0)
+                {
+                    onResult.result(attempt, null, new GivingUpException(attempt, errorMessage.apply(attempt, ResponseFailureReason.GiveUp, from, failure)));
+                    return;
+                }
+                if (!shouldRetry.test(attempt, from, failure))
+                {
+                    onResult.result(attempt, null, new FailedResponseException(from, failure, errorMessage.apply(attempt, ResponseFailureReason.Rejected, from, failure)));
+                    return;
+                }
+                try
+                {
+                    retryThreads.schedule(() -> sendWithRetries(messaging, backoff, retryThreads, verb, request, candidates, onResult, shouldRetry, errorMessage, attempt + 1),
+                                          retryDelay, NANOSECONDS);
+                }
+                catch (Throwable t)
+                {
+                    onResult.result(attempt, null, new FailedScheduleException(errorMessage.apply(attempt, ResponseFailureReason.FailedSchedule, from, failure), t));
+                }
+            }
+        }
+        messaging.sendWithCallback(Message.outWithFlag(verb, request, CALL_BACK_ON_FAILURE), candidates.next(), new Request());
+    }
+
+    enum ResponseFailureReason {GiveUp, Rejected, NoMoreCandidates, Interrupted, FailedSchedule }
+
+    interface RetryScheduler
+    {
+        void schedule(Runnable command, long delay, TimeUnit unit);
+    }
+
+    enum ImmediateRetryScheduler implements RetryScheduler
+    {
+        instance;
+
+        @Override
+        public void schedule(Runnable command, long delay, TimeUnit unit)
+        {
+            command.run();
+        }
+    }
+
+    class NoMoreCandidatesException extends TimeoutException
+    {
+        public NoMoreCandidatesException(String s)
+        {
+            super(s);
+        }
+    }
+
+    class FailedResponseException extends RuntimeException
+    {
+        public final InetAddressAndPort from;
+        public final RequestFailure failure;
+
+        public FailedResponseException(InetAddressAndPort from, RequestFailure failure, String message)
+        {
+            super(message, failure.failure);
+            this.from = from;
+            this.failure = failure;
+        }
+    }
+
+    class GivingUpException extends TimeoutException
+    {
+        public final int attempts;
+        public GivingUpException(int attempts, String message)
+        {
+            super(message);
+            this.attempts = attempts;
+        }
+    }
+
+    class FailedScheduleException extends RuntimeException
+    {
+        public FailedScheduleException(String message, Throwable cause)
+        {
+            super(message, cause);
+        }
     }
 }

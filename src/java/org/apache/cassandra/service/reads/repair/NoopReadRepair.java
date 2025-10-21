@@ -30,6 +30,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 /**
  * Bypasses the read repair path for short read protection and testing
@@ -75,8 +76,15 @@ public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource)
     {
 
+    }
+
+    @Override
+    public void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+    {
+        // Shouldn't be possible to invoke this since repairPartition is a no op
+        throw new UnsupportedOperationException();
     }
 }

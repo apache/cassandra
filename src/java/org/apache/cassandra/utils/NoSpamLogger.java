@@ -21,10 +21,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.utils.Clock.Global;
 
@@ -47,7 +46,7 @@ public class NoSpamLogger
      */
     public enum Level
     {
-        INFO, WARN, ERROR
+        DEBUG, INFO, WARN, ERROR
     }
 
     @VisibleForTesting
@@ -78,7 +77,7 @@ public class NoSpamLogger
             this.minIntervalNanos = minIntervalNanos;
         }
 
-        private boolean shouldLog(long nowNanos)
+        public boolean shouldLog(long nowNanos)
         {
             long expected = get();
             return nowNanos >= expected && compareAndSet(expected, nowNanos + minIntervalNanos);
@@ -100,6 +99,9 @@ public class NoSpamLogger
         {
             switch (l)
             {
+                case DEBUG:
+                    wrapped.debug(statement, objects);
+                    break;
                 case INFO:
                     wrapped.info(statement, objects);
                     break;
@@ -113,6 +115,16 @@ public class NoSpamLogger
                     throw new AssertionError();
             }
             return true;
+        }
+
+        public boolean debug(long nowNanos, Object... objects)
+        {
+            return NoSpamLogStatement.this.log(Level.DEBUG, nowNanos, objects);
+        }
+
+        public boolean debug(Object... objects)
+        {
+            return NoSpamLogStatement.this.debug(CLOCK.nanoTime(), objects);
         }
 
         public boolean info(long nowNanos, Object... objects)
@@ -215,6 +227,11 @@ public class NoSpamLogger
     {
         this.wrapped = wrapped;
         minIntervalNanos = timeUnit.toNanos(minInterval);
+    }
+
+    public static NoSpamLogger wrap(Logger wrapped, long minInterval, TimeUnit timeUnit)
+    {
+        return new NoSpamLogger(wrapped, minInterval, timeUnit);
     }
 
     public boolean info(long nowNanos, String s, Object... objects)

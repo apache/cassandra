@@ -32,6 +32,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -83,9 +84,9 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        for (String ks : Schema.instance.getUserKeyspaces())
+        for (KeyspaceMetadata ks : Schema.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks.name);
             if (keyspace == null)
                 throw new IllegalStateException("Unknown keyspace " + ks + ". This can occur if the keyspace is being dropped.");
 
@@ -106,7 +107,7 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();
 
-                            dataset.row(ks, index.identifier().indexName, sstable.getFilename())
+                            dataset.row(ks.name, index.identifier().indexName, sstable.getFilename())
                                    .column(TABLE_NAME, descriptor.cfname)
                                    .column(COLUMN_NAME, index.termType().columnName())
                                    .column(FORMAT_VERSION, sstableIndex.getVersion().toString())

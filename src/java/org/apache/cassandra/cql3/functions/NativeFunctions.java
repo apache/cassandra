@@ -44,9 +44,12 @@ public class NativeFunctions
             AggregateFcts.addFunctionsTo(this);
             CollectionFcts.addFunctionsTo(this);
             BytesConversionFcts.addFunctionsTo(this);
+            LengthFcts.addFunctionsTo(this);
             MathFcts.addFunctionsTo(this);
             MaskingFcts.addFunctionsTo(this);
             VectorFcts.addFunctionsTo(this);
+            ClusterMetadataFcts.addFunctionsTo(this);
+            FormatFcts.addFunctionsTo(this);
         }
     };
 

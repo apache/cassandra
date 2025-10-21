@@ -1,0 +1,131 @@
+NAME
+        nodetool repair - Repair one or more tables
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair
+                [(-accord-only | --accord-only)]
+                [(-dc <specific_dc> | --in-dc <specific_dc>)...]
+                [(-dcpar | --dc-parallel)]
+                [(-et <end_token> | --end-token <end_token>)] [(-force | --force)]
+                [(-full | --full)]
+                [(-hosts <specific_host> | --in-hosts <specific_host>)...]
+                [--include-gcgs-expired-tombstones]
+                [(-iuk | --ignore-unreplicated-keyspaces)]
+                [(-j <job_threads> | --job-threads <job_threads>)]
+                [(-local | --in-local-dc)] [(-os | --optimise-streams)]
+                [(-paxos-only | --paxos-only)] [(-pl | --pull)]
+                [(-pr | --partitioner-range)] [(-prv | --preview)]
+                [(-seq | --sequential)] [(-skip-accord | --skip-accord)]
+                [(-skip-paxos | --skip-paxos)]
+                [(-st <start_token> | --start-token <start_token>)] [(-tr | --trace)]
+                [(-vd | --validate)] [--] [<keyspace> <tables>...]
+
+OPTIONS
+        -accord-only, --accord-only
+            If the --accord-only flag is included, no table data is repaired,
+            only accord operations..
+
+        -dc <specific_dc>, --in-dc <specific_dc>
+            Use -dc to repair specific datacenters
+
+        -dcpar, --dc-parallel
+            Use -dcpar to repair data centers in parallel.
+
+        -et <end_token>, --end-token <end_token>
+            Use -et to specify a token at which repair range ends (inclusive)
+
+        -force, --force
+            Use -force to filter out down endpoints
+
+        -full, --full
+            Use -full to issue a full repair.
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -hosts <specific_host>, --in-hosts <specific_host>
+            Use -hosts to repair specific hosts
+
+        --include-gcgs-expired-tombstones
+            Do not apply gc grace seconds to purge any tombstones. Only useful
+            in rare recovery scenarios, never regular operations.
+
+        -iuk, --ignore-unreplicated-keyspaces
+            Use --ignore-unreplicated-keyspaces to ignore keyspaces which are
+            not replicated, otherwise the repair will fail
+
+        -j <job_threads>, --job-threads <job_threads>
+            Number of threads to run repair jobs. Usually this means number of
+            CFs to repair concurrently. WARNING: increasing this puts more load
+            on repairing nodes, so be careful. (default: 1, max: 4)
+
+        -local, --in-local-dc
+            Use -local to only repair against nodes in the same datacenter
+
+        -os, --optimise-streams
+            Use --optimise-streams to try to reduce the number of streams we do
+            (EXPERIMENTAL, see CASSANDRA-3200).
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -paxos-only, --paxos-only
+            If the --paxos-only flag is included, no table data is repaired,
+            only paxos operations..
+
+        -pl, --pull
+            Use --pull to perform a one way repair where data is only streamed
+            from a remote node to this node.
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pr, --partitioner-range
+            Use -pr to repair only the first range returned by the partitioner
+
+        -prv, --preview
+            Determine ranges and amount of data to be streamed, but don't
+            actually perform repair
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -seq, --sequential
+            Use -seq to carry out a sequential repair
+
+        -skip-accord, --skip-accord
+            If the --skip-accord flag is included, the Accord repair step is
+            skipped. Accord repair is also skipped for preview repairs.
+
+        -skip-paxos, --skip-paxos
+            If the --skip-paxos flag is included, the paxos repair step is
+            skipped. Paxos repair is also skipped for preview repairs.
+
+        -st <start_token>, --start-token <start_token>
+            Use -st to specify a token at which the repair range starts
+            (exclusive)
+
+        -tr, --trace
+            Use -tr to trace the repair. Traces are logged to system_traces.
+            events.
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        -vd, --validate
+            Checks that repaired data is in sync between nodes. Out of sync
+            repaired data indicates a full repair should be run.
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        [<keyspace> <tables>...]
+            The keyspace followed by one or many tables

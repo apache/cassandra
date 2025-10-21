@@ -31,6 +31,9 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.assertj.core.api.Assertions;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.RefreshSizeEstimates
+ */
 public class TableEstimatesTest extends TestBaseImpl
 {
     private static Cluster CLUSTER;

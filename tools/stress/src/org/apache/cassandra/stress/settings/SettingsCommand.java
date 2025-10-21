@@ -34,6 +34,9 @@ import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.db.ConsistencyLevel;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 // Generic command settings - common to read/write/etc
 public abstract class SettingsCommand implements Serializable
 {
@@ -68,9 +71,9 @@ public abstract class SettingsCommand implements Serializable
     public SettingsCommand(Command type, Options options, Count count, Duration duration, Uncertainty uncertainty)
     {
         this.type = type;
-        this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
+        this.consistencyLevel = ConsistencyLevel.valueOf(toUpperCaseLocalized(options.consistencyLevel.value()));
         this.noWarmup = options.noWarmup.setByUser();
-        this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase());
+        this.truncate = TruncateWhen.valueOf(toUpperCaseLocalized(options.truncate.value()));
 
         if (count != null)
         {
@@ -85,7 +88,7 @@ public abstract class SettingsCommand implements Serializable
         {
             this.count = -1;
             this.duration = Long.parseLong(duration.duration.value().substring(0, duration.duration.value().length() - 1));
-            switch (duration.duration.value().toLowerCase().charAt(duration.duration.value().length() - 1))
+            switch (toLowerCaseLocalized(duration.duration.value()).charAt(duration.duration.value().length() - 1))
             {
                 case 's':
                     this.durationUnits = TimeUnit.SECONDS;
@@ -178,7 +181,7 @@ public abstract class SettingsCommand implements Serializable
 
     public void printSettings(ResultLogger out)
     {
-        out.printf("  Type: %s%n", type.toString().toLowerCase());
+        out.printf("  Type: %s%n", toLowerCaseLocalized(type.toString()));
         out.printf("  Count: %,d%n", count);
         if (durationUnits != null)
         {
@@ -226,11 +229,11 @@ public abstract class SettingsCommand implements Serializable
 
     static void printHelp(Command type)
     {
-        printHelp(type.toString().toLowerCase());
+        printHelp(toLowerCaseLocalized(type.toString()));
     }
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
+        GroupedOptions.printOptions(System.out, toLowerCaseLocalized(type), new Uncertainty(), new Count(), new Duration());
     }
 }

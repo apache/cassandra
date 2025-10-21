@@ -40,7 +40,8 @@ If you would like to contribute to this documentation, you are welcome to do so 
 
 | xref:cassandra:integrating/plugins/index.adoc[Plug-ins] | Third-party plug-ins
 
-| xref:master@_:ROOT:native_protocol.adoc[Native Protocols] | Native Cassandra protocol specifications
+| link:cassandra/reference/native-protocol.html[Native Protocols] | Native Cassandra protocol specifications
+
 |===
 
 == Meta information

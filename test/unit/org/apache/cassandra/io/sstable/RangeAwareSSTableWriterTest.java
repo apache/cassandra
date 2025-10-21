@@ -24,6 +24,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -33,7 +34,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -50,14 +50,11 @@ public class RangeAwareSSTableWriterTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.cleanupAndLeaveDirs();
-        Keyspace.setInitialized();
-        StorageService.instance.initServer();
-
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD)
                                                 .partitioner(Murmur3Partitioner.instance));
-
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         cfs = keyspace.getColumnFamilyStore(CF_STANDARD);
         cfs.clearUnsafe();

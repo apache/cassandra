@@ -127,7 +127,7 @@ public class MessagePayloadTest extends CQLTester
                                                    nativePort,
                                                    ProtocolVersion.V5,
                                                    true,
-                                                   new EncryptionOptions());
+                                                   new EncryptionOptions.ClientEncryptionOptions());
             try
             {
                 client.connect(false);

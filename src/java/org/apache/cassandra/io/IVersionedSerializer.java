@@ -17,6 +17,34 @@
  */
 package org.apache.cassandra.io;
 
+import java.io.IOException;
+
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
 public interface IVersionedSerializer<T> extends IVersionedAsymmetricSerializer<T, T>
 {
+    static <T> IVersionedSerializer<T> from(UnversionedSerializer<T> delegate)
+    {
+        return new IVersionedSerializer<T>()
+        {
+            @Override
+            public void serialize(T t, DataOutputPlus out, int version) throws IOException
+            {
+                delegate.serialize(t, out);
+            }
+
+            @Override
+            public T deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return delegate.deserialize(in);
+            }
+
+            @Override
+            public long serializedSize(T t, int version)
+            {
+                return delegate.serializedSize(t);
+            }
+        };
+    }
 }

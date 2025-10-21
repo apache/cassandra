@@ -34,7 +34,7 @@ public interface DebuggableTask
 {
     public default long elapsedSinceCreation()
     {
-        return MonotonicClock.Global.approxTime.now() - creationTimeNanos();
+        return MonotonicClock.Global.preciseTime.now() - creationTimeNanos();
     }
 
     public long creationTimeNanos();
@@ -42,9 +42,14 @@ public interface DebuggableTask
     public long startTimeNanos();
 
     public String description();
-    
+
     interface RunnableDebuggableTask extends Runnable, DebuggableTask {}
     interface CallableDebuggableTask<T> extends Callable<T>, DebuggableTask {}
+    interface DebuggableTaskRunner
+    {
+        DebuggableTask running();
+        String id();
+    }
 
     /**
      * Wraps a {@link DebuggableTask} to include the name of the thread running it.

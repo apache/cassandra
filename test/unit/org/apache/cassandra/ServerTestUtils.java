@@ -20,6 +20,8 @@ package org.apache.cassandra;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,21 +30,51 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.basic.SimulatedFault;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Sortable;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 /**
  * Utility methodes used by SchemaLoader and CQLTester to manage the server and its state.
@@ -66,35 +98,61 @@ public final class ServerTestUtils
     public static void daemonInitialization()
     {
         DatabaseDescriptor.daemonInitialization();
+        initSnitch();
+    }
 
+    public static void initSnitch()
+    {
         // Register an EndpointSnitch which returns fixed values for test.
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        DatabaseDescriptor.setNodeProximity(new BaseProximity()
         {
-            @Override
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return RACK1;
-            }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                if (remoteAddrs.contains(endpoint))
-                    return DATA_CENTER_REMOTE;
-
-                return DATA_CENTER;
-            }
-
             @Override
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
+
+            @Override
+            public boolean supportCompareByEndpoint()
+            {
+                return true;
+            }
+
+            @Override
+            public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+            {
+                return (a, b) -> 0;
+            }
         });
+    }
+
+    public static NodeId registerLocal()
+    {
+        return registerLocal(Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
+    }
+
+    public static NodeId registerLocal(Set<Token> tokens)
+    {
+        NodeId nodeId = Register.maybeRegister();
+        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
+                                                                tokens,
+                                                                ClusterMetadataService.instance().placementProvider()));
+        SystemKeyspace.setLocalHostId(nodeId.toUUID());
+        RegistrationStatus.instance.onRegistration();
+        return nodeId;
     }
 
     public static void prepareServer()
     {
+        prepareServerNoRegister();
+        registerLocal();
+        markCMS();
+    }
+
+    public static void prepareServerNoRegister()
+    {
+        daemonInitialization();
+
         if (isServerPrepared)
             return;
 
@@ -125,17 +183,23 @@ public final class ServerTestUtils
         {
             public void uncaughtException(Thread t, Throwable e)
             {
-                logger.error("Fatal exception in thread " + t, e);
+                if (e instanceof SimulatedFault) logger.error("SimulatedFault {} in thread {}", e.getMessage(), t);
+                else logger.error("Fatal exception in thread " + t, e);
             }
         });
 
         ThreadAwareSecurityManager.install();
 
-        Keyspace.setInitialized();
+        CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE.setInt(0);
+        initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
+
+        DiskErrorsHandlerService.configure();
+
         isServerPrepared = true;
     }
+
 
     /**
      * Cleanup the directories used by the server, creating them if they do not exist.
@@ -160,6 +224,7 @@ public final class ServerTestUtils
         if (cdcDir != null)
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
+        cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files
@@ -173,11 +238,11 @@ public final class ServerTestUtils
     {
         if (directory.exists())
         {
-            Arrays.stream(directory.tryList()).forEach(File::deleteRecursive);
+            Arrays.stream(directory.tryList()).forEach(File::tryDeleteRecursive);
         }
     }
 
-    private static void cleanupDirectory(String dirName)
+    public static void cleanupDirectory(String dirName)
     {
         if (dirName != null)
             cleanupDirectory(new File(dirName));
@@ -204,6 +269,120 @@ public final class ServerTestUtils
         EmbeddedCassandraService service = new EmbeddedCassandraService();
         service.start();
         return service;
+    }
+
+    public static void initCMS()
+    {
+        // Effectively disable automatic snapshots using AtomicLongBackedProcessor and LocaLLog.Sync interacts
+        // badly with submitting SealPeriod transformations from the log listener. In this configuration, SealPeriod
+        // commits performed on NonPeriodicTasks threads end up actually performing the transformations as well as
+        // calling the pre and post commit listeners, which is not threadsafe. In a non-test setup the processing of
+        // log entries is always done by the dedicated log follower thread.
+        DatabaseDescriptor.setMetadataSnapshotFrequency(Integer.MAX_VALUE);
+
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Location location = DatabaseDescriptor.getLocator().local();
+        boolean addListeners = true;
+        ClusterMetadata initial = new ClusterMetadata(partitioner);
+        if (!Keyspace.isInitialized())
+            Keyspace.setInitialized();
+
+        AtomicLongBackedProcessor.InMemoryStorage storage = new AtomicLongBackedProcessor.InMemoryStorage();
+        LocalLog log = LocalLog.logSpec()
+                               .withInitialState(initial)
+                               .withDefaultListeners(addListeners)
+                               .withStorage(storage)
+                               .createLog();
+
+        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                        MetadataSnapshots.NO_OP,
+                                                                                        log,
+                                                                                        new AtomicLongBackedProcessor(log),
+                                                                                        Commit.Replicator.NO_OP,
+                                                                                        true);
+
+        ClusterMetadataService.setInstance(service);
+        log.readyUnchecked();
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), location.datacenter);
+        service.commit(new Initialize(ClusterMetadata.current()));
+        QueryProcessor.registerStatementInvalidatingListener();
+        service.mark();
+    }
+
+    public static void recreateCMS()
+    {
+        assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";
+        // unfortunately, for now this is sometimes necessary because of the initialisation ordering with regard to
+        // IPartitioner. For example, if a test has a requirement to use a different partitioner to the one in yaml:
+        // SchemaLoader.prepareServer
+        // |-- SchemaLoader.prepareServerNoRegister
+        // |   |-- ServerTestUtils.daemonInitialization();        # sets DD.partitioner according to yaml (i.e. BOP)
+        // |   |-- ServerTestUtils.prepareServer();               # includes inititial CMS using DD partitioner
+        // |-- StorageService.instance.setPartitionerUnsafe(M3P)  # test wants to use LongToken
+        // |-- ServerTestUtils.recreateCMS                        # recreates the CMS using the updated partitioner
+        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        LogStorage storage = LogStorage.SystemKeyspace;
+        LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .withInitialState(initial)
+                                           .withStorage(storage)
+                                           .withDefaultListeners();
+        LocalLog log = logSpec.createLog();
+
+        ResettableClusterMetadataService cms = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                    MetadataSnapshots.NO_OP,
+                                                                                    log,
+                                                                                    new AtomicLongBackedProcessor(log),
+                                                                                    Commit.Replicator.NO_OP,
+                                                                                    true);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(cms);
+        ((SystemKeyspaceStorage)LogStorage.SystemKeyspace).truncate();
+        log.readyUnchecked();
+        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
+        cms.mark();
+    }
+
+    public static void markCMS()
+    {
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).mark();
+    }
+
+    public static void resetCMS()
+    {
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).reset();
+    }
+
+    public static class ResettableClusterMetadataService extends ClusterMetadataService
+    {
+
+        private ClusterMetadata mark;
+
+        public ResettableClusterMetadataService(PlacementProvider placementProvider,
+                                                MetadataSnapshots snapshots,
+                                                LocalLog log,
+                                                Processor processor,
+                                                Commit.Replicator replicator,
+                                                boolean isMemberOfOwnershipGroup)
+        {
+            super(placementProvider, snapshots, log, processor, replicator, isMemberOfOwnershipGroup);
+            mark = log.metadata();
+        }
+
+        public void mark()
+        {
+            mark = log().metadata();
+        }
+
+        public Epoch reset()
+        {
+            Epoch nextEpoch = ClusterMetadata.current().epoch.nextEpoch();
+            ClusterMetadata newBaseState = mark.forceEpoch(nextEpoch);
+            return ClusterMetadataService.instance().commit(new ForceSnapshot(newBaseState)).epoch;
+        }
     }
 
     private ServerTestUtils()

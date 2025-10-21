@@ -18,10 +18,11 @@
  */
 package org.apache.cassandra.tools;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.commons.cli.*;
 
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.util.function.BiPredicate;
 
 import org.apache.cassandra.io.util.File;
-import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneSSTableUtil
 {
@@ -43,13 +43,13 @@ public class StandaloneSSTableUtil
 
     public static void main(String args[])
     {
+
         Options options = Options.parseArgs(args);
         try
         {
             // load keyspace descriptions.
             Util.initDatabaseDescriptor();
-            Schema.instance.loadFromDisk();
-
+            ClusterMetadataService.initializeForTools(false);
             TableMetadata metadata = Schema.instance.getTableMetadata(options.keyspaceName, options.cfName);
             if (metadata == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",

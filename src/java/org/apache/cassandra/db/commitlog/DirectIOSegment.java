@@ -177,7 +177,12 @@ public class DirectIOSegment extends CommitLogSegment
         public DirectIOSegment build()
         {
             return new DirectIOSegment(segmentManager,
-                                       path -> FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT),
+                                       path -> FileChannel.open(path,
+                                                                StandardOpenOption.WRITE,
+                                                                StandardOpenOption.READ,
+                                                                StandardOpenOption.CREATE,
+                                                                StandardOpenOption.DSYNC,
+                                                                ExtendedOpenOption.DIRECT),
                                        fsBlockSize);
         }
 

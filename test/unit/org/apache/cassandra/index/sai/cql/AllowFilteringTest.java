@@ -18,20 +18,34 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.inject.InvokePointBuilder;
+import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
-
+import org.apache.cassandra.exceptions.InvalidRequestException;
 /**
  * Tests that {@code ALLOW FILTERING} is required only if needed.
  */
 public class AllowFilteringTest extends SAITester
 {
+    @BeforeClass
+    public static void setup()
+    {
+        StorageService.instance.unsafeSetInitialized();
+        CQLTester.disableCoordinatorExecution();
+    }
+
     @Test
     public void testAllowFilteringOnFirstClusteringKeyColumn() throws Throwable
     {
@@ -296,6 +310,91 @@ public class AllowFilteringTest extends SAITester
         test("SELECT * FROM %s WHERE v1=0 AND v2=0 AND k1=0 AND k2=0 AND (c1, c2, c3, c4) = (0, 0, 0, 0) AND v3=0", true);
     }
 
+    @Test
+    public void testAllowFilteringTextWithINClause ()
+    {
+        createTable("CREATE TABLE %S (k1 TEXT, k2 TEXT, k3 TEXT, PRIMARY KEY(k1))");
+        createIndex("CREATE INDEX ON %s(K2) USING 'sai'");
+
+        execute("INSERT INTO %s (k1,k2,k3) VALUES ('s1','s11','s111')");
+        execute("INSERT INTO %s (k1,k2,k3) VALUES ('s2','s11','s11')");
+        execute("INSERT INTO %s (k1,k2,k3) VALUES ('s3','s22','s111')");
+        execute("INSERT INTO %s (k1,k2,k3) VALUES ('s4','s22','s111')");
+        execute("INSERT INTO %s (k1,k2,k3) VALUES ('s5','s31','s111')");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k2='s11' AND k3 IN ('s11','s111') ALLOW FILTERING"),2);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2='s22' AND k3 IN ('s111','s111') ALLOW FILTERING"), 2);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2='s22' AND k3 IN ('s','s1') ALLOW FILTERING"), 0);
+        // To test if an IN clause without an AND condition does not create a query plan and works as expected.
+        assertRowCount(execute("SELECT * FROM %s WHERE k2 IN ('s11','s22') ALLOW FILTERING"), 4);
+
+    }
+
+    @Test
+    public void testAllowFilteringIntWithINClause ()
+    {
+        createTable("CREATE TABLE %S (k1 text, k2 int, k3 int, PRIMARY KEY(k1))");
+        createIndex("CREATE INDEX ON %s(K2) USING 'sai'");
+
+        execute("insert into %s (k1,k2,k3) values ('s1',11,1)");
+        execute("insert into %s (k1,k2,k3) values ('s2',11,11)");
+        execute("insert into %s (k1,k2,k3) values ('s3',11,111)");
+        execute("insert into %s (k1,k2,k3) values ('s4',22,1)");
+        execute("insert into %s (k1,k2,k3) values ('s5',22,11)");
+        execute("insert into %s (k1,k2,k3) values ('s6',22,111)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=11 AND k3 IN (1,11,111) ALLOW FILTERING"),3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=22 AND k3 IN (1,11,111) ALLOW FILTERING"),3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=22 AND k3 IN (101,102) ALLOW FILTERING"),0);
+        // To test if an IN clause without an AND condition does not create a query plan and works as expected.
+        assertRowCount(execute("SELECT * FROM %s WHERE k2 IN (11,22) ALLOW FILTERING"), 6);
+
+    }
+
+    @Test
+    public void testAllowFilteringBigIntWithINClause ()
+    {
+            createTable("CREATE TABLE %S (k1 text, k2 bigint, k3 bigint, PRIMARY KEY(k1))");
+            createIndex("CREATE INDEX ON %s(K2) USING 'sai'");
+
+            execute("insert into %s (k1, k2, k3) values ('s1', 1001, 100)");
+            execute("insert into %s (k1, k2, k3) values ('s2', 1001, 200)");
+            execute("insert into %s (k1, k2, k3) values ('s3', 1001, 300)");
+            execute("insert into %s (k1, k2, k3) values ('s4', 2002, 100)");
+            execute("insert into %s (k1, k2, k3) values ('s5', 2002, 200)");
+            execute("insert into %s (k1, k2, k3) values ('s6', 2002, 300)");
+
+            assertRowCount(execute("SELECT * FROM %s WHERE k2=1001 AND k3 IN (100, 200, 300) ALLOW FILTERING"), 3);
+            assertRowCount(execute("SELECT * FROM %s WHERE k2=2002 AND k3 IN (100, 200, 300) ALLOW FILTERING"), 3);
+            assertRowCount(execute("SELECT * FROM %s WHERE k2=2002 AND k3 IN (101, 201, 301) ALLOW FILTERING"), 0);
+        // To test if an IN clause without an AND condition does not create a query plan and works as expected.
+            assertRowCount(execute("SELECT * FROM %s WHERE k2 IN (1001,2002) ALLOW FILTERING"), 6);
+
+    }
+
+    @Test
+    public void testAllowFilteringBigDecimalWithINClause()
+    {
+        createTable("CREATE TABLE %S (k1 text, k2 decimal, k3 decimal, PRIMARY KEY(k1))");
+        createIndex("CREATE INDEX ON %s(K2) USING 'sai'");
+
+        execute("insert into %s (k1, k2, k3) values ('s1', 1.1, 1.11)");
+        execute("insert into %s (k1, k2, k3) values ('s2', 1.1, 1.12)");
+        execute("insert into %s (k1, k2, k3) values ('s3', 1.1, 1.13)");
+        execute("insert into %s (k1, k2, k3) values ('s4', 2.2, 1.11)");
+        execute("insert into %s (k1, k2, k3) values ('s5', 2.2, 1.12)");
+        execute("insert into %s (k1, k2, k3) values ('s6', 2.2, 1.13)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=1.1 AND k3 IN (1.11, 1.12, 1.13) ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=2.2 AND k3 IN (1.11, 1.12, 1.13) ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=2.2 AND k3 IN (1.21, 1.22, 1.13) ALLOW FILTERING"), 1);
+        assertRowCount(execute("SELECT * FROM %s WHERE k2=2.2 AND k3 IN (1.21, 1.22, 1.23) ALLOW FILTERING"), 0);
+        // To test if an IN clause without an AND condition does not create a query plan and works as expected.
+        assertRowCount(execute("SELECT * FROM %s WHERE k2 IN (1.1,2.2) ALLOW FILTERING"), 6);
+    }
+
+
+
     private void test(String query, boolean requiresAllowFiltering) throws Throwable
     {
         if (requiresAllowFiltering)
@@ -305,4 +404,112 @@ public class AllowFilteringTest extends SAITester
 
         assertNotNull(execute(query + " ALLOW FILTERING"));
     }
+
+    private static final Injections.Barrier blockIndexBuild = Injections.newBarrier("block_index_build", 2, false)
+                                                                        .add(InvokePointBuilder.newInvokePoint()
+                                                                        .onClass(StorageAttachedIndex.class)
+                                                                        .onMethod("startInitialBuild"))
+                                                                        .build();
+
+    @Test
+    public void testAllowFilteringDuringIndexBuild() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        Injections.inject(blockIndexBuild);
+        String idx = createIndexAsync(String.format("CREATE CUSTOM INDEX ON %%s(v) USING '%s'", StorageAttachedIndex.class.getName()));
+
+        String expectedErrorMessage = String.format(IndexBuildInProgressException.INDEX_BUILD_IN_PROGRESS_ERROR, idx);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v=0"))
+                .hasMessage(expectedErrorMessage)
+                .isInstanceOf(IndexBuildInProgressException.class);
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v=0 ALLOW FILTERING"))
+                .hasMessage(expectedErrorMessage)
+                .isInstanceOf(IndexBuildInProgressException.class);
+
+        blockIndexBuild.countDown();
+        blockIndexBuild.disable();
+        waitForIndexQueryable(idx);
+        execute("SELECT * FROM %s WHERE v=0");
+        execute("SELECT * FROM %s WHERE v=0 ALLOW FILTERING");
+    }
+
+    @Test
+    public void testAllowFilteringWithLikePrefixPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'f%%' ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'ca%%' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'f%%'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeSuffixPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%o' ALLOW FILTERING"), 3);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%c' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%c'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeContainsPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ar%%' ALLOW FILTERING"), 1);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ca%%' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE '%%ca%%'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void testAllowFilteringWithLikeMatchesPostFiltering()
+    {
+        createTable("CREATE TABLE %S (k1 int, k2 text, k3 int, PRIMARY KEY (k1))");
+        createIndex("CREATE INDEX ON %s(k3) USING 'sai'");
+        
+        execute("insert into %s (k1, k2, k3) values (1, 'fo', 1)");
+        execute("insert into %s (k1, k2, k3) values (2, 'foo', 2)");
+        execute("insert into %s (k1, k2, k3) values (3, 'fo', 3)");
+        execute("insert into %s (k1, k2, k3) values (4, 'ba', 4)");
+        execute("insert into %s (k1, k2, k3) values (5, 'bar', 5)");
+
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'foo' ALLOW FILTERING"), 1);
+        assertRowCount(execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'baar' ALLOW FILTERING"), 0);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE k3 > 0 AND k2 LIKE 'baar'"))
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+
+
 }

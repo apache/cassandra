@@ -77,7 +77,7 @@ public class ExtendedAssertions
             isNotNull();
             Snapshot snapshot = actual.getSnapshot();
             if (snapshot.getMax() != expected)
-                throw failure("Expected max %d but given %d", expected, actual.getCount());
+                throw failure("Expected max %d but given %d", expected, snapshot.getMax());
             return this;
         }
     }

@@ -42,13 +42,15 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Sortable;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_DYNAMIC_SNITCH_SEVERITY;
 
 /**
  * A dynamic snitch that sorts endpoints by latency with an adapted phi failure detector
+ * // TODO rename to DynamicNodeProximity or similar - but take care with jmx interface
  */
-public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements LatencySubscribers.Subscriber, DynamicEndpointSnitchMBean
+public class DynamicEndpointSnitch implements NodeProximity, LatencySubscribers.Subscriber, DynamicEndpointSnitchMBean
 {
     private static final boolean USE_SEVERITY = !IGNORE_DYNAMIC_SNITCH_SEVERITY.getBoolean();
 
@@ -69,7 +71,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     private volatile HashMap<InetAddressAndPort, Double> scores = new HashMap<>();
     private final ConcurrentHashMap<InetAddressAndPort, ExponentiallyDecayingReservoir> samples = new ConcurrentHashMap<>();
 
-    public final IEndpointSnitch subsnitch;
+    public final NodeProximity delegate;
 
     private volatile ScheduledFuture<?> updateSchedular;
     private volatile ScheduledFuture<?> resetSchedular;
@@ -77,33 +79,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     private final Runnable update;
     private final Runnable reset;
 
-    public DynamicEndpointSnitch(IEndpointSnitch snitch)
+    public DynamicEndpointSnitch(NodeProximity delegate)
     {
-        this(snitch, null);
+        this(delegate, null);
     }
 
-    public DynamicEndpointSnitch(IEndpointSnitch snitch, String instance)
+    public DynamicEndpointSnitch(NodeProximity delegate, String instance)
     {
         mbeanName = "org.apache.cassandra.db:type=DynamicEndpointSnitch";
         if (instance != null)
             mbeanName += ",instance=" + instance;
-        subsnitch = snitch;
-        update = new Runnable()
-        {
-            public void run()
-            {
-                updateScores();
-            }
-        };
-        reset = new Runnable()
-        {
-            public void run()
-            {
-                // we do this so that a host considered bad has a chance to recover, otherwise would we never try
-                // to read from it, which would cause its score to never change
-                reset();
-            }
-        };
+        this.delegate = delegate;
+        update = this::updateScores;
+        // we do this so that a host considered bad has a chance to recover, otherwise would we never try
+        // to read from it, which would cause its score to never change
+        reset = this::reset;
 
         if (DatabaseDescriptor.isDaemonInitialized())
         {
@@ -156,22 +146,6 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     }
 
     @Override
-    public void gossiperStarting()
-    {
-        subsnitch.gossiperStarting();
-    }
-
-    public String getRack(InetAddressAndPort endpoint)
-    {
-        return subsnitch.getRack(endpoint);
-    }
-
-    public String getDatacenter(InetAddressAndPort endpoint)
-    {
-        return subsnitch.getDatacenter(endpoint);
-    }
-
-    @Override
     public <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C unsortedAddresses)
     {
         assert address.equals(FBUtilities.getBroadcastAddressAndPort()); // we only know about ourself
@@ -196,11 +170,14 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
             return replicas;
 
         // TODO: avoid copy
-        replicas = subsnitch.sortedByProximity(address, replicas);
-        HashMap<InetAddressAndPort, Double> scores = this.scores; // Make sure the score don't change in the middle of the loop below
-                                                           // (which wouldn't really matter here but its cleaner that way).
-        ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(replicas.size());
-        for (Replica replica : replicas)
+        replicas = delegate.sortedByProximity(address, replicas);
+        return shouldSortByScore(scores, replicas) ? sortedByProximityWithScore(address, replicas) : replicas;
+    }
+
+    private <C extends Sortable<? extends Endpoint, ? extends C>> boolean shouldSortByScore(HashMap<InetAddressAndPort, Double> scores, C sortedReplicas)
+    {
+        ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(sortedReplicas.size());
+        for (Endpoint replica : sortedReplicas)
         {
             Double score = scores.get(replica.endpoint());
             if (score == null)
@@ -220,12 +197,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         for (Double subsnitchScore : subsnitchOrderedScores)
         {
             if (subsnitchScore > (sortedScoreIterator.next() * badnessThreshold))
-            {
-                return sortedByProximityWithScore(address, replicas);
-            }
+                return true;
         }
 
-        return replicas;
+        return false;
     }
 
     private static double defaultStore(InetAddressAndPort target)
@@ -235,6 +210,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     // Compare endpoints given an immutable snapshot of the scores
     private int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2, Map<InetAddressAndPort, Double> scores)
+    {
+        return compareEndpoints(a1, a2, scores, (a, b) -> delegate.compareEndpoints(target, a, b));
+    }
+
+    private <T extends Endpoint> int compareEndpoints(T a1, T a2, Map<InetAddressAndPort, Double> scores, Comparator<T> subCompare)
     {
         Double scored1 = scores.get(a1.endpoint());
         Double scored2 = scores.get(a2.endpoint());
@@ -250,7 +230,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         }
 
         if (scored1.equals(scored2))
-            return subsnitch.compareEndpoints(target, a1, a2);
+            return subCompare.compare(a1, a2);
         if (scored1 < scored2)
             return -1;
         else
@@ -353,7 +333,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public String getSubsnitchClassName()
     {
-        return subsnitch.getClass().getName();
+        Class<?> clazz = delegate.getClass();
+        if (delegate instanceof SnitchAdapter)
+            clazz = ((SnitchAdapter)delegate).snitch.getClass();
+        return clazz.getName();
     }
 
     public List<Double> dumpTimings(String hostname) throws UnknownHostException
@@ -401,7 +384,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
     {
-        if (!subsnitch.isWorthMergingForRangeQuery(merged, l1, l2))
+        if (!delegate.isWorthMergingForRangeQuery(merged, l1, l2))
             return false;
 
         // skip checking scores in the single-node case
@@ -434,8 +417,25 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return maxScore;
     }
 
-    public boolean validate(Set<String> datacenters, Set<String> racks)
+    @Override
+    public boolean supportCompareByEndpoint()
     {
-        return subsnitch.validate(datacenters, racks);
+        return delegate.supportCompareByEndpoint();
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        if (!delegate.supportCompareByEndpoint())
+            throw new UnsupportedOperationException();
+        assert address.equals(FBUtilities.getBroadcastAddressAndPort()); // we only know about ourself
+        Comparator<Endpoint> compare = delegate.endpointComparator(address, addresses);
+        if (addresses.size() < 2)
+            return compare;
+        HashMap<InetAddressAndPort, Double> scores = this.scores;
+        Comparator<Endpoint> compareWithScore = (r1, r2) -> compareEndpoints(r1, r2, scores, compare);
+        return dynamicBadnessThreshold == 0 || shouldSortByScore(scores, addresses.sorted(compare)) ?
+               compareWithScore :
+               compare;
     }
 }

@@ -28,7 +28,7 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.utils.Crc.*;
 
 /**
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.

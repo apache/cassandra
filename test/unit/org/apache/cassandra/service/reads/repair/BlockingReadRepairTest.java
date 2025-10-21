@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -53,7 +54,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(Util.dk("not a real usable value"), repairs, writePlan);
+            super(ReadCoordinator.DEFAULT, Util.dk("not a real usable value"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -70,9 +71,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
-    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
+    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite forReadRepair)
     {
-        return new InstrumentedReadRepairHandler(repairs, writePlan);
+        return new InstrumentedReadRepairHandler(repairs, forReadRepair);
     }
 
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs)
@@ -86,7 +87,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();

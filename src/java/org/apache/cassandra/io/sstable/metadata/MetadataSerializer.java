@@ -229,7 +229,7 @@ public class MetadataSerializer implements IMetadataSerializer
     @Override
     public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
     {
-        if (logger.isTraceEnabled() )
+        if (logger.isTraceEnabled())
             logger.trace("Mutating {} to {}", descriptor.fileFor(Components.STATS), description);
 
         mutate(descriptor, transform);

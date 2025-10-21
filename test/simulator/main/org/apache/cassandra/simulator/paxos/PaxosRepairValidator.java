@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.paxos;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.RepairValidator;
+import org.apache.cassandra.simulator.cluster.OnInstanceRepair.RepairType;
 import org.apache.cassandra.simulator.cluster.Topology;
 
 import static java.util.Arrays.stream;
@@ -45,12 +46,12 @@ public class PaxosRepairValidator implements RepairValidator
     }
 
     @Override
-    public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos)
+    public void before(Topology topology, RepairType repairType)
     {
-        if (repairOnlyPaxos)
+        if (repairType == RepairType.PAXOS_FULL)
             return;
 
-        this.isPaxos = isPaxos;
+        this.isPaxos = repairType.repairPaxos;
         this.topology = topology;
         this.ballotsBefore = Ballots.read(REQUIRED, cluster, keyspace, table, topology.primaryKeys, topology.replicasForKeys, false);
     }

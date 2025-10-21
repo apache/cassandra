@@ -22,7 +22,6 @@ import os
 import errno
 import stat
 
-from datetime import timedelta, tzinfo
 from io import StringIO
 
 try:
@@ -30,42 +29,6 @@ try:
     HAS_LINE_PROFILER = True
 except ImportError:
     HAS_LINE_PROFILER = False
-
-ZERO = timedelta(0)
-
-
-class UTC(tzinfo):
-    """UTC"""
-
-    def utcoffset(self, dt):
-        return ZERO
-
-    def tzname(self, dt):
-        return "UTC"
-
-    def dst(self, dt):
-        return ZERO
-
-
-def split_list(items, pred):
-    """
-    Split up a list (or other iterable) on the elements which satisfy the
-    given predicate 'pred'. Elements for which 'pred' returns true start a new
-    sublist for subsequent elements, which will accumulate in the new sublist
-    until the next satisfying element.
-
-    >>> split_list([0, 1, 2, 5, 99, 8], lambda n: (n % 2) == 0)
-    [[0], [1, 2], [5, 99, 8], []]
-    """
-
-    thisresult = []
-    results = [thisresult]
-    for i in items:
-        thisresult.append(i)
-        if pred(i):
-            thisresult = []
-            results.append(thisresult)
-    return results
 
 
 def find_common_prefix(strs):
@@ -108,21 +71,18 @@ def identity(x):
     return x
 
 
-def trim_if_present(s, prefix):
-    if s.startswith(prefix):
-        return s[len(prefix):]
-    return s
-
-
 def is_file_secure(filename):
     try:
         st = os.stat(filename)
+        uid = os.getuid()
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise
         # the file doesn't exist, the security of it is irrelevant
         return True
-    uid = os.getuid()
+    except AttributeError as e:
+        # not-Unix os
+        return True
 
     # Skip enforcing the file owner and UID matching for the root user (uid == 0).
     # This is to allow "sudo cqlsh" to work with user owned credentials file.

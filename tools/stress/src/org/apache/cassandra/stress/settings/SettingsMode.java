@@ -36,6 +36,7 @@ import org.apache.cassandra.stress.util.ResultLogger;
 import static java.lang.String.format;
 import static org.apache.cassandra.stress.settings.SettingsCredentials.CQL_PASSWORD_PROPERTY_KEY;
 import static org.apache.cassandra.stress.settings.SettingsCredentials.CQL_USERNAME_PROPERTY_KEY;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class SettingsMode implements Serializable
 {
@@ -79,7 +80,7 @@ public class SettingsMode implements Serializable
                     : ProtocolVersion.fromInt(Integer.parseInt(opts.protocolVersion.value()));
             api = ConnectionAPI.JAVA_DRIVER_NATIVE;
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL : ConnectionStyle.CQL_PREPARED;
-            compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
+            compression = ProtocolOptions.Compression.valueOf(toUpperCaseLocalized(opts.useCompression.value())).name();
             username = opts.user.setByUser() ? opts.user.value() : credentials.cqlUsername;
             password = opts.password.setByUser() ? opts.password.value() : credentials.cqlPassword;
             maxPendingPerConnection = opts.maxPendingPerConnection.value().isEmpty() ? null : Integer.valueOf(opts.maxPendingPerConnection.value());

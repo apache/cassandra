@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
@@ -32,6 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -311,10 +313,15 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             assertEquals(ImmutableMap.of(), row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance));
         }
         assertEquals(1, rowCount);
+        Keyspace.all().forEach(ks -> {
+            ks.getColumnFamilyStores().forEach(cfs -> {
+                cfs.disableAutoCompaction();
+                CompactionManager.instance.waitForCessation(Collections.singleton(cfs), (sstable) -> true);
+            });
+        });
 
         //Test nulls/missing don't prevent the row from propagating
         execute(String.format("TRUNCATE %s", table));
-        
         execute(String.format("INSERT INTO %s (id) VALUES (?)", table), compactionId);
         SystemKeyspaceMigrator41.migrateCompactionHistory();
 

@@ -23,18 +23,16 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 
 public abstract class AbstractCompactionTask extends WrappedRunnable
 {
     protected final ColumnFamilyStore cfs;
-    protected LifecycleTransaction transaction;
+    protected ILifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
 
@@ -42,18 +40,30 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
      * @param cfs
      * @param transaction the modifying managing the status of the sstables we're replacing
      */
-    public AbstractCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction)
+    public AbstractCompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction transaction)
     {
         this.cfs = cfs;
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
-        // enforce contract that caller should mark sstables compacting
-        Set<SSTableReader> compacting = transaction.tracker.getCompacting();
-        for (SSTableReader sstable : transaction.originals())
-            assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
 
-        validateSSTables(transaction.originals());
+        try
+        {
+            if (!transaction.isOffline())
+            {
+                // enforce contract that caller should mark sstables compacting
+                Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
+                for (SSTableReader sstable : transaction.originals())
+                    assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
+            }
+
+            validateSSTables(transaction.originals());
+        }
+        catch (Throwable err)
+        {
+            rejected();
+            throw err;
+        }
     }
 
     /**
@@ -61,7 +71,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
      */
     private void validateSSTables(Set<SSTableReader> sstables)
     {
-        // do not allow  to be compacted together
+        // do not allow sstables in different repair states to be compacted together
         if (!sstables.isEmpty())
         {
             Iterator<SSTableReader> iter = sstables.iterator();
@@ -93,11 +103,11 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     /**
      * executes the task and unmarks sstables compacting
      */
-    public int execute(ActiveCompactionsTracker activeCompactions)
+    public void execute(ActiveCompactionsTracker activeCompactions)
     {
         try
         {
-            return executeInternal(activeCompactions);
+            executeInternal(activeCompactions);
         }
         catch(FSDiskFullWriteError e)
         {
@@ -107,12 +117,21 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         }
         finally
         {
-            transaction.close();
+            cleanup();
         }
     }
-    public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
 
-    protected abstract int executeInternal(ActiveCompactionsTracker activeCompactions);
+    protected void cleanup()
+    {
+        transaction.close();
+    }
+
+    public void rejected()
+    {
+        cleanup();
+    }
+
+    protected abstract void executeInternal(ActiveCompactionsTracker activeCompactions);
 
     public AbstractCompactionTask setUserDefined(boolean isUserDefined)
     {

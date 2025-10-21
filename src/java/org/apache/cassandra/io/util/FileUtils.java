@@ -21,10 +21,6 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
@@ -44,10 +40,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,9 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -78,40 +70,6 @@ public final class FileUtils
     public static final long ONE_TIB = 1024 * ONE_GIB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
-
-    private static final Class clsDirectBuffer;
-    private static final MethodHandle mhDirectBufferCleaner;
-    private static final MethodHandle mhCleanerClean;
-
-    static
-    {
-        try
-        {
-            clsDirectBuffer = Class.forName("sun.nio.ch.DirectBuffer");
-            Method mDirectBufferCleaner = clsDirectBuffer.getMethod("cleaner");
-            mhDirectBufferCleaner = MethodHandles.lookup().unreflect(mDirectBufferCleaner);
-            Method mCleanerClean = mDirectBufferCleaner.getReturnType().getMethod("clean");
-            mhCleanerClean = MethodHandles.lookup().unreflect(mCleanerClean);
-
-            ByteBuffer buf = ByteBuffer.allocateDirect(1);
-            clean(buf);
-        }
-        catch (IllegalAccessException e)
-        {
-            logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
-                "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
-                "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
-                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options", e);
-            throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
-        }
-        catch (Throwable t)
-        {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator.", t);
-            JVMStabilityInspector.inspectThrowable(t);
-            throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
-        }
-    }
 
     private static final File tempDir = new File(JAVA_IO_TMPDIR.getString());
     private static final AtomicLong tempFileNum = new AtomicLong();
@@ -171,7 +129,7 @@ public final class FileUtils
     public static void createHardLink(File from, File to)
     {
         if (to.exists())
-            throw new RuntimeException("Tried to create duplicate hard link to " + to);
+            throw new DuplicateHardlinkException("Tried to create duplicate hard link from " + from + " to " + to);
         if (!from.exists())
             throw new RuntimeException("Tried to hard link to file that does not exist " + from);
 
@@ -200,6 +158,10 @@ public final class FileUtils
         {
             throw ex;
         }
+        catch (DuplicateHardlinkException ex)
+        {
+            throw new RuntimeException(ex.getMessage());
+        }
         catch (Throwable t)
         {
             throw new RuntimeException(String.format("Unable to hardlink from %s to %s", from, to), t);
@@ -220,7 +182,7 @@ public final class FileUtils
         catch (FSWriteError fse)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not hardlink file " + from + " to " + to, fse);
+                logger.trace("Could not hardlink file {} to {}", from, to, fse);
         }
     }
 
@@ -238,7 +200,7 @@ public final class FileUtils
         catch (IOException e)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not copy file" + from + " to " + to, e);
+                logger.trace("Could not copy file {} to {}", from, to, e);
         }
     }
 
@@ -359,34 +321,6 @@ public final class FileUtils
         return folder.isAncestorOf(file);
     }
 
-    public static void clean(ByteBuffer buffer)
-    {
-        if (buffer == null || !buffer.isDirect())
-            return;
-
-        // TODO Once we can get rid of Java 8, it's simpler to call sun.misc.Unsafe.invokeCleaner(ByteBuffer),
-        // but need to take care of the attachment handling (i.e. whether 'buf' is a duplicate or slice) - that
-        // is different in sun.misc.Unsafe.invokeCleaner and this implementation.
-
-        try
-        {
-            Object cleaner = mhDirectBufferCleaner.bindTo(buffer).invoke();
-            if (cleaner != null)
-            {
-                // ((DirectBuffer) buf).cleaner().clean();
-                mhCleanerClean.bindTo(cleaner).invoke();
-            }
-        }
-        catch (RuntimeException e)
-        {
-            throw e;
-        }
-        catch (Throwable e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static long parseFileSize(String value)
     {
         long result;
@@ -426,6 +360,14 @@ public final class FileUtils
         }
     }
 
+    public static String stringifyFileSize(long bytes, boolean humanReadable)
+    {
+        if (humanReadable)
+            return stringifyFileSize(bytes);
+        else
+            return Long.toString(bytes);
+    }
+
     public static String stringifyFileSize(double value)
     {
         double d;
@@ -458,21 +400,6 @@ public final class FileUtils
             String val = df.format(value);
             return val + " bytes";
         }
-    }
-
-    public static void handleCorruptSSTable(CorruptSSTableException e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleCorruptSSTable(e));
-    }
-
-    public static void handleFSError(FSError e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
-    }
-
-    public static void handleStartupFSError(Throwable t)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleStartupFSError(t));
     }
 
     /**
@@ -616,11 +543,6 @@ public final class FileUtils
 
             throw new RuntimeException(ex);
         }
-    }
-
-    public static void setFSErrorHandler(FSErrorHandler handler)
-    {
-        fsErrorHandler.getAndSet(Optional.ofNullable(handler));
     }
 
     /** @deprecated See CASSANDRA-16926 */
@@ -833,6 +755,14 @@ public final class FileUtils
         finally
         {
             f.tryDelete();
+        }
+    }
+
+    public static class DuplicateHardlinkException extends RuntimeException
+    {
+        public DuplicateHardlinkException(String message)
+        {
+            super(message);
         }
     }
 }

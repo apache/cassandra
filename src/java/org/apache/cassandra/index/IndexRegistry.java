@@ -22,6 +22,7 @@ package org.apache.cassandra.index;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -33,8 +34,9 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -57,7 +59,7 @@ import org.apache.cassandra.service.ClientState;
  * i) subscribe to the stream of updates being applied to partitions in the base table
  * ii) provide searchers to support queries with the relevant search predicates
  */
-public interface IndexRegistry
+public interface IndexRegistry extends Iterable<Index>
 {
     /**
      * An empty {@code IndexRegistry}
@@ -93,7 +95,13 @@ public interface IndexRegistry
         }
 
         @Override
-        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        public Index getIndexByName(String indexName)
+        {
+            return null;
+        }
+
+        @Override
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints indexHints)
         {
             return Optional.empty();
         }
@@ -249,7 +257,7 @@ public interface IndexRegistry
 
             @Nullable
             @Override
-            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
+            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn, TableMetadata tableMetadata)
             {
                 return null;
             }
@@ -278,6 +286,12 @@ public interface IndexRegistry
         }
 
         @Override
+        public Index getIndexByName(String indexName)
+        {
+            return index;
+        }
+
+        @Override
         public Collection<Index> listIndexes()
         {
             return Collections.singletonList(index);
@@ -290,7 +304,7 @@ public interface IndexRegistry
         }
 
         @Override
-        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints indexHints)
         {
             return Optional.empty();
         }
@@ -313,9 +327,19 @@ public interface IndexRegistry
     Collection<Index.Group> listIndexGroups();
 
     Index getIndex(IndexMetadata indexMetadata);
+
+    @Nullable
+    Index getIndexByName(String indexName);
+
     Collection<Index> listIndexes();
 
-    Optional<Index> getBestIndexFor(RowFilter.Expression expression);
+    @Override
+    default Iterator<Index> iterator()
+    {
+        return listIndexes().iterator();
+    }
+
+    Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints hints);
 
     /**
      * Called at write time to ensure that values present in the update

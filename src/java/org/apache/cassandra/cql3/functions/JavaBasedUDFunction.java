@@ -243,7 +243,8 @@ public final class JavaBasedUDFunction extends UDFunction
 
         String javaSource = javaSourceBuilder.toString();
 
-        logger.trace("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
+        if (logger.isTraceEnabled())
+            logger.trace("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
 
         try
         {

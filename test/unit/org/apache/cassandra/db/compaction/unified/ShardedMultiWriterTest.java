@@ -38,7 +38,6 @@ public class ShardedMultiWriterTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        CQLTester.setUpClass();
         StorageService.instance.initServer();
     }
 

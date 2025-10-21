@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "statusgossip", description = "Status of gossip")
-public class StatusGossip extends NodeToolCmd
+public class StatusGossip extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

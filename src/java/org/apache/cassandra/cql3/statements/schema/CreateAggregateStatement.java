@@ -36,6 +36,8 @@ import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UserFunction;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -44,6 +46,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -89,7 +92,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         if (ifNotExists && orReplace)
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
@@ -105,6 +109,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         if (!rawStateType.isImplicitlyFrozen() && rawStateType.isFrozen())
             throw ire("State type '%s' cannot be frozen; remove frozen<> modifier from '%s'", rawStateType, rawStateType);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
@@ -161,7 +166,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         ByteBuffer initialValue = null;
         if (null != rawInitialValue)
         {
-            initialValue = Terms.asBytes(keyspaceName, rawInitialValue.toString(), stateType);
+            String term = rawInitialValue.toString();
+            initialValue = Term.asBytes(keyspaceName, term, stateType);
 
             if (null != initialValue)
             {
@@ -177,7 +183,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
 
             // Converts initcond to a CQL literal and parse it back to avoid another CASSANDRA-11064
             String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue);
-            if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(keyspaceName, initialValueString)))
+            if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(initialValueString)))
                 throw new AssertionError(String.format("CQL literal '%s' (from type %s) parsed with a different value", initialValueString, stateType.asCQL3Type()));
 
             if (Constants.NULL_LITERAL != rawInitialValue && isNullOrEmpty(stateType, initialValue))

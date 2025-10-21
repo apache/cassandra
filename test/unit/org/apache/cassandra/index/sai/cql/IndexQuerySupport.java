@@ -49,9 +49,9 @@ import static org.junit.Assert.assertThat;
 
 /**
  * A CQL-based test framework for simulating queries across as much of the index state space as possible.
- *
+ * <p>
  * This includes, but need not be limited to...
- *
+ * <p>
  * 1.) ...queries on the same data as it migrates through the write path and storage engine.
  * 2.) ...queries across all supported native data types.
  * 3.) ...queries for all supported operators and value boundaries.
@@ -59,7 +59,7 @@ import static org.junit.Assert.assertThat;
  * 5.) ...queries across varying primary key and table structures.
  * 6.) ...queries across static, normal, and clustering column types.
  * 7.) ...queries across various paging and limit settings.
- *
+ * <p>
  * IMPORTANT: This class is shared between the single-node SAITester based classes and the
  * multi-node distributed classes. It must not reference SAITester or CQLTester directly
  * to avoid static loading and initialisation.
@@ -73,6 +73,14 @@ public class IndexQuerySupport
                                                                               new BaseQuerySet(24, 10),
                                                                               new BaseQuerySet(24, 100),
                                                                               new BaseQuerySet(24, Integer.MAX_VALUE));
+
+    public static final List<BaseQuerySet> COMPOUND_KEY_QUERY_SETS = ImmutableList.of(new CompoundKeyQuerySet(10, 5),
+                                                                                      new CompoundKeyQuerySet(10, 9),
+                                                                                      new CompoundKeyQuerySet(10, 10),
+                                                                                      new CompoundKeyQuerySet(10, Integer.MAX_VALUE),
+                                                                                      new CompoundKeyQuerySet(24, 10),
+                                                                                      new CompoundKeyQuerySet(24, 100),
+                                                                                      new CompoundKeyQuerySet(24, Integer.MAX_VALUE));
 
     public static final List<BaseQuerySet> COMPOSITE_PARTITION_QUERY_SETS = ImmutableList.of(new CompositePartitionQuerySet(10, 5),
                                                                                              new CompositePartitionQuerySet(10, 10),
@@ -231,6 +239,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.STATIC_INT_COLUMN, Operator.GT, 1910);
 
             rangeQuery(tester, model, BaseDataModel.STATIC_INT_COLUMN, 1845, 1909);
+            betweenQuery(tester, model, BaseDataModel.STATIC_INT_COLUMN, 1845, 1909);
         }
     }
 
@@ -241,6 +250,7 @@ public class IndexQuerySupport
             super(limit, fetchSize);
         }
 
+        @Override
         public void execute(BaseDataModel.Executor tester, BaseDataModel model) throws Throwable
         {
             super.execute(tester, model);
@@ -262,7 +272,7 @@ public class IndexQuerySupport
             List<List<Operator>> combinations = Lists.cartesianProduct(numericOperators, numericOperators).stream()
                                                      .filter(p-> p.get(0) != Operator.EQ || p.get(1) != Operator.EQ) //If both are EQ the entire partition is specified
                                                      .collect(Collectors.toList());
-            for(List<Operator> operators : combinations)
+            for (List<Operator> operators : combinations)
             {
                 andQuery(tester,
                          model,
@@ -270,6 +280,39 @@ public class IndexQuerySupport
                          secondPartitionKey, operators.get(1), 2,
                          false);
             }
+        }
+    }
+
+    static class CompoundKeyQuerySet extends BaseQuerySet
+    {
+        CompoundKeyQuerySet(int limit, int fetchSize)
+        {
+            super(limit, fetchSize);
+        }
+
+        @Override
+        public void execute(BaseDataModel.Executor tester, BaseDataModel model) throws Throwable
+        {
+            super.execute(tester, model);
+
+            int middle = BaseDataModel.CompoundKeyDataModel.ROWS_PER_PARTITION / 2;
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.EQ, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.LT, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.LTE, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.GT, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.GTE, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.EQ, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.LT, middle);
+            query(tester, model, BaseDataModel.CLUSTERING_COLUMN, Operator.GT, middle);
+
+            rangeQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, 2977853, 6784240);
+            betweenQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, 2977853, 6784240);
+
+            rangeQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, 0, middle);
+            betweenQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, 0, middle);
+
+            rangeQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, middle, 10000);
+            betweenQuery(tester, model, BaseDataModel.CLUSTERING_COLUMN, middle, 10000);
         }
     }
 
@@ -301,6 +344,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.BIGINT_COLUMN, Operator.GT, 10000000000L);
 
             rangeQuery(tester, model, BaseDataModel.BIGINT_COLUMN, 3000000000L, 7000000000L);
+            betweenQuery(tester, model, BaseDataModel.BIGINT_COLUMN, 3000000000L, 7000000000L);
 
             query(tester, model, BaseDataModel.DATE_COLUMN, Operator.EQ, SimpleDateType.instance.fromString("2013-06-10"));
             query(tester, model, BaseDataModel.DATE_COLUMN, Operator.EQ, SimpleDateType.instance.fromString("2013-06-17"));
@@ -313,6 +357,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.DATE_COLUMN, Operator.GT, SimpleDateType.instance.fromString("2020-01-01"));
 
             rangeQuery(tester, model, BaseDataModel.DATE_COLUMN, SimpleDateType.instance.fromString("2013-06-17"), SimpleDateType.instance.fromString("2018-06-19"));
+            betweenQuery(tester, model, BaseDataModel.DATE_COLUMN, SimpleDateType.instance.fromString("2013-06-17"), SimpleDateType.instance.fromString("2018-06-19"));
 
             query(tester, model, BaseDataModel.DOUBLE_COLUMN, Operator.EQ, 43203.90);
             query(tester, model, BaseDataModel.DOUBLE_COLUMN, Operator.EQ, 7800.06);
@@ -325,6 +370,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.DOUBLE_COLUMN, Operator.GT, 570640.95);
 
             rangeQuery(tester, model, BaseDataModel.DOUBLE_COLUMN, 56538.90, 113594.08);
+            betweenQuery(tester, model, BaseDataModel.DOUBLE_COLUMN, 56538.90, 113594.08);
 
             query(tester, model, BaseDataModel.FLOAT_COLUMN, Operator.EQ, 10.2f);
             query(tester, model, BaseDataModel.FLOAT_COLUMN, Operator.EQ, 1.9f);
@@ -337,6 +383,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.FLOAT_COLUMN, Operator.GT, 10.2f);
 
             rangeQuery(tester, model, BaseDataModel.FLOAT_COLUMN, 4.6f, 6.7f);
+            betweenQuery(tester, model, BaseDataModel.FLOAT_COLUMN, 4.6f, 6.7f);
 
             query(tester, model, BaseDataModel.INET_COLUMN, Operator.EQ, InetAddressType.instance.fromString("170.63.206.57"));
             query(tester, model, BaseDataModel.INET_COLUMN, Operator.EQ, InetAddressType.instance.fromString("170.63.206.56"));
@@ -345,6 +392,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.INET_COLUMN, Operator.EQ, InetAddressType.instance.fromString("204.196.242.71"));
 
             rangeQuery(tester, model, BaseDataModel.INT_COLUMN, 2977853, 6784240);
+            betweenQuery(tester, model, BaseDataModel.INT_COLUMN, 2977853, 6784240);
 
             query(tester, model, BaseDataModel.SMALLINT_COLUMN, Operator.EQ, (short) 164);
             query(tester, model, BaseDataModel.SMALLINT_COLUMN, Operator.LT, (short) 164);
@@ -356,6 +404,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.SMALLINT_COLUMN, Operator.GT, (short) 1861);
 
             rangeQuery(tester, model, BaseDataModel.SMALLINT_COLUMN, (short) 126, (short) 383);
+            betweenQuery(tester, model, BaseDataModel.SMALLINT_COLUMN, (short) 126, (short) 383);
 
             query(tester, model, BaseDataModel.TINYINT_COLUMN, Operator.EQ, (byte) 16);
             query(tester, model, BaseDataModel.TINYINT_COLUMN, Operator.LT, (byte) 16);
@@ -367,6 +416,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.TINYINT_COLUMN, Operator.GT, (byte) 117);
 
             rangeQuery(tester, model, BaseDataModel.TINYINT_COLUMN, (byte) 12, (byte) 47);
+            betweenQuery(tester, model, BaseDataModel.TINYINT_COLUMN, (byte) 12, (byte) 47);
 
             query(tester, model, BaseDataModel.TEXT_COLUMN, Operator.EQ, "Alaska");
             query(tester, model, BaseDataModel.TEXT_COLUMN, Operator.EQ, "Wyoming");
@@ -386,6 +436,7 @@ public class IndexQuerySupport
             query(tester, model, BaseDataModel.TIME_COLUMN, Operator.GT, TimeType.instance.fromString("01:30:45"));
 
             rangeQuery(tester, model, BaseDataModel.TIME_COLUMN, TimeType.instance.fromString("00:38:13"), TimeType.instance.fromString("00:56:07"));
+            betweenQuery(tester, model, BaseDataModel.TIME_COLUMN, TimeType.instance.fromString("00:38:13"), TimeType.instance.fromString("00:56:07"));
 
             query(tester, model, BaseDataModel.TIMESTAMP_COLUMN, Operator.EQ, TimestampType.instance.fromString("2013-06-17T00:00:00"));
             query(tester, model, BaseDataModel.TIMESTAMP_COLUMN, Operator.LT, TimestampType.instance.fromString("2013-06-17T00:00:00"));
@@ -399,6 +450,9 @@ public class IndexQuerySupport
             rangeQuery(tester, model, BaseDataModel.TIMESTAMP_COLUMN,
                        TimestampType.instance.fromString("2013-6-17T00:00:00"),
                        TimestampType.instance.fromString("2018-6-19T00:00:00"));
+            betweenQuery(tester, model, BaseDataModel.TIMESTAMP_COLUMN,
+                         TimestampType.instance.fromString("2013-6-17T00:00:00"),
+                         TimestampType.instance.fromString("2018-6-19T00:00:00"));
 
             query(tester, model, BaseDataModel.UUID_COLUMN, Operator.EQ, UUIDType.instance.fromString("e37394dc-d17b-11e8-a8d5-f2801f1b9fd1"));
             query(tester, model, BaseDataModel.UUID_COLUMN, Operator.EQ, UUIDType.instance.fromString("752355f8-405b-4d94-88f3-9992cda30f1e"));
@@ -471,17 +525,17 @@ public class IndexQuerySupport
                 andQuery(tester, model,
                          BaseDataModel.BIGINT_COLUMN, Operator.EQ, 4800000000L,
                          secondPrimaryKey, Operator.EQ, 0,
-                         hasSimplePartitionKey);
+                         false);
 
                 andQuery(tester, model,
                          BaseDataModel.DOUBLE_COLUMN, Operator.EQ, 82169.60,
                          secondPrimaryKey, Operator.GT, 0,
-                         hasSimplePartitionKey);
+                         false);
 
                 andQuery(tester, model,
                          BaseDataModel.DOUBLE_COLUMN, Operator.LT, 1948.54,
                          secondPrimaryKey, Operator.LTE, 2,
-                         hasSimplePartitionKey);
+                         false);
 
                 andQuery(tester, model,
                          BaseDataModel.TEXT_COLUMN, Operator.EQ, "Alaska",
@@ -532,10 +586,21 @@ public class IndexQuerySupport
             validate(tester, model, query, filtering, value1, value2, value3, limit);
         }
 
+        void rangeQuery(String template, BaseDataModel.Executor tester, BaseDataModel model,
+                        String column, Object value1, Object value2)
+        {
+            String query = String.format(template, BaseDataModel.ASCII_COLUMN, column);
+            validate(tester, model, query, false, value1, value2, limit);
+        }
+
         void rangeQuery(BaseDataModel.Executor tester, BaseDataModel model, String column, Object value1, Object value2)
         {
-            String query = String.format(BaseDataModel.RANGE_QUERY_TEMPLATE, BaseDataModel.ASCII_COLUMN, column);
-            validate(tester, model, query, false, value1, value2, limit);
+            rangeQuery(BaseDataModel.RANGE_QUERY_TEMPLATE, tester, model, column, value1, value2);
+        }
+
+        void betweenQuery(BaseDataModel.Executor tester, BaseDataModel model, String column, Object value1, Object value2)
+        {
+            rangeQuery(BaseDataModel.BETWEEN_QUERY_TEMPLATE, tester, model, column, value1, value2);
         }
 
         private void validate(BaseDataModel.Executor tester, BaseDataModel model, String query, boolean needsAllowFiltering, Object... values)

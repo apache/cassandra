@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -41,6 +40,7 @@ import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -60,8 +60,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     public static final String CUSTOM_MULTIPLE_COLUMNS = "Only CUSTOM indexes support multiple columns";
     public static final String DUPLICATE_TARGET_COLUMN = "Duplicate column '%s' in index target list";
     public static final String COLUMN_DOES_NOT_EXIST = "Column '%s' doesn't exist";
-    public static final String INVALID_CUSTOM_INDEX_TARGET = "Column '%s' is longer than the permissible name length of %d characters or" +
-                                                             " contains non-alphanumeric-underscore characters";
+    public static final String INVALID_CHARS_CUSTOM_INDEX_TARGET = "Column '%s' contains non-alphanumeric-underscore characters";
+    public static final String TOO_LONG_CUSTOM_INDEX_TARGET = "Column '%s' is longer than the permissible name length of %d characters";
     public static final String COLLECTIONS_WITH_DURATIONS_NOT_SUPPORTED = "Secondary indexes are not supported on collections containing durations";
     public static final String TUPLES_WITH_DURATIONS_NOT_SUPPORTED = "Secondary indexes are not supported on tuples containing durations";
     public static final String DURATIONS_NOT_SUPPORTED = "Secondary indexes are not supported on duration columns";
@@ -86,6 +86,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     private final List<IndexTarget.Raw> rawIndexTargets;
     private final IndexAttributes attrs;
     private final boolean ifNotExists;
+    private String expandedCql;
 
     private ClientState state;
 
@@ -105,6 +106,14 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     }
 
     @Override
+    public String cql()
+    {
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
+    }
+
+    @Override
     public void validate(ClientState state)
     {
         super.validate(state);
@@ -113,7 +122,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
@@ -122,6 +132,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()) && !DatabaseDescriptor.getSASIIndexesEnabled())
             throw new InvalidRequestException(SASI_INDEX_DISABLED);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire(KEYSPACE_DOES_NOT_EXIST, keyspaceName);
@@ -144,7 +155,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire(MATERIALIZED_VIEWS_NOT_SUPPORTED);
 
-        if (Keyspace.open(table.keyspace).getReplicationStrategy().hasTransientReplicas())
+        if (keyspace.replicationStrategy.hasTransientReplicas())
             throw new InvalidRequestException(TRANSIENTLY_REPLICATED_KEYSPACE_NOT_SUPPORTED);
 
         // guardrails to limit number of secondary indexes per table.
@@ -191,6 +202,9 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire(INDEX_DUPLICATE_OF_EXISTING, index.name, equalIndex.name);
         }
 
+        expandedCql = index.toCqlString(table, ifNotExists);
+        verifyExpandedCql(expandedCql);
+
         TableMetadata newTable = table.withSwapped(table.indexes.with(index));
         newTable.validate();
 
@@ -206,6 +220,14 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return ImmutableSet.of();
     }
 
+    private void validateCustomIndexColumnName(String name)
+    {
+        if (!SchemaConstants.isValidCharsName(name))
+            throw ire(INVALID_CHARS_CUSTOM_INDEX_TARGET, name);
+        if (name.length() > SchemaConstants.NAME_LENGTH)
+            throw ire(TOO_LONG_CUSTOM_INDEX_TARGET, name, SchemaConstants.NAME_LENGTH);
+    }
+
     private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target)
     {
         ColumnMetadata column = table.getColumn(target.column);
@@ -215,8 +237,9 @@ public final class CreateIndexStatement extends AlterSchemaStatement
 
         AbstractType<?> baseType = column.type.unwrap();
 
-        if ((kind == IndexMetadata.Kind.CUSTOM) && !SchemaConstants.isValidName(target.column.toString()))
-            throw ire(INVALID_CUSTOM_INDEX_TARGET, target.column, SchemaConstants.NAME_LENGTH);
+        // TODO: this check needs to be removed with CASSANDRA-20235
+        if ((kind == IndexMetadata.Kind.CUSTOM))
+            validateCustomIndexColumnName(target.column.toString());
 
         if (column.type.referencesDuration())
         {

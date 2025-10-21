@@ -18,15 +18,38 @@
 
 package org.apache.cassandra.distributed.api;
 
+import org.apache.cassandra.distributed.shared.FutureUtils;
+
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.Future;
-
-import org.apache.cassandra.distributed.shared.FutureUtils;
+import java.util.function.BiConsumer;
 
 // The cross-version API requires that a Coordinator can be constructed without any constructor arguments
 public interface ICoordinator
 {
+    int RETRIES = 10;
+
+    default Object[][] executeWithRetries(String query, ConsistencyLevel consistencyLevel, Object... boundValues)
+    {
+        for (int i = 0; i < RETRIES; i++)
+        {
+            {
+                try
+                {
+                    return executeWithResult(query, consistencyLevel, boundValues).toObjectArrays();
+                }
+                catch (Throwable t)
+                {
+                    if (t.getClass().getName().contains("Timeout"))
+                        continue;
+                    throw t;
+                }
+            }
+        }
+        throw new IllegalStateException(String.format("Did not suceed with query after %d retries", RETRIES));
+    }
+
     default Object[][] execute(String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {
         return executeWithResult(query, consistencyLevel, boundValues).toObjectArrays();
@@ -38,6 +61,8 @@ public interface ICoordinator
     }
 
     SimpleQueryResult executeWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues);
 
     default SimpleQueryResult executeWithResult(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
     {
@@ -57,6 +82,7 @@ public interface ICoordinator
     }
 
     Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<SimpleQueryResult> asyncExecuteWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues);
 
     default Object[][] executeWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {

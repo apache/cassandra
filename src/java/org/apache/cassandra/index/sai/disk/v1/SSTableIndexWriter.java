@@ -101,6 +101,18 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     }
 
     @Override
+    public void onSSTableWriterSwitched(Stopwatch stopwatch) throws IOException
+    {
+        if (maybeAbort())
+            return;
+
+        boolean emptySegment = currentBuilder == null || currentBuilder.isEmpty();
+        logger.debug(index.identifier().logMessage("Flushing index with {}buffered data on SSTable writer switched..."), emptySegment ? "no " : "");
+        if (!emptySegment)
+            flushSegment();
+    }
+
+    @Override
     public void complete(Stopwatch stopwatch) throws IOException
     {
         if (maybeAbort())
@@ -152,7 +164,12 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         aborted = true;
 
-        logger.warn(index.identifier().logMessage("Aborting SSTable index flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+        String message = index.identifier().logMessage("Aborting SSTable index flush for {}...");
+
+        if (cause == null)
+            logger.debug(message, indexDescriptor.sstableDescriptor);
+        else 
+            logger.warn(message, indexDescriptor.sstableDescriptor, cause);
 
         // It's possible for the current builder to be unassigned after we flush a final segment.
         if (currentBuilder != null)
@@ -201,7 +218,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         }
 
         // Some types support empty byte buffers:
-        if (term.remaining() == 0 && !index.termType().indexType().allowsEmpty()) return;
+        if (term.remaining() == 0 && index.termType().skipsEmptyValue()) return;
 
         if (analyzer == null || !index.termType().isLiteral())
         {

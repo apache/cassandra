@@ -277,9 +277,11 @@ public class RepairedDataVerifierTest
     {
         StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
         {
-            super(isDigest,
+            super(metadata.epoch,
+                  isDigest,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),

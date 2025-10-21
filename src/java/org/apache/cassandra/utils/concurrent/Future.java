@@ -27,6 +27,8 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
+import accord.api.AsyncExecutor;
+import accord.utils.async.AsyncResult;
 import io.netty.util.concurrent.GenericFutureListener;
 
 import io.netty.util.internal.PlatformDependent;
@@ -40,8 +42,8 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * A Future that integrates several different (but equivalent) APIs used within Cassandra into a single concept,
  * integrating also with our {@link Awaitable} abstraction, to overall improve coherency and clarity in the codebase.
  */
-@Shared(scope = SIMULATION, ancestors = INTERFACES)
-public interface Future<V> extends io.netty.util.concurrent.Future<V>, ListenableFuture<V>, Awaitable
+@Shared(scope = SIMULATION, ancestors = INTERFACES, members = INTERFACES)
+public interface Future<V> extends io.netty.util.concurrent.Future<V>, ListenableFuture<V>, Awaitable, AsyncResult<V>
 {
     /**
      * Wait indefinitely for this future to complete, throwing any interrupt
@@ -123,6 +125,8 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
         return awaitUninterruptibly(l, MILLISECONDS);
     }
 
+    default Future<V> invoke(BiConsumer<? super V, Throwable> callback) { return addCallback(callback); }
+
     /**
      * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
      */
@@ -158,7 +162,12 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
      */
     default <T> Future<T> map(Function<? super V, ? extends T> mapper)
     {
-        return map(mapper, null);
+        return map(mapper, (Executor) null);
+    }
+
+    default <T> AsyncResult<T> map(Function<? super V, ? extends T> mapper, AsyncExecutor executor)
+    {
+        return map(mapper, (Executor) executor);
     }
 
     /**
@@ -169,15 +178,30 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      */
-    default <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper)
+    default <T> Future<T> flatMap(Function<? super V, ? extends AsyncResult<T>> flatMapper)
     {
-        return flatMap(flatMapper, null);
+        return flatMap(flatMapper, (Executor) null);
+    }
+
+    default <T> AsyncResult<T> flatMap(Function<? super V, ? extends AsyncResult<T>> flatMapper, AsyncExecutor executor)
+    {
+        return flatMap(flatMapper, (Executor) executor);
     }
 
     /**
      * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
      */
-    <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, Executor executor);
+    <T> Future<T> flatMap(Function<? super V, ? extends AsyncResult<T>> flatMapper, Executor executor);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, Executor executor);
 
     /**
      * Invoke {@code runnable} on completion, using {@code executor}.

@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -24,11 +27,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.Function;
@@ -36,22 +39,47 @@ import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.schema.Tables.TablesDiff;
 import org.apache.cassandra.schema.Types.TypesDiff;
 import org.apache.cassandra.schema.Views.ViewsDiff;
-import org.apache.cassandra.service.StorageService;
-
-import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.any;
+import static java.lang.String.format;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
  */
 public final class KeyspaceMetadata implements SchemaElement
 {
+    public static final Serializer serializer = new Serializer();
+
+    /**
+     * Validates the keyspace name for valid characters and correct length.
+     * Throws an exception if it's invalid.
+     *
+     * @param keyspaceName     The name of the keyspace to validate
+     * @param exceptionBuilder The exception constructor to throw if validation fails
+     */
+    public static <T extends RequestValidationException> void validateKeyspaceName(String keyspaceName, java.util.function.Function<String, T> exceptionBuilder)
+    {
+        if (!SchemaConstants.isValidCharsName(keyspaceName))
+            throw exceptionBuilder.apply(format("Keyspace name must not be empty and must contain alphanumeric or underscore characters only (got \"%s\")",
+                                                keyspaceName));
+        if (keyspaceName.length() > SchemaConstants.NAME_LENGTH)
+            throw exceptionBuilder.apply(format("Keyspace name must not be more than %d characters long (got %d characters for \"%s\")",
+                                                SchemaConstants.NAME_LENGTH, keyspaceName.length(), keyspaceName));
+    }
+
     public enum Kind
     {
         REGULAR, VIRTUAL
@@ -59,21 +87,29 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public final String name;
     public final Kind kind;
+    public final AbstractReplicationStrategy replicationStrategy;
     public final KeyspaceParams params;
     public final Tables tables;
     public final Views views;
     public final Types types;
     public final UserFunctions userFunctions;
 
-    private KeyspaceMetadata(String name, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
+    private KeyspaceMetadata(String keyspaceName, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
     {
-        this.name = name;
+        this.name = keyspaceName;
         this.kind = kind;
         this.params = params;
         this.tables = tables;
         this.views = views;
         this.types = types;
         this.userFunctions = functions;
+        this.replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(keyspaceName, params.replication);
+    }
+
+    @VisibleForTesting
+    public static KeyspaceMetadata createUnsafe(String keyspaceName, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
+    {
+        return new KeyspaceMetadata(keyspaceName, kind, params, tables, views, types, functions);
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
@@ -192,17 +228,47 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public String findAvailableIndexName(String baseName)
     {
-        if (!hasIndex(baseName))
+        return findAvailableIndexName(baseName, Collections.emptySet(), this);
+    }
+
+    /**
+     * find an available index name based on the indexes in target keyspace and indexes collections
+     * @param baseName the base name of index
+     * @param indexes find out whether there is any conflict with baseName in the indexes
+     * @param keyspaceMetadata find out whether there is any conflict with baseName in keyspaceMetadata
+     * */
+    public String findAvailableIndexName(String baseName, Collection<IndexMetadata> indexes, KeyspaceMetadata keyspaceMetadata)
+    {
+        if (!hasIndex(baseName, indexes, keyspaceMetadata))
             return baseName;
 
-        int i = 1;
         do
         {
-            String name = baseName + '_' + i++;
-            if (!hasIndex(name))
+            String name = generateIndexName(baseName);
+            if (!hasIndex(name, indexes, keyspaceMetadata))
                 return name;
+            baseName = name;
         }
         while (true);
+    }
+
+    private String generateIndexName(String baseName)
+    {
+        if (baseName.matches(".*_\\d+$"))
+        {
+            int lastUnderscoreIndex = baseName.lastIndexOf('_');
+            String numberStr = baseName.substring(lastUnderscoreIndex + 1);
+            int number = Integer.parseInt(numberStr) + 1;
+            return baseName.substring(0, lastUnderscoreIndex + 1) + number;
+        }
+
+        return baseName + "_1";
+    }
+
+    private boolean hasIndex(String baseName, Collection<IndexMetadata> indexes, KeyspaceMetadata keyspaceMetadata)
+    {
+        return any(indexes, t -> t.name.equals(baseName)) ||
+               any(keyspaceMetadata.tables, t -> t.indexes.has(baseName));
     }
 
     public Optional<TableMetadata> findIndexedTable(String indexName)
@@ -210,6 +276,15 @@ public final class KeyspaceMetadata implements SchemaElement
         for (TableMetadata table : tablesAndViews())
             if (table.indexes.has(indexName))
                 return Optional.of(table);
+
+        return Optional.empty();
+    }
+
+    public Optional<TableMetadata> getIndexMetadata(String indexName)
+    {
+        TableMetadata metadata = tables.indexTables().get(indexName);
+        if (metadata != null)
+            return Optional.of(metadata);
 
         return Optional.empty();
     }
@@ -273,10 +348,10 @@ public final class KeyspaceMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        if (isVirtual())
+        if (isVirtual() && withWarnings)
         {
             builder.append("/*")
                    .newLine()
@@ -308,25 +383,24 @@ public final class KeyspaceMetadata implements SchemaElement
             params.replication.appendCqlTo(builder);
 
             builder.append("  AND durable_writes = ")
-                   .append(params.durableWrites)
-                   .append(';')
-                   .toString();
+                   .append(params.durableWrites);
+
+            if (params.fastPath != null)
+            {
+                builder.append("  AND fast_path = '")
+                       .append(toLowerCaseLocalized(params.fastPath.toString()))
+                       .append("'");
+            }
+
+            builder.append(';');
         }
         return builder.toString();
     }
 
-    public void validate()
+    public void validate(ClusterMetadata metadata)
     {
-        if (!SchemaConstants.isValidName(name))
-        {
-            throw new ConfigurationException(format("Keyspace name must not be empty, more than %s characters long, "
-                                                    + "or contain non-alphanumeric-underscore characters (got \"%s\")",
-                                                    SchemaConstants.NAME_LENGTH,
-                                                    name));
-        }
-
-        params.validate(name, null);
-
+        validateKeyspaceName(name, ConfigurationException::new);
+        params.validate(name, null, metadata);
         tablesAndViews().forEach(TableMetadata::validate);
 
         Set<String> indexNames = new HashSet<>();
@@ -340,15 +414,6 @@ public final class KeyspaceMetadata implements SchemaElement
                 indexNames.add(index.name);
             }
         }
-    }
-
-    public AbstractReplicationStrategy createReplicationStrategy()
-    {
-        return AbstractReplicationStrategy.createReplicationStrategy(name,
-                                                                     params.replication.klass,
-                                                                     StorageService.instance.getTokenMetadata(),
-                                                                     DatabaseDescriptor.getEndpointSnitch(),
-                                                                     params.replication.options);
     }
 
     static Optional<KeyspaceDiff> diff(KeyspaceMetadata before, KeyspaceMetadata after)
@@ -426,6 +491,40 @@ public final class KeyspaceMetadata implements SchemaElement
                    ", udfs=" + udfs +
                    ", udas=" + udas +
                    '}';
+        }
+    }
+
+    public static class Serializer implements MetadataSerializer<KeyspaceMetadata>
+    {
+        public void serialize(KeyspaceMetadata t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.name);
+            Types.serializer.serialize(t.types, out, version);
+            KeyspaceParams.serializer.serialize(t.params, out, version);
+            UserFunctions.serializer.serialize(t.userFunctions, out, version);
+            Tables.serializer.serialize(t.tables, out, version);
+            Views.serializer.serialize(t.views, out, version);
+        }
+
+        public KeyspaceMetadata deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            String name = in.readUTF();
+            Types types = Types.serializer.deserialize(name, in, version);
+            KeyspaceParams params = KeyspaceParams.serializer.deserialize(in, version);
+            UserFunctions functions = UserFunctions.serializer.deserialize(in, types, version);
+            Tables tables = Tables.serializer.deserialize(in, types, functions, version);
+            Views views = Views.serializer.deserialize(in, types, functions, version);
+            return KeyspaceMetadata.create(name, params, tables, views, types, functions);
+        }
+
+        public long serializedSize(KeyspaceMetadata t, Version version)
+        {
+            return sizeof(t.name)
+                   + Types.serializer.serializedSize(t.types, version)
+                   + KeyspaceParams.serializer.serializedSize(t.params, version)
+                   + UserFunctions.serializer.serializedSize(t.userFunctions, version)
+                   + Tables.serializer.serializedSize(t.tables, version)
+                   + Views.serializer.serializedSize(t.views, version);
         }
     }
 }

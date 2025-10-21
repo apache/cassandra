@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 

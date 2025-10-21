@@ -29,32 +29,50 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.repair.consistent.LocalSessionInfo;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
 import org.apache.cassandra.repair.consistent.admin.RepairStats;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import org.apache.cassandra.utils.FBUtilities;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 /**
  * Supports listing and failing incremental repair sessions
  */
-public abstract class RepairAdmin extends NodeTool.NodeToolCmd
+@Command(name = "repair_admin",
+         description = "list and fail incremental repair sessions",
+         subcommands = {RepairAdmin.ListCmd.class,
+                        RepairAdmin.SummarizePendingCmd.class,
+                        RepairAdmin.SummarizeRepairedCmd.class,
+                        RepairAdmin.CleanupDataCmd.class,
+                        RepairAdmin.CancelCmd.class})
+public class RepairAdmin extends AbstractCommand
 {
-    @Command(name = "list", description = "list repair sessions")
-    public static class ListCmd extends RepairAdmin
+    @Override
+    protected void execute(NodeProbe probe)
     {
-        @Option(title = "all", name = {"-a", "--all"}, description = "include completed and failed sessions")
+        AbstractCommand cmd = new ListCmd();
+        cmd.probe(probe);
+        cmd.logger(output);
+        cmd.run();
+    }
+
+    @Command(name = "list", description = "list repair sessions")
+    public static class ListCmd extends AbstractCommand
+    {
+        @Option(paramLabel = "all", names = { "-a", "--all" }, description = "include completed and failed sessions")
         private boolean all;
 
-        @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
+        @Option(paramLabel = "start_token", names = { "-st", "--start-token" }, description = "Use -st to specify a token at which the repair range starts")
         private String startToken = StringUtils.EMPTY;
 
-        @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
+        @Option(paramLabel = "end_token", names = { "-et", "--end-token" }, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
         protected void execute(NodeProbe probe)
@@ -93,22 +111,29 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
     }
     @Command(name = "summarize-pending", description = "report the amount of data marked pending repair for the given token " +
                                                        "range (or all replicated range if no tokens are provided")
-    public static class SummarizePendingCmd extends RepairAdmin
+    public static class SummarizePendingCmd extends AbstractCommand
     {
-        @Option(title = "verbose", name = {"-v", "--verbose"}, description = "print additional info ")
+        @Option(paramLabel = "verbose", names = { "-v", "--verbose" }, description = "print additional info ")
         private boolean verbose;
 
-        @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
+        @Option(paramLabel = "start_token", names = { "-st", "--start-token" }, description = "Use -st to specify a token at which the repair range starts")
         private String startToken = StringUtils.EMPTY;
 
-        @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
+        @Option(paramLabel = "end_token", names = { "-et", "--end-token" }, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
+
+        @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+        private String keyspace;
+
+        @Parameters(index = "1..*", description = "The tables", arity = "0..*")
+        private List<String> tables;
 
         protected void execute(NodeProbe probe)
         {
+            schemaArgs = concatArgs(keyspace, tables);
             List<CompositeData> cds = probe.getRepairServiceProxy().getPendingStats(schemaArgs, getRangeString(startToken, endToken));
             List<PendingStats> stats = new ArrayList<>(cds.size());
             cds.forEach(cd -> stats.add(PendingStats.fromComposite(cd)));
@@ -152,22 +177,29 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
 
     @Command(name = "summarize-repaired", description = "return the most recent repairedAt timestamp for the given token range " +
                                                         "(or all replicated ranges if no tokens are provided)")
-    public static class SummarizeRepairedCmd extends RepairAdmin
+    public static class SummarizeRepairedCmd extends AbstractCommand
     {
-        @Option(title = "verbose", name = {"-v", "--verbose"}, description = "print additional info ")
+        @Option(paramLabel = "verbose", names = {"-v", "--verbose"}, description = "print additional info ")
         private boolean verbose = false;
 
-        @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
+        @Option(paramLabel = "start_token", names = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
         private String startToken = StringUtils.EMPTY;
 
-        @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
+        @Option(paramLabel = "end_token", names = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
+
+        @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+        private String keyspace;
+
+        @Parameters(index = "1..*", description = "The tables", arity = "0..*")
+        private List<String> tables;
 
         protected void execute(NodeProbe probe)
         {
+            schemaArgs = concatArgs(keyspace, tables);
             PrintStream out = probe.output().out;
             List<CompositeData> compositeData = probe.getRepairServiceProxy().getRepairStats(schemaArgs, getRangeString(startToken, endToken));
 
@@ -216,22 +248,29 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
                                              "This happens automatically, but the command is provided " +
                                              "for situations where it needs to be expedited." +
                                             " Use --force to cancel compactions that are preventing promotion")
-    public static class CleanupDataCmd extends RepairAdmin
+    public static class CleanupDataCmd extends AbstractCommand
     {
-        @Option(title = "force", name = {"-f", "--force"}, description = "Force a cleanup.")
+        @Option(paramLabel = "force", names = { "-f", "--force" }, description = "Force a cleanup.")
         private boolean force = false;
 
-        @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
+        @Option(paramLabel = "start_token", names = { "-st", "--start-token" }, description = "Use -st to specify a token at which the repair range starts")
         private String startToken = StringUtils.EMPTY;
 
-        @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
+        @Option(paramLabel = "end_token", names = { "-et", "--end-token" }, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
+
+        @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+        private String keyspace;
+
+        @Parameters(index = "1..*", description = "The tables", arity = "0..*")
+        private List<String> tables;
 
         protected void execute(NodeProbe probe)
         {
+            schemaArgs = concatArgs(keyspace, tables);
             PrintStream out = probe.output().out;
             out.println("Cleaning up data from completed sessions...");
             List<CompositeData> compositeData = probe.getRepairServiceProxy().cleanupPending(schemaArgs, getRangeString(startToken, endToken), force);
@@ -273,12 +312,12 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
     @Command(name = "cancel", description = "cancel an incremental repair session." +
                                             " Use --force to cancel from a node other than the repair coordinator" +
                                             " Attempting to cancel FINALIZED or FAILED sessions is an error.")
-    public static class CancelCmd extends RepairAdmin
+    public static class CancelCmd extends AbstractCommand
     {
-        @Option(title = "force", name = {"-f", "--force"}, description = "Force a cancellation.")
+        @Option(paramLabel = "force", names = { "-f", "--force" }, description = "Force a cancellation.")
         private boolean force = false;
 
-        @Option(title = "session", name = {"-s", "--session"}, description = "The session to cancel", required = true)
+        @Option(paramLabel = "session", names = { "-s", "--session" }, description = "The session to cancel", required = true)
         private String sessionToCancel;
 
         protected void execute(NodeProbe probe)

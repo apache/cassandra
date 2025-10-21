@@ -30,9 +30,11 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
+import org.apache.cassandra.index.sai.plan.QueryViewBuilder;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -51,22 +53,39 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 
     /**
      * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
-     * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex} and the {@link SSTableIndex}es.
+     * results of searching the {@link QueryViewBuilder.QueryExpressionView}.
+     */
+    public static IndexSearchResultIterator build(QueryViewBuilder.QueryExpressionView queryView,
+                                                  AbstractBounds<PartitionPosition> keyRange,
+                                                  QueryContext queryContext,
+                                                  boolean includeMemtables,
+                                                  Runnable onClose)
+    {
+        return build(queryView.expression, queryView.memtableIndexes, queryView.sstableIndexes, keyRange, queryContext, includeMemtables, onClose);
+    }
+
+    /**
+     * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
+     * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex}es and the {@link SSTableIndex}es.
      */
     public static IndexSearchResultIterator build(Expression expression,
+                                                  Collection<MemtableIndex> memtableIndexes,
                                                   Collection<SSTableIndex> sstableIndexes,
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext queryContext,
                                                   boolean includeMemtables,
                                                   Runnable onClose)
     {
-        List<KeyRangeIterator> subIterators = new ArrayList<>(sstableIndexes.size() + (includeMemtables ? 1 : 0));
+        int size = sstableIndexes.size() + (includeMemtables ? memtableIndexes.size() : 0);
+        List<KeyRangeIterator> subIterators = new ArrayList<>(size);
 
         if (includeMemtables)
         {
-            KeyRangeIterator memtableIterator = expression.getIndex().memtableIndexManager().searchMemtableIndexes(queryContext, expression, keyRange);
-            if (memtableIterator != null)
+            for (MemtableIndex memtableIndex : memtableIndexes)
+            {
+                KeyRangeIterator memtableIterator = memtableIndex.search(queryContext, expression, keyRange);
                 subIterators.add(memtableIterator);
+            }
         }
 
         for (SSTableIndex sstableIndex : sstableIndexes)
@@ -98,7 +117,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     }
 
     public static IndexSearchResultIterator build(List<KeyRangeIterator> sstableIntersections,
-                                                  KeyRangeIterator memtableResults,
+                                                  List<KeyRangeIterator> memtableResults,
                                                   Set<SSTableIndex> referencedIndexes,
                                                   QueryContext queryContext,
                                                   Runnable onClose)

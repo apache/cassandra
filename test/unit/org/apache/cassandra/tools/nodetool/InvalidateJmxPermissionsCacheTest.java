@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Set;
 import javax.security.auth.Subject;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,6 +43,9 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolePermissionsReadCount;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @see InvalidateJmxPermissionsCache
+ */
 public class InvalidateJmxPermissionsCacheTest extends CQLTester
 {
     private static final AuthorizationProxy authorizationProxy = new AuthTestUtils.NoAuthSetupAuthorizationProxy();
@@ -49,74 +53,26 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-
-        JMXResource rootJmxResource = JMXResource.root();
-        Set<Permission> jmxPermissions = rootJmxResource.applicablePermissions();
-
-        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_A);
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_B);
-
         AuthCacheService.initializeAndRegisterCaches();
-
         requireNetwork();
         startJMXServer();
     }
 
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
+    @Before
+    public void grantInitialPermissions()
     {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "invalidatejmxpermissionscache");
-        tool.assertOnCleanExit();
-
-        String help =   "NAME\n" +
-                        "        nodetool invalidatejmxpermissionscache - Invalidate the JMX permissions\n" +
-                        "        cache\n" +
-                        "\n" +
-                        "SYNOPSIS\n" +
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                        "                [(-u <username> | --username <username>)] invalidatejmxpermissionscache\n" +
-                        "                [--] [<role>...]\n" +
-                        "\n" +
-                        "OPTIONS\n" +
-                        "        -h <host>, --host <host>\n" +
-                        "            Node hostname or ip address\n" +
-                        "\n" +
-                        "        -p <port>, --port <port>\n" +
-                        "            Remote jmx agent port number\n" +
-                        "\n" +
-                        "        -pp, --print-port\n" +
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                        "\n" +
-                        "        -pw <password>, --password <password>\n" +
-                        "            Remote jmx agent password\n" +
-                        "\n" +
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                        "            Path to the JMX password file\n" +
-                        "\n" +
-                        "        -u <username>, --username <username>\n" +
-                        "            Remote jmx agent username\n" +
-                        "\n" +
-                        "        --\n" +
-                        "            This option can be used to separate command-line options from the\n" +
-                        "            list of argument, (useful when arguments might be mistaken for\n" +
-                        "            command-line options\n" +
-                        "\n" +
-                        "        [<role>...]\n" +
-                        "            List of roles to invalidate. By default, all roles\n" +
-                        "\n" +
-                        "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
+        // Because we reset the CMS in CQLTester::afterTest, the per-test keyspaces created in CQLTester::beforeTest
+        // get dropped and re-created for every individual test. This means we need to recreate the perms here (we
+        // could markCMS() after granting the first time and add a flag to avoid re-granting but this is simpler).
+        JMXResource rootJmxResource = JMXResource.root();
+        Set<Permission> jmxPermissions = rootJmxResource.applicablePermissions();
+        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_A);
+        authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_B);
     }
 
     @Test

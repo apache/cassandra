@@ -190,4 +190,11 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
             }
         }
     }
+
+    /**
+     * @return a Clustering with the same values but using an implementation
+     *  which supports ValueAccessor.factory() logic
+     */
+
+    Clustering<?> ensureAccessorFactorySupport();
 }

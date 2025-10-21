@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -92,6 +93,21 @@ public final class Properties
      */
     public static Map<String, Property> flatten(Loader loader, Map<String, Property> input, String delimiter)
     {
+        return flatten(loader, input, delimiter, false);
+    }
+
+    /**
+     * Given a map of Properties, takes any "nested" property (non primitive, value-type, or collection), and
+     * expands them, producing 1 or more Properties.
+     *
+     * @param loader for mapping type to map of properties
+     * @param input map to flatten
+     * @param delimiter for joining names
+     * @param withInnerProperties also adds intermediate properties among flattened ones.
+     * @return map of all flattened properties
+     */
+    public static Map<String, Property> flatten(Loader loader, Map<String, Property> input, String delimiter, boolean withInnerProperties)
+    {
         Queue<Property> queue = new ArrayDeque<>(input.values());
 
         Map<String, Property> output = Maps.newHashMapWithExpectedSize(input.size());
@@ -106,6 +122,9 @@ public final class Properties
             }
             else
             {
+                if (withInnerProperties)
+                    output.put(prop.getName(), prop);
+
                 children.values().stream().map(p -> andThen(prop, p, delimiter)).forEach(queue::add);
             }
         }
@@ -191,6 +210,26 @@ public final class Properties
                     e.addSuppressed(new RuntimeException("Error calling get() on " + this));
                 throw e;
             }
+        }
+
+        /**
+         * If there is a hierarchy of settings, like
+         * </p>
+         * {@code a.b.c.{d,e,f,g,h}}
+         * </p>
+         * and we put e.g. {@link Redacted} on {@code c},
+         * then all {@code d,e,f,g,h} will be redacted as well automatically.
+         * This is handy for cases when we want to redact whole family of properties by one shot.
+         *
+         * @param aClass annotation to get
+         * @return found annotation of given type on root or on leaf, null when not present.
+         * @param <A> type of annotation
+         */
+        @Override
+        public <A extends Annotation> A getAnnotation(Class<A> aClass)
+        {
+            A annotation = root.getAnnotation(aClass);
+            return annotation != null ? annotation : leaf.getAnnotation(aClass);
         }
     }
 }

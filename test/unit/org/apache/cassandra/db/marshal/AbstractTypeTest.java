@@ -21,6 +21,7 @@ package org.apache.cassandra.db.marshal;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -70,10 +71,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -111,6 +112,7 @@ import org.apache.cassandra.utils.asserts.SoftAssertionsWithLimit;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.api.SoftAssertions;
 import org.assertj.core.description.Description;
 import org.quicktheories.core.Gen;
@@ -233,6 +235,8 @@ public class AbstractTypeTest
                 continue;
             if (isTestType(klass))
                 continue;
+            if (isPrefixCompositeType(klass))
+                continue;
             String name = klass.getCanonicalName();
             if (name == null)
                 name = klass.getName();
@@ -240,6 +244,77 @@ public class AbstractTypeTest
         }
         if (sb.length() > 0)
             throw new AssertionError("Uncovered types:\n" + sb);
+    }
+
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void meaninglessEmptyness()
+    {
+        // this test just makes sure that all types are covered and no new type is left out
+        Set<Class<? extends AbstractType>> subTypes = reflections.getSubTypesOf(AbstractType.class);
+        for (var klass : subTypes)
+        {
+            if (Modifier.isAbstract(klass.getModifiers()))
+                continue;
+            if (isTestType(klass))
+                continue;
+            if (isPrefixCompositeType(klass))
+                continue;
+            AbstractType<?> type = null;
+            for (var f : klass.getDeclaredFields())
+            {
+                if (!(Modifier.isPublic(f.getModifiers()) && Modifier.isStatic(f.getModifiers())))
+                    continue;
+                if (AbstractType.class.isAssignableFrom(f.getType()))
+                {
+                    try
+                    {
+                        type = (AbstractType<?>) f.get(null);
+                        break;
+                    }
+                    catch (IllegalAccessException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            if (type == null)
+            {
+                for (var c : klass.getDeclaredConstructors())
+                {
+                    if (c.getParameterCount() == 0)
+                    {
+                        try
+                        {
+                            type = (AbstractType<?>) c.newInstance();
+                            break;
+                        }
+                        catch (InstantiationException | IllegalAccessException | InvocationTargetException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+            if (type == null)
+                continue;
+            if (type.isEmptyValueMeaningless())
+            {
+                Assertions.assertThat(AbstractTypeGenerators.supportsMeaninglessEmptyness(type))
+                          .describedAs("New type %s detected that says its emptyness is meaningless, but it isn't allowed to be!  This is a legacy concept only!", type.getClass())
+                          .isTrue();
+
+                Assertions.assertThat(type.isNull(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isTrue();
+            }
+        }
+    }
+
+    @Test
+    public void onlyMeaninglessEmptyness()
+    {
+        qt().forAll(Generators.filter(AbstractTypeGenerators.builder().withDefaultSizeGen(1).build(), t -> !AbstractTypeGenerators.supportsMeaninglessEmptyness(t))).checkAssert(type -> {
+            Assertions.assertThat(type.isEmptyValueMeaningless()).isFalse();
+        });
     }
 
     @SuppressWarnings("rawtypes")
@@ -257,6 +332,30 @@ public class AbstractTypeTest
         CodeSource src = domain.getCodeSource();
         if (src == null) return false;
         return "test".equals(new File(src.getLocation().getPath()).name());
+    }
+
+    @SuppressWarnings("rawtypes")
+    private boolean isPrefixCompositeType(Class<? extends AbstractType> klass)
+    {
+        String name = klass.getCanonicalName();
+        return name.contains("PrefixCompositeType");
+    }
+
+    @Test
+    public void isConstrainedTest()
+    {
+        qt().forAll(genBuilder().build()).checkAssert(type -> {
+            if (type instanceof TupleType || type instanceof AbstractCompositeType)
+                assertThat(type.isConstrainable()).isEqualTo(false);
+            else
+            {
+                if (type.isCollection() && !type.isFrozenCollection())
+                    assertThat(type.isConstrainable()).isEqualTo(false);
+                else
+                    assertThat(type.isConstrainable()).isEqualTo(true);
+            }
+        });
+
     }
 
     @Test
@@ -460,6 +559,33 @@ public class AbstractTypeTest
         });
     }
 
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void nestedDuration()
+    {
+        qt().forAll(AbstractTypeGenerators.builder()
+                                          .withoutTypeKinds(COUNTER)
+                                          .withPrimitives(DurationType.instance)
+                                          .build())
+            .checkAssert(type -> {
+                assertThat(type.referencesDuration()).isTrue();
+                assertThat(ReversedType.getInstance(type).referencesDuration()).isTrue();
+            });
+    }
+
+    @Test
+    public void nestedWithoutDuration()
+    {
+        qt().forAll(AbstractTypeGenerators.builder()
+                                          .withoutTypeKinds(PRIMITIVE, COUNTER)
+                                          .withoutPrimitive(DurationType.instance)
+                                          .build())
+            .checkAssert(type -> {
+                assertThat(type.referencesDuration()).isFalse();
+                assertThat(ReversedType.getInstance(type).referencesDuration()).isFalse();
+            });
+    }
+
     /**
      * @see <pre>CASSANDRA-18526: TupleType getString and fromString are not safe with string types</pre>
      */
@@ -658,7 +784,7 @@ public class AbstractTypeTest
 
     private static ColumnMetadata fake(AbstractType<?> type)
     {
-        return new ColumnMetadata(null, null, new ColumnIdentifier("", true), type, 0, ColumnMetadata.Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(null, null, new ColumnIdentifier("", true), type, ColumnMetadata.NO_UNIQUE_ID, 0, ColumnMetadata.Kind.PARTITION_KEY, null);
     }
 
     private static ByteBuffer parseLiteralType(AbstractType<?> type, String literal)
@@ -900,10 +1026,10 @@ public class AbstractTypeTest
         if (!left.isValueCompatibleWith(right))
             return;
 
-        ColumnMetadata rightColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), right, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata rightColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), right, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata leftColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), left, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata leftColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), left, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata rightColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), right, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata rightColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), right, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata leftColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), left, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata leftColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), left, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
 
         TableMetadata leftTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(leftColumn1).addColumn(leftColumn2).build();
         TableMetadata rightTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(rightColumn1).addColumn(rightColumn2).build();
@@ -923,7 +1049,7 @@ public class AbstractTypeTest
                 assertThat(leftDecomposed.hasRemaining()).describedAs(typeRelDesc(".decompose", left, right)).isEqualTo(rightDecomposed.hasRemaining());
 
                 // serialization compatibility means that we can read a cell written using right's type serializer with left's type serializer;
-                // this additinoally imposes the requirement for storing the buffer lenght in the serialized form if the value is of variable length
+                // this additinoally imposes the requirement for storing the buffer length in the serialized form if the value is of variable length
                 // as well as, either both types serialize into a single or multiple cells
                 if (left.isSerializationCompatibleWith(right))
                 {

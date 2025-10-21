@@ -108,6 +108,7 @@ public class ClientState
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
     private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedWarningForUneligiblePreparedStatements;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -150,6 +151,27 @@ public class ClientState
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
     // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
+
+    private boolean applyGuardrails = true;
+    /**
+     * Provides an additional control on the checking of guardrails. When executing SchemaTransformations in the
+     * metadata log follower or when committing on a CMS member, we don't want guardrails to fire warnings.
+     * @see org.apache.cassandra.schema.SchemaTransformation#enterExecution()
+     **/
+    public void pauseGuardrails()
+    {
+        applyGuardrails = false;
+    }
+
+    public void resumeGuardrails()
+    {
+        applyGuardrails = true;
+    }
+
+    public boolean applyGuardrails()
+    {
+        return applyGuardrails;
+    }
 
     @VisibleForTesting
     public static void resetLastTimestamp(long nowMillis)
@@ -629,6 +651,15 @@ public class ClientState
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
             issuedPreparedStatementsUseWarning = true;
+        }
+    }
+
+    public void warnAboutUneligiblePreparedStatement(MD5Digest statementId)
+    {
+        if (!issuedWarningForUneligiblePreparedStatements)
+        {
+            ClientWarn.instance.warn(String.format("Prepared statements for other than modification and selection statements should be avoided, statement id: %s", statementId));
+            issuedWarningForUneligiblePreparedStatements = true;
         }
     }
 

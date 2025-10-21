@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -38,31 +37,27 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -70,37 +65,35 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class GossiperTest
 {
-    static
-    {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
-        DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-    }
-
-    private static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
-
-    static final IPartitioner partitioner = new RandomPartitioner();
-    StorageService ss = StorageService.instance;
-    TokenMetadata tmd = StorageService.instance.getTokenMetadata();
     ArrayList<Token> endpointTokens = new ArrayList<>();
-    ArrayList<Token> keyTokens = new ArrayList<>();
     List<InetAddressAndPort> hosts = new ArrayList<>();
     List<UUID> hostIds = new ArrayList<>();
-
     private SeedProvider originalSeedProvider;
+    private IPartitioner partitioner;
+
+    @BeforeClass
+    public static void init() throws IOException
+    {
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(RandomPartitioner.instance);
+        ServerTestUtils.cleanupAndLeaveDirs();
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
+        CommitLog.instance.start();
+    }
 
     @Before
     public void setup()
     {
-        tmd.clearUnsafe();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
         originalSeedProvider = DatabaseDescriptor.getSeedProvider();
+        partitioner = DatabaseDescriptor.getPartitioner();
     }
 
     @After
     public void tearDown()
     {
         DatabaseDescriptor.setSeedProvider(originalSeedProvider);
-        Gossiper.instance.endpointStateMap.clear();
     }
 
     @AfterClass
@@ -126,118 +119,9 @@ public class GossiperTest
     }
 
     @Test
-    public void testHasVersion3Nodes() throws Exception
-    {
-        Gossiper.instance.start(0);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
-
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.11.3"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.0.0"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
-
-        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
-    }
-
-    @Test
-    public void testHasVersion3NodesShouldReturnFalseWhenNoVersion3NodesDetectedAndCassandra4UpgradeInProgress() throws Exception
-    {
-        Gossiper.instance.start(0);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
-
-        es = new EndpointState((HeartBeatState) null);
-        String previousPatchVersion = String.valueOf(CURRENT_VERSION.major) + '.' + (CURRENT_VERSION.minor) + '.' + Math.max(CURRENT_VERSION.patch - 1, 0);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(previousPatchVersion));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
-        assertFalse(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
-    }
-
-    @Test
-    public void testHasVersion3NodesShouldReturnTrueWhenNoVersion3NodesDetectedButNotAllVersionsKnown() throws Exception
-    {
-        Gossiper.instance.start(0);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, null);
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
-
-        es = new EndpointState((HeartBeatState) null);
-        String previousPatchVersion = String.valueOf(CURRENT_VERSION.major) + '.' + (CURRENT_VERSION.minor) + '.' + Math.max(CURRENT_VERSION.patch - 1, 0);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(previousPatchVersion));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
-        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
-    }
-
-    @Test
-    public void testAssassinatedNodeWillNotContributeToVersionCalculation() throws Exception
-    {
-        int initialNodeCount = 3;
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, initialNodeCount);
-        for (int i = 0; i < initialNodeCount; i++)
-        {
-            Gossiper.instance.injectApplicationState(hosts.get(i), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
-        }
-        Gossiper.instance.start(1);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        // assassinate a non-existing node
-        Gossiper.instance.assassinateEndpoint("127.0.0.4");
-
-        assertTrue(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByName("127.0.0.4")));
-        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().canMemoize());
-        assertFalse(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
-        assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
-    }
-
-    @Test
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -245,7 +129,7 @@ public class GossiperTest
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
 
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration() + Gossiper.MAX_GENERATION_DIFFERENCE + 1);
@@ -284,7 +168,7 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         SimpleStateChangeListener stateChangeListener = null;
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -292,7 +176,7 @@ public class GossiperTest
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
 
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration());
@@ -321,11 +205,13 @@ public class GossiperTest
             proposedRemoteState = new EndpointState(proposedRemoteHeartBeat);
 
             // Bump the heartbeat version and use the same TOKENS state
-            proposedRemoteHeartBeat.updateHeartBeat();
+            proposedRemoteState.updateHeartBeat();
             proposedRemoteState.addApplicationState(ApplicationState.TOKENS, tokensValue);
 
             // The following state change should only update heartbeat without updating the TOKENS state
             Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
+            // TOKENS are maintained in ClusterMetadata. Although present in ApplicationState for backwards
+            // compatibility, they don't trigger state changes any more.
             assertEquals(1, stateChangedNum);
 
             actualRemoteHeartBeat = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress).getHeartBeatState();
@@ -442,14 +328,14 @@ public class GossiperTest
         VersionedValue.VersionedValueFactory valueFactory =
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         SimpleStateChangeListener stateChangeListener = null;
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             // Test begins
@@ -488,6 +374,7 @@ public class GossiperTest
                 notificationCount.getAndIncrement();
                 fail("It should not fire notification for STATUS");
             });
+            Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
 
             assertEquals("Expect exact 2 notifications with the test setup",
                          2, notificationCount.get());
@@ -583,127 +470,6 @@ public class GossiperTest
         };
         return mapGen;
     }
-
-    public void testGossipAndTokenMetadataCacheMismatchExist() throws IOException
-    {
-        SchemaLoader.prepareServer();
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
-        Gossiper.instance.start(1);
-        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
-        EndpointState host1State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1));
-
-        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
-        host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
-        host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
-        Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.isEmpty());
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-
-        // edit the tokens in the Gossip cache to create a mismatch between the two caches
-        host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
-
-        output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.containsKey("/127.0.0.1:7012"));
-    }
-
-    @Test
-    public void testGossipAndTokenMetadataCacheMismatchDoNotExist() throws IOException
-    {
-        SchemaLoader.prepareServer();
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
-        Gossiper.instance.start(1);
-
-        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
-
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-        // no impact to the cache if there is no cache coherence
-        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.isEmpty());
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-    }
-
-
-    @Test
-    public void testGossipAndTokenMetadataCacheIgnoreNonNormalNode() throws IOException
-    {
-        SchemaLoader.prepareServer();
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
-        Gossiper.instance.start(1);
-
-        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
-        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
-
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-
-        // Change host1's status to non-normal
-        host0State.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.leaving(new ArrayList<Token>(){{add(new ByteOrderedPartitioner.BytesToken(new byte[]{ 1}));}}));
-        // Now intentionally inject inconsistency between the Gossip cache and storage service cache
-        host0State.addApplicationState(ApplicationState.TOKENS, StorageService.instance.valueFactory.tokens(new ArrayList<Token>(){{add(new ByteOrderedPartitioner.BytesToken(new byte[]{1,2,3}));}}));
-
-        assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-
-        // Because host1 is not yet "NORMAL", it should be skipped in fixing the caches
-        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.isEmpty());
-        assertNotEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(0)), StorageService.instance.getTokensFor(hosts.get(0)));
-        assertEquals(StorageService.instance.getTokenMetadata().getTokens(hosts.get(1)), StorageService.instance.getTokensFor(hosts.get(1)));
-    }
-
-    @Test
-    public void testCacheMismatchIfTokenMetadataCacheIsMissingTheEndpoint() throws IOException
-    {
-        SchemaLoader.prepareServer();
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
-        Gossiper.instance.start(1);
-        EndpointState host0State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(0));
-        EndpointState host1State = Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1));
-
-        Gossiper.instance.injectApplicationState(hosts.get(1), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
-        host0State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
-        host1State.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.normal(new ArrayList<Token>(){{add(DatabaseDescriptor.getPartitioner().getRandomToken());}}));
-        Gossiper.instance.applyStateLocally(ImmutableMap.of(hosts.get(1), host0State));
-        Map<String, List<String>> output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.isEmpty());
-        // Gossip tokens should be used as the source of truth in case of a mismtach
-        Collection<Token> gossipTokensHost0 = getGossipCacheTokens(0);
-        Collection<Token> gossipTokensHost1 = getGossipCacheTokens(1);
-
-        assertEquals(getTokenMetadataCacheTokens(0), getGossipCacheTokens(0));
-        assertEquals(getTokenMetadataCacheTokens(1), getGossipCacheTokens(1));
-
-        // remove the tokens from TokenMetadata cache to create a mismatch between the two caches
-        StorageService.instance.getTokenMetadata().removeEndpoint(hosts.get(0));
-        output = Gossiper.instance.compareGossipAndTokenMetadata();
-        assertTrue(output.containsKey("/127.0.0.1:7012"));
-        try
-        {
-            getTokenMetadataCacheTokens(0);
-            fail("Expected AssertionError");
-        }
-        catch (AssertionError e)
-        {
-            assertTrue(e.getMessage().contains("Unable to get tokens for /127.0.0.1:7012; it is not a member"));
-        }
-        assertEquals(getTokenMetadataCacheTokens(1), gossipTokensHost1);
-        assertEquals(getTokenMetadataCacheTokens(1), getGossipCacheTokens(1));
-    }
-
-    private Collection<Token> getTokenMetadataCacheTokens(int hostIndex)
-    {
-        return StorageService.instance.getTokenMetadata().getTokens(hosts.get(hostIndex));
-    }
-
-    private Collection<Token> getGossipCacheTokens(int hostIndex)
-    {
-        return StorageService.instance.getTokensFor(hosts.get(hostIndex));
-    }
-
 
     static class SimpleStateChangeListener implements IEndpointStateChangeSubscriber
     {

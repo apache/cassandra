@@ -69,24 +69,24 @@ connections-per-host
 |-i, --ignore <NODES> |don't stream to this (comma separated) list of
 nodes
 
-|-alg, --ssl-alg <ALGORITHM> |Client SSL: algorithm (default: SunX509)
+|-alg, --ssl-alg <ALGORITHM> |Client SSL (for native connection): algorithm (default: SunX509)
 
-|-ciphers, --ssl-ciphers <CIPHER-SUITES> |Client SSL: comma-separated
+|-ciphers, --ssl-ciphers <CIPHER-SUITES> |Client SSL (for native connection): comma-separated
 list of encryption suites to use
 
-|-ks, --keystore <KEYSTORE> |Client SSL: full path to keystore
+|-ks, --keystore <KEYSTORE> |Client SSL (for native connection): full path to keystore
 
-|-kspw, --keystore-password <KEYSTORE-PASSWORD> |Client SSL: password of
+|-kspw, --keystore-password <KEYSTORE-PASSWORD> |Client SSL (for native connection): password of
 the keystore
 
-|-st, --store-type <STORE-TYPE> |Client SSL: type of store
+|-st, --store-type <STORE-TYPE> |Client SSL (for native connection): type of store
 
-|-ts, --truststore <TRUSTSTORE> |Client SSL: full path to truststore
+|-ts, --truststore <TRUSTSTORE> |Client SSL (for native connection): full path to truststore
 
-|-tspw, --truststore-password <TRUSTSTORE-PASSWORD> |Client SSL:
+|-tspw, --truststore-password <TRUSTSTORE-PASSWORD> |Client SSL (for native connection):
 password of the truststore
 
-|-prtcl, --ssl-protocol <PROTOCOL> |Client SSL: connections protocol to
+|-prtcl, --ssl-protocol <PROTOCOL> |Client SSL (for native connection): connections protocol to
 use (default: TLS)
 
 |-ap, --auth-provider <auth provider> |custom AuthProvider class name
@@ -142,11 +142,24 @@ Initial hosts must be specified (-d)
 
 == Use a Config File for SSL Clusters
 
-If SSL encryption is enabled in the cluster, use the --conf-path option
-with sstableloader to point the tool to the cassandra.yaml with the
-relevant server_encryption_options (e.g., truststore location,
-algorithm). This will work better than passing individual ssl options
-shown above to sstableloader on the command line.
+The sstableloader tool connects to the Cassandra server's native port to fetch cluster metadata and to the storage
+(internode) port to stream SSTables. If SSL encryption is required only for the native port, you can provide the
+necessary SSL options directly via the command line. However, if SSL encryption is required for both native and
+internode (storage) ports, it is recommended to use the `--conf-path` option with sstableloader to specify a
+cassandra.yaml file that includes the appropriate `client_encryption_options` for the native port and
+`server_encryption_options` for the storage port. This approach is necessary because there are no command-line options to
+configure internode SSL settings directly. In case command line options are provided for the native port connection,
+they will override the settings in the cassandra.yaml file for the native port, but the storage port will still use the
+`server_encryption_options` from the cassandra.yaml file.
+
+Also, as the client to the Cassandra nodes, the same key and/or trust stores must be configured for the sstableloader tool
+for connecting to the native or the storage port.
+
+It is noteworthy that while the sstableloader tool is essentially a client to the Cassandra nodes, overloaded usage of
+the server side encryption options mentioned above is a reasonable compromise to avoid the need for additional
+specific configuration options just for this tool. This also means that there is no significance of the
+`require_client_auth` configuration option used in the `client_encryption_options` section of the cassandra.yaml file
+used in this context as only the server can enforce client authentication.
 
 Example:
 

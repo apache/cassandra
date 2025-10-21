@@ -64,7 +64,7 @@ public class IncrementalRepairTask extends AbstractRepairTask
 
         CoordinatorSession coordinatorSession = coordinator.ctx.repair().consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
 
-        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, validationScheduler, allRanges, cfnames));
+        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, validationScheduler, allRanges, neighborsAndRanges.shouldExcludeDeadParticipants, cfnames));
 
     }
 }

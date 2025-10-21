@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +47,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -89,6 +92,7 @@ public class IndexStatusManager
     {
         // UNKNOWN states are transient/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
         Set<Replica> queryableNonSucceeded = new HashSet<>(4);
+        Map<InetAddressAndPort, Index.Status> indexStatusMap = new HashMap<>();
 
         E queryableEndpoints = liveEndpoints.filter(replica -> {
 
@@ -97,7 +101,10 @@ public class IndexStatusManager
             {
                 Index.Status status = getIndexStatus(replica.endpoint(), keyspace.getName(), index.getIndexMetadata().name);
                 if (!index.isQueryable(status))
+                {
+                    indexStatusMap.put(replica.endpoint(), status);
                     return false;
+                }
 
                 if (status != Index.Status.BUILD_SUCCEEDED)
                     allBuilt = false;
@@ -125,7 +132,13 @@ public class IndexStatusManager
             {
                 Map<InetAddressAndPort, RequestFailureReason> failureReasons = new HashMap<>();
                 liveEndpoints.without(queryableEndpoints.endpoints())
-                             .forEach(replica -> failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE));
+                             .forEach(replica -> {
+                                 Index.Status status = indexStatusMap.get(replica.endpoint());
+                                 if (status == Index.Status.FULL_REBUILD_STARTED)
+                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
+                                 else
+                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE);
+                             });
 
                 throw new ReadFailureException(level, filtered, required, false, failureReasons);
             }
@@ -229,7 +242,8 @@ public class IndexStatusManager
                 // Versions 5.0.0 through 5.0.2 use a much more bloated format that duplicates keyspace names
                 // and writes full status names instead of their numeric codes. If the minimum cluster version is
                 // unknown or one of those 3 versions, continue to propagate the old format.
-                CassandraVersion minVersion = Gossiper.instance.getMinVersion(1, TimeUnit.SECONDS);
+                CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
+
                 String newSerializedStatusMap = shouldWriteLegacyStatusFormat(minVersion) ? JsonUtils.writeAsJsonString(statusMap) 
                                                                                           : toSerializedFormat(statusMap);
 
@@ -323,5 +337,10 @@ public class IndexStatusManager
     private String identifier(String keyspace, String index)
     {
         return keyspace + '.' + index;
+    }
+
+    public void shutdownAndWait(long interval, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(interval, unit, statusPropagationExecutor);
     }
 }

@@ -21,15 +21,23 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -43,6 +51,7 @@ import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TYPE_UDT_CONFLICT_BEHAVIOR;
 import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * A user defined type.
@@ -128,6 +137,12 @@ public class UserType extends TupleType implements SchemaElement
         return type(i);
     }
 
+    public AbstractType<?> fieldType(CellPath path)
+    {
+        int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
+        return fieldType(field);
+    }
+
     public List<AbstractType<?>> fieldTypes()
     {
         return types;
@@ -136,6 +151,11 @@ public class UserType extends TupleType implements SchemaElement
     public FieldIdentifier fieldName(int i)
     {
         return fieldNames.get(i);
+    }
+
+    public FieldIdentifier fieldName(CellPath path)
+    {
+        return fieldNames.get(fieldPosition(path));
     }
 
     public String fieldNameAsString(int i)
@@ -158,6 +178,11 @@ public class UserType extends TupleType implements SchemaElement
         return fieldNames.indexOf(fieldName);
     }
 
+    public int fieldPosition(CellPath path)
+    {
+        return Preconditions.checkElementIndex(ByteBufferUtil.getUnsignedShort(path.get(0), 0), fieldNames.size());
+    }
+
     public CellPath cellPathForField(FieldIdentifier fieldName)
     {
         // we use the field position instead of the field name to allow for field renaming in ALTER TYPE statements
@@ -169,29 +194,28 @@ public class UserType extends TupleType implements SchemaElement
         return ShortType.instance;
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion protocolVersion)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
         assert isMultiCell;
 
-        ByteBuffer[] components = new ByteBuffer[size()];
-        short fieldPosition = 0;
+        List<ByteBuffer> components = new ArrayList<>(size());
         while (cells.hasNext())
         {
             Cell<?> cell = cells.next();
 
             // handle null fields that aren't at the end
             short fieldPositionOfCell = ByteBufferUtil.toShort(cell.path().get(0));
-            while (fieldPosition < fieldPositionOfCell)
-                components[fieldPosition++] = null;
+            while (components.size() < fieldPositionOfCell)
+                components.add(null);
 
-            components[fieldPosition++] = cell.buffer();
+            components.add(cell.buffer());
         }
 
         // append trailing nulls for missing cells
-        while (fieldPosition < size())
-            components[fieldPosition++] = null;
+        while (components.size() < size())
+            components.add(null);
 
-        return TupleType.buildValue(components);
+        return pack(components);
     }
 
     public <V> void validateCell(Cell<V> cell) throws MarshalException
@@ -254,13 +278,13 @@ public class UserType extends TupleType implements SchemaElement
             }
         }
 
-        return new UserTypes.DelayedValue(this, terms);
+        return new MultiElements.DelayedValue(this, terms);
     }
 
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        ByteBuffer[] buffers = split(ByteBufferAccessor.instance, buffer);
+        List<ByteBuffer> buffers = unpack(buffer);
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < types.size(); i++)
         {
@@ -268,14 +292,14 @@ public class UserType extends TupleType implements SchemaElement
                 sb.append(", ");
 
             String name = stringFieldNames.get(i);
-            if (!name.equals(name.toLowerCase(Locale.US)))
+            if (!name.equals(toLowerCaseLocalized(name)))
                 name = "\"" + name + "\"";
 
             sb.append('"');
             sb.append(JsonUtils.quoteAsJsonString(name));
             sb.append("\": ");
 
-            ByteBuffer valueBuffer = (i >= buffers.length) ? null : buffers[i];
+            ByteBuffer valueBuffer = (i >= buffers.size()) ? null : buffers.get(i);
             if (valueBuffer == null)
                 sb.append("null");
             else
@@ -363,6 +387,14 @@ public class UserType extends TupleType implements SchemaElement
             && isMultiCell == other.isMultiCell;
     }
 
+    public boolean equalsWithOutKs(UserType other)
+    {
+        return name.equals(other.name)
+            && fieldNames.equals(other.fieldNames)
+            && types.equals(other.types)
+            && isMultiCell == other.isMultiCell;
+    }
+
     public Optional<Difference> compare(UserType other)
     {
         if (!equalsWithoutTypes(other))
@@ -427,6 +459,70 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
+    public int compareCQL(ComplexColumnData columnData, List<ByteBuffer> fields)
+    {
+        Iterator<Cell<?>> cellIter = columnData.iterator();
+        int i = 0;
+        while (cellIter.hasNext())
+        {
+            if (i == fields.size())
+                return 1;
+
+            Cell<?> cell = cellIter.next();
+            short position = ByteBufferUtil.toShort(cell.path().get(0));
+
+            while (i < position)
+            {
+                if (i == fields.size())
+                    return 1;
+
+                if (fields.get(i++) != null)
+                    return -1;
+            }
+
+            ByteBuffer fieldValue = fields.get(i);
+
+            if (fieldValue == null)
+                return 1;
+
+            int comparison = type(i++).compare(cell.buffer(), fieldValue);
+            if (comparison != 0)
+                return comparison;
+        }
+
+        while(i < fields.size())
+        {
+            if (fields.get(i++) != null)
+                return -1;
+        }
+
+        return 0;
+    }
+
+    @Override
+    public AbstractType<?> elementType(ByteBuffer keyOrIndex)
+    {
+        return type(fieldPosition(new FieldIdentifier(keyOrIndex)));
+    }
+
+    @Override
+    public ByteBuffer getElement(@Nullable ColumnData columnData, ByteBuffer keyOrIndex)
+    {
+        if (columnData == null)
+            return null;
+
+        FieldIdentifier field = new FieldIdentifier(keyOrIndex);
+
+        if (isMultiCell())
+        {
+            Cell<?> cell = ((ComplexColumnData) columnData).getCell(cellPathForField(field));
+            return cell == null ? null : cell.buffer();
+        }
+
+        return unpack(((Cell<?>) columnData).buffer()).get(fieldPosition(field));
+    }
+
+    @Override
     public String toString()
     {
         return this.toString(false);
@@ -459,6 +555,27 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
+    public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
+    {
+        if (buffers.size() > size())
+            throw new MarshalException(String.format("UDT value contained too many fields (expected %s, got %s)", size(), buffers.size()));
+
+        for (int i = 0; i < buffers.size(); i++)
+        {
+            // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
+            // value by 'not setting' the new value. Reject the query.
+            ByteBuffer buffer = buffers.get(i);
+            if (buffer == null)
+                continue;
+            if (!isMultiCell() && buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new MarshalException(String.format("Invalid unset value for field '%s' of user defined type %s", fieldNameAsString(i), getNameAsString()));
+            type(i).validate(buffer);
+        }
+
+        return buffers;
+    }
+
+    @Override
     public SchemaElementType elementType()
     {
         return SchemaElementType.TYPE;
@@ -477,7 +594,7 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
         builder.append("CREATE TYPE ");
@@ -510,6 +627,18 @@ public class UserType extends TupleType implements SchemaElement
                .append(");");
 
         return builder.toString();
+    }
+
+    @Override
+    protected String componentOrFieldName(int i)
+    {
+        return "field " + fieldName(i);
+    }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        return false;
     }
 
     private enum ConflictBehavior

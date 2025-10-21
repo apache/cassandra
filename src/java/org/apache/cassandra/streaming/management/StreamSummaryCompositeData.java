@@ -19,7 +19,14 @@ package org.apache.cassandra.streaming.management;
 
 import java.util.HashMap;
 import java.util.Map;
-import javax.management.openmbean.*;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSummary;
@@ -75,6 +82,7 @@ public class StreamSummaryCompositeData
     {
         Object[] values = cd.getAll(ITEM_NAMES);
         return new StreamSummary(TableId.fromString((String) values[0]),
+                                 ImmutableList.of(),
                                  (int) values[1],
                                  (long) values[2]);
     }
