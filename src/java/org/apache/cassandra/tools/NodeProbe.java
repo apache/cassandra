@@ -89,6 +89,7 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
 import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -2698,10 +2699,78 @@ public class NodeProbe implements AutoCloseable
      */
     public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
     {
-        CompressionDictionaryManagerMBean proxy = getDictionaryManagerProxy(keyspace, table);
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.train(force); return null; }, keyspace, table);
+    }
+
+    /**
+     * Returns latest dictionary for given keyspace and table.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the latest dictionary for given keyspace and table
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public CompositeData getCompressionDictionary(String keyspace, String table) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(CompressionDictionaryManagerMBean::getCompressionDictionary, keyspace, table);
+    }
+
+    /**
+     * Returns the dictionary for given keyspace and table and dictionary id.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param dictId id of dictionary to get
+     * @return the dictionary for given keyspace and table and dictionary id.
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public CompositeData getCompressionDictionary(String keyspace, String table, long dictId) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(proxy -> proxy.getCompressionDictionary(dictId), keyspace, table);
+    }
+
+    /**
+     * Imports dictionary in composite data to database.
+     *
+     * @param compositeData data to import
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if keyspace and table values in compositeData are missing
+     * or if table doesn't support dictionary compression
+     */
+    public void importCompressionDictionary(CompositeData compositeData) throws IOException
+    {
+        String keyspace = (String) compositeData.get(CompressionDictionaryDetailsTabularData.KEYSPACE_NAME);
+        String table = (String) compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_NAME);
+
+        if (keyspace == null || table == null)
+        {
+            throw new IllegalArgumentException("Argument must have keyspace and table values.");
+        }
+
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.importCompressionDictionary(compositeData); return null; }, keyspace, table);
+    }
+
+    /**
+     *
+     * @param keyspace keyspace to list dictionaries for
+     * @param table table to list dictionaries for
+     * @return tabular data with listing
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public TabularData listCompressionDictionaries(String keyspace, String table) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(CompressionDictionaryManagerMBean::listCompressionDictionaries, keyspace, table);
+    }
+
+    private <T> T doWithCompressionDictionaryManagerMBean(Function<CompressionDictionaryManagerMBean, T> func,
+                                                          String keyspace, String table) throws IOException
+    {
         try
         {
-            proxy.train(force);
+            return func.apply(getDictionaryManagerProxy(keyspace, table));
         }
         catch (Exception e)
         {
@@ -2709,7 +2778,7 @@ public class NodeProbe implements AutoCloseable
             {
                 String message = String.format("Table %s.%s does not exist or does not support dictionary compression",
                                                keyspace, table);
-                throw new IOException(message);
+                throw new IllegalArgumentException(message);
             }
             else
             {

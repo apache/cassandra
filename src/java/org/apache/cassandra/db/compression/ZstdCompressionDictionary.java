@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,16 +39,26 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
 
     private final DictId dictId;
     private final byte[] rawDictionary;
+    private final int checksum;
     // One ZstdDictDecompress and multiple ZstdDictCompress (per level) can be derived from the same raw dictionary content
     private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel = new ConcurrentHashMap<>();
     private volatile ZstdDictDecompress dictDecompress;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Ref<ZstdCompressionDictionary> selfRef;
 
+    @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
+    {
+        this(dictId,
+             rawDictionary,
+             CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, rawDictionary));
+    }
+
+    public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary, int checksum)
     {
         this.dictId = dictId;
         this.rawDictionary = rawDictionary;
+        this.checksum = checksum;
         this.selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
     }
 
@@ -67,6 +78,12 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public byte[] rawDictionary()
     {
         return rawDictionary;
+    }
+
+    @Override
+    public int checksum()
+    {
+        return checksum;
     }
 
     @Override
