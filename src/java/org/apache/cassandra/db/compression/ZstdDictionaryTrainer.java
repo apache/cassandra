@@ -423,31 +423,38 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     /**
-     * Creates a monotonically increasing dictionary ID by combining timestamp and dictionary ID.
+     * Custom epoch for dictionary ID timestamps: October 20, 2025 00:00:00 UTC
+     * Calculated as: Instant.parse("2025-10-20T00:00:00Z").toEpochMilli()
+     * This allows using signed 32-bit seconds for ±68 years (~1957 to ~2093)
+     */
+    public static final long CUSTOM_EPOCH_MILLIS = 1760889600000L;
+
+    /**
+     * Creates a monotonically increasing dictionary ID by combining timestamp and Zstd dictionary ID.
+     * This is a public API to support external dictionary imports.
      * <p>
      * The resulting dictionary ID has the following structure:
-     * - Upper 32 bits: timestamp in minutes (signed int)
-     * - Lower 32 bits: Zstd dictionary ID (unsigned int, passed as long due to Java limitations)
+     * - Upper 32 bits (first 4 bytes): timestamp in seconds since custom epoch (signed int)
+     * - Lower 32 bits (last 4 bytes): Zstd dictionary ID (unsigned int, passed as long)
      * <p>
-     * This ensures dictionary IDs are monotonically increasing over time, which helps to identify
+     * Custom epoch: October 20, 2025 00:00:00 UTC ({@link #CUSTOM_EPOCH_MILLIS})
+     * <p>
+     * Using signed 32-bit seconds allows representing ±2,147,483,648 seconds (±68.1 years),
+     * giving a valid range from ~1957 to ~2093, which is sufficient for the software's lifespan.
+     * <p>
+     * This ensures dictionary IDs are monotonically increasing over time, helping to identify
      * the latest dictionary.
-     * <p>
-     * The implementation assumes that dictionary training frequency is significantly larger than
-     * every minute, which a healthy system should do. In the scenario when multiple dictionaries
-     * are trained in the same minute (only possible using manual training), there should not be
-     * correctness concerns since the dictionary is attached to the SSTables, but leads to performance
-     * hit from having too many dictionary. Therefore, such scenario should be avoided at the best.
      *
-     * @param currentTimeMillis the current time in milliseconds
-     * @param dictId            dictionary ID (unsigned 32-bit value represented as long)
+     * @param currentTimeMillis the current time in milliseconds since Unix epoch
+     * @param dictId            Zstd dictionary ID (unsigned 32-bit value represented as long)
      * @return combined dictionary ID that is monotonically increasing over time
      */
-    static long makeDictionaryId(long currentTimeMillis, long dictId)
+    public static long makeDictionaryId(long currentTimeMillis, long dictId)
     {
-        // timestamp in minutes since Unix epoch. Good until year 6053
-        long timestampMinutes = currentTimeMillis / 1000 / 60;
-        // Convert timestamp to long and shift to upper 32 bits
-        long combined = timestampMinutes << 32;
+        // timestamp in seconds since custom epoch
+        long timestampSeconds = (currentTimeMillis - CUSTOM_EPOCH_MILLIS) / 1000;
+        // Shift timestamp to upper 32 bits
+        long combined = timestampSeconds << 32;
 
         // Add the unsigned int (already as long) to lower 32 bits
         combined |= (dictId & 0xFFFFFFFFL);
