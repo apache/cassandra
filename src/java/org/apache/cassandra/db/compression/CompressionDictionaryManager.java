@@ -19,9 +19,12 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -29,11 +32,15 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
+
+import static java.lang.String.format;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -242,6 +249,82 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             return TrainingState.notStarted().toCompositeData();
         }
         return dictionaryTrainer.getTrainingState().toCompositeData();
+    }
+
+    @Override
+    public TabularData listCompressionDictionaries()
+    {
+        List<LightweightCompressionDictionary> dictionaries = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName);
+        TabularDataSupport tableData = new TabularDataSupport(CompressionDictionaryDetailsTabularData.TABULAR_TYPE);
+
+        if (dictionaries == null)
+        {
+            return tableData;
+        }
+
+        for (LightweightCompressionDictionary dictionary : dictionaries)
+        {
+            tableData.put(CompressionDictionaryDetailsTabularData.fromLightweightCompressionDictionary(dictionary));
+        }
+
+        return tableData;
+    }
+
+    @Override
+    public CompositeData getCompressionDictionary()
+    {
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName);
+        if (compressionDictionary == null)
+            return null;
+
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+    }
+
+    @Override
+    public CompositeData getCompressionDictionary(long dictId)
+    {
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictId);
+        if (compressionDictionary == null)
+            return null;
+
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+    }
+
+    @Override
+    public synchronized void importCompressionDictionary(CompositeData compositeData)
+    {
+        if (!isEnabled)
+        {
+            throw new IllegalStateException(format("The compression on table %s.%s is not enabled or SSTable compressor is not a dictionary compressor.",
+                                                   keyspaceName, tableName));
+        }
+
+        CompressionDictionaryDataObject dataObject = CompressionDictionaryDetailsTabularData.fromCompositeData(compositeData);
+
+        if (!keyspaceName.equals(dataObject.keyspace) || !tableName.equals(dataObject.table))
+            throw new IllegalArgumentException(format("Keyspace and table of a dictionary to import (%s.%s) does not correspond to the keyspace and table this manager is responsible for (%s.%s)",
+                                                      dataObject.keyspace, dataObject.table,
+                                                      keyspaceName, tableName));
+
+        CompressionDictionary.Kind kind = CompressionDictionary.Kind.valueOf(dataObject.kind);
+
+        if (trainer.kind() != kind)
+        {
+            throw new IllegalArgumentException(format("It is not possible to import compression dictionaries of kind " +
+                                                      "%s into table %s.%s which supports compression dictionaries of kind %s.",
+                                                      kind, keyspaceName, tableName, trainer.kind()));
+        }
+
+        CompressionDictionary.DictId dictId = new CompressionDictionary.DictId(kind, dataObject.dictId);
+
+        LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName);
+        if (latestCompressionDictionary != null && latestCompressionDictionary.dictId.id > dictId.id)
+        {
+            throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
+                                                      dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
+        }
+
+        handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
     }
 
     /**

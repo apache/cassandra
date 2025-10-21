@@ -66,7 +66,6 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.btree.BTree;
 
 import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.require;

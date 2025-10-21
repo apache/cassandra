@@ -30,7 +30,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -61,9 +60,7 @@ import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
-import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
-import org.apache.cassandra.db.compression.ZstdDictionaryTrainer;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -77,6 +74,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.utils.CompressionDictionaryHelper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -1727,7 +1725,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ") WITH compression = {'class': 'ZstdDictionaryCompressor'}";
 
-        CompressionDictionary dictionary = DictionaryHelper.trainDictionary(keyspace, table);
+        CompressionDictionary dictionary = CompressionDictionaryHelper.INSTANCE.trainDictionary(keyspace, table);
 
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
@@ -1738,7 +1736,7 @@ public abstract class CQLSSTableWriterTest
 
         for (int i = 0; i < 500; i++)
         {
-            writer.addRow(i, DictionaryHelper.INSTANCE.getRandomSample());
+            writer.addRow(i, CompressionDictionaryHelper.INSTANCE.getRandomSample());
         }
 
         writer.close();
@@ -1755,49 +1753,6 @@ public abstract class CQLSSTableWriterTest
                 UntypedResultSet.Row row = iter.next();
                 assertEquals(i, row.getInt("k"));
                 assertNotNull(row.getString("v1"));
-            }
-        }
-    }
-
-    /**
-     * Simple generator of random data for Zstd compression dictionary and dictionary trainer.
-     */
-    private static class DictionaryHelper
-    {
-        public static final DictionaryHelper INSTANCE = new DictionaryHelper();
-        private static final Random random = new Random();
-
-        private static final String[] dates = new String[] {"2025-10-20","2025-10-19","2025-10-18","2025-10-17","2025-10-16"};
-        private static final String[] times = new String[] {"11:00:01","11:00:02","11:00:03","11:00:04","11:00:05"};
-        private static final String[] levels = new String[] {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"};
-        private static final String[] services = new String[] {"com.example.UserService", "com.example.DatabasePool", "com.example.PaymentService", "com.example.OrderService"};
-
-        private String getRandomSample()
-        {
-            return dates[random.nextInt(dates.length)] + ' ' +
-                   times[random.nextInt(times.length)] + ' ' +
-                   levels[random.nextInt(levels.length)] + ' ' +
-                   services[random.nextInt(services.length)] + ' ' +
-                   UUID.randomUUID(); // message
-        }
-
-        private static CompressionDictionary trainDictionary(String keyspace, String table)
-        {
-            CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig
-                                                         .builder()
-                                                         .maxDictionarySize(65536)
-                                                         .maxTotalSampleSize(1024 * 1024) // 1MB total
-                                                         .build();
-
-            try (ZstdDictionaryTrainer trainer = new ZstdDictionaryTrainer(keyspace, table, config, 3))
-            {
-                trainer.start(true);
-                for (int i = 0; i < 25000; i++)
-                {
-                    trainer.addSample(UTF8Type.instance.fromString(DictionaryHelper.INSTANCE.getRandomSample()));
-                }
-
-                return trainer.trainDictionary(false);
             }
         }
     }

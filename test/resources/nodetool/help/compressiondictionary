@@ -14,6 +14,24 @@ SYNOPSIS
                 [(-u <username> | --username <username>)] compressiondictionary train
                 [(-f | --force)] [--] <keyspace> <table>
 
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary list
+                [--] <keyspace> <table>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary export
+                [(-i <dictId> | --id <dictId>)] [--] <keyspace> <table> <dictionaryPath>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary import
+                [--] <dictionaryPath>
+
 OPTIONS
         -h <host>, --host <host>
             Node hostname or ip address
@@ -42,3 +60,12 @@ COMMANDS
 
             With --force option, Force the dictionary training even if there are not
             enough samples
+        list
+            List available dictionaries of specific keyspace and table.
+        export
+            Export dictionary from Cassandra to local file.
+
+            With --id option, The dictionary id. When not specified, the current
+            dictionary is returned.
+        import
+            Import local dictionary to Cassandra.
