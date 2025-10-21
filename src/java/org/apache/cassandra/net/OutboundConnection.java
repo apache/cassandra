@@ -1075,7 +1075,6 @@ public class OutboundConnection
      *
      *  Most of the actual work is performed by OutboundConnectionInitiator, this method just manages
      *  our book keeping on either success or failure.
-     *ant
      *  This method is only to be invoked by the eventLoop, and the inner class' methods should only be evaluated by the eventtLoop
      */
     Future<?> initiate()
@@ -1126,6 +1125,7 @@ public class OutboundConnection
                     case SUCCESS:
                         // it is expected that close, if successful, has already cancelled us; so we do not need to worry about leaking connections
                         assert !state.isClosed();
+
                         if (result.success() instanceof MessagingSuccess success)
                         {
                             debug.onConnect(success.messagingVersion, settings);
