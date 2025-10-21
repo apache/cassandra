@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db.compression;
 
+import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.TabularData;
 
 public interface CompressionDictionaryManagerMBean
 {
@@ -33,7 +35,7 @@ public interface CompressionDictionaryManagerMBean
      * @param force force the dictionary training even if there are not enough samples;
      *              otherwise, dictionary training won't start if the trainer is not ready
      * @throws UnsupportedOperationException if table doesn't support dictionary compression
-     * @throws IllegalStateException if no SSTables available after flush
+     * @throws IllegalStateException         if no SSTables available after flush
      */
     void train(boolean force);
 
@@ -44,4 +46,41 @@ public interface CompressionDictionaryManagerMBean
      * @return CompositeData representing {@link TrainingState}
      */
     CompositeData getTrainingState();
+
+    /**
+     * Lists compression dictionaries for given keyspace and table. Returned compression dictionaries
+     * do not contain raw dictionary bytes.
+     *
+     * @return compression dictionaries for given keyspace and table
+     */
+    TabularData listCompressionDictionaries();
+
+    /**
+     * Get latest compression dictionary.
+     *
+     * @return CompositeData representing compression dictionary or null if not found
+     */
+    @Nullable
+    CompositeData getCompressionDictionary();
+
+    /**
+     * Get compression dictionary.
+     *
+     * @param dictId id of compression dictionary to get
+     * @return CompositeData representing compression dictionary or null of not found
+     */
+    @Nullable
+    CompositeData getCompressionDictionary(long dictId);
+
+    /**
+     * Import a compression dictionary.
+     *
+     * @param dictionary compression dictionary to import
+     * @throws IllegalArgumentException when dictionary to import is older (based on dictionary id) than
+     * the latest compression dictionary for given table, or when dictionary data are invalid
+     * @throws IllegalStateException    if underlying table does not support dictionary compression or
+     *                                  kind of dictionary to import does not match kind of dictionary table
+     *                                  is configured for
+     */
+    void importCompressionDictionary(CompositeData dictionary);
 }

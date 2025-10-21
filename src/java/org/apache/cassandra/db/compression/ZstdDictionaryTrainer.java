@@ -136,7 +136,8 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             DictId dictId = new DictId(Kind.ZSTD, makeDictionaryId(Clock.Global.currentTimeMillis(), zstdDictId));
             currentTrainingStatus = TrainingStatus.COMPLETED;
             logger.debug("New dictionary is trained with {}", dictId);
-            CompressionDictionary dictionary = new ZstdCompressionDictionary(dictId, dictBytes);
+            int checksum = CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dictBytes);
+            CompressionDictionary dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
             notifyDictionaryTrainedListener(dictionary);
             return dictionary;
         }

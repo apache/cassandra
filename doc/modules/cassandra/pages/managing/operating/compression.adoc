@@ -407,6 +407,20 @@ require retraining dictionaries to maintain optimal compression ratios.
 Monitor the `SSTable Compression Ratio` via `nodetool tablestats` to
 detect degradation.
 
+=== Available nodetool commands for compressiondictionary
+
+There are these four commands for now related to compression dictionaries:
+
+* train - training a dictionary, described above.
+* list - a user can list all dictionaries for given keyspace and table
+* export - a user can export a compression dictionary of a keyspace and a table, either the last one or
+by a specific id, to a file.
+* import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
+
+Importing a dictionary to a table from a file should happen only against one node at a time as
+dictionary will be eventually stored in `system_distributed.compression_dictionaries` table and reused
+cluster-wide. When imports happen from multiple nodes, the highest-version dictionary will be used.
+
 == Advanced Use
 
 Advanced users can provide their own compression class by implementing

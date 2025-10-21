@@ -50,6 +50,13 @@ public interface CompressionDictionary extends AutoCloseable
     byte[] rawDictionary();
 
     /**
+     * Get checksum of this dictionary.
+     *
+     * @return checksum of this dictionary
+     */
+    int checksum();
+
+    /**
      * Get the kind of the compression algorithm
      *
      * @return compression algorithm kind
@@ -126,7 +133,7 @@ public interface CompressionDictionary extends AutoCloseable
             throw new IOException("Compression dictionary checksum does not match. " +
                                   "Expected: " + checksum + "; actual: " + calculatedChecksum);
 
-        CompressionDictionary dictionary = kind.createDictionary(dictId, dict);
+        CompressionDictionary dictionary = kind.createDictionary(dictId, dict, checksum);
 
         // update the dictionary manager if it exists
         if (manager != null)
@@ -135,6 +142,29 @@ public interface CompressionDictionary extends AutoCloseable
         }
 
         return dictionary;
+    }
+
+    static LightweightCompressionDictionary createFromRowLightweight(UntypedResultSet.Row row)
+    {
+        String kindStr = row.getString("kind");
+        long dictId = row.getLong("dict_id");
+        int checksum = row.getInt("dict_checksum");
+        int size = row.getInt("dict_length");
+        String keyspaceName = row.getString("keyspace_name");
+        String tableName = row.getString("table_name");
+
+        try
+        {
+            return new LightweightCompressionDictionary(keyspaceName,
+                                                        tableName,
+                                                        new DictId(CompressionDictionary.Kind.valueOf(kindStr), dictId),
+                                                        checksum,
+                                                        size);
+        }
+        catch (IllegalArgumentException ex)
+        {
+            throw new IllegalStateException(kindStr + " compression dictionary is not created for dict id " + dictId);
+        }
     }
 
     static CompressionDictionary createFromRow(UntypedResultSet.Row row)
@@ -164,7 +194,7 @@ public interface CompressionDictionary extends AutoCloseable
                                                                kindStr, dictId, storedChecksum, calculatedChecksum));
             }
 
-            return kind.createDictionary(new DictId(kind, dictId), dict);
+            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"), storedChecksum);
         }
         catch (IllegalArgumentException ex)
         {
@@ -188,9 +218,10 @@ public interface CompressionDictionary extends AutoCloseable
         // Order matters: the enum ordinal is serialized
         ZSTD
         {
-            public CompressionDictionary createDictionary(DictId dictId, byte[] dict)
+            @Override
+            public CompressionDictionary createDictionary(DictId dictId, byte[] dict, int checksum)
             {
-                return new ZstdCompressionDictionary(dictId, dict);
+                return new ZstdCompressionDictionary(dictId, dict, checksum);
             }
 
             @Override
@@ -220,9 +251,10 @@ public interface CompressionDictionary extends AutoCloseable
          *
          * @param dictId the dictionary identifier
          * @param dict the raw dictionary bytes
+         * @param checksum checksum of this dictionary
          * @return a compression dictionary instance
          */
-        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict);
+        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum);
 
         /**
          * Creates a dictionary compressor for this kind
@@ -279,6 +311,34 @@ public interface CompressionDictionary extends AutoCloseable
                    "kind=" + kind +
                    ", id=" + id +
                    '}';
+        }
+    }
+
+    /**
+     * The purpose of lightweight dictionary is to not carry the actual dictionary bytes for performance reasons.
+     * Handy for situations when retrieval from the database does not need to contain dictionary
+     * or the instantiation of a proper dictionary object is not desirable or unnecessary for other,
+     * mostly performance-related, reasons.
+     */
+    class LightweightCompressionDictionary
+    {
+        public final String keyspaceName;
+        public final String tableName;
+        public final DictId dictId;
+        public final int checksum;
+        public final int size;
+
+        public LightweightCompressionDictionary(String keyspaceName,
+                                                String tableName,
+                                                DictId dictId,
+                                                int checksum,
+                                                int size)
+        {
+            this.keyspaceName = keyspaceName;
+            this.tableName = tableName;
+            this.dictId = dictId;
+            this.checksum = checksum;
+            this.size = size;
         }
     }
 }
