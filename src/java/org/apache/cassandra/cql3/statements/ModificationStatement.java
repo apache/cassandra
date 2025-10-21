@@ -557,6 +557,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (keyspace == null)
             throw new InvalidRequestException("Cannot find the keyspace " + keyspace() + " for " + metadata.name);
         View view = keyspace.viewManager.getByName(viewCfs.name);
+        // enforce serial read
+        ConsistencyLevel readCL = options.getConsistency() == ConsistencyLevel.LOCAL_QUORUM
+                ? ConsistencyLevel.LOCAL_SERIAL
+                : ConsistencyLevel.SERIAL;
         List<ByteBuffer> partitionKeys = buildPartitionKeyNames(options, queryState.getClientState());
         if (partitionKeys.size() != 1)
             throw new InvalidRequestException("rebuildMVKey can only be called with a single partition key");
@@ -570,7 +574,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             SinglePartitionReadCommand readCommand = builder.buildBaseTableReadCommand(nowInSeconds);
             Row baseRow;
             long readTimestamp = queryState.getTimestamp();
-            try (RowIterator iter = StorageProxy.readOne(readCommand, options.getConsistency(), requestTime))
+            try (RowIterator iter = StorageProxy.readOne(readCommand, readCL, requestTime))
             {
                 baseRow = iter.hasNext() ? iter.next() : null;
             }

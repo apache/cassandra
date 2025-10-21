@@ -24,28 +24,33 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.transport.Dispatcher;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.BTreeRow;
-import org.apache.cassandra.db.rows.BufferCell;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
 import static org.junit.Assert.assertEquals;
@@ -164,6 +169,142 @@ public class RebuildMVKeyTest extends TestBaseImpl
             "PRIMARY KEY (v1, ck, pk)", KEYSPACE, MV_NON_PK_UNSELECT, KEYSPACE, BASE_TABLE));
             testRebuildWithBatch(cluster, batchSize, 4000, MV_NON_PK_UNSELECT);
             cluster.schemaChange(String.format("DROP MATERIALIZED VIEW %s.%s", KEYSPACE, MV_NON_PK_UNSELECT));
+        }
+    }
+
+    /**
+     * Test that MV rebuild must use serial reads when strict_mv_consistency is enabled.
+     * <p>
+     * This test demonstrates a bug where MV rebuild uses non-serial reads, causing it to miss
+     * uncommitted paxos state. The scenario creates a situation where:
+     * 1. A paxos transaction is left in Accepted (uncommitted) state
+     * 2. Node 1 has the MV mutation applied locally, but other nodes don't, hence not applying base mutation
+     * 3. MV rebuild uses non-serial read, sees no base data, and deletes the MV row
+     * 4. Paxos repair later commits the transaction
+     * 5. Result: Base table has data but MV doesn't, because MV rebuild's deletion shadows the writes
+     * <p>
+     * The fix is to use LOCAL_SERIAL reads in MV rebuild, which triggers paxos repair before
+     * reading, ensuring uncommitted state is committed first.
+     */
+    @Test
+    public void testRebuildWithMVRequiresSerialReadForStrictMV() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withTokenSupplier(evenlyDistributedTokens(3, 1))
+                                           .withNodeIdTopology(singleDcNetworkTopology(3, "dc0", "rack0"))
+                                           .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP)
+                                                                       .set("materialized_views_enabled", true)
+                                                                       .set("materialized_view_strict_consistency_enabled", true)
+                                                                       .set("paxos_variant", "v2")
+                                                                       .set("direct_materialized_view_modification_enabled", true)
+                                                                       .set("rebuild_key_on_materialized_view_modification_enabled", true)
+                                                                       .set("materialized_views_per_table_fail_threshold", 1)
+                                                                       .set("paxos_repair_enabled", false))
+                                           .withInstanceInitializer(BB::install)
+                                           .start()))
+        {
+            createSchema(cluster);
+            cluster.schemaChange(String.format("ALTER TABLE %s.%s WITH strict_mv_consistency = true", KEYSPACE, BASE_TABLE));
+            cluster.schemaChange(String.format(
+            "CREATE MATERIALIZED VIEW %s.%s AS SELECT * FROM %s.%s " +
+            "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+            "PRIMARY KEY (v1, ck, pk) WITH read_repair='NONE'", KEYSPACE, MV_NON_PK, KEYSPACE, BASE_TABLE));
+            testRebuildWithMVRequiresSerialReadForStrictMVImpl(cluster, false);
+
+            // disable auto paxos repair
+            cluster.get(1).runOnInstance(() -> StorageService.instance.setPaxosRepairEnabled(false));
+            cluster.coordinator(1).execute(String.format("TRUNCATE %s.%s", KEYSPACE, BASE_TABLE), ConsistencyLevel.ALL);
+            cluster.schemaChange(String.format("DROP MATERIALIZED VIEW %s.%s", KEYSPACE, MV_NON_PK));
+            cluster.schemaChange(String.format(
+            "CREATE MATERIALIZED VIEW %s.%s AS SELECT * FROM %s.%s " +
+            "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+            "PRIMARY KEY (v1, ck, pk) WITH read_repair='NONE'", KEYSPACE, MV_NON_PK, KEYSPACE, BASE_TABLE));
+            testRebuildWithMVRequiresSerialReadForStrictMVImpl(cluster, true);
+        }
+    }
+
+    private void testRebuildWithMVRequiresSerialReadForStrictMVImpl(Cluster cluster, boolean serialRead) throws Exception
+    {
+        int pk = 100;
+        int ck = 1;
+        int v1 = 1000;
+        String v2 = "test_value";
+
+        // Step 1: Perform LWT with dropped MUTATION_REQ messages to simulate MV mutation failure
+        // Drop MUTATION_REQ from node 1 to nodes 2 & 3, so only node 1 receives MV mutations
+        // This will cause MV mutations to fail quorum, preventing paxos commit
+        IMessageFilters.Filter dropMutationFilter = cluster.filters().verbs(Verb.MUTATION_REQ.id).from(1).to(2, 3).drop();
+        try
+        {
+            cluster.coordinator(1).execute(
+            String.format("INSERT INTO %s.%s (pk, ck, v1, v2) VALUES (?, ?, ?, ?) IF NOT EXISTS", KEYSPACE, BASE_TABLE),
+            ConsistencyLevel.ALL, pk, ck, v1, v2);
+        }
+        catch (Throwable t)
+        {
+            // Expected: WriteTimeoutException because MV mutations can't achieve quorum
+            assertTrue("Expected WriteTimeoutException but got: " + t.getClass().getSimpleName(),
+                       t.getClass().getSimpleName().contains("WriteTimeoutException"));
+        }
+
+        // Step 2: Verify the state after failed LWT
+        // Paxos is in Accepted (uncommitted) state - base table has NO data on any node
+        SimpleQueryResult baseResult = cluster.coordinator(1).executeWithResult(
+        String.format("SELECT * FROM %s.%s WHERE pk = ? AND ck = ?", KEYSPACE, BASE_TABLE),
+        ConsistencyLevel.ALL, pk, ck);
+        assertFalse("Base table should NOT have the row (paxos not committed)", baseResult.hasNext());
+
+        // One of the nodes has the MV mutation
+        SimpleQueryResult mvResult = cluster.coordinator(1).executeWithResult(
+        String.format("SELECT * FROM %s.%s WHERE v1 = ? AND ck = ? AND pk = ?", KEYSPACE, MV_NON_PK),
+        ConsistencyLevel.ALL, v1, ck, pk);
+        assertTrue("MV should have the row read from ALL (applied locally despite quorum failure)", mvResult.hasNext());
+
+        // Step 3: Trigger MV rebuild by deleting from the MV (BEFORE paxos repair!)
+        // Delete from MV triggers rebuild, which reads base table to determine correct MV state (node 2 use non-serial read)
+        dropMutationFilter.off();
+        if (serialRead)
+            cluster.coordinator(1).execute(String.format("DELETE FROM %s.%s WHERE v1 = ? AND ck = ? AND pk = ?", KEYSPACE, MV_NON_PK), ConsistencyLevel.LOCAL_QUORUM, v1, ck, pk);
+        else
+            cluster.coordinator(2).execute(String.format("DELETE FROM %s.%s WHERE v1 = ? AND ck = ? AND pk = ?", KEYSPACE, MV_NON_PK), ConsistencyLevel.LOCAL_QUORUM, v1, ck, pk);
+
+        // Step 4: Run paxos repair to commit the accepted transaction
+        // Paxos repair detects the uncommitted Accepted state and commits it
+        // Now the base table has the row on all nodes
+        cluster.get(1).runOnInstance(() -> {
+            StorageService.instance.setPaxosRepairEnabled(true);
+            try
+            {
+                TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, BASE_TABLE).id;
+                StorageService.instance.autoRepairPaxos(tableId).get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Paxos repair failed", e);
+            }
+        });
+
+        // Step 5: Verify final state - demonstrates the bug
+        baseResult = cluster.coordinator(1).executeWithResult(
+        String.format("SELECT * FROM %s.%s WHERE pk = ? AND ck = ?", KEYSPACE, BASE_TABLE),
+        ConsistencyLevel.ALL, pk, ck);
+        int baseRowCount = countRows(baseResult);
+
+        mvResult = cluster.coordinator(1).executeWithResult(
+        String.format("SELECT * FROM %s.%s WHERE v1 = ? AND ck = ? AND pk = ?", KEYSPACE, MV_NON_PK),
+        ConsistencyLevel.ALL, v1, ck, pk);
+        int mvRowCount = countRows(mvResult);
+
+        if (serialRead)
+        {
+            assertEquals(baseRowCount, mvRowCount);
+        }
+        else
+        {
+            // Base table has 1 row (committed by paxos repair)
+            // MV has 0 rows (incorrectly deleted by rebuild that used non-serial read)
+            assertEquals(1, baseRowCount);
+            assertEquals(0, mvRowCount);
         }
     }
 
@@ -747,5 +888,34 @@ public class RebuildMVKeyTest extends TestBaseImpl
         builder.add(rowBuilder.build());
         Mutation mutation = new Mutation(builder.build());
         Keyspace.open(RebuildMVKeyTest.KEYSPACE).apply(mutation, true, false);
+    }
+
+    public static class BB
+    {
+        public static void install(ClassLoader classLoader, Integer num)
+        {
+            // Only install on node 2
+            if (num != 2)
+                return;
+
+            new ByteBuddy().rebase(StorageProxy.class)
+                           .method(named("readOne"))
+                           .intercept(MethodDelegation.to(BB.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        @SuppressWarnings("unused")
+        public static RowIterator readOne(SinglePartitionReadCommand command,
+                                          org.apache.cassandra.db.ConsistencyLevel consistencyLevel,
+                                          Dispatcher.RequestTime requestTime)
+        throws Exception
+        {
+            return PartitionIterators.getOnlyElement(
+                StorageProxy.read(SinglePartitionReadCommand.Group.one(command),
+                                 org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM,
+                                 requestTime),
+                command);
+        }
     }
 }
