@@ -19,8 +19,11 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -402,4 +405,56 @@ public class Shard
     {
         logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
     }
+
+    public Iterable<CoordinatorLog> getLogs()
+    {
+<<<<<<< HEAD
+        return logs.values();
+=======
+        SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logDebugState = new TreeMap<>(Comparator.comparing(CoordinatorLogId::asLong));
+        for (CoordinatorLog log : logs.values())
+        {
+            logDebugState.put(log.getLogId(), log.getDebugState());
+        }
+        return new DebugInfo(keyspace, range, localNodeId, participants, logDebugState);
+>>>>>>> c1b8c33eb9 (Minor PR feedback)
+    }
+
+    public String getKeyspace()
+    {
+<<<<<<< HEAD
+        return keyspace;
+    }
+
+    public Range<Token> getRange()
+    {
+        return range;
+    }
+
+    public int getLocalNodeId()
+    {
+        return localNodeId;
+    }
+
+    public Participants getParticipants()
+    {
+        return participants;
+    }
+=======
+        public final String keyspace;
+        public final Range<Token> range;
+        public final int localNodeId;
+        public final Participants participants;
+        public final SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs;
+
+        private DebugInfo(String keyspace, Range<Token> range, int localNodeId, Participants participants, SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs)
+        {
+            this.keyspace = keyspace;
+            this.range = range;
+            this.localNodeId = localNodeId;
+            this.participants = participants;
+            this.logs = logs;
+        }
+    }
+>>>>>>> c1b8c33eb9 (Minor PR feedback)
 }

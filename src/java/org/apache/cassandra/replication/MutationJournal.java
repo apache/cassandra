@@ -69,6 +69,11 @@ public class MutationJournal
     // in NBHM.
     private SegmentStateTracker lastSegmentTracker;
 
+    public Iterable<Segment<ShortMutationId, Mutation>> getSegments()
+    {
+        return journal.getSegments(0, Long.MAX_VALUE);
+    }
+
     public static class Snapshot implements AutoCloseable
     {
         private final Journal.Snapshot<ShortMutationId, Mutation> wrapped;

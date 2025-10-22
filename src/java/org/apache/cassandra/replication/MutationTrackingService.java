@@ -478,6 +478,23 @@ public class MutationTrackingService
         return count[0];
     }
 
+    public Iterable<Shard> getShards()
+    {
+        List<Shard> shards = new ArrayList<>();
+        shardLock.readLock().lock();
+        try
+        {
+            keyspaceShards.forEach((keyspace, ksShards) -> {
+                ksShards.forEachShard(shards::add);
+            });
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+        return shards;
+    }
+
     public void collectLocallyMissingMutations(MutationSummary remoteSummary, Log2OffsetsMap.Mutable into)
     {
         shardLock.readLock().lock();

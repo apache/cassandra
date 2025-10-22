@@ -547,6 +547,62 @@ public abstract class CoordinatorLog
         }
     }
 
+    public CoordinatorLogId getLogId()
+    {
+        return logId;
+    }
+
+<<<<<<< HEAD
+    public String getWitnessedOffsets()
+=======
+    public DebugInfo getDebugState()
+>>>>>>> c1b8c33eb9 (Minor PR feedback)
+    {
+        Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
+        lock.readLock().lock();
+        try
+        {
+            witnessedOffsets.convertToPrimitiveMap(witnessed);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+        return witnessed.toString();
+    }
+
+<<<<<<< HEAD
+    public String getReconciledOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return reconciledOffsets.toString();
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    public String getPersistedOffsets()
+    {
+        Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
+        lock.readLock().lock();
+        try
+        {
+            persistedOffsets.convertToPrimitiveMap(persisted);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+        return persisted.toString();
+=======
+        return new DebugInfo(witnessed.toString(), reconciledStr, persisted.toString());
+>>>>>>> c1b8c33eb9 (Minor PR feedback)
+    }
+
     @Override
     public String toString()
     {
@@ -557,6 +613,23 @@ public abstract class CoordinatorLog
                '}';
     }
 
+<<<<<<< HEAD
+=======
+    public static class DebugInfo
+    {
+        public final String witnessedOffsets;
+        public final String reconciledOffsets;
+        public final String persistedOffsets;
+
+        private DebugInfo(String witnessedOffsets, String reconciledOffsets, String persistedOffsets)
+        {
+            this.witnessedOffsets = witnessedOffsets;
+            this.reconciledOffsets = reconciledOffsets;
+            this.persistedOffsets = persistedOffsets;
+        }
+    }
+
+>>>>>>> c1b8c33eb9 (Minor PR feedback)
     static class CoordinatorLogPrimary extends CoordinatorLog
     {
         private final AtomicLong sequenceId = new AtomicLong(-1);
