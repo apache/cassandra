@@ -20,14 +20,17 @@ package org.apache.cassandra.service.paxos.cleanup;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -58,6 +61,18 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     private static final Logger logger = LoggerFactory.getLogger(PaxosCleanupLocalCoordinator.class);
     private static final UUID INTERNAL_SESSION = new UUID(0, 0);
 
+    private static class DelayedRepair
+    {
+        private final UncommittedPaxosKey uncommitted;
+        private final long startAfterMillis;
+
+        public DelayedRepair(UncommittedPaxosKey uncommitted, long startAfterMillis)
+        {
+            this.uncommitted = uncommitted;
+            this.startAfterMillis = startAfterMillis;
+        }
+    }
+
     private final UUID session;
     private final TableId tableId;
     private final TableMetadata table;
@@ -69,6 +84,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     private final boolean autoRepair;
 
     private final Map<DecoratedKey, AbstractPaxosRepair> inflight = new ConcurrentHashMap<>();
+    private final Queue<DelayedRepair> delayed = new LinkedBlockingQueue<>();
     private final PaxosTableRepairs tableRepairs;
 
     private PaxosCleanupLocalCoordinator(SharedContext ctx, UUID session, TableId tableId, Collection<Range<Token>> ranges, CloseableIterator<UncommittedPaxosKey> uncommittedIter, boolean autoRepair)
@@ -125,6 +141,31 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         return new PaxosCleanupLocalCoordinator(ctx, INTERNAL_SESSION, tableId, ranges, iterator, true);
     }
 
+    private boolean maybeDelay(UncommittedPaxosKey uncommitted)
+    {
+        if (!DatabaseDescriptor.getPaxosRepairRaceWait())
+            return false;
+
+
+        long txnTimeoutMillis = Math.max(getCasContentionTimeout(MILLISECONDS), getWriteRpcTimeout(MILLISECONDS));
+        long nowMillis = Clock.Global.currentTimeMillis();
+        long ballotElapsedMillis = nowMillis - MICROSECONDS.toMillis(uncommitted.ballot().unixMicros());
+
+        if (ballotElapsedMillis < 0 && Math.abs(ballotElapsedMillis) > SECONDS.toMillis(1))
+            logger.warn("Encountered ballot that is more than 1 second in the future, is there a clock sync issue? {}", uncommitted.ballot());
+
+        if (ballotElapsedMillis >= txnTimeoutMillis)
+            return false;
+
+        long sleepMillis = txnTimeoutMillis - ballotElapsedMillis;
+        logger.info("Paxos auto repair encountered a potentially in progress ballot, sleeping {}ms to allow the in flight operation to finish", sleepMillis);
+
+        delayed.add(new DelayedRepair(uncommitted, nowMillis + sleepMillis));
+        ScheduledExecutors.scheduledFastTasks.schedule(this::scheduleKeyRepairsOrFinish, sleepMillis, MILLISECONDS);
+
+        return true;
+    }
+
     /**
      * Schedule as many key repairs as we can, up to the paralellism limit. If no repairs are scheduled and
      * none are in flight when the iterator is exhausted, the session will be finished
@@ -141,18 +182,33 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 return;
             }
 
-            long txnTimeoutMicros = Math.max(getCasContentionTimeout(MICROSECONDS), getWriteRpcTimeout(MICROSECONDS));
-            boolean waitForCoordinator = DatabaseDescriptor.getPaxosRepairRaceWait();
-            while (inflight.size() < parallelism && uncommittedIter.hasNext())
-                repairKey(uncommittedIter.next(), txnTimeoutMicros, waitForCoordinator);
-
+            while (inflight.size() < parallelism && !isDone())
+            {
+                if (!delayed.isEmpty() && delayed.peek().startAfterMillis < Clock.Global.currentTimeMillis())
+                {
+                    DelayedRepair delayedRepair = delayed.remove();
+                    repairKey(delayedRepair.uncommitted);
+                }
+                else if (uncommittedIter.hasNext())
+                {
+                    UncommittedPaxosKey uncommitted = uncommittedIter.next();
+                    if (!maybeDelay(uncommitted))
+                    {
+                        repairKey(uncommitted);
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         if (inflight.isEmpty())
             finish();
     }
 
-    private boolean repairKey(UncommittedPaxosKey uncommitted, long txnTimeoutMicros, boolean waitForCoordinator)
+    private boolean repairKey(UncommittedPaxosKey uncommitted)
     {
         logger.trace("repairing {}", uncommitted);
         Preconditions.checkState(!inflight.containsKey(uncommitted.getKey()));
@@ -162,9 +218,6 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         // before we started tracking paxos cl, so we don't attempt to repair it
         if (consistency == null)
             return false;
-
-        if (waitForCoordinator)
-            maybeWaitForOriginalCoordinator(uncommitted, txnTimeoutMicros);
 
         inflight.put(uncommitted.getKey(), tableRepairs.startOrGetOrQueue(uncommitted.getKey(), uncommitted.ballot(), uncommitted.getConsistencyLevel(), table, result -> {
             if (result.wasSuccessful())
