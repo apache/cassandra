@@ -5,7 +5,8 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pp | --print-port)] [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] compressiondictionary <command> [<args>]
+                [(-u <username> | --username <username>)] compressiondictionary
+                <command> [<args>]
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pp | --print-port)] [(-pw <password> | --password <password>)]
@@ -39,5 +40,5 @@ COMMANDS
             Manually trigger compression dictionary training for a table. If no
             SSTables are available, the memtable will be flushed first.
 
-            With -f or --force option, Force the dictionary training even if there
-            are not enough samples
+            With --force option, Force the dictionary training even if there are not
+            enough samples

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -50,9 +51,9 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     private final String keyspaceName;
     private final String tableName;
     private final ICompressionDictionaryCache cache;
+    private final AtomicBoolean manualTrainingInProgress = new AtomicBoolean(false);
 
     private volatile ScheduledFuture<?> scheduledRefreshTask;
-    private volatile ScheduledFuture<?> scheduledManualTrainingTask;
     private volatile boolean isEnabled;
 
     public CompressionDictionaryScheduler(String keyspaceName,
@@ -88,7 +89,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                                              CompressionDictionaryTrainingConfig config,
                                              boolean force)
     {
-        if (scheduledManualTrainingTask != null)
+        if (!manualTrainingInProgress.compareAndSet(false, true))
         {
             throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
         }
@@ -97,12 +98,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                     keyspaceName, tableName, sstables.size());
 
         // Run the SSTableSamplingTask asynchronously
-        // Use a dummy scheduled task to track that training is in progress
         SSTableSamplingTask task = new SSTableSamplingTask(sstables, trainer, config, force);
         ScheduledExecutors.nonPeriodicTasks.submit(task);
-
-        // Set a placeholder task so status checks know training is in progress
-        scheduledManualTrainingTask = ScheduledExecutors.scheduledTasks.schedule(() -> {}, 1, TimeUnit.HOURS);
     }
 
     /**
@@ -110,12 +107,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
      */
     private void cancelManualTraining()
     {
-        ScheduledFuture<?> future = scheduledManualTrainingTask;
-        if (future != null)
-        {
-            future.cancel(false);
-        }
-        scheduledManualTrainingTask = null;
+        manualTrainingInProgress.compareAndSet(true, false);
     }
 
     /**
@@ -161,11 +153,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             scheduledRefreshTask = null;
         }
 
-        if (scheduledManualTrainingTask != null)
-        {
-            scheduledManualTrainingTask.cancel(false);
-            scheduledManualTrainingTask = null;
-        }
+        cancelManualTraining();
     }
 
     /**
@@ -265,8 +253,8 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @VisibleForTesting
-    ScheduledFuture<?> scheduledManualTrainingTask()
+    boolean isManualTrainingRunning()
     {
-        return scheduledManualTrainingTask;
+        return manualTrainingInProgress.get();
     }
 }

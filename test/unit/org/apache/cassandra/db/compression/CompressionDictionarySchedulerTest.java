@@ -36,9 +36,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class CompressionDictionarySchedulerTest extends CQLTester
 {
-    private static final String KEYSPACE = "scheduler_test_ks";
-    private static final String TABLE = "scheduler_test_table";
-
     private CompressionDictionaryScheduler scheduler;
     private ICompressionDictionaryCache cache;
 
@@ -46,7 +43,8 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     public void setUp()
     {
         cache = new CompressionDictionaryCache();
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, TABLE, cache, true);
+        // Disable compaction to make the sstable sampling deterministic; to avoid excluding sstables get compacted away.
+        disableCompaction(KEYSPACE);
     }
 
     @After
@@ -63,6 +61,8 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
+
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
@@ -71,7 +71,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
 
         // Should not throw, but task will complete quickly with no SSTables
         scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
-        spinUntilTrue(() -> scheduler.scheduledManualTrainingTask() == null);
+        spinUntilTrue(() -> !scheduler.isManualTrainingRunning());
         assertThat(manager.getCurrent()).isNull();
     }
 
@@ -80,6 +80,8 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4'}");
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
+
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
@@ -95,7 +97,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
 
         // Task should be scheduled
-        assertThat((Object) scheduler.scheduledManualTrainingTask()).isNotNull();
+        assertThat(scheduler.isManualTrainingRunning()).isTrue();
         // A dictionary should be trained
         spinUntilTrue(() -> manager.getCurrent() != null);
     }

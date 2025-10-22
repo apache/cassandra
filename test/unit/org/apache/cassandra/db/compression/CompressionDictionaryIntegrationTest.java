@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compression;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -142,9 +143,9 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         manager.close();
 
         assertThat(manager.trainer()).isNull();
-        assertThat(testDict.selfRef().globalCount())
-        .as("Dictionary's reference count should be 0 after closing manager")
-        .isZero();
+        // Dictionary's reference count should be 0 after closing manager
+        // Dictionary is closed in a separate thread. Wait a bit for the reference count to be updated.
+        spinUntilTrue(() -> testDict.selfRef().globalCount() == 0, 1, TimeUnit.SECONDS);
         assertThat(testDict.rawDictionary())
         .as("The raw dictionary bytes should still be accessible")
         .isNotNull();
