@@ -35,8 +35,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -45,6 +43,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.ValueGenerator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.utils.TimeUUID;
@@ -137,14 +138,16 @@ public class SecondaryIndexTest extends TestBaseImpl
     public void test_secondary_rebuild_with_small_memtable_memory()
     {
         // populate data
+        Random rand = new Random();
         for (int i = 0 ; i < 100 ; ++i)
-            cluster.coordinator(1).execute(String.format("INSERT INTO %s (k, v) VALUES (?, ?)", tableName), ConsistencyLevel.ALL, i, generateRandomString(50000));
+            cluster.coordinator(1).execute(String.format("INSERT INTO %s (k, v) VALUES (?, ?)", tableName), ConsistencyLevel.ALL, i, ValueGenerator.randomString(rand, 50000));
 
         cluster.forEach(i -> i.flush(KEYSPACE));
 
         // restart node 1 with small memtable allocation so that index rebuild will cause memtable flush which will need
         // to reclaim the memory. see CASSANDRA-19564
         waitOn(cluster.get(1).shutdown());
+        Object originalMemTableHeapSpace = cluster.get(1).config().get("memtable_heap_space");
         cluster.get(1).config().set("memtable_heap_space", "1MiB");
         cluster.get(1).startup();
         String tableNameWithoutKeyspaceName = tableName.split("\\.")[1];
@@ -156,7 +159,7 @@ public class SecondaryIndexTest extends TestBaseImpl
         }
         );
         ExecutorService es = Executors.newFixedThreadPool(1);
-        Future future = es.submit(task);
+        Future<?> future = es.submit(task);
         try
         {
             future.get(30, TimeUnit.SECONDS);
@@ -166,19 +169,12 @@ public class SecondaryIndexTest extends TestBaseImpl
             e.printStackTrace();
             Assert.fail("Rebuild should finish within 30 seconds without issue.");
         }
-    }
-
-    private String generateRandomString(int length) {
-        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        Random random = new Random();
-        StringBuilder sb = new StringBuilder(length);
-
-        for (int i = 0; i < length; i++) {
-            int randomIndex = random.nextInt(characters.length());
-            char randomChar = characters.charAt(randomIndex);
-            sb.append(randomChar);
+        finally
+        {
+            // restore node1 to use default value for memtable_heap_space
+            waitOn(cluster.get(1).shutdown());
+            cluster.get(1).config().set("memtable_heap_space", originalMemTableHeapSpace);
+            cluster.get(1).startup();
         }
-
-        return sb.toString();
     }
 }

@@ -33,8 +33,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.FutureCallback;
-
-import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -54,6 +52,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
@@ -990,6 +989,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         }
 
                         indexers.forEach(Index.Indexer::finish);
+                    }
+                }
+                finally
+                {
+                    if (partition != null)
+                    {
+                        partition.close();
                     }
                 }
             }
