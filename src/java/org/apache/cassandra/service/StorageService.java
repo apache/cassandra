@@ -4703,24 +4703,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getCachedReplicaRowsWarnThreshold()
     {
-        return DatabaseDescriptor.getCachedReplicaRowsWarnThreshold();
+        return Guardrails.instance.getCachedRowsWarnThreshold();
     }
 
     public void setCachedReplicaRowsWarnThreshold(int threshold)
     {
-        DatabaseDescriptor.setCachedReplicaRowsWarnThreshold(threshold);
-        logger.info("updated replica_filtering_protection.cached_rows_warn_threshold to {}", threshold);
+        Guardrails.instance.setCachedRowsThreshold(threshold, Guardrails.instance.getCachedRowsFailThreshold());
     }
 
     public int getCachedReplicaRowsFailThreshold()
     {
-        return DatabaseDescriptor.getCachedReplicaRowsFailThreshold();
+        return Guardrails.instance.getCachedRowsFailThreshold();
     }
 
     public void setCachedReplicaRowsFailThreshold(int threshold)
     {
-        DatabaseDescriptor.setCachedReplicaRowsFailThreshold(threshold);
-        logger.info("updated replica_filtering_protection.cached_rows_fail_threshold to {}", threshold);
+        Guardrails.instance.setCachedRowsThreshold(Guardrails.instance.getCachedRowsWarnThreshold(), threshold);
     }
 
     @Override

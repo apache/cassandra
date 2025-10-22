@@ -283,6 +283,15 @@ public interface GuardrailsConfig
     long getPartitionTombstonesFailThreshold();
 
     /**
+     * @return The threshold to warn when reading cached rows during replica filtering protection than threshold.
+     */
+    long getCachedRowsWarnThreshold();
+    /**
+     * @return The threshold to fail when reading cached rows during replica filtering protection than threshold.
+     */
+    long getCachedRowsFailThreshold();
+
+    /**
      * @return The threshold to warn when writing column values larger than threshold.
      */
     @Nullable

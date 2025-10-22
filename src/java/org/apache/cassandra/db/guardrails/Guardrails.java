@@ -372,6 +372,18 @@ public final class Guardrails implements GuardrailsMBean
                                     what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
+     * Guardrail on the number of rows cached during replica filtering protection.
+     */
+    public static final MaxThreshold cachedRows =
+    new MaxThreshold("cached_rows",
+                     "Replica with too many cached rows during replica filtering protection can cause performance problems.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getCachedRowsWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getCachedRowsFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("Replica %s has %s cached rows during replica filtering protection, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
      * Guardrail on the size of a simple type column.
      */
     public static final MaxThreshold columnValueSize =
@@ -1145,6 +1157,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setPartitionTombstonesThreshold(long warn, long fail)
     {
         DEFAULT_CONFIG.setPartitionTombstonesThreshold(warn, fail);
+    }
+
+    @Override
+    public int getCachedRowsWarnThreshold()
+    {
+        return (int)DEFAULT_CONFIG.getCachedRowsWarnThreshold();
+    }
+
+    @Override
+    public int getCachedRowsFailThreshold()
+    {
+        return (int)DEFAULT_CONFIG.getCachedRowsFailThreshold();
+    }
+
+    @Override
+    public void setCachedRowsThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setCachedRowsThreshold(warn, fail);
     }
 
     @Override

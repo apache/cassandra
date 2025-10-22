@@ -46,6 +46,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -324,22 +325,22 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     {
         currentRowsCached++;
 
-        if (currentRowsCached == cachedRowsFailThreshold + 1)
+        if (Guardrails.cachedRows.failsOn(currentRowsCached, null))
         {
             String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
-                                           "(See 'cached_replica_rows_fail_threshold' in cassandra.yaml.)",
+                                           "(See 'cached_rows_fail_threshold' in cassandra.yaml.)",
                                            cachedRowsFailThreshold, command.toCQLString());
 
             logger.error(message);
             Tracing.trace(message);
             throw new OverloadedException(message);
         }
-        else if (currentRowsCached == cachedRowsWarnThreshold + 1 && !hitWarningThreshold)
+        else if (Guardrails.cachedRows.warnsOn(currentRowsCached, null) && !hitWarningThreshold)
         {
             hitWarningThreshold = true;
 
             String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
-                                           "(See 'cached_replica_rows_warn_threshold' in cassandra.yaml.)",
+                                           "(See 'cached_rows_warn_threshold' in cassandra.yaml.)",
                                            cachedRowsWarnThreshold, command.toCQLString());
 
             ClientWarn.instance.warn(message);

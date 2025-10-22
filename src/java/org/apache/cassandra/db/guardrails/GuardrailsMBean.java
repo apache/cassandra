@@ -589,6 +589,22 @@ public interface GuardrailsMBean
     void setPartitionTombstonesThreshold(long warn, long fail);
 
     /**
+     * @return The threshold to warn when reading cached rows during replica filtering protection than threshold.
+    */
+    int getCachedRowsWarnThreshold();
+
+    /**
+     * @return The threshold to fail when reading cached rows during replica filtering protection than threshold.
+     */
+    int getCachedRowsFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when reading cached rows during replica filtering protection than threshold.
+     * @param fail The threshold to fail when reading cached rows during replica filtering protection than threshold.
+     */
+    void setCachedRowsThreshold(int warn, int fail);
+
+    /**
      * @return The threshold to warn when encountering column values larger than threshold, as a string  formatted as
      * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
      */

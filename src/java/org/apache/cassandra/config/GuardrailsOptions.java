@@ -109,6 +109,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                  "sai_sstable_indexes_per_query",
                                  false);
         validatePasswordValidator(config.password_validator);
+        validateMaxLongThreshold(config.replica_filtering_protection.cached_rows_warn_threshold, config.replica_filtering_protection.cached_rows_fail_threshold, "cached_rows", false);
     }
 
     @Override
@@ -668,6 +669,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.partition_tombstones_fail_threshold,
                                   x -> config.partition_tombstones_fail_threshold = x);
+    }
+
+    @Override
+    public long getCachedRowsWarnThreshold()
+    {
+        return config.replica_filtering_protection.cached_rows_warn_threshold;
+    }
+
+    @Override
+    public long getCachedRowsFailThreshold()
+    {
+        return config.replica_filtering_protection.cached_rows_fail_threshold;
+    }
+
+    public void setCachedRowsThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "cached_rows");
+        updatePropertyWithLogging("cached_rows_warn_threshold",
+                                  warn,
+                                  () -> config.replica_filtering_protection.cached_rows_warn_threshold,
+                                  x -> config.replica_filtering_protection.cached_rows_warn_threshold = x);
+        updatePropertyWithLogging("cached_rows_fail_threshold",
+                                  fail,
+                                  () -> config.replica_filtering_protection.cached_rows_fail_threshold,
+                                  x -> config.replica_filtering_protection.cached_rows_fail_threshold = x);
     }
 
     @Override
