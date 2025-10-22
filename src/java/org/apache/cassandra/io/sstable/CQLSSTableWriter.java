@@ -274,7 +274,7 @@ public class CQLSSTableWriter implements Closeable
         if (values.size() != boundNames.size())
             throw new InvalidRequestException(String.format("Invalid number of arguments, expecting %d values but got %d", boundNames.size(), values.size()));
 
-        QueryOptions options = QueryOptions.forInternalCalls(null, values);
+        QueryOptions options = QueryOptions.forInternalCalls(null, values, writer.enabledConstraints);
         ClientState state = ClientState.forInternalCalls();
         List<ByteBuffer> keys = modificationStatement.buildPartitionKeyNames(options, state);
 
@@ -413,6 +413,7 @@ public class CQLSSTableWriter implements Closeable
         private boolean buildIndexes = true;
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
         private boolean openSSTableOnProduced = false;
+        private boolean enabledConstraints = true;
 
         protected Builder()
         {
@@ -665,6 +666,19 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * If constraints are enabled (the default), then writing a row which violates them fails. If they are
+         * disabled, then writing a row which would violate them will not fail.
+         *
+         * @param withConstraints true if constraints should be enabled, false otherwise.
+         * @return this builder
+         */
+        public Builder withConstraints(boolean withConstraints)
+        {
+            this.enabledConstraints = withConstraints;
+            return this;
+        }
+
         public CQLSSTableWriter build()
         {
             if (directory == null)
@@ -781,6 +795,7 @@ public class CQLSSTableWriter implements Closeable
                     writer.setSSTableProducedListener(sstableProducedListener);
 
                 writer.setShouldOpenProducedSSTable(openSSTableOnProduced);
+                writer.enableConstraints(enabledConstraints);
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }

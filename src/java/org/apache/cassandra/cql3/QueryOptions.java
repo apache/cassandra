@@ -62,7 +62,13 @@ public abstract class QueryOptions
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        return forInternalCalls(consistency, values, true);
+    }
+
+    public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values, boolean enabledConstraints)
+    {
+        SpecificOptions specificOptions = enabledConstraints ? SpecificOptions.DEFAULT : SpecificOptions.DEFAULT_WITHOUT_CONSTRAINTS;
+        return new DefaultQueryOptions(consistency, values, false, specificOptions, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCallsWithNowInSec(long nowInSec, ConsistencyLevel consistency, List<ByteBuffer> values)
@@ -106,7 +112,7 @@ public abstract class QueryOptions
         return new DefaultQueryOptions(consistency,
                                        values,
                                        skipMetadata,
-                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
+                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, true),
                                        version);
     }
 
@@ -263,6 +269,11 @@ public abstract class QueryOptions
     public QueryOptions prepare(List<ColumnSpecification> specs)
     {
         return this;
+    }
+
+    public boolean areConstraintsEnabled()
+    {
+        return getSpecificOptions().enabledConstraints;
     }
 
     interface ReadThresholds
@@ -538,7 +549,11 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC, true);
+        // it is better to have a constant like this due to amount of new objects being created
+        // if we wanted to disable constraints e.g. in analytics and new SpecificOptions object would be constructed all over again
+        // just with enabledConstraints flag set to false
+        private static final SpecificOptions DEFAULT_WITHOUT_CONSTRAINTS = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC, false);
 
         private final int pageSize;
         private final PagingState state;
@@ -546,13 +561,15 @@ public abstract class QueryOptions
         private final long timestamp;
         private final String keyspace;
         private final long nowInSeconds;
+        private final boolean enabledConstraints;
 
         private SpecificOptions(int pageSize,
                                 PagingState state,
                                 ConsistencyLevel serialConsistency,
                                 long timestamp,
                                 String keyspace,
-                                long nowInSeconds)
+                                long nowInSeconds,
+                                boolean enabledConstraints)
         {
             this.pageSize = pageSize;
             this.state = state;
@@ -560,11 +577,12 @@ public abstract class QueryOptions
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
+            this.enabledConstraints = enabledConstraints;
         }
 
         public SpecificOptions withNowInSec(long nowInSec)
         {
-            return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec);
+            return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec, enabledConstraints);
         }
     }
 
@@ -662,7 +680,7 @@ public abstract class QueryOptions
                 String keyspace = Flag.contains(flags, Flag.KEYSPACE) ? CBUtil.readString(body) : null;
                 long nowInSeconds = Flag.contains(flags, Flag.NOW_IN_SECONDS) ? CassandraUInt.toLong(body.readInt())
                                                                               : UNSET_NOWINSEC;
-                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
+                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, true);
             }
 
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);

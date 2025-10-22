@@ -1690,6 +1690,54 @@ public abstract class CQLSSTableWriterTest
         }
     }
 
+
+    @Test
+    public void testConstraintNotViolatedWhenDisabled() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 int CHECK v1 < 5 ,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .withConstraints(false)
+                                                  .using("INSERT INTO " + keyspace + "." + table + " (k, v1) " +
+                                                         "VALUES (?, ?)").build();
+
+        writer.addRow(1, 4);
+
+        // this would normally fail, but it is not, because we disabled usage of constraints
+        writer.addRow(2, 11);
+
+        writer.close();
+        loadSSTables(dataDir, keyspace, table);
+
+        if (verifyDataAfterLoading)
+        {
+            UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
+
+            assertEquals(resultSet.size(), 2);
+
+            Iterator<UntypedResultSet.Row> iterator = resultSet.iterator();
+            while (iterator.hasNext())
+            {
+                UntypedResultSet.Row row = iterator.next();
+
+                int k = row.getInt("k");
+                if (k != 1 && k != 2)
+                    throw new IllegalStateException("Expecting values 1 or 2 for primary column k");
+
+                if (k == 1)
+                    assertEquals(4, row.getInt("v1"));
+                else
+                    assertEquals(11, row.getInt("v1"));
+            }
+        }
+    }
+
     protected static void loadSSTables(File dataDir, final String ks, final String tb) throws ExecutionException, InterruptedException
     {
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()

@@ -126,7 +126,8 @@ public class UpdateStatement extends ModificationStatement
                 updates.get(i).execute(updateBuilder.partitionKey(), params);
 
             Row row = params.buildRow();
-            evaluateConstraintsForRow(row, metadata);
+            if (params.options.areConstraintsEnabled())
+                evaluateConstraintsForRow(row, metadata);
             updateBuilder.add(row);
         }
 
