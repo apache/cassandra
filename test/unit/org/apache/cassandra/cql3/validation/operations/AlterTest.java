@@ -52,7 +52,7 @@ public class AlterTest extends CQLTester
         {
             createTable("CREATE TABLE %s (a int, b " + type + ", PRIMARY KEY (a));");
             alterTable("ALTER TABLE %s DROP b;");
-            assertInvalidMessage("Cannot re-add previously dropped column 'b' of type blob, incompatible with previous type " + type,
+            assertInvalidMessage("Cannot add a column 'b' of type blob, incompatible with previously dropped column 'b' of type " + type,
                                  "ALTER TABLE %s ADD b blob;");
         }
 
@@ -60,13 +60,13 @@ public class AlterTest extends CQLTester
         {
             createTable("CREATE TABLE %s (a int, b blob, PRIMARY KEY (a));");
             alterTable("ALTER TABLE %s DROP b;");
-            assertInvalidMessage("Cannot re-add previously dropped column 'b' of type " + type + ", incompatible with previous type blob",
+            assertInvalidMessage("Cannot add a column 'b' of type " + type + ", incompatible with previously dropped column 'b' of type blob",
                                  "ALTER TABLE %s ADD b " + type + ';');
         }
     }
 
     @Test
-    public void testFrozenCollectionsAreCompatibleWithBlob()
+    public void testFrozenCollectionsAreNotCompatibleWithBlob() throws Throwable
     {
         String[] collectionTypes = new String[] {"frozen<map<int, int>>", "frozen<set<int>>", "frozen<list<int>>"};
 
@@ -74,7 +74,8 @@ public class AlterTest extends CQLTester
         {
             createTable("CREATE TABLE %s (a int, b " + type + ", PRIMARY KEY (a));");
             alterTable("ALTER TABLE %s DROP b;");
-            alterTable("ALTER TABLE %s ADD b blob;");
+            assertInvalidMessage("Cannot add a column 'b' of type blob, incompatible with previously dropped column 'b' of type " + type,
+                                 "ALTER TABLE %s ADD b blob;");
         }
     }
 
@@ -482,8 +483,8 @@ public class AlterTest extends CQLTester
         {
             createTable("create table %s (k int, c int, v " + typePair[0] + ", PRIMARY KEY (k, c))");
             execute("alter table %s drop v");
-            assertInvalidMessage("Cannot re-add previously dropped column 'v' of type "
-                                 + typePair[1] + ", incompatible with previous type " + typePair[0],
+            assertInvalidMessage("Cannot add a column 'v' of type "
+                                 + typePair[1] + ", incompatible with previously dropped column 'v' of type " + typePair[0],
                                  "alter table %s add v " + typePair[1]);
         }
     }
