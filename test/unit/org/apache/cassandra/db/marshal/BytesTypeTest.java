@@ -19,8 +19,15 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.util.Arrays;
+
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class BytesTypeTest
 {
@@ -37,5 +44,69 @@ public class BytesTypeTest
     public void testFromStringWithValidString()
     {
         BytesType.instance.fromString(VALID_HEX);
+    }
+
+    @Test
+    public void testValueCompatibilityWithScalarTypes()
+    {
+        // BytesType should be compatible with simple scalar types
+        assertTrue("BytesType should be compatible with AsciiType",
+                   BytesType.instance.isValueCompatibleWith(AsciiType.instance));
+        assertTrue("BytesType should be compatible with UTF8Type",
+                   BytesType.instance.isValueCompatibleWith(UTF8Type.instance));
+        assertTrue("BytesType should be compatible with Int32Type",
+                   BytesType.instance.isValueCompatibleWith(Int32Type.instance));
+        assertTrue("BytesType should be compatible with LongType",
+                   BytesType.instance.isValueCompatibleWith(LongType.instance));
+        assertTrue("BytesType should be compatible with UUIDType",
+                   BytesType.instance.isValueCompatibleWith(UUIDType.instance));
+        assertTrue("BytesType should be compatible with BooleanType",
+                   BytesType.instance.isValueCompatibleWith(BooleanType.instance));
+        assertTrue("BytesType should be compatible with itself",
+                   BytesType.instance.isValueCompatibleWith(BytesType.instance));
+    }
+
+    @Test
+    public void testValueIncompatibilityWithCollections()
+    {
+        // BytesType should NOT be compatible with collections (even frozen ones)
+        // because converting a collection to raw bytes is nonsensical
+        ListType<?> frozenList = ListType.getInstance(Int32Type.instance, false);
+        SetType<?> frozenSet = SetType.getInstance(Int32Type.instance, false);
+        MapType<?, ?> frozenMap = MapType.getInstance(Int32Type.instance, UTF8Type.instance, false);
+
+        assertFalse("BytesType should NOT be compatible with frozen<list>",
+                    BytesType.instance.isValueCompatibleWith(frozenList));
+        assertFalse("BytesType should NOT be compatible with frozen<set>",
+                    BytesType.instance.isValueCompatibleWith(frozenSet));
+        assertFalse("BytesType should NOT be compatible with frozen<map>",
+                    BytesType.instance.isValueCompatibleWith(frozenMap));
+
+        // Also test with multi-cell collections
+        ListType<?> multiCellList = ListType.getInstance(Int32Type.instance, true);
+        SetType<?> multiCellSet = SetType.getInstance(Int32Type.instance, true);
+        MapType<?, ?> multiCellMap = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
+
+        assertFalse("BytesType should NOT be compatible with list",
+                    BytesType.instance.isValueCompatibleWith(multiCellList));
+        assertFalse("BytesType should NOT be compatible with set",
+                    BytesType.instance.isValueCompatibleWith(multiCellSet));
+        assertFalse("BytesType should NOT be compatible with map",
+                    BytesType.instance.isValueCompatibleWith(multiCellMap));
+    }
+
+    @Test
+    public void testValueIncompatibilityWithUDT()
+    {
+        // BytesType should NOT be compatible with User Defined Types
+        // because converting a UDT to raw bytes is nonsensical
+        UserType udt = new UserType("ks",
+                                     ByteBufferUtil.bytes("myType"),
+                                     Arrays.asList(FieldIdentifier.forQuoted("field1"), FieldIdentifier.forQuoted("field2")),
+                                     Arrays.asList(Int32Type.instance, UTF8Type.instance),
+                                     true);
+
+        assertFalse("BytesType should NOT be compatible with UDT",
+                    BytesType.instance.isValueCompatibleWith(udt));
     }
 }

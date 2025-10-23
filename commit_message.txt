@@ -1,0 +1,13 @@
+Restrict BytesType compatibility to scalar types only
+
+BytesType.isValueCompatibleWith() previously accepted all types,
+including frozen collections and UDTs. This was incorrect because
+converting collections or UDTs to raw bytes is nonsensical - it
+allows reading raw serialized bytes which have no meaningful
+interpretation.
+
+This patch restricts BytesType to only accept simple scalar types
+by checking !isCollection() && !isUDT() in isValueCompatibleWithInternal().
+
+patch by Dekrate for CASSANDRA-20982
+

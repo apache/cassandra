@@ -68,7 +68,7 @@ public class AlterTest extends CQLTester
     }
 
     @Test
-    public void testFrozenCollectionsAreCompatibleWithBlob()
+    public void testFrozenCollectionsAreNotCompatibleWithBlob()
     {
         String[] collectionTypes = new String[] {"frozen<map<int, int>>", "frozen<set<int>>", "frozen<list<int>>"};
 
@@ -76,7 +76,8 @@ public class AlterTest extends CQLTester
         {
             createTable("CREATE TABLE %s (a int, b " + type + ", PRIMARY KEY (a));");
             alterTable("ALTER TABLE %s DROP b;");
-            alterTable("ALTER TABLE %s ADD b blob;");
+            assertInvalidMessage("Cannot re-add previously dropped column 'b' of type blob, incompatible with previous type " + type,
+                                 "ALTER TABLE %s ADD b blob;");
         }
     }
 
