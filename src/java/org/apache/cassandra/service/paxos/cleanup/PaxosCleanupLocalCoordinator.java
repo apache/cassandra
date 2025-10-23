@@ -212,7 +212,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
             }
         }
 
-        if (inflight.isEmpty())
+        if (inflight.isEmpty() && delayed.isEmpty())
             finish();
     }
 
