@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,12 +63,17 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     private static class DelayedRepair
     {
         private final UncommittedPaxosKey uncommitted;
-        private final long startAfterMillis;
+        private final long scheduledAtNanos;
 
-        public DelayedRepair(UncommittedPaxosKey uncommitted, long startAfterMillis)
+        public DelayedRepair(UncommittedPaxosKey uncommitted, long sleepMillis)
         {
             this.uncommitted = uncommitted;
-            this.startAfterMillis = startAfterMillis;
+            this.scheduledAtNanos = Clock.Global.nanoTime() + MILLISECONDS.toNanos(sleepMillis);
+        }
+
+        public boolean isRunnable()
+        {
+            return Clock.Global.nanoTime() - scheduledAtNanos > 0;
         }
     }
 
@@ -141,6 +145,10 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         return new PaxosCleanupLocalCoordinator(ctx, INTERNAL_SESSION, tableId, ranges, iterator, true);
     }
 
+    /**
+     * Wait to repair things that are still potentially executing at the original coordinator to avoid
+     * causing timeouts. This should only have to happen at most a few times when the repair starts
+     */
     private boolean maybeDelay(UncommittedPaxosKey uncommitted)
     {
         if (!DatabaseDescriptor.getPaxosRepairRaceWait())
@@ -160,7 +168,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         long sleepMillis = txnTimeoutMillis - ballotElapsedMillis;
         logger.info("Paxos auto repair encountered a potentially in progress ballot, sleeping {}ms to allow the in flight operation to finish", sleepMillis);
 
-        delayed.add(new DelayedRepair(uncommitted, nowMillis + sleepMillis));
+        delayed.add(new DelayedRepair(uncommitted, sleepMillis));
         ScheduledExecutors.scheduledFastTasks.schedule(this::scheduleKeyRepairsOrFinish, sleepMillis, MILLISECONDS);
 
         return true;
@@ -170,7 +178,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
      * Schedule as many key repairs as we can, up to the paralellism limit. If no repairs are scheduled and
      * none are in flight when the iterator is exhausted, the session will be finished
      */
-    private void scheduleKeyRepairsOrFinish()
+    private synchronized void scheduleKeyRepairsOrFinish()
     {
         int parallelism = DatabaseDescriptor.getPaxosRepairParallelism();
         Preconditions.checkArgument(parallelism > 0);
@@ -184,7 +192,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
 
             while (inflight.size() < parallelism && !isDone())
             {
-                if (!delayed.isEmpty() && delayed.peek().startAfterMillis < Clock.Global.currentTimeMillis())
+                if (!delayed.isEmpty() && delayed.peek().isRunnable())
                 {
                     DelayedRepair delayedRepair = delayed.remove();
                     repairKey(delayedRepair.uncommitted);
@@ -226,24 +234,6 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 onKeyFailure(result.toString());
         }));
         return true;
-    }
-
-    /**
-     * Wait to repair things that are still potentially executing at the original coordinator to avoid
-     * causing timeouts. This should only have to happen at most a few times when the repair starts
-     */
-    private static void maybeWaitForOriginalCoordinator(UncommittedPaxosKey uncommitted, long txnTimeoutMicros)
-    {
-        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long ballotElapsedMicros = nowMicros - uncommitted.ballot().unixMicros();
-        if (ballotElapsedMicros < 0 && Math.abs(ballotElapsedMicros) > SECONDS.toMicros(1))
-            logger.warn("Encountered ballot that is more than 1 second in the future, is there a clock sync issue? {}", uncommitted.ballot());
-        if (ballotElapsedMicros < txnTimeoutMicros)
-        {
-            long sleepMicros = txnTimeoutMicros - ballotElapsedMicros;
-            logger.info("Paxos auto repair encountered a potentially in progress ballot, sleeping {}us to allow the in flight operation to finish", sleepMicros);
-            Uninterruptibles.sleepUninterruptibly(sleepMicros, MICROSECONDS);
-        }
     }
 
     private synchronized void onKeyFinish(DecoratedKey key)
