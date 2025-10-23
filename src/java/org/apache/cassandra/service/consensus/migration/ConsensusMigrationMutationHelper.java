@@ -130,38 +130,48 @@ public class ConsensusMigrationMutationHelper
     }
 
     /**
-     * Result of splitting mutations across Accord and non-transactional boundaries
+     * Result of splitting mutations for different replication systems: tracked / untracked / accord
      */
     public static class SplitMutations<T extends IMutation> implements SplitConsumer<T>
     {
         @Nullable
+        private List<T> trackedMutations;
+
+        @Nullable
         private List<T> accordMutations;
 
         @Nullable
-        private List<T> normalMutations;
+        private List<T> untrackedMutations;
 
         private SplitMutations() {}
+
+        public List<T> trackedMutations()
+        {
+            return trackedMutations;
+        }
 
         public List<T> accordMutations()
         {
             return accordMutations;
         }
 
-        public List<T> normalMutations()
+        public List<T> untrackedMutations()
         {
-            return normalMutations;
+            return untrackedMutations;
         }
 
         @Override
-        public void consume(@Nullable T accordMutation, @Nullable T normalMutation, List<T> mutations, int mutationIndex)
+        public void consume(@Nullable T accordMutation, @Nullable T untrackedMutation, @Nullable T trackedMutation, List<T> mutations, int mutationIndex)
         {
             // Avoid allocating an ArrayList in common single mutation single system case
-            if (mutations.size() == 1 && (accordMutation != null ^ normalMutation != null))
+            if (mutations.size() == 1 && (accordMutation != null ^ (untrackedMutation != null || trackedMutation != null)))
             {
                 if (accordMutation != null)
                     accordMutations = mutations;
+                else if (untrackedMutation != null)
+                    untrackedMutations = mutations;
                 else
-                    normalMutations = mutations;
+                    trackedMutations = mutations;
                 return;
             }
 
@@ -171,57 +181,103 @@ public class ConsensusMigrationMutationHelper
                     accordMutations = new ArrayList<>(Math.min(mutations.size(), 10));
                 accordMutations.add(accordMutation);
             }
-            if (normalMutation != null)
+            if (untrackedMutation != null)
             {
-                if (normalMutations == null)
-                    normalMutations = new ArrayList<>(Math.min(mutations.size(), 10));
-                normalMutations.add(normalMutation);
+                if (untrackedMutations == null)
+                    untrackedMutations = new ArrayList<>(Math.min(mutations.size(), 10));
+                untrackedMutations.add(untrackedMutation);
+            }
+
+            if (trackedMutation != null)
+            {
+                if (trackedMutations == null)
+                    trackedMutations = new ArrayList<>(Math.min(mutations.size(), 10));
+                trackedMutations.add(trackedMutation);
             }
         }
     }
 
     public interface SplitConsumer<T extends IMutation>
     {
-        void consume(@Nullable T accordMutation, @Nullable T normalMutation, List<T> mutations, int mutationIndex);
+        void consume(@Nullable T accordMutation, @Nullable T untrackedMutation, @Nullable T trackedMutation, List<T> mutations, int mutationIndex);
     }
 
-    public static <T extends IMutation> SplitMutations<T> splitMutationsIntoAccordAndNormal(ClusterMetadata cm, List<T> mutations)
-    {
-        SplitMutations<T> splitMutations = new SplitMutations<>();
-        splitMutationsIntoAccordAndNormal(cm, mutations, splitMutations);
-        return splitMutations;
-    }
-
-    public static <T extends IMutation> void splitMutationsIntoAccordAndNormal(ClusterMetadata cm, List<T> mutations, SplitConsumer<T> splitConsumer)
+    public static <T extends IMutation> void splitMutations(ClusterMetadata cm, List<T> mutations, SplitConsumer<T> splitConsumer)
     {
         for (int i=0,mi=mutations.size(); i<mi; i++)
         {
-            SplitMutation<T> splitMutation = instance.splitMutationIntoAccordAndNormal(mutations.get(i), cm);
-            splitConsumer.consume(splitMutation.accordMutation, splitMutation.normalMutation, mutations, i);
+            SplitMutation<T> splitMutation = instance.splitMutation(mutations.get(i), cm);
+            splitConsumer.consume(splitMutation.accordMutation, splitMutation.untrackedMutation, splitMutation.trackedMutation, mutations, i);
         }
     }
 
+    private static boolean isTrackedMutation(IMutation mutation)
+    {
+        return Schema.instance.getKeyspaceMetadata(mutation.getKeyspaceName()).params.replicationType.isTracked();
+    }
+
+
     /**
-     * Result of splitting a mutation across Accord and non-transactional boundaries
+     * Splits mutations into tracked/untracked/accord mutations
+     */
+    public static <T extends IMutation> SplitMutations<T> splitMutations(ClusterMetadata cm, List<T> mutations)
+    {
+        SplitMutations<T> result = new SplitMutations<>();
+
+        for (T mutation : mutations)
+        {
+            SplitMutation<T> split = instance.splitMutation(mutation, cm);
+
+            if (split.accordMutation != null)
+            {
+                if (result.accordMutations == null)
+                    result.accordMutations = new ArrayList<>();
+                result.accordMutations.add(split.accordMutation);
+            }
+
+            if (split.untrackedMutation != null)
+            {
+                if (result.untrackedMutations == null)
+                    result.untrackedMutations = new ArrayList<>();
+                result.untrackedMutations.add(split.untrackedMutation);
+            }
+
+            if (split.trackedMutation != null)
+            {
+                if (result.trackedMutations == null)
+                    result.trackedMutations = new ArrayList<>();
+                result.trackedMutations.add(split.trackedMutation);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Result of splitting a mutation across Accord and untracked boundaries
      */
     public static class SplitMutation<T extends IMutation>
     {
         @Nullable
         public final T accordMutation;
         @Nullable
-        public final T normalMutation;
+        public final T untrackedMutation;
+        @Nullable
+        public final T trackedMutation;
 
-        public SplitMutation(@Nullable T accordMutation, @Nullable T normalMutation)
+        public SplitMutation(@Nullable T accordMutation, @Nullable T untrackedMutation, @Nullable T trackedMutation)
         {
             this.accordMutation = accordMutation;
-            this.normalMutation = normalMutation;
+            this.untrackedMutation = untrackedMutation;
+            this.trackedMutation = trackedMutation;
         }
     }
 
-    public <T extends IMutation> SplitMutation<T> splitMutationIntoAccordAndNormal(T mutation, ClusterMetadata cm)
+    public <T extends IMutation> SplitMutation<T> splitMutation(T mutation, ClusterMetadata cm)
     {
+        boolean isTracked = isTrackedMutation(mutation);
         if (mutation.potentialTxnConflicts().allowed)
-            return new SplitMutation<>(null, mutation);
+            return new SplitMutation<>(null, isTracked ? null : mutation, isTracked ? mutation : null);
 
         Token token = mutation.key().getToken();
         Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
@@ -232,7 +288,8 @@ public class ConsensusMigrationMutationHelper
             checkState((accordMutation == null ? false : accordMutation.hasUpdateForTable(pu.metadata().id))
                        || (normalMutation == null ? false : normalMutation.hasUpdateForTable(pu.metadata().id)),
                        "All partition updates should still be present after splitting");
-        return new SplitMutation(accordMutation, normalMutation);
+
+        return new SplitMutation(accordMutation, isTracked ? null : normalMutation, isTracked ? normalMutation : null);
     }
 
     public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)

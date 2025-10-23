@@ -150,6 +150,7 @@ import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
@@ -218,7 +219,7 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.s
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
-import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutations;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.splitReadsIntoAccordAndNormal;
@@ -1328,14 +1329,11 @@ public class StorageProxy implements StorageProxyMBean
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with triggers");
             if (mutateAtomically)
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with logged batches");
-            if (mutations.size() > 1)
-                throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
             if (updatesView)
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with materialized views");
-
-            mutateWithTracking((Mutation) mutations.get(0), consistencyLevel, requestTime);
         }
-        else if (augmented != null || mutateAtomically || updatesView)
+
+        if (augmented != null || mutateAtomically || updatesView)
             mutateAtomically(augmented != null ? augmented : (List<Mutation>)mutations, consistencyLevel, updatesView, requestTime);
         else
             dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, requestTime, preserveTimestamps);
@@ -1348,29 +1346,41 @@ public class StorageProxy implements StorageProxyMBean
             ClusterMetadata cm = ClusterMetadata.current();
             try
             {
-                SplitMutations<?> splitMutations = splitMutationsIntoAccordAndNormal(cm, (List<IMutation>)mutations);
+                SplitMutations<?> splitMutations = splitMutations(cm, (List<IMutation>)mutations);
+                List<? extends IMutation> trackedMutations = splitMutations.trackedMutations();
                 List<? extends IMutation> accordMutations = splitMutations.accordMutations();
-                List<? extends IMutation> normalMutations = splitMutations.normalMutations();
+                List<? extends IMutation> untrackedMutations = splitMutations.untrackedMutations();
                 // If there was ever any attempt to apply part of the mutation using the eventually consistent path
                 // then we need to continue to use the timestamp used by the eventually consistent path to not
                 // end up with multiple timestamps, but if it only ever used the transactional path then we can
                 // use the transactional timestamp to get linearizability
-                if (!preserveTimestamps.preserve && normalMutations != null)
+                if (!preserveTimestamps.preserve && (untrackedMutations != null || trackedMutations != null))
                     preserveTimestamps = PreserveTimestamp.yes;
                 // A BATCH statement has multiple mutations mixing server timestamps and `USING TIMESTAMP`,
                 // which is not linearizable for the writes to Accord tables.
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
+
+                // Supports batches with multiple tracked mutations (previously limited to one).
+                List<AbstractWriteResponseHandler<?>> trackedHandlers = trackedMutations != null ? new ArrayList<>(trackedMutations.size()) : null;
+                if (trackedMutations != null)
+                {
+                    for (IMutation trackedMutation : trackedMutations)
+                    {
+                        trackedHandlers.add(TrackedWriteRequest.perform((Mutation) trackedMutation, consistencyLevel, requestTime));
+                    }
+                }
+
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
-                Tracing.trace("Split mutations into Accord {} and normal {}", accordMutations, normalMutations);
+                Tracing.trace("Split mutations into tracked {}, Accord {}, and untracked {}", trackedMutations, accordMutations, untrackedMutations);
 
                 Throwable failure = null;
                 try
                 {
-                    if (normalMutations != null)
+                    if (untrackedMutations != null)
                     {
-                        mutate(normalMutations, consistencyLevel, requestTime);
-                        Tracing.trace("Successfully wrote normal mutations");
+                        mutate(untrackedMutations, consistencyLevel, requestTime);
+                        Tracing.trace("Successfully wrote untracked mutations");
                     }
                 }
                 catch (RetryOnDifferentSystemException e)
@@ -1378,7 +1388,7 @@ public class StorageProxy implements StorageProxyMBean
                     writeMetrics.retryDifferentSystem.mark();
                     writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
                     logger.debug("Retrying mutations on different system because some mutations were misrouted according to Cassandra");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    Tracing.trace("Got {} from untracked mutations, will retry", e);
                     continue;
                 }
                 catch (CoordinatorBehindException e)
@@ -1387,8 +1397,24 @@ public class StorageProxy implements StorageProxyMBean
                     writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
                     mutations.forEach(IMutation::clearCachedSerializationsForRetry);
                     logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
-                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    Tracing.trace("Got {} from untracked mutations, will retry", e);
                     continue;
+                }
+                catch (Exception e)
+                {
+                    failure = Throwables.merge(failure, e);
+                }
+
+                try
+                {
+                    if (trackedHandlers != null)
+                    {
+                        for (AbstractWriteResponseHandler<?> handler : trackedHandlers)
+                        {
+                            handler.get();
+                        }
+                        Tracing.trace("Successfully wrote tracked mutations");
+                    }
                 }
                 catch (Exception e)
                 {
@@ -1536,16 +1562,20 @@ public class StorageProxy implements StorageProxyMBean
                 BatchlogCleanup cleanup = new BatchlogCleanup(() -> asyncRemoveFromBatchlog(batchlogReplicaPlan, batchUUID, requestTime));
 
                 // add a handler for each mutation that will not be written on Accord - includes checking availability, but doesn't initiate any writes, yet
-                SplitConsumer<Mutation> splitConsumer = (accordMutation, normalMutation, originalMutations, mutationIndex) -> {
-                    Mutation eitherMutation = normalMutation != null ? normalMutation : accordMutation;
+                SplitConsumer<Mutation> splitConsumer = (accordMutation, untrackedMutation, trackedMutation, originalMutations, mutationIndex) -> {
+                    Mutation eitherMutation = untrackedMutation != null ? untrackedMutation : accordMutation;
                     Keyspace keyspace = Keyspace.open(eitherMutation.getKeyspaceName());
                     Token tk = eitherMutation.key().getToken();
 
                     if (accordMutation != null)
                         accordMutations.add(accordMutation);
 
-                    if (normalMutation == null)
+                    if (untrackedMutation == null && trackedMutation == null)
                         return;
+
+                    if (trackedMutation != null)
+                        throw new InvalidRequestException("Mutation tracking is currently unsupported with logged batches");
+
 
                     // Always construct the replica plan to check availability
                     ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
@@ -1555,7 +1585,7 @@ public class StorageProxy implements StorageProxyMBean
                     else
                         writeMetrics.remoteRequests.mark();
 
-                    WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(normalMutation,
+                    WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(untrackedMutation,
                                                                                    dataReplicaPlan,
                                                                                    batchConsistencyLevel,
                                                                                    WriteType.BATCH,
@@ -1563,7 +1593,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                                    requestTime);
                     wrappers.add(wrapper);
                 };
-                splitMutationsIntoAccordAndNormal(cm, mutations,  splitConsumer);
+                ConsensusMigrationMutationHelper.splitMutations(cm, mutations, splitConsumer);
                 attributeNonAccordLatency = !wrappers.isEmpty();
                 cleanup.setMutationsWaitingFor(wrappers.size() + (accordMutations.isEmpty() ? 0 : 1));
                 Tracing.trace("Split batch into Accord {} and normal {}", accordMutations, wrappers);
