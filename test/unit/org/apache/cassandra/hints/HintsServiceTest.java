@@ -250,16 +250,16 @@ public class HintsServiceTest
                     int count = 0;
 
                     @Override
-                    public <T extends IMutation> SplitMutation<T> splitMutationIntoAccordAndNormal(T mutation, ClusterMetadata cm)
+                    public <T extends IMutation> SplitMutation<T> splitMutation(T mutation, ClusterMetadata cm)
                     {
                         if (count > 2)
-                            return super.splitMutationIntoAccordAndNormal(mutation, cm);
+                            return super.splitMutation(mutation, cm);
 
                         SplitMutation split;
                         if (count % 2 == 0)
-                            split = new SplitMutation(mutation, null);
+                            split = new SplitMutation(mutation, null, null);
                         else
-                            split = new SplitMutation<>(null, mutation);
+                            split = new SplitMutation<>(null, mutation, null);
                         count++;
                         return split;
                     }
