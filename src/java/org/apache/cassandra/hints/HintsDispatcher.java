@@ -415,12 +415,14 @@ final class HintsDispatcher implements AutoCloseable
 
     private SplitHint splitHintIntoAccordAndNormal(ClusterMetadata cm, Hint hint)
     {
-        SplitMutation<Mutation> splitMutation = ConsensusMigrationMutationHelper.instance().splitMutationIntoAccordAndNormal(hint.mutation, cm);
+        SplitMutation<Mutation> splitMutation = ConsensusMigrationMutationHelper.instance().splitMutation(hint.mutation, cm);
+        if (splitMutation.trackedMutation != null)
+            throw new IllegalStateException("Cannot generate hints for tracked mutations");
         if (splitMutation.accordMutation == null)
             return new SplitHint(null, hint);
-        if (splitMutation.normalMutation == null)
+        if (splitMutation.untrackedMutation == null)
             return new SplitHint(splitMutation.accordMutation, null);
-        Hint normalHint = Hint.create(splitMutation.normalMutation, hint.creationTime, splitMutation.normalMutation.smallestGCGS());
+        Hint normalHint = Hint.create(splitMutation.untrackedMutation, hint.creationTime, splitMutation.untrackedMutation.smallestGCGS());
         return new SplitHint(splitMutation.accordMutation, normalHint);
     }
 

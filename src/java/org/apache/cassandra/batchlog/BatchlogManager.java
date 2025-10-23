@@ -54,6 +54,7 @@ import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -393,7 +394,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         private final TimeUUID id;
         private final long writtenAt;
         private final int unsplitGcGs;
-        private final List<Mutation> normalMutations;
+        private final List<Mutation> untrackedMutations;
         private final List<Mutation> accordMutations;
         private final int replayedBytes;
         private final ClusterMetadata cm;
@@ -410,10 +411,14 @@ public class BatchlogManager implements BatchlogManagerMBean
             List<Mutation> unsplitMutations = new ArrayList<>(serializedMutations.size());
             this.replayedBytes = addMutations(unsplitMutations, writtenAt, version, serializedMutations);
             unsplitGcGs = gcgs(unsplitMutations);
-            SplitMutations<Mutation> splitMutations = ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal(cm, unsplitMutations);
-            logger.trace("Replaying batch with Accord {} and normal {}", splitMutations.accordMutations(), splitMutations.normalMutations());
-            normalMutations = splitMutations.normalMutations();
+            SplitMutations<Mutation> splitMutations = ConsensusMigrationMutationHelper.splitMutations(cm, unsplitMutations);
+            logger.trace("Replaying batch with Accord {} and normal {}", splitMutations.accordMutations(), splitMutations.untrackedMutations());
+            untrackedMutations = splitMutations.untrackedMutations();
             accordMutations = splitMutations.accordMutations();
+
+            if (splitMutations.trackedMutations() != null)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with logged batches");
+
             if (accordMutations != null)
                 accordTxnStart = new Dispatcher.RequestTime(Clock.Global.nanoTime());
             this.cm = cm;
@@ -423,7 +428,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             logger.trace("Replaying batch {}", id);
 
-            if ((normalMutations == null || normalMutations.isEmpty()) && (accordMutations == null || accordMutations.isEmpty()))
+            if ((untrackedMutations == null || untrackedMutations.isEmpty()) && (accordMutations == null || accordMutations.isEmpty()))
                 return false;
 
             if (MILLISECONDS.toSeconds(writtenAt) + unsplitGcGs <= FBUtilities.nowInSeconds())
@@ -435,8 +440,8 @@ public class BatchlogManager implements BatchlogManagerMBean
                 accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, null, accordTxnStart, PreserveTimestamp.yes) : null;
             }
 
-            if (normalMutations != null)
-                replayHandlers = sendReplays(normalMutations, writtenAt, hintedNodes);
+            if (untrackedMutations != null)
+                replayHandlers = sendReplays(untrackedMutations, writtenAt, hintedNodes);
 
             rateLimiter.acquire(replayedBytes); // acquire afterwards, to not mess up ttl calculation.
 
@@ -545,10 +550,10 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         private void writeHintsForUndeliveredEndpoints(int startFrom, Set<UUID> hintedNodes)
         {
-            if (normalMutations == null)
+            if (untrackedMutations == null)
                 return;
 
-            int gcgs = gcgs(normalMutations);
+            int gcgs = gcgs(untrackedMutations);
 
             // expired
             if (MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
@@ -558,7 +563,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             for (int i = startFrom; i < replayHandlers.size(); i++)
             {
                 ReplayWriteResponseHandler<Mutation> handler = replayHandlers.get(i);
-                Mutation undeliveredMutation = normalMutations.get(i);
+                Mutation undeliveredMutation = untrackedMutations.get(i);
 
                 if (handler != null)
                 {
