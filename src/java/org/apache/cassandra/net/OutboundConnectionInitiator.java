@@ -525,14 +525,27 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         }
 
         boolean isSuccess() { return outcome == Outcome.SUCCESS; }
-        public SuccessType success() { return (SuccessType) this; }
+        public Success success() {
+            if (this instanceof Success success)
+                return success;
+            return null;
+        }
         static MessagingSuccess messagingSuccess(Channel channel, int messagingVersion, FrameEncoder.PayloadAllocator allocator) { return new MessagingSuccess(channel, messagingVersion, allocator); }
         static StreamingSuccess streamingSuccess(Channel channel, int messagingVersion) { return new StreamingSuccess(channel, messagingVersion); }
 
-        public Retry retry() { return (Retry) this; }
+        public Retry retry() {
+            if (this instanceof Retry retry)
+                return retry;
+            return null;
+        }
         static <SuccessType extends Success> Result<SuccessType> retry(int withMessagingVersion) { return new Retry<>(withMessagingVersion); }
 
-        public Incompatible incompatible() { return (Incompatible) this; }
+        public Incompatible incompatible()
+        {
+            if (this instanceof Incompatible incompatible)
+                return incompatible;
+            return null;
+        }
         static <SuccessType extends Success> Result<SuccessType> incompatible(int closestSupportedVersion, int maxMessagingVersion) { return new Incompatible(closestSupportedVersion, maxMessagingVersion); }
     }
 

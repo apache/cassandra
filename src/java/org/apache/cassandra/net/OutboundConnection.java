@@ -1127,42 +1127,38 @@ public class OutboundConnection
                         // it is expected that close, if successful, has already cancelled us; so we do not need to worry about leaking connections
                         assert !state.isClosed();
 
-                        MessagingSuccess success = result.success();
-                        debug.onConnect(success.messagingVersion, settings);
-                        state.disconnected().maintenance.cancel(false);
+                        if (result.success() instanceof MessagingSuccess success) {
+                            debug.onConnect(success.messagingVersion, settings);
+                            state.disconnected().maintenance.cancel(false);
 
-                        FrameEncoder.PayloadAllocator payloadAllocator = success.allocator;
-                        Channel channel = success.channel;
-                        Established established = new Established(success.messagingVersion, channel, payloadAllocator, settings);
-                        state = established;
-                        channel.pipeline().addLast("handleExceptionalStates", new ChannelInboundHandlerAdapter() {
-                            @Override
-                            public void channelInactive(ChannelHandlerContext ctx)
-                            {
-                                disconnectNow(established);
-                                ctx.fireChannelInactive();
-                            }
-
-                            @Override
-                            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
-                            {
-                                try
-                                {
-                                    invalidateChannel(established, cause);
+                            FrameEncoder.PayloadAllocator payloadAllocator = success.allocator;
+                            Channel channel = success.channel;
+                            Established established = new Established(success.messagingVersion, channel, payloadAllocator, settings);
+                            state = established;
+                            channel.pipeline().addLast("handleExceptionalStates", new ChannelInboundHandlerAdapter() {
+                                @Override
+                                public void channelInactive(ChannelHandlerContext ctx) {
+                                    disconnectNow(established);
+                                    ctx.fireChannelInactive();
                                 }
-                                catch (Throwable t)
-                                {
-                                    logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
-                                }
-                            }
-                        });
-                        ++successfulConnections;
 
-                        logger.info("{} successfully connected, version = {}, framing = {}, encryption = {}",
+                                @Override
+                                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                                    try {
+                                        invalidateChannel(established, cause);
+                                    } catch (Throwable t) {
+                                        logger.error("Unexpected exception in {}.exceptionCaught", this.getClass().getSimpleName(), t);
+                                    }
+                                }
+                            });
+                            ++successfulConnections;
+
+                            logger.info("{} successfully connected, version = {}, framing = {}, encryption = {}",
                                     id(true),
                                     success.messagingVersion,
                                     settings.framing,
                                     encryptionConnectionSummary(channel));
+                        }
                         break;
 
                     case RETRY:
