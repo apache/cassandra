@@ -19,11 +19,12 @@
 package org.apache.cassandra.service.paxos.cleanup;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -65,6 +66,20 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         private final UncommittedPaxosKey uncommitted;
         private final long scheduledAtNanos;
 
+        private static Comparator<DelayedRepair> PRIORITY_COMPARATOR = new Comparator<DelayedRepair>()
+        {
+            @Override
+            public int compare(DelayedRepair o1, DelayedRepair o2)
+            {
+                long delta = o1.scheduledAtNanos - o2.scheduledAtNanos;
+                if (delta > 0)
+                    return 1;
+                if (delta < 0)
+                    return -1;
+                return 0;
+            }
+        };
+
         public DelayedRepair(UncommittedPaxosKey uncommitted, long sleepMillis)
         {
             this.uncommitted = uncommitted;
@@ -88,7 +103,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     private final boolean autoRepair;
 
     private final Map<DecoratedKey, AbstractPaxosRepair> inflight = new ConcurrentHashMap<>();
-    private final Queue<DelayedRepair> delayed = new LinkedBlockingQueue<>();
+    private final Queue<DelayedRepair> delayed = new PriorityQueue<>(DelayedRepair.PRIORITY_COMPARATOR);
     private final PaxosTableRepairs tableRepairs;
 
     private PaxosCleanupLocalCoordinator(SharedContext ctx, UUID session, TableId tableId, Collection<Range<Token>> ranges, CloseableIterator<UncommittedPaxosKey> uncommittedIter, boolean autoRepair)
