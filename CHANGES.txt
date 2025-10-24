@@ -323,6 +323,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Updated dtest-api to 0.0.18 and removed JMX-related classes that now live in the dtest-api (CASSANDRA-20884)
  * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
  * Prevent too long table names not fitting file names (CASSANDRA-20389)
  * Update Jackson to 2.19.2 (CASSANDRA-20848)

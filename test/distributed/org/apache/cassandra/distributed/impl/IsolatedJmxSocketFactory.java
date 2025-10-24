@@ -27,7 +27,10 @@ import javax.net.ssl.SSLContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
+import org.apache.cassandra.distributed.shared.jmx.CollectingRMIServerSocketFactoryImpl;
+import org.apache.cassandra.distributed.shared.jmx.CollectingSslRMIServerSocketFactoryImpl;
+import org.apache.cassandra.distributed.shared.jmx.RMIClientSocketFactoryImpl;
+import org.apache.cassandra.distributed.shared.jmx.RMISslClientSocketFactoryImpl;
 import org.apache.cassandra.utils.jmx.AbstractJmxSocketFactory;
 
 import static javax.management.remote.rmi.RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE;
