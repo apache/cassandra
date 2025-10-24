@@ -1,3 +1,7 @@
+4.1.12
+Merged from 4.0
+ * Updated dtest-api to 0.0.18 and removed JMX-related classes that now live in the dtest-api (CASSANDRA-20884)
+
 4.1.11
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
 Merged from 4.0:
