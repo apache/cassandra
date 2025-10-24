@@ -27,15 +27,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
@@ -585,6 +591,76 @@ public class SSTableReaderTest
         {
             MmappedSegmentedFile.MAX_SEGMENT_SIZE = originalMaxSegmentSize;
         }
+    }
+
+    /**
+     * This test reproduces a bug where range scans resurrect columns when column indices are being used.
+     * <p>
+     * It does the following.
+     * 1. Write column e
+     * 2. Flush
+     * 3. Write column b
+     * 4. Delete with range tombstone from c to z
+     * 5. Flush
+     * 6. Range scan with filter (d, "")
+     * 7. Assert the data scanned contains the deleted column e
+     * 8. Range scan with filter (c, "")
+     * 9. Assert the data scanned does not contain the deleted column
+     * <p>
+     * The bug has to do with how column indices work. For regular columns, they work as expected indexing off the
+     * column name. For range tombstones, however, they only index off the "start" meaning the beginning of the interval.
+     * This can cause a read on column range (X, Y) to ignore tombstones that start before X, even if the tombstone
+     * looks like (X - 1, Y + 1), which covers X.
+     */
+    @Test
+    public void testIndexIgnoresRangeTombstone() throws IOException {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
+        CompactionManager.instance.disableAutoCompaction();
+
+        ByteBuffer key = ByteBufferUtil.bytes("row-key");
+
+        // create large enough columns for column indices to kick in
+        int columnSizeBytes = DatabaseDescriptor.getColumnIndexSize() + 1;
+        ByteBuffer buffer = ByteBuffer.allocate(columnSizeBytes);
+        byte[] randomBytes = new byte[columnSizeBytes];
+        new Random().nextBytes(randomBytes);
+        buffer.put(randomBytes);
+        buffer.rewind();
+
+        // insert e
+        Mutation rm = new Mutation(KEYSPACE1, key);
+        rm.add("Standard1", cellname("e"), buffer.duplicate(), System.currentTimeMillis());
+        rm.applyUnsafe();
+        store.forceBlockingFlush();
+
+        // insert b
+        // insert range tombstone (c, z)
+        rm.add("Standard1", cellname("b"), buffer.duplicate(), System.currentTimeMillis());
+        rm.deleteRange("Standard1", cellname("c"), cellname("z"), System.currentTimeMillis());
+        rm.applyUnsafe();
+        store.forceBlockingFlush();
+
+        // read (d, "")
+        SliceQueryFilter sliceQueryFilterD = new SliceQueryFilter(cellname("d"), Composites.EMPTY, false, 100);
+        ReadCommand readCommandD =
+        ReadCommand.create(KEYSPACE1, key, "Standard1", System.currentTimeMillis(), sliceQueryFilterD);
+        Row rowD = readCommandD.getRow(keyspace);
+
+        // assert non empty
+        assert !rowD.cf.getSortedColumns().isEmpty();
+        List<Cell> columns = new ArrayList<>(rowD.cf.getSortedColumns());
+        assert columns.size() == 1;
+        assert Objects.equals(store.getComparator().getString(columns.get(0).name()), store.getComparator().getString(cellname("e")));
+
+        // read (c, "")
+        SliceQueryFilter sliceQueryFilterC = new SliceQueryFilter(cellname("c"), Composites.EMPTY, false, 100);
+        ReadCommand readCommandC =
+        ReadCommand.create(KEYSPACE1, key, "Standard1", System.currentTimeMillis(), sliceQueryFilterC);
+        Row rowC = readCommandC.getRow(keyspace);
+
+        // assert empty
+        assert rowC.cf.getSortedColumns().isEmpty();
     }
 
     private void testIndexSummaryDownsampleAndReload0() throws Exception
