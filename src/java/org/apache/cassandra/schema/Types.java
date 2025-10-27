@@ -591,33 +591,80 @@ public final class Types implements Iterable<UserType>
 
         private void serializeFieldMetadata(UserType type, List<FieldIdentifier> fieldIdentifiers, DataOutputPlus out) throws IOException
         {
-            out.writeInt(fieldIdentifiers.size());
+            // Sparse serialization: only serialize non-empty metadata with their positions
+            serializeSparseMetadata(fieldIdentifiers, type::fieldComment, out);
+            serializeSparseMetadata(fieldIdentifiers, type::fieldSecurityLabel, out);
+        }
+
+        private void serializeSparseMetadata(List<FieldIdentifier> fieldIdentifiers,
+                                            java.util.function.Function<FieldIdentifier, String> metadataGetter,
+                                            DataOutputPlus out) throws IOException
+        {
+            // Count non-empty values
+            int nonEmptyCount = 0;
             for (FieldIdentifier fieldId : fieldIdentifiers)
             {
-                out.writeUTF(type.fieldComment(fieldId));
-                out.writeUTF(type.fieldSecurityLabel(fieldId));
+                if (!metadataGetter.apply(fieldId).isEmpty())
+                    nonEmptyCount++;
+            }
+
+            // Write count followed by position-value pairs
+            out.writeInt(nonEmptyCount);
+            for (int i = 0; i < fieldIdentifiers.size(); i++)
+            {
+                String value = metadataGetter.apply(fieldIdentifiers.get(i));
+                if (!value.isEmpty())
+                {
+                    out.writeInt(i);
+                    out.writeUTF(value);
+                }
             }
         }
 
         private void deserializeFieldMetadata(DataInputPlus in, List<String> fieldComments, List<String> fieldSecurityLabels) throws IOException
         {
-            int fieldMetadataSize = in.readInt();
-            for (int x = 0; x < fieldMetadataSize; x++)
+            deserializeSparseMetadata(in, fieldComments);
+            deserializeSparseMetadata(in, fieldSecurityLabels);
+        }
+
+        private void deserializeSparseMetadata(DataInputPlus in, List<String> target) throws IOException
+        {
+            int count = in.readInt();
+            for (int i = 0; i < count; i++)
             {
-                fieldComments.add(in.readUTF());
-                fieldSecurityLabels.add(in.readUTF());
+                int position = in.readInt();
+                String value = in.readUTF();
+                // Ensure the list is large enough to accommodate this position
+                while (target.size() <= position)
+                    target.add("");
+                target.set(position, value);
             }
         }
 
         private long fieldMetadataSize(UserType type, List<FieldIdentifier> fieldIdentifiers)
         {
-            long size = sizeof(fieldIdentifiers.size());
+            return sparseMetadataSize(fieldIdentifiers, type::fieldComment)
+                 + sparseMetadataSize(fieldIdentifiers, type::fieldSecurityLabel);
+        }
+
+        private long sparseMetadataSize(List<FieldIdentifier> fieldIdentifiers,
+                                       java.util.function.Function<FieldIdentifier, String> metadataGetter)
+        {
+            int nonEmptyCount = 0;
+            long dataSize = 0;
+
             for (FieldIdentifier fieldId : fieldIdentifiers)
             {
-                size += sizeof(type.fieldComment(fieldId));
-                size += sizeof(type.fieldSecurityLabel(fieldId));
+                String value = metadataGetter.apply(fieldId);
+                if (!value.isEmpty())
+                {
+                    nonEmptyCount++;
+                    dataSize += sizeof(0);     // position (int)
+                    dataSize += sizeof(value); // value string
+                }
             }
-            return size;
+
+            return sizeof(nonEmptyCount) + dataSize;
         }
     }
 }
