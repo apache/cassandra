@@ -919,6 +919,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SinglePartitionPager pager = new SinglePartitionPager(cmd, null, ProtocolVersion.CURRENT);
             while (!pager.isExhausted())
             {
+                @SuppressWarnings("resource")
                 UnfilteredRowIterator partition;
                 try (ReadExecutionController controller = cmd.executionController();
                      UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
