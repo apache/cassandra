@@ -92,7 +92,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     {
         // BytesType should only be compatible with simple scalar types, not with collections or UDTs
         // because converting a collection or UDT to raw bytes is nonsensical
-        return !otherType.isCollection() && !otherType.isUDT();
+        return !otherType.isMultiCell();
     }
 
     public CQL3Type asCQL3Type()
