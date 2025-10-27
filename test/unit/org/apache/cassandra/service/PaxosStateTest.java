@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
@@ -63,6 +64,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition("PaxosStateTest");
     }
 

@@ -53,6 +53,7 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
@@ -118,6 +119,7 @@ public abstract class CommitLogStressTest
         }
 
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
 
         CommitLog.instance.stopUnsafe(true);

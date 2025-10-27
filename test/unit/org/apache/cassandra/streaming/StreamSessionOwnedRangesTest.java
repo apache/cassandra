@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.messages.SessionFailedMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -73,6 +74,7 @@ public class StreamSessionOwnedRangesTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.recreateCMS();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ClusterMetadataTestHelper.register(broadcastAddress);
         ServerTestUtils.markCMS();

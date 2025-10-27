@@ -23,6 +23,7 @@ import java.util.function.Function;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableMetadata;
 
 import org.junit.AfterClass;
@@ -56,6 +57,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition("PaxosStateTest");
         metadata = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1").metadata.get();
         metadata.withSwapped(metadata.params.unbuild().gcGraceSeconds(3600).build());

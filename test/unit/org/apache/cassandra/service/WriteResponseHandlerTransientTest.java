@@ -45,6 +45,7 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -88,6 +89,7 @@ public class WriteResponseHandlerTransientTest
     public static void setupClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
