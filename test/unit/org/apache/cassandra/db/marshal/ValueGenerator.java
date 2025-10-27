@@ -47,7 +47,12 @@ public class ValueGenerator
 
     public static String randomString(Random random)
     {
-        char[] chars = new char[random.nextInt(100)];
+        return randomString(random, 100);
+    }
+
+    public static String randomString(Random random, int length)
+    {
+        char[] chars = new char[random.nextInt(length)];
         for (int i=0; i<chars.length; i++)
             chars[i] = CHARS[random.nextInt(CHARS.length)];
         return new String(chars);
