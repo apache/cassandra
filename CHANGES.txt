@@ -1,5 +1,6 @@
 Unreleased
-4.1.10.1
+ * [SO-54026] Improve the calculation of the pending tasks for single sstable4.1.10.1
+=======
  * [SO-55322] Fix schema CQL builder for nested UDTs
  * [SO-54103] Enforce serial read if rebuild on strict MV enabled table
  * [SO-53872] Persist the MV backfill progress in local system table and retry logic

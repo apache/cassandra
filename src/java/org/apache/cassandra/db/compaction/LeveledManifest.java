@@ -634,6 +634,9 @@ public class LeveledManifest
             estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
         }
+        // Skip the case when there is only 1 sstable then there will be no compaction(ignore singleSSTableUplevel here)(SO-54026)
+        if (isOnlyOneTableInL0())
+            tasks = 0;
 
         if (!DatabaseDescriptor.getDisableSTCSInL0() && generations.get(0).size() > cfs.getMaximumCompactionThreshold())
         {
@@ -645,6 +648,17 @@ public class LeveledManifest
         logger.trace("Estimating {} compactions to do for {}.{}",
                      Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
         return Ints.checkedCast(tasks);
+    }
+
+    private boolean isOnlyOneTableInL0() {
+        // We should only return true if we have only 1 sstable and that sstable is in L0
+        for (int i = generations.levelCount() - 1; i >= 0; i--)
+        {
+            Set<SSTableReader> sstables = generations.get(i);
+            if (i == 0 && sstables.size() > 1 || i > 0 && sstables.size() > 0)
+                return false;
+        }
+        return true;
     }
 
     public int getNextLevel(Collection<SSTableReader> sstables)
