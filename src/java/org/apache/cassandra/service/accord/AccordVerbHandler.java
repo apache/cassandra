@@ -68,7 +68,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         }
 
         long waitForEpoch = request.waitForEpoch();
-        if (node.topology().hasAtLeastEpoch(waitForEpoch))
+        if (node.topology().active().hasAtLeastEpoch(waitForEpoch))
         {
             request.process(node, fromNodeId, message.header);
         }

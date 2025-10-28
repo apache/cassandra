@@ -22,7 +22,9 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import org.junit.Assert;
@@ -30,6 +32,7 @@ import org.junit.Test;
 
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
+import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -70,7 +73,8 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
         IInvokableInstance newInstance = cluster.bootstrap(config);
         newInstance.startup(cluster);
         spinUntilTrue(() -> cluster.stream().anyMatch(instance -> instance.callOnInstance(() -> StreamListener.listener.hasFailedStream)));
-        newInstance.shutdown(false);
+        try { newInstance.shutdown(false).get(5L, TimeUnit.MINUTES); }
+        catch (InterruptedException | ExecutionException | TimeoutException e) { throw new RuntimeException(e); }
         cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> StreamListener.listener.failStream = false));
         newInstance.startup(cluster);
         // todo: re-add once we fix write survey/join ring = false mode
@@ -174,6 +178,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
                                                                   .with(NETWORK, GOSSIP))
                                       .start())
         {
+            cluster.setUncaughtExceptionsFilter(throwable -> throwable.getClass().getSimpleName().equals("UncheckedInterruptedException"));
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
             cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
 
@@ -228,7 +233,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
                 for (long epoch = topologyManager.minEpoch() ; epoch <= topologyManager.epoch() ; ++epoch)
                 {
                     CountDownLatch latch = new CountDownLatch(1);
-                    topologyManager.epochReady(epoch).data.invokeIfSuccess(latch::countDown);
+                    topologyManager.epochReady(epoch, EpochReady::data).invokeIfSuccess(latch::countDown);
                     while (true)
                     {
                         try

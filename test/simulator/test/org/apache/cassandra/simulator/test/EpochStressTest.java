@@ -33,12 +33,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
+import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.simulator.Action;
@@ -195,7 +194,6 @@ public class EpochStressTest extends SimulationTestBase
 
         AccordService accord = (AccordService) AccordService.instance();
         Node node = accord.node();
-        AccordConfigurationService configService = (AccordConfigurationService) node.configService();
         TopologyManager tm = node.topology();
         long minEpoch = tm.minEpoch();
 
@@ -212,26 +210,9 @@ public class EpochStressTest extends SimulationTestBase
         for (long epoch = minEpoch; epoch <= maxEpoch; epoch++)
         {
             long finalEpoch = epoch;
-            ConfigurationService.EpochReady ready = tm.epochReady(epoch);
+            EpochReady ready = tm.active().epochReady(epoch);
             while (!isDone(ready))
                 sleep.accept(() -> "Epoch " + finalEpoch + "'s EpochReady is not done; " + ready);
-
-            AccordConfigurationService.EpochSnapshot snapshot = configService.getEpochSnapshot(epoch);
-            while (!isDone(snapshot))
-            {
-                AccordConfigurationService.SyncStatus status = snapshot.syncStatus;
-                sleep.accept(() -> "Epoch " + finalEpoch + "'s SyncStatus is not done; " + status);
-                snapshot = configService.getEpochSnapshot(epoch);
-            }
-
-            Ranges expected = tm.globalForEpoch(epoch).ranges().mergeTouching();
-            Ranges synced = tm.syncComplete(epoch).mergeTouching();
-            while (!isDone(synced, expected))
-            {
-                Ranges finalSynced = synced;
-                sleep.accept(() -> "Epoch " + finalEpoch + "'s syncComplete is not done; missing " + expected.without(finalSynced));
-                synced = tm.syncComplete(epoch).mergeTouching();
-            }
         }
         logger.info("All epochs completed in {}", Duration.ofNanos(Clock.Global.nanoTime() - startNano));
     }
@@ -241,14 +222,9 @@ public class EpochStressTest extends SimulationTestBase
         return synced.equals(expected);
     }
 
-    private static boolean isDone(AccordConfigurationService.EpochSnapshot snapshot)
+    private static boolean isDone(EpochReady ready)
     {
-        return snapshot.syncStatus == AccordConfigurationService.SyncStatus.COMPLETED;
-    }
-
-    private static boolean isDone(ConfigurationService.EpochReady ready)
-    {
-        return ready.metadata.isDone()
+        return ready.active.isDone()
                && ready.coordinate.isDone()
                && ready.data.isDone()
                && ready.reads.isDone();

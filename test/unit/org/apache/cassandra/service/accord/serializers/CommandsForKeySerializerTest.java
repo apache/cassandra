@@ -674,6 +674,7 @@ public class CommandsForKeySerializerTest
         @Override public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil blockedUntil, TimeUnit units) { return 0; }
         @Override public long slowAwaitDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil retrying, TimeUnit units) { return 0; }
         @Override public long retrySyncPointDelay(Node node, int attempt, TimeUnit units) { return 0; }
+        @Override public long retryTopologyDelay(Node node, int attempt, TimeUnit units) { return 0; }
         @Override public long retryDurabilityDelay(Node node, int attempt, TimeUnit units) { return 0; }
         @Override public long expireEpochWait(TimeUnit units) { return 0; }
         @Override public long expiresAt(ReplyContext replyContext, TimeUnit unit) { return 0; }

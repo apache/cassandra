@@ -24,6 +24,7 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -105,8 +106,8 @@ public class PrepareJoin implements Transformation
                        boolean joinTokenRing,
                        boolean streamData)
     {
-        this.nodeId = nodeId;
-        this.tokens = tokens;
+        this.nodeId = Invariants.nonNull(nodeId);
+        this.tokens = Invariants.nonNull(tokens);
         this.placementProvider = placementProvider;
         this.joinTokenRing = joinTokenRing;
         this.streamData = streamData;

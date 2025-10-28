@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.topology.Topology;
+import accord.topology.TopologyRange;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -43,7 +45,6 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static accord.topology.TopologyManager.TopologyRange;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
 
 /**
@@ -153,7 +154,7 @@ public class FetchTopologies
             return;
         }
 
-        TopologyRange topologies = AccordService.instance().topology().between(message.payload.minEpoch, message.payload.maxEpoch);
+        TopologyRange topologies = AccordService.instance().topology().active().between(message.payload.minEpoch, message.payload.maxEpoch);
         logger.debug("Responding with {} failure to {}", topologies, message.payload);
         MessagingService.instance().respond(topologies, message);
     };

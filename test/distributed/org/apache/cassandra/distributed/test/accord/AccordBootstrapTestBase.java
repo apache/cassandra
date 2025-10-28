@@ -23,7 +23,8 @@ import java.util.function.Function;
 
 import org.junit.Assert;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.topology.EpochReady;
+import accord.topology.TopologyManager;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,7 +36,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableFuncti
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -45,8 +45,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot.ResultStatus.SUCCESS;
-import static org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus.COMPLETED;
+import static org.apache.cassandra.service.accord.AccordService.toFuture;
 
 public class AccordBootstrapTestBase extends TestBaseImpl
 {
@@ -89,9 +88,8 @@ public class AccordBootstrapTestBase extends TestBaseImpl
         {
             boolean completed = service().epochReady(Epoch.create(epoch), await).await(60, TimeUnit.SECONDS);
             Assertions.assertThat(completed)
-                      .describedAs("Epoch %s did not become ready within timeout on %s -> %s",
-                                   epoch, FBUtilities.getBroadcastAddressAndPort(),
-                                   service().configService().getEpochSnapshot(epoch))
+                      .describedAs("Epoch %s did not become ready within timeout on %s",
+                                   epoch, FBUtilities.getBroadcastAddressAndPort())
                       .isTrue();
         }
         catch (InterruptedException e)
@@ -104,10 +102,10 @@ public class AccordBootstrapTestBase extends TestBaseImpl
     {
         try
         {
-            AccordConfigurationService configService = service().configService();
-            boolean completed = configService.unsafeLocalSyncNotified(epoch).await(60, TimeUnit.SECONDS);
-            Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s\n%s",
-                                            epoch, FBUtilities.getBroadcastAddressAndPort(), service().configService().getDebugStr()), completed);
+            TopologyManager tm = service().topology();
+            boolean completed = toFuture(tm.epochReady(epoch, EpochReady::coordinate)).await(60, TimeUnit.SECONDS);
+            Assert.assertTrue(String.format("Local sync notification for epoch %s did not become ready within timeout on %s",
+                                            epoch, FBUtilities.getBroadcastAddressAndPort()), completed);
         }
         catch (InterruptedException e)
         {
@@ -131,7 +129,7 @@ public class AccordBootstrapTestBase extends TestBaseImpl
 
     static long awaitMaxEpochMetadataReady(Cluster cluster)
     {
-        return awaitMaxEpoch(cluster, EpochReady::metadata, false);
+        return awaitMaxEpoch(cluster, EpochReady::active, false);
     }
 
     static long awaitMaxEpoch(Cluster cluster, SerializableFunction<EpochReady, AsyncResult<Void>> await, boolean expectReadyToRead)
@@ -147,16 +145,16 @@ public class AccordBootstrapTestBase extends TestBaseImpl
                 Assert.assertEquals(maxEpoch, ClusterMetadata.current().epoch.getEpoch());
                 AccordService service = (AccordService) AccordService.instance();
                 awaitEpoch(maxEpoch, aw);
-                AccordConfigurationService configService = service.configService();
+                TopologyManager tm = service.topology();
 
                 awaitLocalSyncNotification(maxEpoch);
-                for (long epoch = configService.minEpoch(); epoch <= maxEpoch; epoch++)
+                for (long epoch = tm.minEpoch(); epoch <= maxEpoch; epoch++)
                 {
-                    Assert.assertEquals(COMPLETED, configService.getEpochSnapshot(maxEpoch).syncStatus);
-                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).acknowledged);
-                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).received);
+                    EpochReady epochReady = tm.active().epochReady(epoch);
+                    Assert.assertTrue(epochReady.active().isDone());
+                    Assert.assertTrue(epochReady.coordinate.isDone());
                     if (expectReadyToRead)
-                        Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).reads);
+                        Assert.assertTrue(epochReady.reads.isDone());
                 }
             }, node.transfer(await));
         }

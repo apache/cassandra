@@ -63,7 +63,6 @@ public class AccordMoveTest extends AccordBootstrapTestBase
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
             cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
 
-            long initialMax = maxEpoch(cluster);
             long[] tokens = new long[3];
             for (int i=0; i<3; i++)
             {

@@ -56,6 +56,8 @@ import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutingKeys;
+import accord.topology.ActiveEpoch;
+import accord.topology.ActiveEpochs;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.SortedListMap;
@@ -2166,7 +2168,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         public void collect(PartitionsCollector collector)
         {
             IAccordService service = AccordService.unsafeInstance();
-            List<Topology> snapshot = service.node().topology().topologySnapshot();
+            ActiveEpochs snapshot = service.node().topology().active();
             Map<TableId, Map<TokenKey, List<ShardAndEpochs>>> tableIdLookup = new HashMap<>();
 
             {
@@ -2177,8 +2179,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
 
                 TableId prevTableId = null;
                 Map<TokenKey, List<ShardAndEpochs>> startLookup = null;
-                for (Topology topology : snapshot)
+                for (ActiveEpoch epoch : snapshot)
                 {
+                    Topology topology = epoch.global();
                     for (Shard shard : topology.shards())
                     {
                         Range range = shard.range;

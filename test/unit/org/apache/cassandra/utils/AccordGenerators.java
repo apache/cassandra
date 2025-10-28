@@ -63,7 +63,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.topology.TopologyManager;
+import accord.topology.TopologyRange;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
@@ -807,7 +807,7 @@ public class AccordGenerators
         };
     }
 
-    public static Gen<TopologyManager.TopologyRange> topologyRangeGen()
+    public static Gen<TopologyRange> topologyRangeGen()
     {
         Gen.LongGen epochGen = AccordGens.epochs();
         return rs -> {
@@ -823,7 +823,7 @@ public class AccordGenerators
             if (minEpoch == Timestamp.MAX_EPOCH)
             {
                 // not possible to have a list of values, so to simplfiy just return empty
-                return new TopologyManager.TopologyRange(Timestamp.MAX_EPOCH, Timestamp.MAX_EPOCH, -1, Collections.emptyList());
+                return new TopologyRange(Timestamp.MAX_EPOCH, Timestamp.MAX_EPOCH, -1, Collections.emptyList());
             }
             long epochsRemaining = Timestamp.MAX_EPOCH - minEpoch;
             int size = rs.nextInt(1, Math.toIntExact(Math.min(100, epochsRemaining)));
@@ -841,7 +841,7 @@ public class AccordGenerators
                     firstNonEmpty = t.epoch();
                 topologies.add(t);
             }
-            return new TopologyManager.TopologyRange(topologies.get(0).epoch(), topologies.get(topologies.size() - 1).epoch(), firstNonEmpty, topologies);
+            return new TopologyRange(topologies.get(0).epoch(), topologies.get(topologies.size() - 1).epoch(), firstNonEmpty, topologies);
         };
     }
 
