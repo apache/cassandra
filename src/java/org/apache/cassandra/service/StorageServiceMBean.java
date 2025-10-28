@@ -574,6 +574,43 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Map<String, String> getViewBuildStatusesWithPort(String keyspace, String view);
 
     /**
+     * Check if materialized view backfill is finished
+     * @param keyspace the keyspace name
+     * @param view the view name
+     * @return true if backfill is finished, false otherwise
+     */
+    public boolean isMVBackfillFinished(String keyspace, String view);
+
+    /**
+     * Perform materialized view backfill for primary ranges
+     * @param keyspace the keyspace name
+     * @param view the view name
+     * @param forceRestart if true, restart the backfill from the beginning; if false, resume from previous state
+     */
+    public void mvBackfillPrimaryRange(String keyspace, String view, boolean forceRestart) throws Exception;
+
+    /**
+     * Perform materialized view backfill for specified token ranges
+     * @param keyspace the keyspace name
+     * @param view the view name
+     * @param rangeSpec the range specification in format "startToken:endToken"
+     * @param forceRestart if true, restart the backfill from the beginning; if false, resume from previous state
+     */
+    public void mvBackfillWithRanges(String keyspace, String view, String rangeSpec, boolean forceRestart) throws Exception;
+
+    /**
+     * Get the local MV backfill status for a view
+     * @param keyspace the keyspace name
+     * @param view the view name
+     * @return Map containing backfill status information with keys:
+     *         - "primaryRangesFinished": Boolean indicating if local primary ranges are finished
+     *         - "rangeDetails": List of Maps, each containing:
+     *             - "ranges": List of range strings (format: "startToken:endToken")
+     *             - "status": String status (STARTED, SSTABLE_BUILD_COMPLETE, COMPLETE)
+     */
+    public Map<String, Object> getLocalMVBackfillStatus(String keyspace, String view);
+
+    /**
      * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime.
      *
      * This method is used to change the snitch implementation and/or dynamic snitch parameters.

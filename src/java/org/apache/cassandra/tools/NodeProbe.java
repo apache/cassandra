@@ -1244,6 +1244,26 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getViewBuildStatuses(keyspace, view);
     }
 
+    public boolean isMVBackfillFinished(String keyspace, String view)
+    {
+        return ssProxy.isMVBackfillFinished(keyspace, view);
+    }
+
+    public void mvBackfillPrimaryRange(String keyspace, String view, boolean forceRestart) throws Exception
+    {
+        ssProxy.mvBackfillPrimaryRange(keyspace, view, forceRestart);
+    }
+
+    public void mvBackfillWithRanges(String keyspace, String view, String rangeSpec, boolean forceRestart) throws Exception
+    {
+        ssProxy.mvBackfillWithRanges(keyspace, view, rangeSpec, forceRestart);
+    }
+
+    public Map<String, Object> getLocalMVBackfillStatus(String keyspace, String view)
+    {
+        return ssProxy.getLocalMVBackfillStatus(keyspace, view);
+    }
+
     public void pauseHintsDelivery()
     {
         hsProxy.pauseDispatch();

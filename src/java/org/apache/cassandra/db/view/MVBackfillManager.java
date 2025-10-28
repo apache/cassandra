@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -38,6 +37,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.lang.System.nanoTime;
 
@@ -52,6 +52,7 @@ import static java.lang.System.nanoTime;
 public class MVBackfillManager
 {
     private static final Logger logger = LoggerFactory.getLogger(MVBackfillManager.class);
+    public static final MVBackfillManager instance = new MVBackfillManager();
 
     /**
      * State tracking for MV backfill operations, similar to ValidationState in repair.

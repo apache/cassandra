@@ -26,9 +26,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
@@ -47,6 +49,9 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
@@ -86,10 +91,11 @@ public final class SystemDistributedKeyspace
      * gen 6: add denylist table
      * gen 7: move TWCS to LCS and reduce ttl to 15d
      * gen 8: add auto_repair_history and auto_repair_priority tables for AutoRepair feature
+     * gen 9: add mv_backfill_status table for tracking materialized view backfill progress
      *
      * // TODO: TCM - how do we evolve these tables?
      */
-    public static final long GENERATION = 8;
+    public static final long GENERATION = 9;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -104,6 +110,8 @@ public final class SystemDistributedKeyspace
     public static final String AUTO_REPAIR_HISTORY = "auto_repair_history";
 
     public static final String AUTO_REPAIR_PRIORITY = "auto_repair_priority";
+
+    public static final String MV_BACKFILL_STATUS = "mv_backfill_status";
 
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
@@ -204,6 +212,18 @@ public final class SystemDistributedKeyspace
         .compaction(CompactionParams.lcs(emptyMap()))
         .build();
 
+    private static final TableMetadata MVBackfillStatus =
+        parse(MV_BACKFILL_STATUS,
+              "Materialized view backfill status tracking",
+              "CREATE TABLE %s ("
+                            + "keyspace_name text,"
+                            + "view_name text,"
+                            + "succeeded_base_table_ranges set<blob>,"
+                            + "backfill_finished boolean,"
+                            + "PRIMARY KEY ((keyspace_name, view_name)))")
+        .compaction(CompactionParams.lcs(emptyMap()))
+        .build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -215,7 +235,7 @@ public final class SystemDistributedKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AuditUser, AutoRepairHistory, AutoRepairPriority));
+                                       Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AuditUser, AutoRepairHistory, AutoRepairPriority, MVBackfillStatus));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -418,6 +438,150 @@ public final class SystemDistributedKeyspace
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
+    }
+
+    /**
+     * Initialize MV backfill status for a view
+     */
+    public static void initializeMVBackfillStatus(String keyspaceName, String viewName)
+    {
+        String query = "INSERT INTO %s.%s (keyspace_name, view_name, succeeded_base_table_ranges, backfill_finished) VALUES (?, ?, {}, false) IF NOT EXISTS";
+        QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
+                               ConsistencyLevel.ONE,
+                               keyspaceName,
+                               viewName);
+    }
+
+    /**
+     * Get MV backfill status for a view
+     * @return MVBackfillStatusInfo containing succeeded ranges and backfill_finished flag, or null if not found
+     */
+    private static MVBackfillStatusInfo getMVBackfillStatus(String keyspaceName, String viewName, IPartitioner partitioner)
+    {
+        String query = "SELECT succeeded_base_table_ranges, backfill_finished FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
+        UntypedResultSet results;
+        try
+        {
+            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
+                                            ConsistencyLevel.ONE,
+                                            keyspaceName,
+                                            viewName);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error getting MV backfill status for {}.{}", keyspaceName, viewName, e);
+            return null;
+        }
+
+        if (results.isEmpty())
+            return null;
+
+        UntypedResultSet.Row row = results.one();
+        ImmutableSet.Builder<Range<Token>> succeededRanges = new ImmutableSet.Builder<>();
+        Optional.ofNullable(row.getSet("succeeded_base_table_ranges", BytesType.instance))
+                .ifPresent(succeeded_base_table_ranges -> succeeded_base_table_ranges.stream()
+                                                     .map(buf -> SystemKeyspace.byteBufferToRange(buf, partitioner))
+                                                     .forEach(succeededRanges::add));
+        boolean backfillFinished = row.has("backfill_finished") && row.getBoolean("backfill_finished");
+
+        return new MVBackfillStatusInfo(succeededRanges.build(), backfillFinished);
+    }
+
+    /**
+     * Add succeeded ranges to MV backfill status
+     */
+    public static void addSucceededBaseTableRanges(String keyspaceName, String viewName, Set<Range<Token>> ranges, IPartitioner partitioner)
+    {
+        if (ranges.isEmpty())
+            return;
+
+        Set<ByteBuffer> rangeBytes = SystemKeyspace.getRangesBytebufferForViewBackfill(ranges);
+        
+        String query = "UPDATE %s.%s SET succeeded_base_table_ranges = succeeded_base_table_ranges + ? WHERE keyspace_name = ? AND view_name = ?";
+        QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
+                               ConsistencyLevel.ONE,
+                               rangeBytes,
+                               keyspaceName,
+                               viewName);
+
+        markFinishedIfCompleted(keyspaceName, viewName, partitioner);
+    }
+
+
+    private static void markFinishedIfCompleted(String keyspaceName, String viewName, IPartitioner partitioner)
+    {
+        MVBackfillStatusInfo backfillStatusInfo = getMVBackfillStatus(keyspaceName, viewName, partitioner);
+        if (backfillStatusInfo != null && !backfillStatusInfo.isBackfillFinished() && backfillStatusInfo.succeededRangesCoveredEntireRing())
+        {
+            setMVBackfillFinished(keyspaceName, viewName, true);
+        }
+    }
+
+    /**
+     * Mark MV backfill as finished
+     */
+    public static void setMVBackfillFinished(String keyspaceName, String viewName, boolean finished)
+    {
+        String query = "UPDATE %s.%s SET backfill_finished = ? WHERE keyspace_name = ? AND view_name = ?";
+        QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
+                               ConsistencyLevel.ONE,
+                               finished,
+                               keyspaceName,
+                               viewName);
+    }
+
+    /**
+     * Check if MV backfill is finished for a given keyspace and view
+     * @return true if backfill is finished, false otherwise or if status not found
+     */
+    public static boolean isMVBackfillFinished(String keyspaceName, String viewName)
+    {
+        String query = "SELECT backfill_finished FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
+        UntypedResultSet results;
+        try
+        {
+            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
+                                            ConsistencyLevel.ONE,
+                                            keyspaceName,
+                                            viewName);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error checking MV backfill status for {}.{}", keyspaceName, viewName, e);
+            return false;
+        }
+
+        if (results.isEmpty())
+            return false;
+
+        UntypedResultSet.Row row = results.one();
+        return row.has("backfill_finished") && row.getBoolean("backfill_finished");
+    }
+
+    /**
+     * Data class for MV backfill status information
+     */
+    private static class MVBackfillStatusInfo
+    {
+        public final Set<Range<Token>> succeededRanges;
+        public final boolean backfillFinished;
+
+        public MVBackfillStatusInfo(Set<Range<Token>> succeededRanges, boolean backfillFinished)
+        {
+            this.succeededRanges = ImmutableSet.copyOf(succeededRanges);
+            this.backfillFinished = backfillFinished;
+        }
+
+        public boolean isBackfillFinished()
+        {
+            return backfillFinished;
+        }
+
+        public boolean succeededRangesCoveredEntireRing()
+        {
+            List<Range<Token>> normalizedRanges = Range.normalize(succeededRanges);
+            return normalizedRanges.size() == 1 && normalizedRanges.get(0).left.equals(normalizedRanges.get(0).right);
+        }
     }
 
     private static void processSilent(String fmtQry, String... values)

@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -175,6 +176,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
         {
             deleteMVBackfillFiles();
             SystemKeyspace.startViewBackfill(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
+            SystemDistributedKeyspace.initializeMVBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name);
         }
         return SystemKeyspace.getViewBackfillStatus(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
     }
@@ -269,6 +271,7 @@ public class MVBackfillSSTableStreamSink implements MVBackfillManager.BackfillSi
     public void complete() throws Exception
     {
         SystemKeyspace.setViewBackfillComplete(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges);
+        SystemDistributedKeyspace.addSucceededBaseTableRanges(viewCfs.keyspace.getName(), viewCfs.name, baseTableRanges, viewCfs.metadata().partitioner);
         deleteMVBackfillFiles();
     }
 

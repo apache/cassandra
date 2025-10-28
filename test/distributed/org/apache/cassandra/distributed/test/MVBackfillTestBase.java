@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -36,10 +35,13 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.concurrent.Future;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -188,11 +190,8 @@ public abstract class MVBackfillTestBase extends TestBaseImpl
             // Create backfill state
             MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
 
-            // Create backfill manager
-            MVBackfillManager backfillManager = new MVBackfillManager();
-
             // Submit backfill task
-            Future<?> backfillFuture = backfillManager.submitBackfill(
+            Future<?> backfillFuture = MVBackfillManager.instance.submitBackfill(
                 baseCfs, view, ranges, sink, state, forceRestart);
 
             // Wait for completion
@@ -207,6 +206,18 @@ public abstract class MVBackfillTestBase extends TestBaseImpl
 
     protected void verifyDataConsistency(Cluster cluster)
     {
+        // make sure the backfill is finished
+        try
+        {
+            Thread.sleep(1000); // wait for 1 second before checking anything
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        verifyBackfillCompleteEntireCluster(MV_SAME_PK, cluster, true);
+        verifyBackfillCompleteEntireCluster(MV_DIFF_PK, cluster, true);
+
         // Get base table rows
         QueryResult baseResult = cluster.coordinator(1).executeWithResult(
             String.format("SELECT * FROM %s.%s", KEYSPACE, BASE_TABLE),
@@ -311,5 +322,21 @@ public abstract class MVBackfillTestBase extends TestBaseImpl
 
             });
         });
+    }
+
+    private static void verifyBackfillCompleteEntireCluster(String viewName, Cluster cluster, boolean completed)
+    {
+        NodeToolResult result =  cluster.get(1).nodetoolResult("ismvbackfillfinished", KEYSPACE + "." + viewName);
+        result.asserts().success();
+        result =  cluster.get(1).nodetoolResult("ismvbackfillfinished", KEYSPACE + "." + viewName);
+        result.asserts().success();
+        if (completed)
+        {
+            Assert.assertTrue("MV backfill should be finished", result.getStdout().contains("true"));
+        }
+        else
+        {
+            Assert.assertTrue("MV backfill should not be finished", result.getStdout().contains("false"));
+        }
     }
 }

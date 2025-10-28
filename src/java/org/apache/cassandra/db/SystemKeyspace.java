@@ -881,7 +881,7 @@ public final class SystemKeyspace
         return new ViewBackfillStatus(statusEnum, backfillDirectory, streamSucceededHosts);
     }
 
-    private static Set<ByteBuffer> getRangesBytebufferForViewBackfill(Set<Range<Token>> ranges)
+    public static Set<ByteBuffer> getRangesBytebufferForViewBackfill(Set<Range<Token>> ranges)
     {
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
         return normalizedRanges.stream()
@@ -897,6 +897,39 @@ public final class SystemKeyspace
         String req = "DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
         executeInternal(format(req, VIEW_BACKFILLS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BACKFILLS);
+    }
+
+    /**
+     * Retrieves all backfill status entries for a given MV
+     * @return List of Pairs where left is the set of ranges and right is the status
+     */
+    public static List<Pair<Set<Range<Token>>, ViewBackfillState>> getAllViewBackfillStatus(String keyspaceName, String viewName)
+    {
+        String req = "SELECT base_table_ranges, status FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
+        UntypedResultSet rs = executeInternal(format(req, VIEW_BACKFILLS), keyspaceName, viewName);
+        
+        if (rs == null || rs.isEmpty())
+            return Collections.emptyList();
+        
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        List<Pair<Set<Range<Token>>, ViewBackfillState>> results = new ArrayList<>();
+        
+        for (UntypedResultSet.Row row : rs)
+        {
+            Set<ByteBuffer> rangeBytes = row.getSet("base_table_ranges", BytesType.instance);
+            Set<Range<Token>> ranges = new HashSet<>();
+            for (ByteBuffer buf : rangeBytes)
+            {
+                ranges.add(byteBufferToRange(buf, partitioner));
+            }
+            
+            String status = row.getString("status");
+            ViewBackfillState statusEnum = ViewBackfillState.valueOf(status);
+            
+            results.add(Pair.create(ranges, statusEnum));
+        }
+        
+        return results;
     }
 
     /**
@@ -2044,7 +2077,7 @@ public final class SystemKeyspace
     }
 
     @SuppressWarnings("unchecked")
-    private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
+    public static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
     {
         try
         {

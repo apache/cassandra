@@ -146,6 +146,9 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.view.MVBackfillManager;
+import org.apache.cassandra.db.view.MVBackfillSSTableStreamSink;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
@@ -6365,6 +6368,185 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Map<String, String> getViewBuildStatusesWithPort(String keyspace, String view)
     {
         return getViewBuildStatuses(keyspace, view, true);
+    }
+
+    public boolean isMVBackfillFinished(String keyspace, String view)
+    {
+        return SystemDistributedKeyspace.isMVBackfillFinished(keyspace, view);
+    }
+
+    public void mvBackfillPrimaryRange(String keyspace, String view, boolean forceRestart) throws Exception
+    {
+        mvBackfillInternal(keyspace, view, getPrimaryRanges(keyspace), forceRestart);
+    }
+
+    public void mvBackfillWithRanges(String keyspace, String view, String rangeSpec, boolean forceRestart) throws Exception
+    {
+        logger.info("Starting MV backfill for view {}.{} for range {}", keyspace, view, rangeSpec);
+        // Parse range specification "startToken:endToken"
+        String[] tokens = rangeSpec.split(":");
+        if (tokens.length != 2)
+        {
+            throw new IllegalArgumentException("Range specification must be in format 'startToken:endToken'");
+        }
+
+        Token.TokenFactory factory = getTokenFactory();
+        Token startToken = factory.fromString(tokens[0]);
+        Token endToken = factory.fromString(tokens[1]);
+        Range<Token> range = new Range<>(startToken, endToken);
+
+        // Validate that the range is fully contained in local ranges
+        List<Range<Token>> localRanges = getLocalAndPendingRanges(keyspace);
+        boolean isContained = false;
+        for (Range<Token> localRange : localRanges)
+        {
+            if (localRange.contains(range))
+            {
+                isContained = true;
+                break;
+            }
+        }
+
+        if (!isContained)
+        {
+            throw new IllegalArgumentException("Specified range " + rangeSpec + " is not fully contained in local ranges for keyspace " + keyspace);
+        }
+
+        mvBackfillInternal(keyspace, view, Collections.singleton(range), forceRestart);
+    }
+
+    public Map<String, Object> getLocalMVBackfillStatus(String keyspace, String view)
+    {
+        Map<String, Object> result = new HashMap<>();
+        
+        // Get all backfill status entries from system keyspace
+        List<Pair<Set<Range<Token>>, SystemKeyspace.ViewBackfillState>> backfillStatuses = SystemKeyspace.getAllViewBackfillStatus(keyspace, view);
+        
+        if (backfillStatuses.isEmpty())
+        {
+            // No backfill status found
+            result.put("primaryRangesFinished", false);
+            result.put("rangeDetails", Collections.emptyList());
+            return result;
+        }
+        
+        // Collect all ranges that have completed
+        Set<Range<Token>> completedRanges = new HashSet<>();
+        List<Map<String, Object>> rangeDetails = new ArrayList<>();
+        
+        for (Pair<Set<Range<Token>>, SystemKeyspace.ViewBackfillState> status : backfillStatuses)
+        {
+            Map<String, Object> rangeInfo = new HashMap<>();
+            
+            // Convert ranges to string format
+            List<String> rangeStrings = new ArrayList<>();
+            for (Range<Token> range : status.left)
+            {
+                rangeStrings.add(range.left.toString() + ":" + range.right.toString());
+            }
+            
+            rangeInfo.put("ranges", rangeStrings);
+            rangeInfo.put("status", status.right.name());
+            
+            rangeDetails.add(rangeInfo);
+            
+            // If status is COMPLETE, add ranges to completed set
+            if (status.right == SystemKeyspace.ViewBackfillState.COMPLETE)
+            {
+                completedRanges.addAll(status.left);
+            }
+        }
+        
+        // Get local primary ranges
+        Collection<Range<Token>> primaryRanges = getPrimaryRanges(keyspace);
+        List<Range<Token>> normalizedPrimaryRanges = Range.normalize(primaryRanges);
+        
+        // Check if all primary ranges are covered by completed ranges
+        boolean primaryRangesFinished = false;
+        if (primaryRanges != null && !primaryRanges.isEmpty() && !completedRanges.isEmpty())
+        {
+            List<Range<Token>> normalizedCompleted = Range.normalize(completedRanges);
+            primaryRangesFinished = true;
+            for (Range<Token> primaryRange : normalizedPrimaryRanges)
+            {
+                boolean covered = false;
+                for (Range<Token> completedRange : normalizedCompleted)
+                {
+                    if (completedRange.contains(primaryRange))
+                    {
+                        covered = true;
+                        break;
+                    }
+                }
+                if (!covered)
+                {
+                    primaryRangesFinished = false;
+                    break;
+                }
+            }
+        }
+        
+        result.put("primaryRangesFinished", primaryRangesFinished);
+        result.put("rangeDetails", rangeDetails);
+        
+        return result;
+    }
+
+    private void mvBackfillInternal(String keyspace, String view, Collection<Range<Token>> ranges, boolean forceRestart) throws Exception
+    {
+        logger.info("Starting MV backfill for view {}.{} with {} ranges", keyspace, view, ranges.size());
+        // Get the base table for the view
+        Keyspace ks = Keyspace.open(keyspace);
+        ViewMetadata viewMetadata = ks.getMetadata().views.get(view).orElseThrow(
+            () -> new IllegalArgumentException(String.format("View %s.%s not found", keyspace, view)));
+        
+        String baseTableName = viewMetadata.baseTableName;
+        ColumnFamilyStore baseCfs = ks.getColumnFamilyStore(baseTableName);
+        ColumnFamilyStore viewCfs = ks.getColumnFamilyStore(view);
+        
+        if (!baseCfs.isValid())
+        {
+            throw new IllegalStateException(String.format("Base table %s.%s is not valid", keyspace, baseTableName));
+        }
+
+        if (!viewCfs.isValid())
+        {
+            throw new IllegalStateException(String.format("View %s.%s is not valid", keyspace, view));
+        }
+
+        // Create backfill sink and state
+        Set<Range<Token>> rangeSet = new HashSet<>(ranges);
+        MVBackfillManager.BackfillSink sink = new MVBackfillSSTableStreamSink(viewCfs, rangeSet);
+        MVBackfillManager.BackfillState state = new MVBackfillManager.BackfillState();
+
+        // Submit the backfill job
+        View viewInstance = viewCfs.keyspace.viewManager.getByName(view);
+        if (viewInstance == null)
+        {
+            throw new IllegalArgumentException(String.format("View %s.%s not found in view manager", keyspace, view));
+        }
+
+        try
+        {
+            Future<?> backfillFuture = MVBackfillManager.instance.submitBackfill(
+                baseCfs, 
+                viewInstance, 
+                rangeSet, 
+                sink, 
+                state, 
+                forceRestart
+            );
+            
+            // Wait for backfill to complete
+            backfillFuture.get();
+            
+            logger.info("MV backfill finished successfully for view {}.{}", keyspace, view);
+        }
+        catch (Exception e)
+        {
+            logger.error("Error during MV backfill for view {}.{}", keyspace, view, e);
+            throw new RuntimeException("MV backfill failed: " + e.getMessage(), e);
+        }
     }
 
     public void setDynamicUpdateInterval(int dynamicUpdateInterval)

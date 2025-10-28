@@ -75,7 +75,7 @@ public class EnforceLCSTest extends CQLTester
     "system_distributed.audit_users", "system_distributed.parent_repair_history",
     "system_distributed.partition_denylist", "system_distributed.repair_history",
     "system_distributed.view_build_status", "system_distributed.auto_repair_history",
-    "system_distributed.auto_repair_priority",
+    "system_distributed.auto_repair_priority", "system_distributed.mv_backfill_status",
     "system_schema.aggregates", "system_schema.columns", "system_schema.dropped_columns",
     "system_schema.functions", "system_schema.indexes", "system_schema.keyspaces",
     "system_schema.tables", "system_schema.triggers", "system_schema.types",
@@ -359,6 +359,8 @@ public class EnforceLCSTest extends CQLTester
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
                                        LeveledCompactionStrategy.class);
         schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
+                                       LeveledCompactionStrategy.class);
+        schemaToCompactionStrategy.put(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + '.' + SystemDistributedKeyspace.MV_BACKFILL_STATUS,
                                        LeveledCompactionStrategy.class);
 
         // system_trace (all using default compaction strategy)
