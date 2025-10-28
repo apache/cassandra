@@ -90,7 +90,7 @@ public class AccordRepair
         if (endpoints != null)
         {
             including = new ArrayList<>(endpoints.size());
-            AccordEndpointMapper mapper = AccordService.instance().configService().endpointMapper();
+            AccordEndpointMapper mapper = AccordService.instance().endpointMapper();
             for (InetAddressAndPort ep : endpoints)
             {
                 Node.Id id = mapper.mappedIdOrNull(ep);

@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
+import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -106,7 +107,7 @@ public class AccordRecoverFromAvailabilityLossTest extends AccordBootstrapTestBa
             FBUtilities.waitOnFuture(cluster.get(removeIdx).shutdown(false));
 
             {
-                List<java.util.concurrent.Future<?>> results = new ArrayList<>();
+                List<Future<?>> results = new ArrayList<>();
                 for (int key = 50; key < 100; key++)
                 {
                     String query = "BEGIN TRANSACTION\n" +
@@ -155,7 +156,7 @@ public class AccordRecoverFromAvailabilityLossTest extends AccordBootstrapTestBa
                 for (long epoch = topologyManager.minEpoch() ; epoch <= topologyManager.epoch() ; ++epoch)
                 {
                     CountDownLatch latch = new CountDownLatch(1);
-                    topologyManager.epochReady(epoch).data.invokeIfSuccess(latch::countDown);
+                    topologyManager.epochReady(epoch, EpochReady::data).invokeIfSuccess(latch::countDown);
                     while (true)
                     {
                         try

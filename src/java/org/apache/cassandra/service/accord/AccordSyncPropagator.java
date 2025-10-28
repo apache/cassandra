@@ -19,22 +19,24 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.TopologyListener;
 import accord.local.Node;
 import accord.messages.SimpleReply;
 import accord.primitives.Ranges;
+import accord.topology.Topology;
 import accord.utils.Invariants;
-import accord.utils.SortedList;
+import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.SortedListSet;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -63,7 +65,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
  * Notifies remote replicas that the local replica has synchronised coordination
  * information for this epoch.
  */
-public class AccordSyncPropagator
+public class AccordSyncPropagator implements TopologyListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSyncPropagator.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
@@ -74,10 +76,9 @@ public class AccordSyncPropagator
         AccordService.instance().receive(message);
     };
 
-    interface Listener
+    interface TestListener
     {
         void onEndpointAck(Node.Id id, long epoch);
-        void onEndpointNack(Node.Id id, long epoch);
     }
 
     private interface ReportPending<T>
@@ -136,10 +137,10 @@ public class AccordSyncPropagator
 
         boolean ack(Notification notification)
         {
-            if (!notification.syncComplete.isEmpty())
+            if (!notification.readyToCoordinate.isEmpty())
             {
-                if (notification.syncComplete.containsAll(syncComplete)) syncComplete = ImmutableSet.of();
-                else syncComplete = ImmutableSet.copyOf(Iterables.filter(syncComplete, v -> !notification.syncComplete.contains(v)));
+                if (notification.readyToCoordinate.containsAll(syncComplete)) syncComplete = ImmutableSet.of();
+                else syncComplete = ImmutableSet.copyOf(Iterables.filter(syncComplete, v -> !notification.readyToCoordinate.contains(v)));
             }
             closed = closed.without(notification.closed);
             retired = retired.without(notification.retired);
@@ -186,21 +187,24 @@ public class AccordSyncPropagator
     }
 
     private final PendingNodes pending = new PendingNodes();
-    private final Node.Id localId;
+    private final Node.Id self;
     private final AccordEndpointMapper endpointMapper;
     private final MessageDelivery messagingService;
     private final ScheduledExecutorPlus scheduler;
-    private final Listener listener;
+    private TestListener listener;
     private final ConcurrentHashMap<RetryKey, Notification> retryingNotifications = new ConcurrentHashMap<>();
 
-    public AccordSyncPropagator(Node.Id localId, AccordEndpointMapper endpointMapper,
-                                MessageDelivery messagingService, ScheduledExecutorPlus scheduler,
-                                Listener listener)
+    public AccordSyncPropagator(Node.Id self, AccordEndpointMapper endpointMapper,
+                                MessageDelivery messagingService, ScheduledExecutorPlus scheduler)
     {
-        this.localId = localId;
+        this.self = self;
         this.endpointMapper = endpointMapper;
         this.messagingService = messagingService;
         this.scheduler = scheduler;
+    }
+
+    void setTestListener(TestListener listener)
+    {
         this.listener = listener;
     }
 
@@ -222,52 +226,59 @@ public class AccordSyncPropagator
     public String toString()
     {
         return "AccordSyncPropagator{" +
-               "localId=" + localId +
+               "localId=" + self +
                ", pending=" + pending +
                '}';
     }
 
-    public void onNodesRemoved(Node.Id removed)
+    public void onNodesRemoved(SortedArrayList<Node.Id> removed)
     {
-        long[] toAck;
-
         synchronized (AccordSyncPropagator.this)
         {
-            PendingEpochs pendingEpochs = pending.remove(removed.id);
-            if (pendingEpochs == null) return;
-            toAck = new long[pendingEpochs.size()];
-            Long2ObjectHashMap<PendingEpoch>.KeyIterator it = pendingEpochs.keySet().iterator();
-            for (int i = 0; it.hasNext(); i++)
-            {
-                long epoch = it.nextLong();
-                toAck[i] = epoch;
-            }
-            Arrays.sort(toAck);
-        }
-
-        for (int i = 0; i < toAck.length; i++)
-        {
-            long epoch = toAck[i];
-            listener.onEndpointAck(removed, epoch);
+            for (Node.Id id : removed)
+                pending.remove(id.id);
         }
     }
 
-    public void reportCoordinationReady(long epoch, SortedList<Node.Id> notify, Node.Id syncCompleteId)
+    @Override
+    public void onReadyToCoordinate(Topology topology)
     {
-        SortedListSet<Node.Id> remaining = SortedListSet.allOf(notify);
-        if (remaining.remove(localId))
-            listener.onEndpointAck(localId, epoch);
-        report(epoch, remaining, PendingEpoch::syncComplete, syncCompleteId);
+        onReadyToCoordinate(topology.epoch(), topology.nodes());
     }
 
-    public void reportClosed(long epoch, Collection<Node.Id> notify, Ranges closed)
+    @VisibleForTesting
+    void onReadyToCoordinate(long epoch, SortedArrayList<Node.Id> nodes)
     {
-        report(epoch, notify, PendingEpoch::closed, closed);
+        SortedListSet<Node.Id> remaining = SortedListSet.allOf(nodes);
+        if (remaining.remove(self) && listener != null)
+            listener.onEndpointAck(self, epoch);
+        report(epoch, remaining, PendingEpoch::syncComplete, self);
     }
 
-    public void reportRetired(long epoch, Collection<Node.Id> notify, Ranges retired)
+    @Override
+    public void onEpochClosed(Ranges ranges, long epoch, Topology topology)
     {
-        report(epoch, notify, PendingEpoch::retired, retired);
+        if (topology != null)
+            onEpochClosed(ranges, epoch, topology.nodes());
+    }
+
+    @VisibleForTesting
+    void onEpochClosed(Ranges ranges, long epoch, Collection<Node.Id> nodes)
+    {
+        report(epoch, nodes, PendingEpoch::closed, ranges);
+    }
+
+    @Override
+    public void onEpochRetired(Ranges ranges, long epoch, Topology topology)
+    {
+        if (topology != null)
+            onEpochRetired(ranges, epoch, topology.nodes());
+    }
+
+    @VisibleForTesting
+    void onEpochRetired(Ranges ranges, long epoch, Collection<Node.Id> nodes)
+    {
+        report(epoch, nodes, PendingEpoch::retired, ranges);
     }
 
     private <T> void report(long epoch, Collection<Node.Id> notify, ReportPending<T> report, T param)
@@ -291,7 +302,7 @@ public class AccordSyncPropagator
 
     private void scheduleRetry(Node.Id to, Notification notification)
     {
-        Notification retry = new Notification(notification.epoch, notification.syncComplete, notification.closed, notification.retired, notification.attempts + 1);
+        Notification retry = new Notification(notification.epoch, notification.readyToCoordinate, notification.closed, notification.retired, notification.attempts + 1);
         RetryKey key = new RetryKey(to, notification.epoch);
         retryingNotifications.compute(key, (k, cur) -> {
             if (cur == null)
@@ -332,7 +343,6 @@ public class AccordSyncPropagator
             case UNKNOWN:
                 // endpoint is not a member of the latest epoch
                 pending.ack(to, notification);
-                listener.onEndpointNack(to, notification.epoch);
                 return true;
 
             case HEALTHY:
@@ -349,7 +359,8 @@ public class AccordSyncPropagator
                         }
 
                         long epoch = notification.epoch;
-                        listener.onEndpointAck(to, epoch);
+                        if (listener != null && notification.readyToCoordinate.contains(self))
+                            listener.onEndpointAck(to, epoch);
                     }
 
                     @Override
@@ -377,7 +388,7 @@ public class AccordSyncPropagator
             public void serialize(Notification notification, DataOutputPlus out) throws IOException
             {
                 out.writeLong(notification.epoch);
-                CollectionSerializers.serializeCollection(notification.syncComplete, out, TopologySerializers.nodeId);
+                CollectionSerializers.serializeCollection(notification.readyToCoordinate, out, TopologySerializers.nodeId);
                 KeySerializers.ranges.serialize(notification.closed, out);
                 KeySerializers.ranges.serialize(notification.retired, out);
             }
@@ -395,26 +406,26 @@ public class AccordSyncPropagator
             public long serializedSize(Notification notification)
             {
                 return TypeSizes.LONG_SIZE
-                        + CollectionSerializers.serializedCollectionSize(notification.syncComplete, TopologySerializers.nodeId)
+                        + CollectionSerializers.serializedCollectionSize(notification.readyToCoordinate, TopologySerializers.nodeId)
                         + KeySerializers.ranges.serializedSize(notification.closed)
                         + KeySerializers.ranges.serializedSize(notification.retired);
             }
         };
 
         final long epoch;
-        final Collection<Node.Id> syncComplete;
+        final Collection<Node.Id> readyToCoordinate;
         final Ranges closed, retired;
         final int attempts;
 
-        public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges retired)
+        public Notification(long epoch, Collection<Node.Id> readyToCoordinate, Ranges closed, Ranges retired)
         {
-            this(epoch, syncComplete, closed, retired, 0);
+            this(epoch, readyToCoordinate, closed, retired, 0);
         }
 
-        public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges retired, int attempts)
+        public Notification(long epoch, Collection<Node.Id> readyToCoordinate, Ranges closed, Ranges retired, int attempts)
         {
             this.epoch = epoch;
-            this.syncComplete = syncComplete;
+            this.readyToCoordinate = readyToCoordinate;
             this.closed = closed;
             this.retired = retired;
             this.attempts = attempts;
@@ -424,8 +435,8 @@ public class AccordSyncPropagator
         {
             Invariants.require(add.epoch == this.epoch);
             Collection<Node.Id> syncComplete = ImmutableSet.<Node.Id>builder()
-                                                           .addAll(this.syncComplete)
-                                                           .addAll(add.syncComplete)
+                                                           .addAll(this.readyToCoordinate)
+                                                           .addAll(add.readyToCoordinate)
                                                            .build();
             return new Notification(epoch, syncComplete, closed.with(add.closed), retired.with(add.retired), Math.max(add.attempts, this.attempts));
         }
@@ -435,7 +446,7 @@ public class AccordSyncPropagator
         {
             return "Notification{" +
                    "epoch=" + epoch +
-                   ", syncComplete=" + syncComplete +
+                   ", syncComplete=" + readyToCoordinate +
                    ", closed=" + closed +
                    ", retired=" + retired +
                    '}';
@@ -467,6 +478,12 @@ public class AccordSyncPropagator
 
             RetryKey that = (RetryKey) obj;
             return that.epoch == this.epoch && that.to.equals(this.to);
+        }
+
+        @Override
+        public String toString()
+        {
+            return epoch + "@" + to;
         }
     }
 }

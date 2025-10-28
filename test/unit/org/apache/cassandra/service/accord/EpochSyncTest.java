@@ -39,8 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
+import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
@@ -49,14 +48,17 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.ConfigurationService;
-import accord.api.ConfigurationService.EpochReady;
+import accord.Utils;
+import accord.api.MessageSink;
+import accord.impl.TestAgent;
+import accord.impl.mock.MockCluster;
+import accord.local.ShardDistributor;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
-import accord.impl.TestAgent;
 import accord.local.Node;
 import accord.local.TimeService;
 import accord.primitives.Ranges;
+import accord.topology.EpochReady;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Gen;
@@ -66,6 +68,7 @@ import accord.utils.RandomSource;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
@@ -86,8 +89,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot;
-import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -112,6 +114,8 @@ import org.assertj.core.description.Description;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public class EpochSyncTest
 {
@@ -128,7 +132,7 @@ public class EpochSyncTest
     @Test
     public void test()
     {
-        stateful().withSeed(1).withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
+        stateful().withSeed(152472217520379L).withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
                 .destroyState(cluster -> {
                     finishPendingWork(cluster);
                     cluster.processAll();
@@ -195,7 +199,7 @@ public class EpochSyncTest
 
     private static class Cluster
     {
-        private static final int rf = 2;
+        private static final int rf = 3;
         private static final ReplicationParams replication_params = ReplicationParams.simple(rf);
 
         private final RandomSource rs;
@@ -290,7 +294,8 @@ public class EpochSyncTest
         private boolean hasPendingWork()
         {
             return !status(s -> s == Cluster.Status.Registered).isEmpty()
-                    || !cms.metadata().inProgressSequences.isEmpty();
+                    || !cms.metadata().inProgressSequences.isEmpty()
+                   || globalExecutor.hasWork();
         }
 
         private boolean hasNoPendingWork()
@@ -334,7 +339,7 @@ public class EpochSyncTest
             return metadata.placements.get(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
         }
 
-        public enum EpochTracker { topologyManager, accordSyncPropagator, configurationService}
+        public enum EpochTracker { topologyManager, accordSyncPropagator }
 
         Set<EpochTracker> globalSynced(long epoch)
         {
@@ -376,38 +381,34 @@ public class EpochSyncTest
             {
                 Instance inst = instances.get(id);
                 if (removed.contains(id)) continue; // ignore removed nodes
-                AccordConfigurationService conf = inst.config;
                 TopologyManager tm = inst.topology;
                 for (long epoch = Math.max(tm.firstNonEmpty(), inst.epoch.getEpoch()); epoch <= cms.metadata().epoch.getEpoch(); epoch++)
                 {
                     // validate config
-                    EpochSnapshot snapshot = conf.getEpochSnapshot(epoch);
                     if (isDone)
                     {
-                        Assertions.assertThat(snapshot).describedAs("node%s does not have epoch %d", id, epoch).isNotNull();
-                        Assertions.assertThat(snapshot.syncStatus).isEqualTo(AccordConfigurationService.SyncStatus.COMPLETED);
+                        Assertions.assertThat(inst.topologyService.syncPropagator().hasPending(epoch))
+                                  .describedAs("node%s has pending notifications in AccordSyncPropagator for epoch %d", id, epoch)
+                                  .isFalse();
 
                         // validate topology manager
-                        Assertions.assertThat(tm.hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
-                        Ranges ranges = tm.globalForEpoch(epoch).ranges().mergeTouching();
-                        Ranges actual = tm.syncComplete(epoch).mergeTouching();
+                        Ranges ranges = tm.active().globalForEpoch(epoch).ranges().mergeTouching();
+                        Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         Assertions.assertThat(actual)
                                   .describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s", id, epoch, ranges.without(actual))
                                   .isEqualTo(ranges);
                     }
                     else
                     {
-                        if (snapshot == null || snapshot.syncStatus != AccordConfigurationService.SyncStatus.COMPLETED) continue;
-
                         if (!allSynced(epoch))
                             continue;
 
-                        Assertions.assertThat(tm.hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
-                        Topology topology = tm.globalForEpoch(epoch);
+                        Assertions.assertThat(tm.active().hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
+                        Topology topology = tm.active().globalForEpoch(epoch);
                         Ranges ranges = topology.ranges().mergeTouching();
-                        Ranges actual = tm.syncComplete(epoch).mergeTouching();
+                        Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         // TopologyManager defines syncComplete for an epoch as (epoch - 1).syncComplete.  This means that an epoch has reached quorum, but will still miss ranges as previous epochs have not
-                        if (!ranges.equals(actual) && tm.minEpoch() != epoch && !ranges.equals(tm.syncComplete(epoch - 1).mergeTouching()))
+                        if (!ranges.equals(actual) && tm.minEpoch() != epoch && !ranges.equals(tm.unsafeQuorumReady(epoch - 1).mergeTouching()))
                             continue;
                         long epoch_ = epoch;
                         Assertions.assertThat(actual)
@@ -415,11 +416,8 @@ public class EpochSyncTest
                                   {
                                       public String value()
                                       {
-                                          return String.format("node%s does not have all expected sync ranges for epoch %d; missing %s; peers=%s; previous epochs %s",
-                                                               id, epoch_, ranges.without(actual), topology.nodes(),
-                                                               LongStream.range(inst.epoch.getEpoch(), epoch_ + 1)
-                                                                         .mapToObj(e -> String.format("%d -> %s(synced=%s): %s", e, conf.getEpochSnapshot(e).syncStatus, globalSynced(e), tm.syncComplete(e)))
-                                                                         .collect(Collectors.joining("\n")));
+                                          return String.format("node%s does not have all expected sync ranges for epoch %d; missing %s; peers=%s",
+                                                               id, epoch_, ranges.without(actual), topology.nodes());
 
                                       }
                                   })
@@ -548,7 +546,7 @@ public class EpochSyncTest
                                                     return Action.DELIVER;
                                                 },
                                                 SimulatedMessageDelivery.randomDelay(rs.fork()),
-                                                (to, msg) -> instances.get(nodeId(to)).reciver.recieve(msg),
+                                                (to, msg) -> instances.get(nodeId(to)).receiver.recieve(msg),
                                                 (action, to, msg) -> logger.trace("{} message {}", action, msg),
                                                 scheduler::schedule,
                                                 failures::add);
@@ -594,6 +592,7 @@ public class EpochSyncTest
             Instance inst = Objects.requireNonNull(instances.get(pick), "Unknown id " + pick);
             Invariants.require(!removed.contains(pick), "Can not remove node twice; node " + pick);
             removed.add(pick);
+            Assertions.assertThat(inst.topologyService.syncPropagator().hasPending()).isFalse();
             inst.status = Status.Leaving;
             PrepareLeave prepareLeave = new PrepareLeave(new NodeId(pick.id), false, new UniformRangePlacement(), LeaveStreams.Kind.REMOVENODE);
             notify(process(prepareLeave).metadata);
@@ -615,7 +614,8 @@ public class EpochSyncTest
             {
                 Instance inst = instances.get(id);
                 inst.maybeTransition(current, t);
-                inst.config.maybeReportMetadata(current);
+                Topology topology = AccordTopology.createAccordTopology(current);
+                inst.topology.reportTopology(topology);
             }
         }
 
@@ -650,72 +650,44 @@ public class EpochSyncTest
         {
             private final Node.Id id;
             private final long token;
-            private final AccordConfigurationService config;
+            private final AccordTopologyService topologyService;
             private final SimulatedMessageDelivery messaging;
-            private final SimulatedMessageDelivery.SimulatedMessageReceiver reciver;
+            private final SimulatedMessageDelivery.SimulatedMessageReceiver receiver;
             private final TopologyManager topology;
             private final Epoch epoch;
             private Status status = Status.Init;
 
-            Instance(Node.Id node, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMapper mapper)
+            Instance(Node.Id id, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMapper mapper)
             {
-                this.id = node;
+                this.id = id;
                 this.token = token;
                 this.epoch = epoch;
+                MockCluster.Clock clock = new MockCluster.Clock(0);
+                Node node = Utils.createNode(id, ignore -> AsyncResults.settable(), new MessageSink.NoOpSink(), clock, new TestAgent(clock), new TokenKey.KeyspaceSplitter(new ShardDistributor.EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())));
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, time, new DefaultTimeouts(time));
-                config = new AccordConfigurationService(node, new AccordAgent(), mapper, messagingService, scheduler);
-                config.registerListener(new ConfigurationService.Listener()
+                this.topologyService = new AccordTopologyService(id, mapper, messagingService, scheduler);
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time))
                 {
                     @Override
-                    public AsyncResult<Void> onTopologyUpdate(Topology topology)
+                    protected EpochReady bootstrap(Supplier<EpochReady> bootstrap)
                     {
+                        bootstrap.get();
                         AsyncResult<Void> metadata = schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult();
                         AsyncResult<Void> coordination = metadata.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult());
                         AsyncResult<Void> data = coordination.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult());
                         AsyncResult<Void> reads = data.flatMap(ignore -> schedule(rs.nextInt(1, 10), TimeUnit.SECONDS, (Callable<Void>) () -> null).beginAsResult());
-                        EpochReady ready = new EpochReady(topology.epoch(), metadata, coordination, data, reads);
-
-                        topology().onTopologyUpdate(topology, () -> ready, e -> {});
-                        ready.coordinate.invokeIfSuccess(() -> topology().onEpochSyncComplete(id, topology.epoch()));
-                        if (topology().minEpoch() == topology.epoch() && topology().epoch() != topology.epoch())
-                            return ready.coordinate;
-                        config.acknowledgeEpoch(ready);
-                        return ready.coordinate;
+                        return new EpochReady(topology.epoch(), metadata, coordination, data, reads);
                     }
-
-                    @Override
-                    public void onRemoteSyncComplete(Node.Id node, long epoch)
-                    {
-                        topology.onEpochSyncComplete(node, epoch);
-                    }
-
-                    @Override
-                    public void onRemoveNode(long epoch, Node.Id removed)
-                    {
-                        // TODO
-                        //topology.onRemoveNode(epoch, removed);
-                    }
-
-                    @Override
-                    public void onEpochClosed(Ranges ranges, long epoch)
-                    {
-                        topology.onEpochClosed(ranges, epoch);
-                    }
-
-                    @Override
-                    public void onEpochRetired(Ranges ranges, long epoch)
-                    {
-                        topology.onEpochRetired(ranges, epoch);
-                    }
-                });
+                };
+                this.topology.addListener(topologyService.syncPropagator());
+                this.topology.addListener(topologyService.watermarkCollector());
 
                 Map<Verb, IVerbHandler<?>> handlers = new EnumMap<>(Verb.class);
                 //noinspection unchecked
-                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, msg -> AccordService.receive(messagingService, config, (Message<AccordSyncPropagator.Notification>) (Message<?>) msg));
+                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, msg -> AccordService.receive(messagingService, topology, (Message<AccordSyncPropagator.Notification>) (Message<?>) msg));
                 this.messaging = messagingService;
-                this.reciver = messagingService.receiver(new SimulatedMessageDelivery.SimpleVerbHandler(handlers));
+                this.receiver = messagingService.receiver(new SimulatedMessageDelivery.SimpleVerbHandler(handlers));
             }
 
             @Override
@@ -736,7 +708,6 @@ public class EpochSyncTest
                     case Init:
                         Invariants.require(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
                         Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
-                        start();
                         status = Status.Registered;
                         break;
                     case Registered:
@@ -762,26 +733,13 @@ public class EpochSyncTest
                 }
             }
 
-            private void start()
-            {
-                config.start();
-            }
-
-            TopologyManager topology()
-            {
-                return topology;
-            }
-
             Set<EpochTracker> synced(long epoch)
             {
                 if (epoch < this.epoch.getEpoch()) throw new IllegalArgumentException("Asked for epoch before this instance existed");
                 EnumSet<EpochTracker> done = EnumSet.noneOf(EpochTracker.class);
-                EpochSnapshot snapshot = config.getEpochSnapshot(epoch);
-                if (snapshot != null && snapshot.syncStatus == AccordConfigurationService.SyncStatus.COMPLETED)
-                    done.add(EpochTracker.configurationService);
-                if (topology.hasReachedQuorum(epoch))
+                if (topology.unsafeIsQuorumReady(epoch))
                     done.add(EpochTracker.topologyManager);
-                if (!config.syncPropagator().hasPending(epoch))
+                if (!topologyService.syncPropagator().hasPending(epoch))
                     done.add(EpochTracker.accordSyncPropagator);
                 return done;
             }

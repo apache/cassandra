@@ -28,7 +28,6 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import accord.api.ConfigurationService.EpochReady;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
@@ -48,6 +47,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -180,7 +180,9 @@ public interface IAccordService
 
     void awaitDone(TableId id, long epoch);
 
-    AccordConfigurationService configService();
+    AccordEndpointMapper endpointMapper();
+
+    AccordTopologyService topologyService();
 
     Params journalConfiguration();
 
@@ -350,9 +352,15 @@ public interface IAccordService
         }
 
         @Override
-        public AccordConfigurationService configService()
+        public AccordEndpointMapper endpointMapper()
         {
-            return null;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public AccordTopologyService topologyService()
+        {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -420,9 +428,15 @@ public interface IAccordService
         }
 
         @Override
-        public AccordConfigurationService configService()
+        public AccordEndpointMapper endpointMapper()
         {
-            return delegate.configService();
+            return delegate.endpointMapper();
+        }
+
+        @Override
+        public AccordTopologyService topologyService()
+        {
+            return delegate.topologyService();
         }
 
         @Nonnull

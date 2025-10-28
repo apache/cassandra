@@ -90,6 +90,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryJoinBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
@@ -303,7 +304,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
         }
 
         RoutingKey homeKey = command.route().homeKey();
-        Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
+        Shard shard = node.topology().active().forEpochIfKnown(homeKey, command.txnId().epoch());
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), ONE_SECOND, random);
         long delayMicros = Math.max(1, startTime - nowMicros);
@@ -381,6 +382,12 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long retrySyncPointDelay(Node node, int attempt, TimeUnit units)
     {
         return retrySyncPoint.computeWait(attempt, units);
+    }
+
+    @Override
+    public long retryTopologyDelay(Node node, int attempt, TimeUnit units)
+    {
+        return retryFetchTopology.computeWait(attempt, units);
     }
 
     @Override

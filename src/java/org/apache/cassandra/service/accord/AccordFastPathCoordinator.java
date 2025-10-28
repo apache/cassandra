@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
-import accord.api.ConfigurationService;
+import accord.api.TopologyListener;
 import accord.local.Node;
-import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
@@ -50,7 +49,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Listens to availability status of peers and updates tcm fast path data accordingly
  */
-public abstract class AccordFastPathCoordinator implements ChangeListener, ConfigurationService.Listener
+public abstract class AccordFastPathCoordinator implements ChangeListener, TopologyListener
 {
     private static final AsyncResult<Void> SUCCESS = AsyncResults.success(null);
 
@@ -182,12 +181,11 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
 
     private static class Impl extends AccordFastPathCoordinator implements IEndpointStateChangeSubscriber
     {
-        private final AccordConfigurationService configService;
-
-        public Impl(Node.Id localId, AccordConfigurationService configService)
+        final AccordEndpointMapper endpointMapper;
+        public Impl(Node.Id localId, AccordEndpointMapper endpointMapper)
         {
             super(localId);
-            this.configService = configService;
+            this.endpointMapper = endpointMapper;
         }
 
         @Override
@@ -201,7 +199,7 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         {
             Gossiper.instance.register(this);
             StorageService.instance.addPreShutdownHook(this::onShutdown);
-            configService.registerListener(this);
+            AccordService.unsafeInstance().topology().addListener(this);
         }
 
         @Override
@@ -222,21 +220,21 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         @Override
         public void onAlive(InetAddressAndPort endpoint, EndpointState state)
         {
-            Node.Id node = configService.endpointMapper().mappedIdOrNull(endpoint);
+            Node.Id node = endpointMapper.mappedIdOrNull(endpoint);
             if (node != null) onAlive(node);
         }
 
         @Override
         public void onDead(InetAddressAndPort endpoint, EndpointState state)
         {
-            Node.Id node = configService.endpointMapper().mappedIdOrNull(endpoint);
+            Node.Id node = endpointMapper.mappedIdOrNull(endpoint);
             if (node != null) onDead(node);
         }
     }
 
-    public static AccordFastPathCoordinator create(Node.Id localId, AccordConfigurationService configService)
+    public static AccordFastPathCoordinator create(Node.Id localId, AccordEndpointMapper endpointMapper)
     {
-        return new Impl(localId, configService);
+        return new Impl(localId, endpointMapper);
     }
 
     synchronized void maybeUpdateFastPath(Node.Id node, Status status)
@@ -335,13 +333,8 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
     }
 
     @Override
-    public AsyncResult<Void> onTopologyUpdate(Topology topology)
+    public void onReceived(Topology topology)
     {
         updatePeers(topology);
-        return SUCCESS;
     }
-
-    @Override public void onRemoteSyncComplete(Node.Id node, long epoch) {}
-    @Override public void onEpochClosed(Ranges ranges, long epoch) {}
-    @Override public void onEpochRetired(Ranges ranges, long epoch) {}
 }

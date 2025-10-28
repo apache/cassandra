@@ -42,7 +42,6 @@ import static accord.primitives.KeyDeps.SerializerSupport.txnIdsToKeys;
 import static accord.primitives.RangeDeps.SerializerSupport.ranges;
 import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIds;
 import static accord.primitives.RangeDeps.SerializerSupport.txnIdsToRanges;
-import static org.apache.cassandra.service.accord.serializers.KeySerializers.keys;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.deserializePackedInts;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializePackedInts;
 import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializedPackedIntsSize;

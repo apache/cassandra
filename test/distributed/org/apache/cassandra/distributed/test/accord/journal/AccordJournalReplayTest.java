@@ -137,7 +137,7 @@ public class AccordJournalReplayTest extends TestBaseImpl
                 return txnId.toString();
             });
 
-            cluster.get(1).shutdown(false);
+            cluster.get(1).shutdown(false).get();
             cluster.get(1).startup();
             cluster.get(1).runOnInstance(() -> {
                 AccordService service = (AccordService) AccordService.instance();

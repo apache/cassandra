@@ -49,7 +49,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.topology.EpochReady;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;

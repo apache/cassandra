@@ -32,9 +32,9 @@ import com.google.common.collect.Sets;
 
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.topology.TopologyManager.EpochsSnapshot;
-import accord.topology.TopologyManager.EpochsSnapshot.Epoch;
-import accord.topology.TopologyManager.EpochsSnapshot.EpochReady;
+import accord.topology.ActiveEpoch;
+import accord.topology.ActiveEpochs;
+import accord.topology.EpochReady;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.marshal.LongType;
@@ -45,8 +45,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
-
-import static accord.topology.TopologyManager.EpochsSnapshot.ResultStatus.SUCCESS;
 
 public class AccordVirtualTables
 {
@@ -79,7 +77,7 @@ public class AccordVirtualTables
         {
             super(parse(keyspace, "CREATE TABLE " + EPOCHS + " (\n" +
                                   "  epoch bigint PRIMARY KEY,\n" +
-                                  "  ready_metadata text,\n" +
+                                  "  ready_active text,\n" +
                                   "  ready_coordinate text,\n" +
                                   "  ready_data text,\n" +
                                   "  ready_reads text,\n" +
@@ -94,16 +92,16 @@ public class AccordVirtualTables
         public DataSet data()
         {
             SimpleDataSet ds = new SimpleDataSet(metadata());
-            EpochsSnapshot snapshot = epochsSnapshot();
-            for (Epoch epoch : snapshot)
+            ActiveEpochs snapshot = AccordService.instance().topology().active();
+            for (ActiveEpoch epoch : snapshot)
             {
-                ds.row(epoch.epoch);
-                EpochReady ready = epoch.ready;
-                ds.column("ready_metadata", ready.metadata.value);
-                ds.column("ready_coordinate", ready.coordinate.value);
-                ds.column("ready_data", ready.data.value);
-                ds.column("ready_reads", ready.reads.value);
-                ds.column("ready", ready.reads == SUCCESS);
+                ds.row(epoch.epoch());
+                EpochReady ready = epoch.epochReady();
+                ds.column("ready_active", ready.active.toString());
+                ds.column("ready_coordinate", ready.coordinate.toString());
+                ds.column("ready_data", ready.data.toString());
+                ds.column("ready_reads", ready.reads.toString());
+                ds.column("ready", ready.active.isDone() && ready.coordinate.isDone() && ready.data.isDone() && ready.reads.isDone());
             }
             return ds;
         }
@@ -133,21 +131,21 @@ public class AccordVirtualTables
         public DataSet data()
         {
             SimpleDataSet ds = new SimpleDataSet(metadata());
-            EpochsSnapshot snapshot = epochsSnapshot();
-            for (Epoch state : snapshot)
+            ActiveEpochs snapshot = AccordService.instance().topology().active();
+            for (ActiveEpoch state : snapshot)
             {
                 Map<TableId, List<TokenRange>> addedRanges = groupByTable(state.addedRanges);
                 Map<TableId, List<TokenRange>> removedRanges = groupByTable(state.removedRanges);
-                Map<TableId, List<TokenRange>> synced = groupByTable(state.synced);
-                Map<TableId, List<TokenRange>> closed = groupByTable(state.closed);
-                Map<TableId, List<TokenRange>> retired = groupByTable(state.retired);
+                Map<TableId, List<TokenRange>> synced = groupByTable(state.quorumReady());
+                Map<TableId, List<TokenRange>> closed = groupByTable(state.closed());
+                Map<TableId, List<TokenRange>> retired = groupByTable(state.retired());
 
                 Set<TableId> allTables = union(addedRanges.keySet(), removedRanges.keySet(), synced.keySet(), closed.keySet(), retired.keySet());
                 for (TableId table : allTables)
                 {
                     TableMetadata metadata = Schema.instance.getTableMetadata(table);
                     if (metadata == null) continue; // table dropped, ignore
-                    ds.row(state.epoch, metadata.keyspace, metadata.name);
+                    ds.row(state.epoch(), metadata.keyspace, metadata.name);
 
                     ds.column("added", format(addedRanges.get(table)));
                     ds.column("removed", format(removedRanges.get(table)));
@@ -177,11 +175,6 @@ public class AccordVirtualTables
                 result.add(toStringNoTable(tr));
             return result;
         }
-    }
-
-    private static EpochsSnapshot epochsSnapshot()
-    {
-        return AccordService.instance().topology().epochsSnapshot();
     }
 
     private static String toStringNoTable(TokenRange tr)
