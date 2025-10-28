@@ -22,6 +22,7 @@ import junit.framework.TestCase;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.dht.Token;
@@ -38,6 +39,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import org.apache.cassandra.service.QueryAnalyticsDatapoint;
 import java.lang.reflect.Method;
 
@@ -52,6 +54,9 @@ public class QueryAnalyticsServiceTest extends TestCase
 
     @Mock
     private SinglePartitionReadCommand mockSinglePartitionReadCommand;
+
+    @Mock
+    private ReadResponse mockReadResponse;
 
     private TableMetadata tableMetadata;
 
@@ -105,7 +110,7 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         // Verify that the data producer was called with the correct datapoint
         ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
@@ -118,6 +123,10 @@ public class QueryAnalyticsServiceTest extends TestCase
         assertNotNull(capturedDatapoint.getTable());
         assertNotNull(capturedDatapoint.getKeyspace());
         assertNotNull(capturedDatapoint.getTimestamp());
+        
+        // Verify payload sizes are present (actual values depend on serialization)
+        assertNotNull("request_payload_size should be set", capturedDatapoint.getProperty("request_payload_size"));
+        assertNotNull("response_payload_size should be set", capturedDatapoint.getProperty("response_payload_size"));
     }
 
     public void testProcessLatencyMetricWithVariousInputs() throws IOException
@@ -126,7 +135,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         long[] latencies = {100L, 0L, -100L, 9223372036854775807L, -9223372036854775808L};
         for (long latency : latencies) {
-            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand);
+            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand, mockReadResponse);
         }
 
         verify(mockDataProducer, times(latencies.length)).produceDatapoint(any());
@@ -136,9 +145,9 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric(0L, mockSinglePartitionReadCommand);
-        queryAnalyticsService.processLatencyMetric(-1L, mockSinglePartitionReadCommand);
-        queryAnalyticsService.processLatencyMetric(Long.MAX_VALUE, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(0L, mockSinglePartitionReadCommand, mockReadResponse);
+        queryAnalyticsService.processLatencyMetric(-1L, mockSinglePartitionReadCommand, mockReadResponse);
+        queryAnalyticsService.processLatencyMetric(Long.MAX_VALUE, mockSinglePartitionReadCommand, mockReadResponse);
 
         verify(mockDataProducer, times(3)).produceDatapoint(any());
     }
@@ -150,7 +159,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         long[] latencyValues = {100L, 0L, 999999L, 1L, 50L, 200L};
 
         for (long latency : latencyValues) {
-            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand);
+            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand, mockReadResponse);
         }
 
         verify(mockDataProducer, times(latencyValues.length)).produceDatapoint(any());
@@ -162,18 +171,18 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         QueryAnalyticsService.dataProducer = null;
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         QueryAnalyticsService.dataProducer = mockDataProducer;
         doThrow(new RuntimeException("Test exception")).when(mockDataProducer).produceDatapoint(any());
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
     }
 
     public void testProcessLatencyMetricWithNullConfig() throws IOException
     {
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         verify(mockDataProducer, times(0)).produceDatapoint(any());
     }
@@ -193,7 +202,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
         when(mockReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         // Verify no datapoint was produced since QAN is disabled
         verify(mockDataProducer, times(0)).produceDatapoint(any());
@@ -276,7 +285,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         QueryAnalyticsService.dataProducer = null;
         
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         // Producer should still be null since no producer config was provided
         assertNull("dataProducer should remain null when no producer configuration is provided", QueryAnalyticsService.dataProducer);
@@ -296,7 +305,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
         // This should not throw an exception even with no producer
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         // Verify that no datapoint was produced (since there's no producer)
         verify(mockDataProducer, never()).produceDatapoint(any());
@@ -307,7 +316,7 @@ public class QueryAnalyticsServiceTest extends TestCase
 
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
         verify(mockDataProducer, times(1)).produceDatapoint(datapointCaptor.capture());
@@ -332,14 +341,14 @@ public class QueryAnalyticsServiceTest extends TestCase
         
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
         
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
         verify(mockDataProducer, times(0)).produceDatapoint(any());
         
         // Enable QAN dynamically
         originalConfig.setEnabled(true);
         
         // Test with QAN enabled - should produce datapoints
-        queryAnalyticsService.processLatencyMetric(200L, mockSinglePartitionReadCommand);
+        queryAnalyticsService.processLatencyMetric(200L, mockSinglePartitionReadCommand, mockReadResponse);
         
         // Restore original test config (back to enabled state for other tests)
         originalConfig.setEnabled(true);
@@ -397,7 +406,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         QueryAnalyticsService.dataProducer = null;
         
         super.tearDown();
-        reset(mockReadCommand, mockSinglePartitionReadCommand, mockDataProducer);
+        reset(mockReadCommand, mockSinglePartitionReadCommand, mockReadResponse, mockDataProducer);
     }
 
     // Test implementation of QueryAnalyticsDataProducer for testing
@@ -600,9 +609,8 @@ public class QueryAnalyticsServiceTest extends TestCase
         
         reset(mockDataProducer);
         
-        // Try processing multiple metrics
         for (int i = 0; i < 100; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
         }
         
         // With 0.0 sampling ratio, no metrics should be sent
@@ -621,7 +629,7 @@ public class QueryAnalyticsServiceTest extends TestCase
         // Process 10 metrics
         int numMetrics = 10;
         for (int i = 0; i < numMetrics; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
         }
         
         // With 1.0 sampling ratio, all metrics should be sent
@@ -638,15 +646,15 @@ public class QueryAnalyticsServiceTest extends TestCase
         reset(mockDataProducer);
         
         // Process many metrics to test statistical sampling
-        int numMetrics = 1000;
-        for (int i = 0; i < numMetrics; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand);
+        int numAttempts = 1000;
+        for (int i = 0; i < numAttempts; i++) {
+            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
         }
         
         // With 0.5 sampling ratio and large sample size, we should get roughly half
         // Allow for variance: expect between 40% and 60% of metrics to be sent
         ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
         verify(mockDataProducer, atLeast(400)).produceDatapoint(captor.capture());
-        verify(mockDataProducer, atMost(600)).produceDatapoint(captor.capture());
+        verify(mockDataProducer, atMost(600)).produceDatapoint(any());
     }
 }

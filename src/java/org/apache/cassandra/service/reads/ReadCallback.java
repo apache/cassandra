@@ -20,6 +20,7 @@ package org.apache.cassandra.service.reads;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -30,7 +31,10 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.QueryAnalyticsService;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +69,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public final ResponseResolver<E, P> resolver;
     public AtomicInteger throttlingFailures = new AtomicInteger(0);
+    private final AtomicBoolean qanEmitted = new AtomicBoolean(false);
     final Condition condition = newOneTimeCondition();
     final Condition conditionSpeculativeReadDueToThrottling = newOneTimeCondition();
     private final Dispatcher.RequestTime requestTime;
@@ -239,6 +244,27 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             }
         }
         resolver.preprocess(message);
+
+       //Emit Query Analytics metrics
+        try
+        {
+            if (command instanceof SinglePartitionReadCommand 
+                && DatabaseDescriptor.getQueryAnalyticsConfig().isQueryAnalyticsEnabled()
+                && qanEmitted.compareAndSet(false, true))
+            {
+                long latency = MonotonicClock.Global.preciseTime.now() - requestTime.startedAtNanos();
+                
+                QueryAnalyticsService.instance.processLatencyMetric(
+                    latency,
+                    (SinglePartitionReadCommand) command,
+                    message.payload
+                );
+            }
+        }
+        catch (Exception e)
+        {
+            logger.warn("Error processing Query Analytics metrics: ", e);
+        }
 
         /*
          * Ensure that data is present and the response accumulator has properly published the

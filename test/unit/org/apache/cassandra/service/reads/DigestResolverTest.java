@@ -212,6 +212,28 @@ public class DigestResolverTest extends AbstractReadResponseTest
                               resolver.getData());
     }
 
+    /**
+     * Test that ReadCallback works correctly with SinglePartitionReadCommand.
+     * This test also covers the QueryAnalytics code path in ReadCallback.onResponse().
+     */
+    @Test
+    public void testReadCallbackWithSinglePartition()
+    {
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
+        EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1));
+        ReplicaPlan.SharedForTokenRead plan = plan(ConsistencyLevel.ONE, targetReplicas);
+        DigestResolver resolver = new DigestResolver(command, plan, new Dispatcher.RequestTime(0L, 0L));
+        ReadCallback callback = new ReadCallback(resolver, command, plan, new Dispatcher.RequestTime(0L, 0L));
+
+        PartitionUpdate response = update(row(1000, 4, 4)).build();
+        
+        // This triggers the QueryAnalytics code path (if enabled, it's silently handled)
+        callback.onResponse(response(command, EP1, iter(response), true));
+
+        // Verify read completed successfully despite any QueryAnalytics activity
+        Assert.assertTrue(resolver.isDataPresent());
+    }
+
     private ReplicaPlan.SharedForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
         return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas));

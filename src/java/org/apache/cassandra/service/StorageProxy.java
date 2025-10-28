@@ -2192,15 +2192,6 @@ public class StorageProxy implements StorageProxyMBean
             StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.addNano(latency));
             StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.addNano(latency));
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
-
-            try
-            {
-                QueryAnalyticsService.instance.processLatencyMetric(latency, command);
-            }
-            catch (Exception e)
-            {
-                logger.error("Error processing latency metrics for QAN: ", e);
-            }
         }
         return result;
     }
@@ -2270,15 +2261,6 @@ public class StorageProxy implements StorageProxyMBean
             for (SinglePartitionReadCommand command : group.queries)
             {
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
-
-                try
-                {
-                    QueryAnalyticsService.instance.processLatencyMetric(latency, command);
-                }
-                catch (Exception e)
-                {
-                    logger.error("Error processing latency metrics for QAN: ", e);
-                }
             }
             BadQuery.checkForSlowCoordinatorRead(group.queries, latency);
         }

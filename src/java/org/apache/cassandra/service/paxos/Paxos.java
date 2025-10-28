@@ -963,15 +963,6 @@ public class Paxos
                 casReadMetrics.contention.update(failedAttemptsDueToContention);
                 StorageProxyMetricsManager.markMetric(read.metadata().keyspace, consistencyForConsensus, m -> m.casReadMetrics.contention.update(finalFailedAttemptsDueToContention));
             }
-
-            try
-            {
-                QueryAnalyticsService.instance.processLatencyMetric(latency, read);
-            }
-            catch (Exception e)
-            {
-                logger.error("Error processing latency metrics for QAN: ",e);
-            }
         }
     }
 

@@ -19,8 +19,12 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.MonotonicClock;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 import java.io.IOException;
@@ -79,46 +83,72 @@ public class QueryAnalyticsService implements QueryAnalyticsServiceMBean
     }
 
     /**
+     * Check if this metric should be sampled (internal use only)
+     * @return true if the metric should be processed, false if it should be sampled out
+     */
+    private boolean shouldSample()
+    {
+        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
+        double samplingRatio = config.getSamplingRatio();
+        return ThreadLocalRandom.current().nextDouble() < samplingRatio;
+    }
+
+    /**
      * Main method to process query latency metrics
      */
-    public void processLatencyMetric(long latency, SinglePartitionReadCommand command)
+    public void processLatencyMetric(long latency, SinglePartitionReadCommand command, ReadResponse response)
     {
         if (command == null || command.metadata() == null || command.partitionKey() == null)
         {
             return;
         }
-
-        // exit early if disabled
+        
         if (!isQueryAnalyticsEnabled())
         {
-            logger.debug("QueryAnalytics metric processing skipped, QAN disabled");
+            logger.debug("QueryAnalytics disabled - skipping metric processing");
             return;
         }
 
-        // Apply sampling: only process if random value is less than sampling ratio
-        QueryAnalyticsConfig config = getQueryAnalyticsConfig();
-        double samplingRatio = config.getSamplingRatio();
-        if (ThreadLocalRandom.current().nextDouble() >= samplingRatio)
+        if (!shouldSample())
         {
-            logger.debug("QueryAnalytics metric skipped due to sampling (ratio: {})", samplingRatio);
+            logger.trace("QueryAnalytics metric sampled out");
             return;
         }
 
         try
         {
+            // Calculate payload sizes with fallback
+            long requestPayloadSize = 0;
+            long responsePayloadSize = 0;
+            
+            try {
+                requestPayloadSize = ReadCommand.serializer.serializedSize(command, MessagingService.current_version);
+                responsePayloadSize = ReadResponse.serializer.serializedSize(response, MessagingService.current_version);
+            } catch (Exception e) {
+                logger.warn("Could not serialize request/response for payload size calculation: {}", e.getMessage());
+            }
+            
             String partitionKey = command.partitionKey().toCQLString(command.metadata());
             String keyspace = command.metadata().keyspace;
             String tableName = command.metadata().name;
-            
             Long timestamp = currentTimeMillis();
+            
+            // Add payload sizes to properties
+            Map<String, Object> properties = new HashMap<>();
+            properties.put("request_payload_size", requestPayloadSize);
+            properties.put("response_payload_size", responsePayloadSize);
+            
             QueryAnalyticsDatapoint datapoint = createDatapoint(
-                tableName, timestamp, keyspace, partitionKey, latency, null);
-
-            if (dataProducer != null) {
+                tableName, timestamp, keyspace, partitionKey, latency, properties);
+            
+            if (dataProducer != null)
+            {
                 dataProducer.produceDatapoint(datapoint);
-                    logger.debug("QueryAnalytics datapoint sent: keyspace={}, table={}, latency={}ms, partition={}", 
-                               keyspace, tableName, latency, partitionKey);
-            } else {
+                logger.debug("QueryAnalytics datapoint sent: keyspace={}, table={}, latency={}, partition={}, req_size={}, resp_size={}", 
+                               keyspace, tableName, latency, partitionKey, requestPayloadSize, responsePayloadSize);
+            }
+            else
+            {
                 logger.debug("QueryAnalytics datapoint not sent: no producer configured");
             }
         }
