@@ -40,6 +40,7 @@ import static org.apache.cassandra.schema.SchemaConstants.NAME_LENGTH;
 import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -169,6 +170,9 @@ public class CreateTableValidationTest extends CQLTester
         String keyspaceName = StringUtils.repeat("k", NAME_LENGTH);
         String tableName = StringUtils.repeat("t", FILENAME_LENGTH - tableIdSuffix);
         String tooLongTableName = StringUtils.repeat("l", FILENAME_LENGTH - tableIdSuffix + 1);
+
+        // Assert that the documented value of 222 corresponds to the actual constant.
+        assertEquals(222, TABLE_NAME_LENGTH);
 
         execute(String.format("CREATE KEYSPACE %s with replication = " +
                               "{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
