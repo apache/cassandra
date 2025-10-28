@@ -28,19 +28,21 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
-import accord.api.ConfigurationService;
+import accord.api.TopologyListener;
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
-import accord.utils.async.AsyncResult;
 import org.agrona.collections.Long2LongHashMap;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -62,7 +64,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 /**
  * Collects watermarks of closed and retired epochs per range, and synced epochs per node.
  */
-public class WatermarkCollector implements ConfigurationService.Listener
+public class WatermarkCollector implements TopologyListener
 {
     private static final Comparator<Map.Entry<Range, Long>> sortByEpochThenRange = (a, b) -> {
         int c = Long.compareUnsigned(a.getValue(), b.getValue());
@@ -81,30 +83,25 @@ public class WatermarkCollector implements ConfigurationService.Listener
         synced = new Long2LongHashMap(-1);
     }
 
-    @Override public AsyncResult<Void> onTopologyUpdate(Topology topology)
-    {
-        return null;
-    }
-
     @Override
-    public synchronized void onRemoteSyncComplete(Node.Id node, long epoch)
+    public synchronized void onRemoteReadyToCoordinate(Node.Id node, long epoch)
     {
         synced.compute(node.id, (k, prev) -> prev == -1 ? epoch : Long.max(prev, epoch));
     }
 
     @Override
-    public synchronized void onEpochClosed(Ranges ranges, long epoch)
+    public synchronized void onEpochClosed(Ranges ranges, long epoch, @Nullable Topology topology)
     {
         closed = ReducingRangeMap.merge(closed, ReducingRangeMap.create(ranges, epoch), Long::max);
     }
 
     @Override
-    public synchronized void onEpochRetired(Ranges ranges, long epoch)
+    public synchronized void onEpochRetired(Ranges ranges, long epoch, @Nullable Topology topology)
     {
         retired = ReducingRangeMap.merge(retired, ReducingRangeMap.create(ranges, epoch), Long::max);
     }
 
-    public final IVerbHandler<Void> handler = new IVerbHandler<Void>()
+    public final IVerbHandler<Void> handler = new IVerbHandler<>()
     {
         public void doVerb(Message<Void> message)
         {
@@ -123,7 +120,7 @@ public class WatermarkCollector implements ConfigurationService.Listener
     };
 
     @VisibleForTesting
-    static void fetchAndReportWatermarksAsync(AccordConfigurationService configService)
+    static void fetchAndReportWatermarksAsync(TopologyManager topologyManager)
     {
         SharedContext context = SharedContext.Global.instance;
         Set<InetAddressAndPort> peers = new HashSet<>();
@@ -142,14 +139,13 @@ public class WatermarkCollector implements ConfigurationService.Listener
                        return;
 
                    Snapshot snapshot = m.payload;
-                   long minEpoch = configService.minEpoch();
-                   forEachEpoch(configService::receiveClosed, snapshot.closed);
-                   forEachEpoch(configService::receiveRetired, snapshot.retired);
+                   long minEpoch = topologyManager.minEpoch();
+                   forEachEpoch(topologyManager::onEpochClosed, snapshot.closed);
+                   forEachEpoch(topologyManager::onEpochRetired, snapshot.retired);
                    for (Map.Entry<Long, Long> e : snapshot.synced.entrySet())
                    {
                        Node.Id node = new Node.Id(Ints.saturatedCast(e.getKey()));
-                       for (long epoch = minEpoch; epoch <= e.getValue(); epoch++)
-                           configService.receiveRemoteSyncComplete(node, epoch);
+                       topologyManager.onReadyToCoordinate(node, e.getValue());
                    }
                });
     }

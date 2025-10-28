@@ -34,10 +34,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import accord.api.ConfigurationService.EpochReady;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.primitives.Ranges;
+import accord.topology.EpochReady;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;

@@ -26,10 +26,15 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.api.ConfigurationService;
+import accord.Utils;
+import accord.api.MessageSink;
 import accord.api.TopologySorter;
+import accord.impl.mock.MockCluster;
 import accord.local.Node;
 import accord.primitives.Ranges;
+import accord.topology.ActiveEpoch;
+import accord.topology.ActiveEpochs;
+import accord.topology.EpochReady;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
@@ -54,8 +59,8 @@ public class AccordVirtualTablesTest extends CQLTester
     public static final Node.Id N1 = new Node.Id(1);
     public static final SortedArrays.SortedArrayList<Node.Id> ALL = SortedArrays.SortedArrayList.ofSorted(N1);
     public static final Set<Node.Id> FP = Collections.singleton(N1);
-    public static final String SUCCESS = "success";
-    public static final String PENDING = "pending";
+    public static final String SUCCESS = "Success";
+    public static final String PENDING = "SettableResult{status=pending}";
     public static final List<String> FULL_RANGE = List.of("(-Inf, +Inf]");
 
     public static TableId T1;
@@ -92,12 +97,14 @@ public class AccordVirtualTablesTest extends CQLTester
     {
         TopologyManager tm = empty();
         long e1 = 1;
-        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1), e -> {});
+        ActiveEpoch a1 = active(topology(e1, T1), EpochReady.done(e1), Topology.EMPTY);
+        tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a1 }, -1));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS),
                    row(e1, true, SUCCESS, SUCCESS, SUCCESS, SUCCESS));
 
         long e2 = 2;
-        tm.onTopologyUpdate(topology(e2, T1), () -> pendingReady(e1), e -> {});
+        ActiveEpoch a2 = active(topology(e2, T1), pendingReady(e2), Topology.EMPTY);
+        tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a2, a1 }, -1));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.EPOCHS),
                    row(e2, false, PENDING, PENDING, PENDING, PENDING),
                    row(e1, true, SUCCESS, SUCCESS, SUCCESS, SUCCESS));
@@ -108,7 +115,8 @@ public class AccordVirtualTablesTest extends CQLTester
     {
         TopologyManager tm = empty();
         long e1 = 1;
-        tm.onTopologyUpdate(topology(e1, T1), () -> ConfigurationService.EpochReady.done(e1), e -> {});
+        ActiveEpoch a1 = active(topology(e1, T1), EpochReady.done(e1), Topology.EMPTY);
+        tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a1 }, -1));
 
         // the range was added in the first epoch, so its fully synced
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
@@ -116,12 +124,13 @@ public class AccordVirtualTablesTest extends CQLTester
 
         // range is no longer "added" so doesn't show up as synced!
         long e2 = 2;
-        tm.onTopologyUpdate(topology(e2, T1), () -> ConfigurationService.EpochReady.done(e2), e -> {});
+        ActiveEpoch a2 = active(topology(e2, T1), EpochReady.done(e2), a1.global());
+        tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a2, a1 }, -1));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
 
         // sync the range
-        tm.onEpochSyncComplete(N1, e2);
+        tm.onReadyToCoordinate(N1, e2);
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e2, T1_META.keyspace, T1_META.name, List.of(), List.of(), List.of(), List.of(), FULL_RANGE),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));
@@ -139,9 +148,9 @@ public class AccordVirtualTablesTest extends CQLTester
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, FULL_RANGE, List.of(), FULL_RANGE, FULL_RANGE));
     }
 
-    private static ConfigurationService.EpochReady pendingReady(long epoch)
+    private static EpochReady pendingReady(long epoch)
     {
-        return new ConfigurationService.EpochReady(epoch, AsyncResults.settable(), AsyncResults.settable(), AsyncResults.settable(), AsyncResults.settable());
+        return new EpochReady(epoch, AsyncResults.settable(), AsyncResults.settable(), AsyncResults.settable(), AsyncResults.settable());
     }
 
     private static Topology topology(long epoch, TableId tableId)
@@ -152,26 +161,34 @@ public class AccordVirtualTablesTest extends CQLTester
 
     private static TopologyManager empty()
     {
-        TopologySorter sorter = (TopologySorter.StaticSorter) (node1, node2, shards) -> 0;
         TopologySorter.Supplier supplier = new TopologySorter.Supplier()
         {
             @Override
             public TopologySorter get(Topology topologies)
             {
-                return sorter;
+                return SORTER;
             }
 
             @Override
             public TopologySorter get(Topologies topologies)
             {
-                return sorter;
+                return SORTER;
             }
         };
-        TopologyManager tm = new TopologyManager(supplier, null, N1, null, null);
+
+        Node node = Utils.createNode(N1, Topology.EMPTY, new MessageSink.NoOpSink(), new MockCluster.Clock(0));
+        TopologyManager tm = new TopologyManager(supplier, node, ignore -> { throw new UnsupportedOperationException(); }, null, null);
 
         var mock = Mockito.mock(IAccordService.class);
         Mockito.when(mock.topology()).thenReturn(tm);
         AccordService.unsafeSetNewAccordService(mock);
         return tm;
+    }
+
+    private static final TopologySorter SORTER = (TopologySorter.StaticSorter) (node1, node2, shards) -> 0;
+
+    private static ActiveEpoch active(Topology topology, EpochReady ready, Topology prev)
+    {
+        return ActiveEpoch.unsafeNew(N1, topology, ready, SORTER, prev.ranges());
     }
 }

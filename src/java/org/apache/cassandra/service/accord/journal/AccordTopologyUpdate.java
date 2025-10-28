@@ -32,7 +32,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
@@ -77,7 +76,6 @@ public interface AccordTopologyUpdate
                 epochs[i] = in.readLong();
                 ranges[i] = KeySerializers.ranges.deserialize(in);
             }
-            Invariants.require(ranges.length == epochs.length);
             return new CommandStores.RangesForEpoch(epochs, ranges);
         }
 
@@ -162,10 +160,7 @@ public interface AccordTopologyUpdate
                     out.writeBoolean(image.update != null);
                     if (image.update != null)
                         TopologyUpdateSerializer.instance.serialize(image.update, out);
-                    if (image.syncStatus == null)
-                        out.writeByte(Byte.MAX_VALUE);
-                    else
-                        out.writeByte(image.syncStatus.ordinal());
+                    out.writeByte(0); // defunct enum byte
 
                     KeySerializers.ranges.serialize(image.closed, out);
                     KeySerializers.ranges.serialize(image.retired, out);
@@ -192,9 +187,7 @@ public interface AccordTopologyUpdate
                         update = TopologyUpdateSerializer.instance.deserialize(in);
 
                     TopologyImage image = new TopologyImage(epoch, kind, update);
-                    byte syncStateByte = in.readByte();
-                    if (syncStateByte != Byte.MAX_VALUE)
-                        image.syncStatus = AccordConfigurationService.SyncStatus.values()[syncStateByte];
+                    in.readByte(); // defunct enum byte
 
                     image.closed = KeySerializers.ranges.deserialize(in);
                     image.retired = KeySerializers.ranges.deserialize(in);
@@ -252,7 +245,6 @@ public interface AccordTopologyUpdate
         private final long epoch;
         private final Kind kind;
         private Journal.TopologyUpdate update;
-        private AccordConfigurationService.SyncStatus syncStatus = null;
 
         private Ranges closed = Ranges.EMPTY;
         private Ranges retired = Ranges.EMPTY;
@@ -317,9 +309,6 @@ public interface AccordTopologyUpdate
 
             Invariants.require(accumulator.update == null || accumulator.update.equals(update));
             accumulator.update = update;
-            // We're iterating in _reverse_ order
-            if (accumulator.syncStatus == null)
-                accumulator.syncStatus = syncStatus;
             accumulator.closed = accumulator.closed.with(closed);
             accumulator.retired = accumulator.retired.with(retired);
         }
@@ -330,13 +319,13 @@ public interface AccordTopologyUpdate
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TopologyImage that = (TopologyImage) o;
-            return epoch == that.epoch && Objects.equals(update, that.update) && syncStatus == that.syncStatus && closed.equals(that.closed) && retired.equals(that.retired);
+            return epoch == that.epoch && Objects.equals(update, that.update) && closed.equals(that.closed) && retired.equals(that.retired);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(update, syncStatus, closed, retired, epoch);
+            return Objects.hash(update, closed, retired, epoch);
         }
     }
 

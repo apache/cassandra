@@ -46,6 +46,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TimestampWithUniqueHlc;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.ActiveEpochs;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
@@ -156,9 +157,10 @@ public class AccordInteropExecution implements ReadCoordinator
         this.endpointMapper = endpointMapper;
 
         // TODO (required): compare this to latest logic in Accord, make sure it makes sense
-        this.executes = node.topology().forEpoch(route, executeAt.epoch(), SHARE);
+        ActiveEpochs epochs = node.topology().active();
+        this.executes = epochs.forEpoch(route, executeAt.epoch(), SHARE);
         this.allTopologies = txnId.epoch() != executeAt.epoch()
-                             ? node.topology().preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
+                             ? epochs.preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
                              : executes;
         this.executeTopology = executes.getEpoch(executeAt.epoch());
         this.coordinateTopology = allTopologies.getEpoch(txnId.epoch());

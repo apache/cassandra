@@ -177,8 +177,7 @@ public abstract class AccordTestBase extends TestBaseImpl
                 return true;
 
             AccordService accord = ((AccordService) AccordService.instance());
-            return metadata.epoch.getEpoch() == accord.configService().currentEpoch() &&
-                   metadata.epoch.getEpoch() == accord.topology().current().epoch();
+            return metadata.epoch.getEpoch() == accord.topology().current().epoch();
             }, 60));
     }
 

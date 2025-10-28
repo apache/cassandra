@@ -38,7 +38,8 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.topology.ActiveEpochs;
+import accord.topology.EpochReady;
 import accord.primitives.Txn;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.AccordSystemMetrics;
@@ -53,7 +54,6 @@ import accord.api.ProtocolModifiers;
 import accord.coordinate.CoordinateMaxConflict;
 import accord.coordinate.CoordinateTransaction;
 import accord.coordinate.KeyBarriers;
-import accord.impl.AbstractConfigurationService;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.RequestCallbacks;
@@ -77,6 +77,7 @@ import accord.primitives.TxnId;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
+import accord.topology.TopologyRange;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -133,7 +134,6 @@ import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.topology.TopologyManager.TopologyRange;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
@@ -219,7 +219,8 @@ public class AccordService implements IAccordService, Shutdownable
     private final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
-    private final AccordConfigurationService configService;
+    private final AccordEndpointMapper endpointMapper;
+    private final AccordTopologyService topologyService;
     private final AccordFastPathCoordinator fastPathCoordinator;
     private final AccordScheduler scheduler;
     private final AccordDataStore dataStore;
@@ -258,7 +259,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!isSetup()) return ignore -> {};
         AccordService i = (AccordService) instance();
-        return i.configService().watermarkCollector().handler;
+        return i.topologyService().watermarkCollector().handler;
     }
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
@@ -300,8 +301,6 @@ public class AccordService implements IAccordService, Shutdownable
 
         as.finishInitialization();
 
-        as.configService.start();
-        as.configService.unsafeMarkTruncated();
         as.fastPathCoordinator.start();
 
         ClusterMetadataService.instance().log().addListener(as.fastPathCoordinator);
@@ -311,7 +310,6 @@ public class AccordService implements IAccordService, Shutdownable
         as.node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
         as.state = State.STARTED;
         // Only enable durability scheduling _after_ we have fully replayed journal
-        as.configService.registerListener(as.node.durability());
         as.node.durability().start();
 
         instance = as;
@@ -320,7 +318,7 @@ public class AccordService implements IAccordService, Shutdownable
         AccordSystemMetrics.touch();
         AccordViolationHandler.setup();
 
-        WatermarkCollector.fetchAndReportWatermarksAsync(as.configService);
+        WatermarkCollector.fetchAndReportWatermarksAsync(as.topology());
         return as;
     }
 
@@ -383,12 +381,13 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
-        this.configService = new AccordConfigurationService(localId, agent);
-        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
-        this.messageSink = new AccordMessageSink(agent, configService.endpointMapper(), callbacks);
+        this.endpointMapper = new EndpointMapping.Updateable();
+        this.topologyService = new AccordTopologyService(localId, endpointMapper);
+        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, endpointMapper);
+        this.messageSink = new AccordMessageSink(agent, endpointMapper, callbacks);
         this.node = new Node(localId,
                              messageSink,
-                             configService,
+                             topologyService,
                              time, new AtomicUniqueTimeWithStaleReservation(time),
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())),
@@ -396,18 +395,18 @@ public class AccordService implements IAccordService, Shutdownable
                              new DefaultRandom(),
                              scheduler,
                              CompositeTopologySorter.create(SizeOfIntersectionSorter.SUPPLIER,
-                                                            new AccordTopologySorter.Supplier(configService.endpointMapper(), DatabaseDescriptor.getNodeProximity())),
+                                                            new AccordTopologySorter.Supplier(endpointMapper, DatabaseDescriptor.getNodeProximity())),
                              DefaultRemoteListeners::new,
                              ignore -> callbacks,
                              DefaultProgressLogs::new,
                              DefaultLocalListeners.Factory::new,
                              AccordCommandStores.factory(),
-                             new AccordInteropFactory(configService.endpointMapper()),
+                             new AccordInteropFactory(endpointMapper),
                              journal.durableBeforePersister(),
                              journal);
         this.nodeShutdown = toShutdownable(node);
-        this.requestHandler = new AccordVerbHandler<>(node, configService.endpointMapper());
-        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService.endpointMapper());
+        this.requestHandler = new AccordVerbHandler<>(node, endpointMapper);
+        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, endpointMapper);
     }
 
     @Override
@@ -419,7 +418,7 @@ public class AccordService implements IAccordService, Shutdownable
         node.load();
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        configService.updateMapping(metadata);
+        endpointMapper.updateMapping(metadata);
 
         List<TopologyUpdate> images = journal.replayTopologies();
         if (!images.isEmpty())
@@ -435,7 +434,7 @@ public class AccordService implements IAccordService, Shutdownable
 
                 // Replay local epochs
                 for (TopologyUpdate image : images)
-                    configService.reportTopology(image.global);
+                    node.topology().reportTopology(image.global);
             }
         }
     }
@@ -448,17 +447,20 @@ public class AccordService implements IAccordService, Shutdownable
     @VisibleForTesting
     public void finishInitialization()
     {
-        configService.updateMapping(ClusterMetadata.current());
+        endpointMapper.updateMapping(ClusterMetadata.current());
+        TopologyManager topology = node.topology();
         long highestKnown = -1;
-        if (configService.currentTopology() != null)
-            highestKnown = configService.currentEpoch();
+        if (!topology.active().isEmpty())
+        {
+            highestKnown = topology.active().epoch();
+        }
         try
         {
             TopologyRange remote = fetchTopologies(highestKnown + 1);
 
             if (remote != null) // TODO (required): if remote.min > highestKnown + 1, should we decide if we need to truncate our local topologies? Probably not until startup has finished.
             {
-                remote.forEach(configService::reportTopology, remote.min, Integer.MAX_VALUE);
+                remote.forEach(node.topology()::reportTopology, remote.min, Integer.MAX_VALUE);
                 if (remote.current > highestKnown)
                     highestKnown = remote.current;
             }
@@ -470,7 +472,7 @@ public class AccordService implements IAccordService, Shutdownable
                 public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
                 {
                     if (state != State.SHUTDOWN)
-                        configService.maybeReportMetadata(next);
+                        maybeReportMetadata(next);
                 }
             });
 
@@ -481,7 +483,7 @@ public class AccordService implements IAccordService, Shutdownable
             for (ClusterMetadata item : preinit.getItems())
             {
                 if (item.epoch.getEpoch() > highestKnown)
-                    configService.maybeReportMetadata(item);
+                    maybeReportMetadata(item);
             }
         }
         catch (InterruptedException e)
@@ -494,6 +496,45 @@ public class AccordService implements IAccordService, Shutdownable
             throw new RuntimeException(e);
         }
     }
+
+    private void maybeReportMetadata(ClusterMetadata metadata)
+    {
+        endpointMapper.updateMapping(metadata);
+
+        ActiveEpochs epochs = topology().active();
+        if (!metadata.schema.hasAccordKeyspaces() && epochs.isEmpty())
+            return;
+
+        if (epochs.epoch() >= metadata.epoch.getEpoch())
+            return;
+
+        // On first boot, we have 2 options:
+        //
+        //  - we can start listening to TCM _before_ we replay topologies
+        //  - we can start listening to TCM _after_ we replay topologies
+        //
+        // If we start listening to TCM _before_ we replay topologies from other nodes,
+        // we may end up in a situation where TCM reports metadata that would create an
+        // `epoch - 1` epoch state that is not associated with any topologies, and
+        // therefore should not be listened upon.
+        //
+        // If we start listening to TCM _after_ we replay topologies, we may end up in a
+        // situation where TCM reports metadata that is 1 (or more) epochs _ahead_ of the
+        // last known epoch. Previous implementations were using TCM peer catch up, which
+        // could have resulted in gaps.
+        //
+        // Current protocol solves both problems by _first_ replaying topologies form peers,
+        // then subscribing to TCM _and_, if there are still any gaps, filling them again.
+        // However, it still has a slight chance of creating an `epoch - 1` epoch state
+        // not associated with any topologies, which under "right" circumstances could
+        // have been waited upon with `epochReady`. This check precludes creation of this
+        // epoch: by the time this code can be called, remote topology replay is already
+        // done, so TCM listener will only report epochs that are _at least_ min epoch.
+        Topology topology = AccordTopology.createAccordTopology(metadata);
+        topology().reportTopology(topology);
+    }
+
+
     /**
      * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
@@ -723,9 +764,8 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public long currentEpoch()
     {
-        return configService.currentEpoch();
+        return topology().epoch();
     }
-
 
     @Override
     public TopologyManager topology()
@@ -859,7 +899,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private List<Shutdownable> shutdownableSubsystems()
     {
-        return Arrays.asList(scheduler, nodeShutdown, journal, configService);
+        return Arrays.asList(scheduler, nodeShutdown, journal, topologyService);
     }
 
     @VisibleForTesting
@@ -906,7 +946,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
     {
-        return toFuture(configService.epochReady(epoch.getEpoch(), get));
+        return toFuture(topology().epochReady(epoch.getEpoch(), get));
     }
 
     @Override
@@ -921,18 +961,18 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public void receive(Message<Notification> message)
     {
-        receive(MessagingService.instance(), configService, message);
+        receive(MessagingService.instance(), node.topology(), message);
     }
 
     @VisibleForTesting
-    public static void receive(MessageDelivery sink, AbstractConfigurationService<?, ?> configService, Message<Notification> message)
+    public static void receive(MessageDelivery sink, TopologyManager topologyManager, Message<Notification> message)
     {
         AccordSyncPropagator.Notification notification = message.payload;
-        notification.syncComplete.forEach(id -> configService.receiveRemoteSyncComplete(id, notification.epoch));
+        notification.readyToCoordinate.forEach(id -> topologyManager.onReadyToCoordinate(id, notification.epoch));
         if (!notification.closed.isEmpty())
-            configService.receiveClosed(notification.closed, notification.epoch);
+            topologyManager.onEpochClosed(notification.closed, notification.epoch);
         if (!notification.retired.isEmpty())
-            configService.receiveRetired(notification.retired, notification.epoch);
+            topologyManager.onEpochRetired(notification.retired, notification.epoch);
         sink.respond(Ok, message);
     }
 
@@ -974,9 +1014,15 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    public AccordConfigurationService configService()
+    public AccordEndpointMapper endpointMapper()
     {
-        return configService;
+        return endpointMapper;
+    }
+
+    @Override
+    public AccordTopologyService topologyService()
+    {
+        return topologyService;
     }
 
     @Override

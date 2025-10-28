@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.topology.EpochReady;
 import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.CommandStores;

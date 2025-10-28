@@ -30,7 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.ConfigurationService.EpochReady;
+import accord.topology.EpochReady;
 import accord.local.Node;
 import accord.utils.async.AsyncResult;
 import com.googlecode.concurrenttrees.common.Iterables;
@@ -371,7 +371,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         {
             IAccordService service = AccordService.instance();
             {
-                Future<?> ready = AccordService.toFuture(service.epochReadyFor(metadata, EpochReady::metadata));
+                Future<?> ready = AccordService.toFuture(service.epochReadyFor(metadata, EpochReady::active));
                 logger.info("Waiting for Accord metadata to be ready");
                 ready.syncThrowUncheckedOnInterrupt();
                 ready.rethrowIfFailed();
