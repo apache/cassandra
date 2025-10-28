@@ -94,6 +94,26 @@ public class SchemaCQLHelperTest extends CQLTester
                      .build(), types);
     }
 
+    @Test
+    public void testUserTypesCQLWithNestedUdtInList()
+    {
+        String keyspaceForUserTypeTests = "cql_test_keyspace_user_types_list";
+        String tableForUserTypeTests = "test_table_user_types_list";
+
+        UserType[] types = getTypes(keyspaceForUserTypeTests);
+
+        // Use a non-UDT top-level type containing a UDT subtype: list<frozen<c>>
+        // This mirrors the other tests' pattern (using executeTest), and should include a,b,c in order
+        executeTest(keyspaceForUserTypeTests,
+                    tableForUserTypeTests,
+                    TableMetadata.builder(keyspaceForUserTypeTests, tableForUserTypeTests)
+                                 .addPartitionKeyColumn("pk1", IntegerType.instance)
+                                 .addClusteringColumn("ck1", IntegerType.instance)
+                                 .addRegularColumn("reg_list_udt", ListType.getInstance(types[2].freeze(), true))
+                                 .build(),
+                    types);
+    }
+
 
     private void executeTest(String keyspaceForUserTypeTests, String tableForUserTypeTests, TableMetadata cfm, UserType[] userTypes)
     {

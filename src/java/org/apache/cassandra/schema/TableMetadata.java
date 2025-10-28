@@ -1138,10 +1138,11 @@ public class TableMetadata implements SchemaElement
     {
         AbstractType<?> unwrapped = type.unwrap();
 
+        // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
+        unwrapped.subTypes().forEach(t -> addUserTypes(t, types));
+
         if (unwrapped.isUDT())
         {
-            // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
-            unwrapped.subTypes().forEach(t -> addUserTypes(t, types));
             types.add(((UserType)unwrapped).name);
         }
     }
