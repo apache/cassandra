@@ -79,7 +79,7 @@ public class StreamingTest
         handshakeEx = null;
     }
 
-    private Future<Result<Result.StreamingSuccess>> streamingConnect(AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
+    private Result<Result.StreamingSuccess> streamingConnect(AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
     {
         InboundSockets inbound = new InboundSockets(new InboundConnectionSettings().withAcceptMessaging(acceptInbound));
         try
@@ -94,7 +94,9 @@ public class StreamingTest
                     SslFallbackConnectionType.SERVER_CONFIG
             );
             result.awaitUninterruptibly();
-            return result;
+            Assert.assertTrue(result.isSuccess());
+
+            return result.getNow();
         }
         finally
         {
@@ -105,31 +107,21 @@ public class StreamingTest
     @Test
     public void testIncompatibleVersion() throws InterruptedException, ExecutionException
     {
-        Future<Result<Result.StreamingSuccess>> result = streamingConnect(new AcceptVersions(current_version + 1, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
-        if (result.isSuccess()) {
-            Result<Result.StreamingSuccess> nowResult = result.getNow();
-            Assert.assertNull(nowResult.success());
-            Assert.assertEquals(Result.Outcome.INCOMPATIBLE, nowResult.outcome);
-            Assert.assertEquals(current_version, nowResult.incompatible().closestSupportedVersion);
-            Assert.assertEquals(current_version, nowResult.incompatible().maxMessagingVersion);
-
-        } else {
-            Assert.assertTrue(false);
-        }
+        Result<Result.StreamingSuccess> nowResult = streamingConnect(new AcceptVersions(current_version + 1, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
+        Assert.assertNull(nowResult.success());
+        Assert.assertEquals(Result.Outcome.INCOMPATIBLE, nowResult.outcome);
+        Assert.assertEquals(current_version, nowResult.incompatible().closestSupportedVersion);
+        Assert.assertEquals(current_version, nowResult.incompatible().maxMessagingVersion);
     }
 
     @Test
     public void testCompatibleVersion() throws InterruptedException, ExecutionException
     {
-        Future<Result<Result.StreamingSuccess>> result = streamingConnect(new AcceptVersions(MessagingService.minimum_version, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
-        if (result.isSuccess()) {
-            Result<Result.StreamingSuccess> nowResult = result.getNow();
-            Assert.assertNotNull(nowResult.success().channel);
-            Assert.assertEquals(Result.Outcome.SUCCESS, nowResult.outcome);
-            Assert.assertEquals(current_version, nowResult.success().messagingVersion);
-        } else {
-            Assert.assertTrue(false);
-        }
+        Result<Result.StreamingSuccess> nowResult = streamingConnect(new AcceptVersions(MessagingService.minimum_version, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
+        Assert.assertNotNull(nowResult.success());
+        Assert.assertNotNull(nowResult.success().channel);
+        Assert.assertEquals(Result.Outcome.SUCCESS, nowResult.outcome);
+        Assert.assertEquals(current_version, nowResult.success().messagingVersion);
     }
 
     private ServerEncryptionOptions getServerEncryptionOptions(SslFallbackConnectionType sslConnectionType, boolean optional)
