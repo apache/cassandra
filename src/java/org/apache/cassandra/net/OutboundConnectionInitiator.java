@@ -526,7 +526,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         boolean isSuccess() { return outcome == Outcome.SUCCESS; }
         public Success success() {
-            if (this instanceof Success)
+            if (this.outcome == outcome.SUCCESS)
                 return (Success) this;
             return null;
         }
@@ -534,7 +534,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         static StreamingSuccess streamingSuccess(Channel channel, int messagingVersion) { return new StreamingSuccess(channel, messagingVersion); }
 
         public Retry retry() {
-            if (this instanceof Retry)
+            if (this.outcome == outcome.RETRY)
                 return (Retry) this;
             return null;
         }
@@ -542,7 +542,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         public Incompatible incompatible()
         {
-            if (this instanceof Incompatible)
+            if (this.outcome == outcome.INCOMPATIBLE)
                 return (Incompatible) this;
             return null;
         }
