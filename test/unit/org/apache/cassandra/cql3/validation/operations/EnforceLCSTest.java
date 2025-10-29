@@ -211,6 +211,90 @@ public class EnforceLCSTest extends CQLTester
                                KEYSPACE, table3);
     }
 
+    @Test
+    public void testNonSpecifiedCompactionForCreateMV() throws Throwable
+    {
+        CompactionParams expectedLCSefault = CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB())));
+        
+        // Create base table
+        String baseTable = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
+        
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable + 
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id);", false);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, mv1);
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable + 
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id);", false);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, mv2);
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.none);
+        String mv3 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable + 
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id);", false);
+        assertCompactionParams(CompactionParams.DEFAULT, KEYSPACE, mv3);
+    }
+
+    @Test
+    public void testSpecifiedCompactionForCreateMV() throws Throwable
+    {
+        // Create base table
+        String baseTable = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
+        
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
+                                  "LCS enforcement is enabled",
+                                  InvalidQueryException.class,
+                                  "CREATE MATERIALIZED VIEW " + KEYSPACE + '.' + createViewName() + 
+                                  " AS SELECT * FROM " + KEYSPACE + "." + baseTable + 
+                                  " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                  "WITH compaction={'class': 'SizeTieredCompactionStrategy'};");
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
+        CompactionParams expectedLCSefault = CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB())));
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable +
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                "WITH compaction={'class': 'SizeTieredCompactionStrategy'};", false);
+        assertCompactionParams(expectedLCSefault, KEYSPACE, mv1);
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.none);
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable +
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                "WITH compaction={'class': 'SizeTieredCompactionStrategy'};", false);
+        assertCompactionParams(CompactionParams.stcs(Collections.emptyMap()), KEYSPACE, mv2);
+    }
+
+    @Test
+    public void testOverrideLCSDefaultSSTableSizeInMBForMV() throws Throwable
+    {
+        // Create base table
+        String baseTable = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
+        
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable +
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                "WITH compaction={'class': 'LeveledCompactionStrategy'};", false);
+        assertCompactionParams(CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB()))),
+                               KEYSPACE, mv1);
+        
+        // override if set
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable +
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                "WITH compaction={'class': 'LeveledCompactionStrategy', 'sstable_size_in_mb': '160', 'enabled': 'false'};", false);
+        assertCompactionParams(CompactionParams.lcs(Map.of(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, String.valueOf(DatabaseDescriptor.getLCSSSTableSizeInMB()),
+                                                           "enabled", "false")),
+                               KEYSPACE, mv2);
+
+        // other default
+        DatabaseDescriptor.setLCSSSTableSizeInMB(320);
+        Assert.assertEquals(320, DatabaseDescriptor.getLCSSSTableSizeInMB());
+        String mv3 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + KEYSPACE + "." + baseTable +
+                                " WHERE id IS NOT NULL AND content IS NOT NULL PRIMARY KEY (content, id) " +
+                                "WITH compaction={'class': 'LeveledCompactionStrategy'};", false);
+        assertCompactionParams(CompactionParams.lcs(Collections.singletonMap(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, "320")),
+                               KEYSPACE, mv3);
+    }
+
     private void assertCompactionParams(CompactionParams expected, String keyspace, String table)
     {
         TableMetadata tableMetadata = Schema.instance.getTableMetadata(keyspace, table);

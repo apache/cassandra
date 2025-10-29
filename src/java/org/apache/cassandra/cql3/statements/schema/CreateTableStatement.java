@@ -131,44 +131,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
             return super.execute(state, locally);
         }
 
-        // should not affect any system schema behavior
-        if (SchemaConstants.isSystemKeyspace(keyspaceName) ||
-            DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
-            logger.info(String.format("LCS enforcement level=%s. Creating %s.%s with original setting.",
-                                      DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
-            return super.execute(state, locally);
-        }
-
         attrs.validate();
-        if (!attrs.hasOption(TableParams.Option.COMPACTION))
-        {
-            // set LCS if statement with no comapction strategy declared
-            attrs.setLCS();
-            logger.info(String.format("LCS enforcement is enabled (level=%s). Setting LCS for %s.%s as no compaction strategy is specified.",
-                                      DatabaseDescriptor.getLCSEnforcementLevel().toString(), keyspaceName, tableName));
-        }
-        else if (!Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getSimpleName()) &&
-                 !Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getName()))
-        {
-            if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.hard) {
-                // throw exception hard flag is used for LCS enforcement
-                throw ire("LCS enforcement is enabled. You're trying to create schema with %s for %s.%s. Please use " +
-                          "LeveledCompactionStrategy for your schema, or contact Cassandra " +
-                          "team for assistance creating non-LCS schema.", attrs.getCompactionStrategy(), keyspaceName, tableName);
-            } else if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.soft) {
-                // silently transform to LCS if soft flag is used for LCS enforcement
-                attrs.setLCS();
-                logger.info(String.format("LCS enforcement is enabled (level=%s). Transforming to LCS for %s.%s.",
-                                          DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
-            }
-        }
-        else
-        {
-            // CREATE with LCS
-            if (attrs.overrideLCSSSTableSizeInMb(DatabaseDescriptor.getLCSSSTableSizeInMB()))
-                logger.warn(String.format("sstable_size_in_mb is overriden with %s for performance concern, details in CASSANDRA-19596",
-                                          DatabaseDescriptor.getLCSSSTableSizeInMB()));
-        }
+        attrs.applyLCSEnforcement(keyspaceName, tableName);
         return super.execute(state, locally);
     }
 

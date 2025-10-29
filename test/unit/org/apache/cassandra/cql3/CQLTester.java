@@ -944,14 +944,40 @@ public abstract class CQLTester
     /**
      * Creates a materialized view, waiting for the completion of its builder tasks.
      *
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @param waitViewBuild if we need to wait for view build
+     * @return the name of the created view
+     */
+    protected String createView(String query, boolean waitViewBuild)
+    {
+        return createView(null, query, waitViewBuild);
+    }
+
+    /**
+     * Creates a materialized view, waiting for the completion of its builder tasks.
+     *
      * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
      * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
      * @return the name of the created view
      */
     protected String createView(String viewName, String query)
     {
+        return createView(viewName, query, true);
+    }
+
+    /**
+     * Creates a materialized view, waiting for the completion of its builder tasks.
+     *
+     * @param viewName the name of the view to be created, or {@code null} for using an automatically generated a name
+     * @param query the {@code CREATE VIEW} query, with {@code %s} placeholders for the view and table names
+     * @param waitViewBuild if we need to wait for view build
+     * @return the name of the created view
+     */
+    protected String createView(String viewName, String query, boolean waitViewBuild)
+    {
         String currentView = createViewAsync(viewName, query);
-        waitForViewBuild(currentView);
+        if (waitViewBuild)
+            waitForViewBuild(currentView);
         return currentView;
     }
 

@@ -312,6 +312,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
          */
 
         attrs.validate();
+        attrs.applyLCSEnforcement(keyspaceName, viewName);
 
         if (attrs.hasOption(TableParams.Option.DEFAULT_TIME_TO_LIVE)
             && attrs.getInt(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString(), 0) != 0)

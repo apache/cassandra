@@ -20,11 +20,13 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -35,6 +37,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
@@ -42,6 +45,7 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.ire;
 
 public final class TableAttributes extends PropertyDefinitions
 {
@@ -257,5 +261,46 @@ public final class TableAttributes extends PropertyDefinitions
     {
         Map<String, String> csOptions = getMap(Option.COMPACTION);
         return csOptions.get(CompactionParams.Option.CLASS.toString());
+    }
+
+    public void applyLCSEnforcement(String keyspaceName, String tableName)
+    {
+        // should not affect any system schema behavior
+        if (SchemaConstants.isSystemKeyspace(keyspaceName) ||
+            DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
+            logger.info(String.format("LCS enforcement level=%s. Creating %s.%s with original setting.",
+                                      DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
+            return;
+        }
+
+        if (!hasOption(TableParams.Option.COMPACTION))
+        {
+            // set LCS if statement with no comapction strategy declared
+            setLCS();
+            logger.info(String.format("LCS enforcement is enabled (level=%s). Setting LCS for %s.%s as no compaction strategy is specified.",
+                                      DatabaseDescriptor.getLCSEnforcementLevel().toString(), keyspaceName, tableName));
+        }
+        else if (!Objects.equals(getCompactionStrategy(), LeveledCompactionStrategy.class.getSimpleName()) &&
+                 !Objects.equals(getCompactionStrategy(), LeveledCompactionStrategy.class.getName()))
+        {
+            if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.hard) {
+                // throw exception hard flag is used for LCS enforcement
+                throw ire("LCS enforcement is enabled. You're trying to create schema with %s for %s.%s. Please use " +
+                          "LeveledCompactionStrategy for your schema, or contact Cassandra " +
+                          "team for assistance creating non-LCS schema.", getCompactionStrategy(), keyspaceName, tableName);
+            } else if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.soft) {
+                // silently transform to LCS if soft flag is used for LCS enforcement
+                setLCS();
+                logger.info(String.format("LCS enforcement is enabled (level=%s). Transforming to LCS for %s.%s.",
+                                          DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
+            }
+        }
+        else
+        {
+            // CREATE with LCS
+            if (overrideLCSSSTableSizeInMb(DatabaseDescriptor.getLCSSSTableSizeInMB()))
+                logger.warn(String.format("sstable_size_in_mb is overriden with %s for performance concern, details in CASSANDRA-19596",
+                                          DatabaseDescriptor.getLCSSSTableSizeInMB()));
+        }
     }
 }
