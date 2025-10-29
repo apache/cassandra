@@ -141,11 +141,30 @@ public interface CompressionDictionary extends AutoCloseable
     {
         String kindStr = row.getString("kind");
         long dictId = row.getLong("dict_id");
+        byte[] dict = row.getByteArray("dict");
+        int storedLength = row.getInt("dict_length");
+        int storedChecksum = row.getInt("dict_checksum");
 
         try
         {
             Kind kind = CompressionDictionary.Kind.valueOf(kindStr);
-            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"));
+
+            // Validate length
+            if (dict.length != storedLength)
+            {
+                throw new IllegalStateException(String.format("Dictionary length mismatch for %s dict id %d. Expected: %d, actual: %d",
+                                                               kindStr, dictId, storedLength, dict.length));
+            }
+
+            // Validate checksum
+            int calculatedChecksum = calculateChecksum((byte) kind.ordinal(), dictId, dict);
+            if (calculatedChecksum != storedChecksum)
+            {
+                throw new IllegalStateException(String.format("Dictionary checksum mismatch for %s dict id %d. Expected: %d, actual: %d",
+                                                               kindStr, dictId, storedChecksum, calculatedChecksum));
+            }
+
+            return kind.createDictionary(new DictId(kind, dictId), dict);
         }
         catch (IllegalArgumentException ex)
         {

@@ -180,6 +180,47 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .isNull();
     }
 
+    @Test
+    public void testStoredDictionaryIncludesLengthAndChecksum() throws Exception
+    {
+        // Store a dictionary
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary1);
+
+        // Query the table directly to verify dict_length and dict_checksum are stored
+        String query = String.format("SELECT dict_length, dict_checksum FROM %s.%s WHERE keyspace_name = '%s' AND table_name = '%s' AND dict_id = %d",
+                                     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                     SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                                     TEST_KEYSPACE,
+                                     TEST_TABLE,
+                                     testDictionary1.dictId().id);
+
+        var resultSet = QueryProcessor.executeInternal(query);
+
+        assertThat(resultSet.isEmpty())
+        .as("Should have at least one result")
+        .isFalse();
+
+        var row = resultSet.one();
+        int storedLength = row.getInt("dict_length");
+        int storedChecksum = row.getInt("dict_checksum");
+
+        // Verify the stored length matches the actual dictionary length
+        assertThat(storedLength)
+        .as("Stored dict_length should match actual dictionary length")
+        .isEqualTo(testDictionary1.rawDictionary().length);
+
+        // Verify the stored checksum matches the calculated checksum
+        byte[] dict = testDictionary1.rawDictionary();
+        int expectedChecksum = CompressionDictionary.calculateChecksum(
+            (byte) testDictionary1.kind().ordinal(),
+            testDictionary1.dictId().id,
+            dict);
+
+        assertThat(storedChecksum)
+        .as("Stored dict_checksum should match calculated checksum")
+        .isEqualTo(expectedChecksum);
+    }
+
     private void clearCompressionDictionaries()
     {
         for (String table : List.of(TEST_TABLE, OTHER_TABLE))
