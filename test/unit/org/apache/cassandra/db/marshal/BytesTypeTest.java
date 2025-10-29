@@ -49,64 +49,64 @@ public class BytesTypeTest
     @Test
     public void testValueCompatibilityWithScalarTypes()
     {
-        // BytesType should be compatible with simple scalar types
-        assertTrue("BytesType should be compatible with AsciiType",
+        // BytesType should be value-compatible with simple scalar types
+        assertTrue("BytesType should be value-compatible with AsciiType",
                    BytesType.instance.isValueCompatibleWith(AsciiType.instance));
-        assertTrue("BytesType should be compatible with UTF8Type",
+        assertTrue("BytesType should be value-compatible with UTF8Type",
                    BytesType.instance.isValueCompatibleWith(UTF8Type.instance));
-        assertTrue("BytesType should be compatible with Int32Type",
+        assertTrue("BytesType should be value-compatible with Int32Type",
                    BytesType.instance.isValueCompatibleWith(Int32Type.instance));
-        assertTrue("BytesType should be compatible with LongType",
+        assertTrue("BytesType should be value-compatible with LongType",
                    BytesType.instance.isValueCompatibleWith(LongType.instance));
-        assertTrue("BytesType should be compatible with UUIDType",
+        assertTrue("BytesType should be value-compatible with UUIDType",
                    BytesType.instance.isValueCompatibleWith(UUIDType.instance));
-        assertTrue("BytesType should be compatible with BooleanType",
+        assertTrue("BytesType should be value-compatible with BooleanType",
                    BytesType.instance.isValueCompatibleWith(BooleanType.instance));
-        assertTrue("BytesType should be compatible with itself",
+        assertTrue("BytesType should be value-compatible with itself",
                    BytesType.instance.isValueCompatibleWith(BytesType.instance));
     }
 
     @Test
-    public void testValueIncompatibilityWithCollections()
+    public void testSerializationIncompatibilityWithCollections()
     {
-        // BytesType should NOT be compatible with collections (even frozen ones)
-        // because converting a collection to raw bytes is nonsensical
+        // BytesType should NOT be serialization-compatible with collections (even frozen ones)
+        // because converting a collection to raw bytes for schema changes is nonsensical
         ListType<?> frozenList = ListType.getInstance(Int32Type.instance, false);
         SetType<?> frozenSet = SetType.getInstance(Int32Type.instance, false);
         MapType<?, ?> frozenMap = MapType.getInstance(Int32Type.instance, UTF8Type.instance, false);
 
-        assertFalse("BytesType should NOT be compatible with frozen<list>",
-                    BytesType.instance.isValueCompatibleWith(frozenList));
-        assertFalse("BytesType should NOT be compatible with frozen<set>",
-                    BytesType.instance.isValueCompatibleWith(frozenSet));
-        assertFalse("BytesType should NOT be compatible with frozen<map>",
-                    BytesType.instance.isValueCompatibleWith(frozenMap));
+        assertFalse("BytesType should NOT be serialization-compatible with frozen<list>",
+                    BytesType.instance.isSerializationCompatibleWith(frozenList));
+        assertFalse("BytesType should NOT be serialization-compatible with frozen<set>",
+                    BytesType.instance.isSerializationCompatibleWith(frozenSet));
+        assertFalse("BytesType should NOT be serialization-compatible with frozen<map>",
+                    BytesType.instance.isSerializationCompatibleWith(frozenMap));
 
         // Also test with multi-cell collections
         ListType<?> multiCellList = ListType.getInstance(Int32Type.instance, true);
         SetType<?> multiCellSet = SetType.getInstance(Int32Type.instance, true);
         MapType<?, ?> multiCellMap = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
 
-        assertFalse("BytesType should NOT be compatible with list",
-                    BytesType.instance.isValueCompatibleWith(multiCellList));
-        assertFalse("BytesType should NOT be compatible with set",
-                    BytesType.instance.isValueCompatibleWith(multiCellSet));
-        assertFalse("BytesType should NOT be compatible with map",
-                    BytesType.instance.isValueCompatibleWith(multiCellMap));
+        assertFalse("BytesType should NOT be serialization-compatible with list",
+                    BytesType.instance.isSerializationCompatibleWith(multiCellList));
+        assertFalse("BytesType should NOT be serialization-compatible with set",
+                    BytesType.instance.isSerializationCompatibleWith(multiCellSet));
+        assertFalse("BytesType should NOT be serialization-compatible with map",
+                    BytesType.instance.isSerializationCompatibleWith(multiCellMap));
     }
 
     @Test
-    public void testValueIncompatibilityWithUDT()
+    public void testSerializationIncompatibilityWithUDT()
     {
-        // BytesType should NOT be compatible with User Defined Types
-        // because converting a UDT to raw bytes is nonsensical
+        // BytesType should NOT be serialization-compatible with User Defined Types
+        // because converting a UDT to raw bytes for schema changes is nonsensical
         UserType udt = new UserType("ks",
                                      ByteBufferUtil.bytes("myType"),
                                      Arrays.asList(FieldIdentifier.forQuoted("field1"), FieldIdentifier.forQuoted("field2")),
                                      Arrays.asList(Int32Type.instance, UTF8Type.instance),
                                      true);
 
-        assertFalse("BytesType should NOT be compatible with UDT",
-                    BytesType.instance.isValueCompatibleWith(udt));
+        assertFalse("BytesType should NOT be serialization-compatible with UDT",
+                    BytesType.instance.isSerializationCompatibleWith(udt));
     }
 }

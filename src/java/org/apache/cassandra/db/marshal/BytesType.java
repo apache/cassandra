@@ -90,9 +90,16 @@ public class BytesType extends AbstractType<ByteBuffer>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
+        // BytesType can read anything
+        return true;
+    }
+
+    @Override
+    public boolean isSerializationCompatibleWith(AbstractType<?> previous)
+    {
         // BytesType should only be compatible with simple scalar types, not with collections or UDTs
         // because converting a collection or UDT to raw bytes is nonsensical
-        return !otherType.isMultiCell();
+        return !previous.isCollection() && !previous.isUDT() && super.isSerializationCompatibleWith(previous);
     }
 
     public CQL3Type asCQL3Type()
