@@ -3258,7 +3258,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                                         .value("c", 0)
                                                         .build())
                                      .build();
-                 coordinator.execute(stmt.toCQL(), QUORUM, stmt.bindsEncoded());
+                 coordinator.execute(stmt.toCQL(), QUORUM, (Object[]) stmt.bindsEncoded());
 
                  // is the data correct?
                  var result = coordinator.executeWithResult("SELECT * FROM " + qualifiedAccordTableName, QUORUM);
