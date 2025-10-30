@@ -18,15 +18,15 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 
 public class GCInspectorTest
 {
@@ -63,24 +63,13 @@ public class GCInspectorTest
     @Test
     public void ensureWarnGreaterThanLog()
     {
-        try
-        {
-            gcInspector.setGcWarnThresholdInMs(gcInspector.getGcLogThresholdInMs());
-            fail("Expect IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-        }
-        try
-        {
-            gcInspector.setGcConcurrentPhaseWarnThresholdInMs(gcInspector.getGcConcurrentPhaseLogThresholdInMs());
-            fail("Expect IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-        }
+        assertThatThrownBy(() -> gcInspector.setGcWarnThresholdInMs(gcInspector.getGcLogThresholdInMs()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Threshold value for gc_warn_threshold (200) must be greater than gc_log_threshold which is currently 200");
+
+        assertThatThrownBy(() -> gcInspector.setGcConcurrentPhaseWarnThresholdInMs(gcInspector.getGcConcurrentPhaseLogThresholdInMs()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Threshold value for gc_concurrent_phase_warn_threshold (1000) must be greater than gc_concurrent_phase_log_threshold which is currently 1000");
     }
     
     @Test
@@ -102,27 +91,18 @@ public class GCInspectorTest
         assertEquals(200, gcInspector.getGcLogThresholdInMs());
         gcInspector.setGcWarnThresholdInMs(1000);
         assertEquals(1000, gcInspector.getGcWarnThresholdInMs());
-        try
-        {
-            gcInspector.setGcLogThresholdInMs(gcInspector.getGcWarnThresholdInMs() + 1);
-            fail("Expect IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-        }
+
+        assertThatThrownBy(() -> gcInspector.setGcLogThresholdInMs(gcInspector.getGcWarnThresholdInMs() + 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Threshold value for gc_log_threshold (1001) must be less than gc_warn_threshold which is currently 1000");
+
         assertEquals(1000, gcInspector.getGcConcurrentPhaseLogThresholdInMs());
         gcInspector.setGcConcurrentPhaseWarnThresholdInMs(2000);
         assertEquals(2000, gcInspector.getGcConcurrentPhaseWarnThresholdInMs());
-        try
-        {
-            gcInspector.setGcConcurrentPhaseLogThresholdInMs(gcInspector.getGcConcurrentPhaseWarnThresholdInMs() + 1);
-            fail("Expect IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-        }
+
+        assertThatThrownBy(() -> gcInspector.setGcConcurrentPhaseLogThresholdInMs(gcInspector.getGcConcurrentPhaseWarnThresholdInMs() + 1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Threshold value for gc_concurrent_phase_log_threshold (2001) must be less than gc_concurrent_phase_warn_threshold which is currently 2000");
     }
     
     @Test

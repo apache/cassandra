@@ -408,15 +408,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcWarnThresholdInMs(long threshold)
     {
-        long gcLogThresholdInMs = getGcLogThresholdInMs();
-        if (threshold < 0)
-            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
-        if (threshold != 0 && threshold <= gcLogThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be greater than gcLogThresholdInMs which is currently "
-                    + gcLogThresholdInMs);
-        if (threshold > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
-        DatabaseDescriptor.setGCWarnThreshold((int)threshold);
+        try
+        {
+            DatabaseDescriptor.setGCWarnThreshold((int)threshold);
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(t.getMessage());
+        }
     }
 
     public long getGcWarnThresholdInMs()
@@ -426,15 +425,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcLogThresholdInMs(long threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGcWarnThresholdInMs();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be less than gcWarnThresholdInMs which is currently "
-                                               + gcWarnThresholdInMs);
-
-        DatabaseDescriptor.setGCLogThreshold((int) threshold);
+        try
+        {
+            DatabaseDescriptor.setGCLogThreshold((int) threshold);
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(t.getMessage());
+        }
     }
 
     public int getGcConcurrentPhaseWarnThresholdInMs()
@@ -444,13 +442,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcConcurrentPhaseWarnThresholdInMs(int threshold)
     {
-        long gcConcurrentPhaseLogThresholdInMs = getGcConcurrentPhaseLogThresholdInMs();
-        if (threshold < 0)
-            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
-        if (threshold != 0 && threshold <= gcConcurrentPhaseLogThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be greater than gcConcurrentPhaseLogThresholdInMs which is currently "
-                                               + gcConcurrentPhaseLogThresholdInMs);
-        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
+        try
+        {
+            DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(t.getMessage());
+        }
     }
 
     public int getGcConcurrentPhaseLogThresholdInMs()
@@ -460,15 +459,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcConcurrentPhaseLogThresholdInMs(int threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold must be greater than 0");
-
-        long gcConcurrentPhaseWarnThresholdInMs = getGcConcurrentPhaseWarnThresholdInMs();
-        if (gcConcurrentPhaseWarnThresholdInMs != 0 && threshold > gcConcurrentPhaseWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be less than gcConcurrentPhaseWarnThresholdInMs which is currently "
-                                               + gcConcurrentPhaseWarnThresholdInMs);
-
-        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
+        try
+        {
+            DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(t.getMessage());
+        }
     }
 
     public long getGcLogThresholdInMs()
