@@ -296,7 +296,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                     logger.info(sb.toString());
                 else if (logger.isTraceEnabled())
                     logger.trace(sb.toString());
-                // TODO: trigger StatusLogger if concurrent phases take too long?
+                if (duration > this.getConcurrentStatusThresholdInMs())
+                    StatusLogger.log();
             }
             else
             {
@@ -479,4 +480,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         return getGcWarnThresholdInMs() != 0 ? getGcWarnThresholdInMs() : getGcLogThresholdInMs();
     }
 
+    public long getConcurrentStatusThresholdInMs()
+    {
+        return getGcConcurrentPhaseWarnThresholdInMs() != 0 ? getGcConcurrentPhaseWarnThresholdInMs() : getGcConcurrentPhaseLogThresholdInMs();
+    }
 }
