@@ -171,7 +171,7 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
         if (INSTANCE != null)
         {
             INSTANCE.add(toPersist.getClass().getName(),
-                         stackTrace.get(0),
+                         stackTrace.isEmpty() ? "unknown" : stackTrace.get(0),
                          toPersist.getMessage(),
                          stackTrace,
                          now);
@@ -179,7 +179,7 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
         else
         {
             preInitialisationBuffer.add(new ExceptionRow(toPersist.getClass().getName(),
-                                                         stackTrace.get(0),
+                                                         stackTrace.isEmpty() ? "unknown" : stackTrace.get(0),
                                                          0,
                                                          toPersist.getMessage(),
                                                          stackTrace,
