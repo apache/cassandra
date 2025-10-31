@@ -188,13 +188,15 @@ public class AutoRepair
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
 
-            // If it's too soon to run repair, don't bother checking if it's our turn.
+            // Calculate repair turn first - this also cleans up orphan nodes from auto-repair system tables
+            RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
+
+            // Check if it's too soon to run repair after calculating turn to ensure cleanup happens
             if (tooSoonToRunRepair(repairType, repairState, config, myId))
             {
                 return;
             }
 
-            RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
                 repairState.recordTurn(turn);
