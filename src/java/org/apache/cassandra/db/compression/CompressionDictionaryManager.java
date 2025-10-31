@@ -193,6 +193,12 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
+    public long cachedDictionariesMemoryUsed()
+    {
+        return cache.cachedDictionariesMemoryUsed();
+    }
+
+    @Override
     public void onNewDictionaryTrained(CompressionDictionary.DictId dictionaryId)
     {
         eventHandler.onNewDictionaryTrained(dictionaryId);

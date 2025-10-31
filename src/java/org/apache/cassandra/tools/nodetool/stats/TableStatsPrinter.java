@@ -137,6 +137,9 @@ public class TableStatsPrinter<T extends StatsHolder>
                 out.println(indent + "Bloom filter off heap memory used: " + table.bloomFilterOffHeapMemoryUsed);
             if (table.indexSummaryOffHeapUsed)
                 out.println(indent + "Index summary off heap memory used: " + table.indexSummaryOffHeapMemoryUsed);
+            if (table.compressionDictionariesUsed)
+                out.println(indent + "Compression dictionaries memory used: " + table.compressionDictionariesMemoryUsed);
+
             if (table.compressionMetadataOffHeapUsed)
                 out.println(indent + "Compression metadata off heap memory used: " + table.compressionMetadataOffHeapMemoryUsed);
 

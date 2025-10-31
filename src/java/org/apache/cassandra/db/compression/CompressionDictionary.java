@@ -57,6 +57,15 @@ public interface CompressionDictionary extends AutoCloseable
     int checksum();
 
     /**
+     * Get memory occupied of this dictionary as a whole.
+     * Use for metrics exposing used memory in total. The value
+     * return by this method is a best-effort estimation.
+     *
+     * @return memory occuppied by this compression dictionary, in bytes
+     */
+    int estimatedOccupiedMemoryBytes();
+
+    /**
      * Get the kind of the compression algorithm
      *
      * @return compression algorithm kind

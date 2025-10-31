@@ -87,6 +87,16 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     }
 
     @Override
+    public int estimatedOccupiedMemoryBytes()
+    {
+        int occupied = rawDictionary.length;
+        occupied += dictDecompress != null ? rawDictionary.length : 0;
+        occupied += zstdDictCompressPerLevel.size() * rawDictionary.length;
+
+        return occupied;
+    }
+
+    @Override
     public boolean equals(Object o)
     {
         if (!(o instanceof ZstdCompressionDictionary)) return false;

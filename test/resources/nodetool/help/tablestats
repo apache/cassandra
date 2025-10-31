@@ -46,6 +46,7 @@ OPTIONS
             bloom_filter_off_heap_memory_used, bloom_filter_space_used,
             compacted_partition_maximum_bytes, compacted_partition_mean_bytes,
             compacted_partition_minimum_bytes,
+            compression_dictionaries_memory_used,
             compression_metadata_off_heap_memory_used, full_name,
             index_summary_off_heap_memory_used, local_read_count,
             local_read_latency_ms, local_write_latency_ms,
