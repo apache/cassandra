@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -50,8 +51,9 @@ public class PrepareMessage extends RepairMessage
     public final long repairedAt;
     public final boolean isGlobal;
     public final PreviewKind previewKind;
+    public final Epoch minEpoch;
 
-    public PrepareMessage(TimeUUID parentRepairSession, List<TableId> tableIds, IPartitioner partitioner, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
+    public PrepareMessage(TimeUUID parentRepairSession, List<TableId> tableIds, IPartitioner partitioner, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind, Epoch minEpoch)
     {
         super(null);
         this.parentRepairSession = parentRepairSession;
@@ -62,6 +64,7 @@ public class PrepareMessage extends RepairMessage
         this.repairedAt = repairedAt;
         this.isGlobal = isGlobal;
         this.previewKind = previewKind;
+        this.minEpoch = minEpoch;
     }
 
     @Override
@@ -83,13 +86,14 @@ public class PrepareMessage extends RepairMessage
                repairedAt == other.repairedAt &&
                tableIds.equals(other.tableIds) &&
                partitioner.getClass().equals(other.partitioner.getClass()) &&
-               ranges.equals(other.ranges);
+               ranges.equals(other.ranges) &&
+               minEpoch.equals(other.minEpoch);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(parentRepairSession, isGlobal, previewKind, isIncremental, repairedAt, tableIds, ranges, partitioner);
+        return Objects.hash(parentRepairSession, isGlobal, previewKind, isIncremental, repairedAt, tableIds, ranges, partitioner, minEpoch);
     }
 
     private static final String MIXED_MODE_ERROR = "Some nodes involved in repair are on an incompatible major version. " +
@@ -117,6 +121,8 @@ public class PrepareMessage extends RepairMessage
             out.writeLong(message.repairedAt);
             out.writeBoolean(message.isGlobal);
             out.writeInt(message.previewKind.getSerializationVal());
+            if (version >= MessagingService.VERSION_52)
+                Epoch.messageSerializer.serialize(message.minEpoch, out, version);
         }
 
         public PrepareMessage deserialize(DataInputPlus in, int version) throws IOException
@@ -139,7 +145,10 @@ public class PrepareMessage extends RepairMessage
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
-            return new PrepareMessage(parentRepairSession, tableIds, partitioner, ranges, isIncremental, timestamp, isGlobal, previewKind);
+            Epoch minEpoch = version >= MessagingService.VERSION_52
+                           ? Epoch.messageSerializer.deserialize(in, version)
+                           : Epoch.EMPTY;
+            return new PrepareMessage(parentRepairSession, tableIds, partitioner, ranges, isIncremental, timestamp, isGlobal, previewKind, minEpoch);
         }
 
         public long serializedSize(PrepareMessage message, int version)
@@ -158,6 +167,8 @@ public class PrepareMessage extends RepairMessage
             size += TypeSizes.sizeof(message.repairedAt);
             size += TypeSizes.sizeof(message.isGlobal);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
+            if (version >= MessagingService.VERSION_52)
+                size += Epoch.messageSerializer.serializedSize(message.minEpoch, version);
             return size;
         }
     };
@@ -172,6 +183,7 @@ public class PrepareMessage extends RepairMessage
                ", isIncremental=" + isIncremental +
                ", timestamp=" + repairedAt +
                ", isGlobal=" + isGlobal +
+               ", minEpoch=" + minEpoch +
                '}';
     }
 }

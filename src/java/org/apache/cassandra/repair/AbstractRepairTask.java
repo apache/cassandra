@@ -81,6 +81,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.repairAccord(),
                                                                                  executor,
                                                                                  validationScheduler,
+                                                                                 coordinator.minEpoch,
                                                                                  cfnames);
             if (session == null)
                 continue;

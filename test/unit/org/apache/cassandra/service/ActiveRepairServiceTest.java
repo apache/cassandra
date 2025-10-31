@@ -66,6 +66,7 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.Register;
@@ -561,7 +562,7 @@ public class ActiveRepairServiceTest
         DiskUsageMonitor.instance = diskUsageMonitor;
         when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
 
-        instance().prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null);
+        instance().prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null, Epoch.EMPTY);
     }
 
     private static class Task implements Runnable

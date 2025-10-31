@@ -33,6 +33,8 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -99,13 +101,22 @@ public final class Hint
     {
         if (isLive())
         {
+            ClusterMetadata cm = ClusterMetadata.current();
             // filter out partition update for tables that have been truncated since hint's creation
             Mutation filtered = mutation;
             for (TableId id : mutation.getTableIds())
+            {
+                if (MigrationRouter.shouldUseTrackedForWrites(cm, mutation.getKeyspaceName(), id, mutation.key().getToken()))
+                {
+                    filtered = filtered.without(id);
+                    continue;
+                }
+
                 if (creationTime <= SystemKeyspace.getTruncatedAt(id))
                     filtered = filtered.without(id);
+            }
 
-            if (!filtered.isEmpty())
+            if (filtered != null && !filtered.isEmpty())
                 return filtered.applyFuture();
         }
 

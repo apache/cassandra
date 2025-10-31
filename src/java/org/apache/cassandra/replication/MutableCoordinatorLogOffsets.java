@@ -32,6 +32,9 @@ public interface MutableCoordinatorLogOffsets extends CoordinatorLogOffsets<Offs
     {
         for (long logId : mutations)
         {
+            if (CoordinatorLogId.none().asLong() == logId)
+                continue;
+
             Offsets offsets = mutations.offsets(logId);
             offsets.forEach(this::add);
         }
@@ -39,6 +42,9 @@ public interface MutableCoordinatorLogOffsets extends CoordinatorLogOffsets<Offs
 
     default void addAll(Offsets from)
     {
+        if (from.logId().isNone())
+            return;
+
         from.forEach(this::add);
     }
 

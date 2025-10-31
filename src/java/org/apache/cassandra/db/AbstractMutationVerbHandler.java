@@ -35,6 +35,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.service.replication.migration.MigrationRouter.MutationRouting;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -61,6 +63,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             ClusterMetadata metadata = ClusterMetadata.current();
             metadata = checkTokenOwnership(metadata, message, respondTo);
             metadata = checkSchemaVersion(metadata, message, respondTo);
+            metadata = checkReplicationMigration(metadata, message, respondTo);
         }
 
         try
@@ -191,6 +194,44 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         }
 
         return metadata;
+    }
+
+    /**
+     * Confirm that the presence/absence of a mutation id matches our expectations for the given keyspace/table/token. If
+     * it doesn't, then we're not on the same epoch as the coordinator, or there's a bug.
+     */
+    private ClusterMetadata checkReplicationMigration(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
+    {
+        IMutation mutation = message.payload;
+        MutationRouting expected = mutation.id().isNone() ? MutationRouting.UNTRACKED : MutationRouting.TRACKED;
+        if (expected == MigrationRouter.getMutationRouting(metadata, mutation))
+            return metadata;
+
+        if (message.epoch().isAfter(metadata.epoch))
+        {
+            // coordinator is ahead, fetch log and recheck
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+
+            // recheck, we may now be ahead of the coordinator
+            return checkReplicationMigration(metadata, message, respondTo);
+        }
+        else if (message.epoch().isBefore(metadata.epoch))
+        {
+            TCMMetrics.instance.coordinatorBehindReplication.mark();
+            throw new CoordinatorBehindException(String.format("Replication type / migration mismatch for keyspace: %s token %s, coordinator: %s is behind, our epoch = %s, their epoch = %s",
+                                                               mutation.getKeyspaceName(),
+                                                               mutation.key(),
+                                                               respondTo,
+                                                               metadata.epoch, message.epoch()));
+        }
+        else
+        {
+            // same epoch but different routing should not be possible
+            throw new IllegalStateException(String.format("Inconsistent mutation routing at epoch = %s. Keyspace: %s key: %s ",
+                                                          metadata.epoch,
+                                                          mutation.getKeyspaceName(),
+                                                          mutation.key()));
+        }
     }
 
     private static VersionedEndpoints.ForToken writePlacements(ClusterMetadata metadata, String keyspace, DecoratedKey key)

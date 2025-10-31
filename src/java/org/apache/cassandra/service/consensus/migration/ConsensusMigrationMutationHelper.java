@@ -49,6 +49,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
@@ -211,12 +212,6 @@ public class ConsensusMigrationMutationHelper
         }
     }
 
-    private static boolean isTrackedMutation(IMutation mutation)
-    {
-        return Schema.instance.getKeyspaceMetadata(mutation.getKeyspaceName()).params.replicationType.isTracked();
-    }
-
-
     /**
      * Splits mutations into tracked/untracked/accord mutations
      */
@@ -275,21 +270,30 @@ public class ConsensusMigrationMutationHelper
 
     public <T extends IMutation> SplitMutation<T> splitMutation(T mutation, ClusterMetadata cm)
     {
-        boolean isTracked = isTrackedMutation(mutation);
-        if (mutation.potentialTxnConflicts().allowed)
-            return new SplitMutation<>(null, isTracked ? null : mutation, isTracked ? mutation : null);
-
         Token token = mutation.key().getToken();
+        Predicate<TableId> isTrackedUpdate = tableId -> MigrationRouter.shouldUseTrackedForWrites(cm, mutation.getKeyspaceName(), tableId, token);
+        Predicate<TableId> isUntrackedUpdate = not(isTrackedUpdate);
+        if (mutation.potentialTxnConflicts().allowed)
+        {
+            return new SplitMutation<>(null, (T) mutation.filter(isUntrackedUpdate), (T) mutation.filter(isTrackedUpdate));
+        }
+
         Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
 
         T accordMutation = (T)mutation.filter(isAccordUpdate);
-        T normalMutation = (T)mutation.filter(not(isAccordUpdate));
+        T untrackedMutation = (T)mutation.filter(tid -> !isAccordUpdate.test(tid) && isUntrackedUpdate.test(tid));
+        T trackedMutation = (T)mutation.filter(tid -> !isAccordUpdate.test(tid) && isTrackedUpdate.test(tid));
+
         for (PartitionUpdate pu : mutation.getPartitionUpdates())
             checkState((accordMutation == null ? false : accordMutation.hasUpdateForTable(pu.metadata().id))
-                       || (normalMutation == null ? false : normalMutation.hasUpdateForTable(pu.metadata().id)),
+                       || (untrackedMutation == null ? false : untrackedMutation.hasUpdateForTable(pu.metadata().id))
+                       || (trackedMutation == null ? false : trackedMutation.hasUpdateForTable(pu.metadata().id)),
                        "All partition updates should still be present after splitting");
 
-        return new SplitMutation(accordMutation, isTracked ? null : normalMutation, isTracked ? normalMutation : null);
+        if (trackedMutation != null && accordMutation != null)
+            throw new IllegalStateException("Accord cannot be used on keyspaces using tracked replication");
+
+        return new SplitMutation(accordMutation, untrackedMutation, trackedMutation);
     }
 
     public IAccordResult<TxnResult> mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamps)

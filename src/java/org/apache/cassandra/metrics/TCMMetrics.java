@@ -65,6 +65,7 @@ public class TCMMetrics
     public final Meter progressBarrierCLRelax;
     public final Meter coordinatorBehindSchema;
     public final Meter coordinatorBehindPlacements;
+    public final Meter coordinatorBehindReplication;
     public final Gauge<Long> epochAwareDebounceTrackerSize;
     public final Meter reconstructLogStateCall;
 
@@ -128,6 +129,7 @@ public class TCMMetrics
 
         coordinatorBehindSchema = Metrics.meter(factory.createMetricName("CoordinatorBehindSchema"));
         coordinatorBehindPlacements = Metrics.meter(factory.createMetricName("CoordinatorBehindPlacements"));
+        coordinatorBehindReplication = Metrics.meter(factory.createMetricName("CoordinatorBehindReplication"));
         reconstructLogStateCall = Metrics.meter(factory.createMetricName("ReconstructLogStateCall"));
     }
 

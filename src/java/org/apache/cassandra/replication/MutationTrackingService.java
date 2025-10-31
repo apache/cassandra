@@ -711,6 +711,8 @@ public class MutationTrackingService
             KeyspaceShards.UpdateDecision decision = KeyspaceShards.UpdateDecision.decisionForTopologyChange(keyspace, prev, next, current != null);
             switch (decision)
             {
+                case MIGRATE_FROM:
+                    // TODO (expected): Implement shard deletion for tracked → untracked migration completion (CASSANDRA-20955)
                 case NONE:
                     if (current != null)
                         updated.put(keyspace, current);
@@ -719,7 +721,7 @@ public class MutationTrackingService
                     // Don't carry forward the state for the dropped keyspace
                     break;
                 case REPLICA_GROUP:
-                    // if there's an existing keyspace shards instance, update it, otherwise call through to CREATE
+                    // if there's an existing keyspace shards instance, update it, otherwise fall through to CREATE
                     if (current != null)
                     {
                         KeyspaceShards ksShards = current.withUpdatedMetadata(next.schema.getKeyspaceMetadata(keyspace), next, logIdProvider, onNewLog);
@@ -727,6 +729,7 @@ public class MutationTrackingService
                         break;
                     }
                 case CREATE:
+                case MIGRATE_TO:
                     Preconditions.checkState(current == null,
                                              "Attempted to create a new keyspace shard for keyspace %s, but it already exists", keyspace);
                     KeyspaceShards ksShards = KeyspaceShards.make(next.schema.getKeyspaceMetadata(keyspace),
@@ -735,8 +738,6 @@ public class MutationTrackingService
                                                                   onNewLog);
                     updated.put(keyspace, ksShards);
                     break;
-                case MIGRATE_TO:
-                case MIGRATE_FROM:
                 default:
                     throw new IllegalStateException("Unsupported keyspace shard update: " + decision);
             }
@@ -810,7 +811,8 @@ public class MutationTrackingService
 
                 if (!prevKsm.useMutationTracking() && !nextKsm.useMutationTracking())
                 {
-                    Preconditions.checkState(!hasExisting, "Existing shards found for keyspace, but prev & current ksm has mutation tracking disabled");
+                    // TODO: drop shards after migration to untracked
+//                    Preconditions.checkState(!hasExisting, "Existing shards found for keyspace, but prev & current ksm has mutation tracking disabled");
                     return UpdateDecision.NONE;
                 }
 
@@ -877,7 +879,7 @@ public class MutationTrackingService
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
-            Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
+            Preconditions.checkArgument(keyspace.params.replicationType.isTracked() || cluster.mutationTrackingMigrationState.getKeyspaceInfo(keyspace.name) != null);
 
             Map<Range<Token>, Shard> shards = new HashMap<>();
             Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();

@@ -1617,7 +1617,7 @@ public abstract class CQLTester
         }
     }
 
-    protected static ResultMessage schemaChange(String query)
+    public static ResultMessage schemaChange(String query)
     {
         try
         {

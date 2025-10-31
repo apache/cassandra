@@ -75,6 +75,7 @@ import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -108,25 +109,27 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
     private final List<ProgressListener> listeners = new ArrayList<>();
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+    public final Epoch minEpoch;
     final SharedContext ctx;
     final Scheduler validationScheduler;
 
     private TraceState traceState;
 
-    public RepairCoordinator(StorageService storageService, int cmd, RepairOption options, String keyspace)
+    public RepairCoordinator(StorageService storageService, int cmd, RepairOption options, String keyspace, Epoch minEpoch)
     {
         this(SharedContext.Global.instance,
-                (ks, tables) -> storageService.getValidColumnFamilies(false, false, ks, tables),
-                storageService::getLocalReplicas,
-                cmd, options, keyspace);
+             (ks, tables) -> storageService.getValidColumnFamilies(false, false, ks, tables),
+             storageService::getLocalReplicas,
+             cmd, options, keyspace, minEpoch);
     }
 
     RepairCoordinator(SharedContext ctx,
                       BiFunction<String, String[], Iterable<ColumnFamilyStore>> validColumnFamilies,
                       Function<String, RangesAtEndpoint> getLocalReplicas,
-                      int cmd, RepairOption options, String keyspace)
+                      int cmd, RepairOption options, String keyspace, Epoch minEpoch)
     {
         this.ctx = ctx;
+        this.minEpoch = minEpoch;
         this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
         this.state = new CoordinatorState(ctx, cmd, keyspace, options);
         this.tag = "repair:" + cmd;
@@ -483,7 +486,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         state.phase.prepareStart();
         Timer timer = Keyspace.open(state.keyspace).metric.repairPrepareTime;
         long startNanos = ctx.clock().nanoTime();
-        return ctx.repair().prepareForRepair(state.id, ctx.broadcastAddressAndPort(), allNeighbors, state.options, force, columnFamilies)
+        return ctx.repair().prepareForRepair(state.id, ctx.broadcastAddressAndPort(), allNeighbors, state.options, force, columnFamilies, minEpoch)
                   .map(ignore -> {
                       timer.update(ctx.clock().nanoTime() - startNanos, TimeUnit.NANOSECONDS);
                       state.phase.prepareComplete();

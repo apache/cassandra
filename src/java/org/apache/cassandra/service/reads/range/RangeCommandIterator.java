@@ -57,6 +57,8 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.tracked.TrackedRead;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.service.replication.migration.MigrationRouter.RangeReadWithReplication;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -255,37 +257,34 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             return response;
         }
 
-        List<RangeReadWithTarget> reads = ConsensusRequestRouter.splitReadIntoAccordAndNormal(cm, rangeCommand, readCoordinator, requestTime);
+        List<RangeReadWithTarget> accordSplits = ConsensusRequestRouter.splitReadIntoAccordAndNormal(cm, rangeCommand, readCoordinator, requestTime);
+
         // Special case returning directly to avoid wrapping the iterator and applying the limits an extra time
-        if (reads.size() == 1)
+        if (accordSplits.size() == 1)
         {
-            RangeReadWithTarget rangeReadWithTarget = reads.get(0);
-            checkState(rangeReadWithTarget.read.dataRange().keyRange().equals(rangeCommand.dataRange().keyRange()));
-            if (rangeReadWithTarget.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
+            RangeReadWithTarget accordSplit = accordSplits.get(0);
+            checkState(accordSplit.read.dataRange().keyRange().equals(rangeCommand.dataRange().keyRange()));
+
+            if (accordSplit.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
             {
-                return executeAccord(cm,
-                                     rangeReadWithTarget.read,
-                                     replicaPlan.consistencyLevel());
+                return executeAccord(cm, accordSplit.read, replicaPlan.consistencyLevel());
             }
             else
             {
-                SingleRangeResponse response = executeNormal(replicaPlan, rangeReadWithTarget.read, readCoordinator);
-                readRepairs.add(response.getReadRepair());
-                return response;
+                return executeNormalWithMigrationSplit(cm, replicaPlan, readCoordinator, readRepairs, accordSplit.read);
             }
         }
 
         // TODO (review): Should this be reworked to execute the queries serially from the iterator? It would respect
         // any provided limits better but the number of queries created will generally be low (2-3)
-        List<PartitionIterator> responses = new ArrayList<>(reads.size() + 1);
-        // Dummy iterator that checks all the responses for retry on different system hasNext so we don't read
-        // from the first iterator when the second needs to be retried because the split was wrong
+        List<PartitionIterator> responses = new ArrayList<>(accordSplits.size() + 1);
+
+        // Dummy iterator for retry checking across all splits
         responses.add(new PartitionIterator()
         {
             @Override
             public void close()
             {
-
             }
 
             @Override
@@ -303,63 +302,68 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         });
 
-        for (RangeReadWithTarget rangeReadWithTarget : reads)
+        for (RangeReadWithTarget accordSplit : accordSplits)
         {
-            if (rangeReadWithTarget.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
-                responses.add(executeAccord(cm, rangeReadWithTarget.read, replicaPlan.consistencyLevel()));
+            if (accordSplit.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
+            {
+                responses.add(executeAccord(cm, accordSplit.read, replicaPlan.consistencyLevel()));
+            }
             else
             {
-                SingleRangeResponse response = executeNormal(replicaPlan, rangeReadWithTarget.read, readCoordinator);
-                responses.add(response);
-                readRepairs.add(response.getReadRepair());
+                responses.add(executeNormalWithMigrationSplit(cm, replicaPlan, readCoordinator, readRepairs, accordSplit.read));
             }
         }
 
-        /*
-         * We have to apply limits here if the query spans different systems because each subquery we created
-         * could have gaps in the results since the limit is pushed down independently to each subquery.
-         * So if we don't meet the limit in the first subquery, it's not safe to go to the next one unless
-         * we fully exhausted the data the first subquery might have reached
-         */
+        // Apply limits since splits may have gaps in results
         return command.limits().filter(PartitionIterators.concat(responses),
                                        0,
                                        command.selectsFullPartition(),
                                        command.metadata().enforceStrictLiveness());
     }
 
-    private PartitionIterator sendNextRequestsTracked()
+    private PartitionIterator executeSplit(RangeReadWithReplication split, ReplicaPlan.ForRangeRead replicaPlan, List<ReadRepair<?, ?>> readRepairs)
     {
-        List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
-
-        try
+        if (split.useTracked)
         {
-            for (int i = 0; i < concurrencyFactor && replicaPlans.hasNext(); )
-            {
-                ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
-                PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), i == 0);
-
-                TrackedRead.Range read = TrackedRead.Range.create(rangeCommand, replicaPlan, requestTime);
-                read.start(requestTime);
-                concurrentQueries.add(read.iterator());
-
-                // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
-                rangesQueried += replicaPlan.vnodeCount();
-                i += replicaPlan.vnodeCount();
-            }
-            batchesRequested++;
+            TrackedRead.Range read = TrackedRead.Range.create(split.read, replicaPlan, requestTime);
+            read.start(requestTime);
+            return read.iterator();
         }
-        catch (Throwable t)
+        else
         {
-            for (PartitionIterator response : concurrentQueries)
-                response.close();
-            throw t;
+            SingleRangeResponse response = executeNormal(replicaPlan, split.read, readCoordinator);
+            readRepairs.add(response.getReadRepair());
+            return response;
         }
-        Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
-
-        return PartitionIterators.concat(concurrentQueries);
     }
 
-    PartitionIterator sendNextRequestsUntracked()
+    /**
+     * Execute a normal C* range, splitting for migration if needed.
+     */
+    private PartitionIterator executeNormalWithMigrationSplit(ClusterMetadata cm,
+                                                                ReplicaPlan.ForRangeRead replicaPlan,
+                                                                ReadCoordinator readCoordinator,
+                                                                List<ReadRepair<?, ?>> readRepairs,
+                                                                PartitionRangeReadCommand rangeCommand)
+    {
+        List<RangeReadWithReplication> migrationSplits = MigrationRouter.splitRangeRead(cm, rangeCommand);
+
+        if (migrationSplits.size() == 1)
+            return executeSplit(migrationSplits.get(0), replicaPlan, readRepairs);
+
+        List<PartitionIterator> responses = new ArrayList<>(migrationSplits.size());
+
+        for (RangeReadWithReplication split : migrationSplits)
+            responses.add(executeSplit(split, replicaPlan, readRepairs));
+
+        // Apply limits since migration splits may have gaps in results
+        return rangeCommand.limits().filter(PartitionIterators.concat(responses),
+                                            0,
+                                            rangeCommand.selectsFullPartition(),
+                                            rangeCommand.metadata().enforceStrictLiveness());
+    }
+
+    PartitionIterator splitAndSendNextRequests()
     {
         List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
         List<ReadRepair<?, ?>> readRepairs = new ArrayList<>(concurrencyFactor);
@@ -403,16 +407,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
     PartitionIterator sendNextRequests()
     {
-        PartitionIterator result;
-        if (command.metadata().replicationType().isTracked())
-        {
-            result = sendNextRequestsTracked();
-
-        }
-        else
-        {
-            result = sendNextRequestsUntracked();
-        }
+        // query() handles Accord and migration splitting
+        PartitionIterator result = splitAndSendNextRequests();
 
         // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor)
         // but we don't want to enforce any particular limit at this point (this could break code than rely on

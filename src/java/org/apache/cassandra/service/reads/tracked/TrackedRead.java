@@ -168,6 +168,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         this.requestTime = requestTime;
     }
 
+    public ReplicaPlan.AbstractForRead<E, P> replicaPlan()
+    {
+        return replicaPlan;
+    }
+
     @Override
     public String toString()
     {
