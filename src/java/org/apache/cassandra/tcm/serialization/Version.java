@@ -90,6 +90,7 @@ public enum Version
      * The version that Accord was added to TCM.
      */
     public static final Version MIN_ACCORD_VERSION = V7;
+    public static final Version MIN_MUTATION_TRACKING_VERSION = V8;
 
     private static Map<Integer, Version> values = new HashMap<>();
 

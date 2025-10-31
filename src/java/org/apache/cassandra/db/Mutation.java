@@ -683,6 +683,20 @@ public class Mutation implements IMutation, Supplier<Mutation>
             return PartitionUpdate.serializer.deserializeMetadataAndKey(in, version, flag);
         }
 
+        public TableId deserializeTableId(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            if (version >= VERSION_51)
+                in.skipBytes(1); // flags
+
+            if (version >= VERSION_52)
+                MutationId.serializer.skip(in, version);
+
+            int size = in.readUnsignedVInt32();
+            assert size > 0;
+
+            return PartitionUpdate.serializer.deserializeTableId(in, version, flag);
+        }
+
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
         {
             return deserialize(in, version, DeserializationHelper.Flag.FROM_REMOTE);

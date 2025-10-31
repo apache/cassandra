@@ -62,7 +62,9 @@ import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
+import org.apache.cassandra.service.replication.migration.MutationTrackingRepairHandler;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -129,6 +131,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final boolean dontPurgeTombstones;
     public final boolean excludedDeadNodes;
     public final boolean permitNoQuorum;
+    public final Epoch minEpoch;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -174,6 +177,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean repairPaxos,
                          boolean dontPurgeTombstones,
                          boolean repairAccord, boolean permitNoQuorum,
+                         Epoch minEpoch,
                          String... cfnames)
     {
         this.ctx = ctx;
@@ -182,6 +186,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.repairPaxos = repairPaxos;
         this.repairAccord = repairAccord;
         this.permitNoQuorum = permitNoQuorum;
+        this.minEpoch = minEpoch;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
         this.state = new SessionState(ctx, parentRepairSession, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
@@ -357,8 +362,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         for (String cfname : state.cfnames)
         {
             RepairJob job = new RepairJob(this, cfname);
-            // Repairs can drive forward progress for consensus migration so always check
+
+            // Repairs can advance progress for consensus and mutation tracking migration so always check
             job.addCallback(ConsensusTableMigration.completedRepairJobHandler);
+            job.addCallback(MutationTrackingRepairHandler.completedRepairJobHandler);
+
             state.register(job.state);
             executor.execute(job);
             jobs.add(job);

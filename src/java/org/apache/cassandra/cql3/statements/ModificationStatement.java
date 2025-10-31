@@ -76,7 +76,6 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -125,6 +124,7 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys.Key
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
@@ -847,27 +847,29 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
         List<? extends IMutation> mutations = getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime);
-        boolean isTracked = !mutations.isEmpty() && Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
-        if (isTracked)
+
+        MigrationRouter.RoutedMutations routed = MigrationRouter.routeMutations(mutations);
+
+        if (!routed.trackedMutations.isEmpty())
         {
-            if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
+            if (routed.trackedMutations.stream().anyMatch(m -> m instanceof CounterMutation))
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with counters");
-            if (mutations.size() > 1)
-                throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
+        }
 
-            Mutation mutation = (Mutation) mutations.get(0);
-
+        for (IMutation mutation : routed.trackedMutations)
+        {
             String keyspaceName = mutation.getKeyspaceName();
             Token token = mutation.key().getToken();
             MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
             mutation = mutation.withMutationId(id);
             mutation.apply();
         }
-        else
+
+        for (IMutation mutation : routed.untrackedMutations)
         {
-            for (IMutation mutation : mutations)
-                mutation.apply();
+            mutation.apply();
         }
+
         return null;
     }
 

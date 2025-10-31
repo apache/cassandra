@@ -48,7 +48,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -63,7 +62,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
  * SpeculatingReadExecutor will wait until it looks like the original request is in danger
  * of timing out before performing extra reads.
  */
-public abstract class AbstractReadExecutor
+public abstract class AbstractReadExecutor implements ReadExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
 
@@ -224,11 +223,6 @@ public abstract class AbstractReadExecutor
             return new SpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
     }
 
-    public boolean hasLocalRead()
-    {
-        return replicaPlan().lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
-    }
-
     /**
      *  Returns true if speculation should occur and if it should then block until it is time to
      *  send the speculative reads
@@ -259,7 +253,8 @@ public abstract class AbstractReadExecutor
         return !handler.awaitUntil(requestTime.startedAtNanos() + sampleLatencyNanos);
     }
 
-    ReplicaPlan.ForTokenRead replicaPlan()
+    @Override
+    public ReplicaPlan.ForTokenRead replicaPlan()
     {
         return replicaPlan.get();
     }

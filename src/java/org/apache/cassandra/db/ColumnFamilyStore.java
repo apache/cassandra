@@ -1195,10 +1195,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 CommitLogPosition commitLogLowerBound = mainMemtable.getCommitLogLowerBound();
                 commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
                 TableMetadata metadata = metadata();
-                if (metadata.replicationType().isTracked())
-                    MutationJournal.instance.notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
-                else
-                    CommitLog.instance.discardCompletedSegments(metadata.id, commitLogLowerBound, commitLogUpperBound);
+
+                MutationJournal.instance.notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
+                CommitLog.instance.discardCompletedSegments(metadata.id, commitLogLowerBound, commitLogUpperBound);
             }
 
             metric.pendingFlushes.dec();

@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +53,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -59,6 +61,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -74,6 +77,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
@@ -223,7 +227,7 @@ public class AlterSchema implements Transformation
             logger.debug("Schema change affects data placements, relevant keyspaces: {}", affectsPlacements);
             if (!prev.lockedRanges.locked.isEmpty())
                 return new Rejected(INVALID,
-                                    String.format("The requested schema changes cannot be executed as they conflict " +
+                                    format("The requested schema changes cannot be executed as they conflict " +
                                                   "with ongoing range movements. The changes for keyspaces %s are blocked " +
                                                   "by the locked ranges %s",
                                                   affectsPlacements.stream().map(k -> k.name).collect(Collectors.joining(",", "[", "]")),
@@ -254,6 +258,7 @@ public class AlterSchema implements Transformation
             next = next.with(newPlacementsBuilder.build());
         }
         next = maybeUpdateConsensusMigrationState(prev.consensusMigrationState, next, diff.altered, diff.dropped);
+        next = maybeUpdateMutationTrackingMigrationState(nextEpoch, prev.mutationTrackingMigrationState, next, diff.altered, diff.dropped);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
@@ -331,6 +336,64 @@ public class AlterSchema implements Transformation
         }
 
         migrationState = migrationState.withReversedMigrations(reversals, next.epoch());
+
+        if (migrationState != prev)
+            next = next.with(migrationState);
+
+        return next;
+    }
+
+    /**
+     * Auto-start mutation tracking migration when keyspace replication type changes.
+     * Detects transitions between tracked and untracked replication and initializes
+     * migration state accordingly.
+     * Also handles removing dropped tables and keyspaces from migration state.
+     */
+    public static Transformer maybeUpdateMutationTrackingMigrationState(Epoch nextEpoch,
+                                                                        MutationTrackingMigrationState prev,
+                                                                        Transformer next,
+                                                                        ImmutableList<KeyspaceDiff> altered,
+                                                                        Keyspaces dropped)
+    {
+        MutationTrackingMigrationState migrationState = prev;
+
+        // Handle dropped keyspaces - remove their migration state entirely
+        if (!dropped.isEmpty())
+        {
+            Set<String> droppedKeyspaceNames = dropped.stream()
+                .map(ks -> ks.name)
+                .collect(Collectors.toSet());
+            migrationState = migrationState.dropKeyspaces(nextEpoch, droppedKeyspaceNames);
+        }
+
+        // Handle dropped tables from altered keyspaces
+        Set<TableId> droppedTableIds = altered.stream()
+            .flatMap(diff -> diff.tables.dropped.stream().map(TableMetadata::id))
+            .collect(Collectors.toSet());
+
+        if (!droppedTableIds.isEmpty())
+            migrationState = migrationState.dropTables(droppedTableIds, nextEpoch);
+
+        // Handle keyspace replication type changes (new migrations or reversals)
+        for (KeyspaceDiff diff : altered)
+        {
+            ReplicationType beforeType = diff.before.params.replicationType;
+            ReplicationType afterType = diff.after.params.replicationType;
+
+            // Check if replication type changed
+            if (beforeType != afterType)
+            {
+                // Auto-start migration for this keyspace
+                logger.info("Auto-starting mutation tracking migration for keyspace {} (replication_type={})",
+                          diff.after.name, afterType);
+
+                Collection<TableId> tableIds = diff.after.tables.stream()
+                    .map(table -> table.id)
+                    .collect(Collectors.toList());
+
+                migrationState = migrationState.withKeyspaceMigrating(diff.after.name, tableIds, nextEpoch);
+            }
+        }
 
         if (migrationState != prev)
             next = next.with(migrationState);

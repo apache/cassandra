@@ -170,12 +170,11 @@ import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.v1.PrepareCallback;
 import org.apache.cassandra.service.paxos.v1.ProposeCallback;
-import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.reads.ReadExecutor;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -2743,65 +2742,19 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
-    private static PartitionIterator fetchRowsTracked(List<SinglePartitionReadCommand> commands,
-                                                      ConsistencyLevel consistencyLevel,
-                                                      Dispatcher.RequestTime requestTime)
+
+    public static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
+                                               ConsistencyLevel consistencyLevel,
+                                               ReadCoordinator coordinator,
+                                               Dispatcher.RequestTime requestTime)
     {
-        int cmdCount = commands.size();
-        TrackedRead.Partition[] reads = new TrackedRead.Partition[cmdCount];
         ClusterMetadata metadata = ClusterMetadata.current();
 
-        for (int i=0; i<cmdCount; i++)
+        List<ReadExecutor> executors = ReadExecutor.createExecutors(metadata, commands, consistencyLevel, coordinator, requestTime);
+
+        for (ReadExecutor executor : executors)
         {
-            SinglePartitionReadCommand command = commands.get(i);
-            reads[i] = TrackedRead.Partition.create(metadata, command, consistencyLevel, requestTime);
-        }
-
-        for (TrackedRead.Partition read : reads)
-            read.start(requestTime);
-
-        if (cmdCount == 1)
-            return reads[0].awaitResults();
-
-        List<PartitionIterator> iterators = new ArrayList<>(cmdCount);
-        for (TrackedRead.Partition read : reads)
-            iterators.add(read.awaitResults());
-
-        return PartitionIterators.concat(iterators);
-    }
-
-    /**
-     * This function executes local and remote reads, and blocks for the results:
-     *
-     * 1. Get the replica locations, sorted by response time according to the snitch
-     * 2. Send a data request to the closest replica, and digest requests to either
-     *    a) all the replicas, if read repair is enabled
-     *    b) the closest R-1 replicas, where R is the number required to satisfy the ConsistencyLevel
-     * 3. Wait for a response from R replicas
-     * 4. If the digests (if any) match the data return the data
-     * 5. else carry out read repair by getting data from all the nodes.
-     *
-     * This should not be called directly because it bypasses statistics and error handling. It is public
-     * so it can be used by Accord to fetch rows and the statistics will be tracked by Accord.
-     */
-    public static PartitionIterator fetchRowsUntracked(List<SinglePartitionReadCommand> commands,
-                                                       ConsistencyLevel consistencyLevel,
-                                                       ReadCoordinator coordinator,
-                                                       Dispatcher.RequestTime requestTime)
-    throws UnavailableException, ReadFailureException, ReadTimeoutException
-    {
-        int cmdCount = commands.size();
-
-        AbstractReadExecutor[] reads = new AbstractReadExecutor[cmdCount];
-
-        ClusterMetadata metadata = ClusterMetadata.current();
-        // Get the replica locations, sorted by response time according to the snitch, and create a read executor
-        // for type of speculation we'll use in this read
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i] = AbstractReadExecutor.getReadExecutor(metadata, commands.get(i), consistencyLevel, coordinator, requestTime);
-
-            if (reads[i].hasLocalRead())
+            if (executor.hasLocalRead())
                 readMetrics.localRequests.mark();
             else
                 readMetrics.remoteRequests.mark();
@@ -2809,67 +2762,41 @@ public class StorageProxy implements StorageProxyMBean
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
         // read executor, we'll only send read requests to enough replicas to satisfy the consistency level
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i].executeAsync();
-        }
+        for (ReadExecutor executor : executors)
+            executor.executeAsync();
 
         // if we have a speculating read executor and it looks like we may not receive a response from the initial
         // set of replicas we sent messages to, speculatively send an additional messages to an un-contacted replica
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i].maybeTryAdditionalReplicas();
-        }
+        for (ReadExecutor executor : executors)
+            executor.maybeTryAdditionalReplicas();
 
         // wait for enough responses to meet the consistency level. If there's a digest mismatch, begin the read
         // repair process by sending full data reads to all replicas we received responses from.
         boolean logBlockingRepairAttempts = instance.isLoggingReadRepairs();
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i].awaitResponses(logBlockingRepairAttempts);
-        }
+        for (ReadExecutor executor : executors)
+            executor.awaitResponses(logBlockingRepairAttempts);
 
         // read repair - if it looks like we may not receive enough full data responses to meet CL, send
         // an additional request to any remaining replicas we haven't contacted (if there are any)
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i].maybeSendAdditionalDataRequests();
-        }
+        for (ReadExecutor executor : executors)
+            executor.maybeSendAdditionalDataRequests();
 
         // read repair - block on full data responses
-        for (int i=0; i<cmdCount; i++)
-        {
-            reads[i].awaitReadRepair();
-        }
+        for (ReadExecutor executor : executors)
+            executor.awaitReadRepair();
 
         // if we didn't do a read repair, return the contents of the data response, if we did do a read
         // repair, merge the full data reads
-        List<PartitionIterator> results = new ArrayList<>(cmdCount);
-        List<ReadRepair<?, ?>> repairs = new ArrayList<>(cmdCount);
-        for (int i=0; i<cmdCount; i++)
+        List<PartitionIterator> iterators = new ArrayList<>(executors.size());
+        List<ReadRepair<?, ?>> repairs = new ArrayList<>(executors.size());
+        for (ReadExecutor executor : executors)
         {
-            results.add(reads[i].getResult());
-            repairs.add(reads[i].getReadRepair());
+            iterators.add(executor.getResult());
+            repairs.add(executor.getReadRepair());
         }
 
         // if we did a read repair, assemble repair mutation and block on them
-        return concatAndBlockOnRepair(results, repairs);
-    }
-
-    public static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
-                                               ConsistencyLevel consistencyLevel,
-                                               ReadCoordinator coordinator,
-                                               Dispatcher.RequestTime requestTime)
-    {
-        if (commands.get(0).metadata().replicationType().isTracked())
-        {
-            return fetchRowsTracked(commands, consistencyLevel, requestTime);
-        }
-        else
-        {
-            return fetchRowsUntracked(commands, consistencyLevel, coordinator, requestTime);
-        }
-
+        return concatAndBlockOnRepair(iterators, repairs);
     }
 
     public static class LocalReadRunnable extends DroppableRunnable implements RunnableDebuggableTask
@@ -2988,6 +2915,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 tokens));
             }
         }
+
         return RangeCommands.partitions(command, consistencyLevel, readCoordinator, requestTime);
     }
 

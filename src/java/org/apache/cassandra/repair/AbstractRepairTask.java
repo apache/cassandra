@@ -87,6 +87,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.permitNoQuorum(),
                                                                                  executor,
                                                                                  validationScheduler,
+                                                                                 coordinator.minEpoch,
                                                                                  cfnames);
             if (session == null)
                 continue;

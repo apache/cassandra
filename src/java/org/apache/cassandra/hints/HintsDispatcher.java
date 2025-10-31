@@ -343,7 +343,9 @@ final class HintsDispatcher implements AutoCloseable
             if (hintsFilter != null && !hintsFilter.get(hintIndex))
                 continue;
 
-            callbacks.add(sendFunction.apply(hint));
+            Callback callback = sendFunction.apply(hint);
+            if (callback != null)
+                callbacks.add(callback);
         }
         return Action.CONTINUE;
     }
@@ -419,7 +421,11 @@ final class HintsDispatcher implements AutoCloseable
     {
         SplitMutation<Mutation> splitMutation = ConsensusMigrationMutationHelper.instance().splitMutation(hint.mutation, cm);
         if (splitMutation.trackedMutation != null)
-            throw new IllegalStateException("Cannot generate hints for tracked mutations");
+        {
+            logger.debug("Discarding tracked component of hint");
+            if (splitMutation.accordMutation == null && splitMutation.untrackedMutation == null)
+                return new SplitHint(null, null);
+        }
         if (splitMutation.accordMutation == null)
             return new SplitHint(null, hint);
         if (splitMutation.untrackedMutation == null)

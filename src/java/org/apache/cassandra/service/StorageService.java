@@ -3157,7 +3157,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("data center(s) " + datacenters.toString() + " not found");
         }
 
-        RepairCoordinator task = new RepairCoordinator(this, cmd, options, keyspace);
+        RepairCoordinator task = new RepairCoordinator(this, cmd, options, keyspace, ClusterMetadata.current().epoch);
         task.addProgressListener(progressSupport);
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);

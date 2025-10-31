@@ -57,6 +57,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.MerkleTrees;
 
 import static java.util.Collections.emptyList;
@@ -196,7 +197,7 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
         PrepareMessage msg = new PrepareMessage(nextTimeUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
                                                 Murmur3Partitioner.instance,
                                                 buildTokenRanges(), true, 100000L, false,
-                                                PreviewKind.NONE);
+                                                PreviewKind.NONE, Epoch.EMPTY);
         serializeRoundTrip(msg, PrepareMessage.serializer);
     }
 

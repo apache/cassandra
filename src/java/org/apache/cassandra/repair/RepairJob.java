@@ -60,6 +60,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.repair.AccordRepair;
 import org.apache.cassandra.service.accord.repair.AccordRepair.AccordRepairResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosUpdateLowBallot;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -283,7 +284,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 cfs.metric.repairsCompleted.inc();
                 logger.info("Completing repair with excludedDeadNodes {}", session.excludedDeadNodes);
                 ConsensusMigrationRepairResult cmrs = ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, getUnchecked(accordRepair), session.repairData, doPaxosRepair, doAccordRepair, session.excludedDeadNodes, session.isIncremental);
-                trySuccess(new RepairResult(desc, stats, cmrs));
+                MutationTrackingMigrationRepairResult mtmrs = MutationTrackingMigrationRepairResult.fromRepair(repairStartingEpoch, session.excludedDeadNodes, session.previewKind.isPreview());
+                trySuccess(new RepairResult(desc, stats, cmrs, mtmrs));
             }
 
             /**

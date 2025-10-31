@@ -67,6 +67,8 @@ abstract class NonBlockingCoordinatorLogOffsets<E extends NonBlockingCoordinator
 
     public void add(ShortMutationId mutationId)
     {
+        if (mutationId.isNone())
+            return;
         computeIfAbsent(mutationId.logId(), logId -> factory.create(new CoordinatorLogId(logId))).add(mutationId);
     }
 

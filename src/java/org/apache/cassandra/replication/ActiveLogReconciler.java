@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.util.Collections;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,7 +30,10 @@ import org.slf4j.LoggerFactory;
 import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -38,6 +42,10 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -168,11 +176,34 @@ public final class ActiveLogReconciler implements Shutdownable
             RecordPointer pointer = MutationJournal.instance.lookUp(mutationId);
             Preconditions.checkNotNull(pointer, "Mutation %s not found in the journal", mutationId);
 
-            Message<PushMutationRequest> message =
-            Message.outWithFlag(Verb.PUSH_MUTATION_REQ,
-                                new PushMutationRequest.Referenced(mutationId, pointer),
-                                MessageFlag.CALL_BACK_ON_FAILURE);
-            MessagingService.instance().sendWithCallback(message, toHost, this);
+            MutationJournal.instance.read(pointer, (segment, position, key, buffer, version) -> {
+
+                // don't send mutations to nodes that have migrated to, or are in the process of migrating to untracked replication
+                try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+                {
+                    ClusterMetadata metadata = ClusterMetadata.current();
+                    TableId tableId = Mutation.serializer.deserializeTableId(in, version, DeserializationHelper.Flag.LOCAL);
+
+                    TableMetadata tableMetadata = metadata.schema.getTableMetadata(tableId);
+                    if (tableMetadata == null)
+                        return;
+
+                    KeyspaceMetadata ksm = metadata.schema.getKeyspaceMetadata(tableMetadata.keyspace);
+                    if (ksm == null || !ksm.useMutationTracking())
+                        return;
+
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+
+                Message<PushMutationRequest> message =
+                Message.outWithFlag(Verb.PUSH_MUTATION_REQ,
+                                    new PushMutationRequest.Buffer(version, buffer),
+                                    MessageFlag.CALL_BACK_ON_FAILURE);
+                MessagingService.instance().sendWithCallback(message, toHost, this);
+            });
         }
     }
 

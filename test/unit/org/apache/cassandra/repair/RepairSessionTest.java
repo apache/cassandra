@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -68,7 +69,7 @@ public class RepairSessionTest
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   false, "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false, false, PreviewKind.NONE, false,
-                                                  false, false, false, false, false, "Standard1");
+                                                  false, false, false, false, false, Epoch.create(5), "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

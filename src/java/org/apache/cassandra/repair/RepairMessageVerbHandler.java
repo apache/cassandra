@@ -19,6 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -48,8 +50,10 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 /**
  * Handles all repair related message.
@@ -108,6 +112,25 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 case PREPARE_MSG:
                 {
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
+
+                    // Ensure repair participant sees same migration state as coordinator. This prevents an unlikely data
+                    // resurrection issue when migrating from tracked to untracked replication when combined with the
+                    // ActiveLogReconciler logic that stops forwarding mutations when a keyspaces starts migration to
+                    // untracked replication
+                    try
+                    {
+                        ClusterMetadataService.instance().awaitAtLeast(prepareMessage.minEpoch);
+                        Keyspace.writeOrder.awaitNewBarrier();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new UncheckedInterruptedException(e);
+                    }
+                    catch (TimeoutException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+
                     logger.debug("Preparing, {}", prepareMessage);
                     ParticipateState state = new ParticipateState(ctx.clock(), message.from(), prepareMessage);
                     if (!ctx.repair().register(state))

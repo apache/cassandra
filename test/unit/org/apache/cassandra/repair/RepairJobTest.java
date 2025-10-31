@@ -70,6 +70,7 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
@@ -126,11 +127,11 @@ public class RepairJobTest
         public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, boolean excludedDeadNodes, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairData, boolean repairPaxos,
-                                        boolean dontPurgeTombstones, boolean repairAccord, String... cfnames)
+                                        boolean dontPurgeTombstones, boolean repairAccord, Epoch minEpoch, String... cfnames)
         {
             super(SharedContext.Global.instance, new Scheduler.NoopScheduler(),
                   parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, false, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairData, repairPaxos, dontPurgeTombstones, repairAccord, false, cfnames);
+                  previewKind, optimiseStreams, repairData, repairPaxos, dontPurgeTombstones, repairAccord, false, minEpoch, cfnames);
         }
 
         @Override
@@ -196,7 +197,7 @@ public class RepairJobTest
         this.session = new MeasureableRepairSession(parentRepairSession,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE), false,
                                                     KEYSPACE, SEQUENTIAL, false, false,
-                                                    NONE, false, true, true, false, true, CF);
+                                                    NONE, false, true, true, false, true, Epoch.EMPTY, CF);
 
         this.job = new RepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),

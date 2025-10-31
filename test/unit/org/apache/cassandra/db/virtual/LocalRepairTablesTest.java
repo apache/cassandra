@@ -54,6 +54,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -326,7 +327,7 @@ public class LocalRepairTablesTest extends CQLTester
     private ParticipateState participate()
     {
         List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
-        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), Murmur3Partitioner.instance, ranges, true, 42, true, PreviewKind.ALL));
+        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), Murmur3Partitioner.instance, ranges, true, 42, true, PreviewKind.ALL, Epoch.EMPTY));
         ActiveRepairService.instance().register(state);
         return state;
     }

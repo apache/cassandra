@@ -145,6 +145,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -1056,7 +1057,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
             public RepairCoordinator repair(String ks, RepairOption options, boolean addFailureOnErrorNotification)
             {
-                RepairCoordinator repair = new RepairCoordinator(this, (name, tables) -> StorageService.instance.getValidColumnFamilies(false, false, name, tables), name -> StorageService.instance.getReplicas(name, broadcastAddressAndPort()), 42, options, ks);
+                RepairCoordinator repair = new RepairCoordinator(this, (name, tables) -> StorageService.instance.getValidColumnFamilies(false, false, name, tables), name -> StorageService.instance.getReplicas(name, broadcastAddressAndPort()), 42, options, ks, Epoch.EMPTY);
                 if (addFailureOnErrorNotification)
                 {
                     repair.addProgressListener((tag, event) -> {

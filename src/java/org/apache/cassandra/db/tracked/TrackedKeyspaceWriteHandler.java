@@ -25,6 +25,7 @@ import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -37,6 +38,8 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         try
         {
             group = Keyspace.writeOrder.start();
+
+            MigrationRouter.validateTrackedMutation(mutation);
 
             Tracing.trace("Appending to mutation journal");
             CommitLogPosition pointer = MutationJournal.instance.write(mutation.id(), mutation);

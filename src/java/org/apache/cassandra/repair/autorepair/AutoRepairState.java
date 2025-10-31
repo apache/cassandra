@@ -45,6 +45,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 
 /**
@@ -111,7 +112,7 @@ public abstract class AutoRepairState
     protected RepairCoordinator getRepairRunnable(String keyspace, RepairOption options)
     {
         return new RepairCoordinator(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
-                                     options, keyspace);
+                                     options, keyspace, ClusterMetadata.current().epoch);
     }
 
     public void updateRepairScheduleStatistics(List<PrioritizedRepairPlan> repairPlans)

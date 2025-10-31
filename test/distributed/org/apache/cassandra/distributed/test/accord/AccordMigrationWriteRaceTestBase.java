@@ -806,7 +806,7 @@ public abstract class AccordMigrationWriteRaceTestBase extends AccordTestBase
                     Ranges accordRanges = Ranges.of(range);
                     AccordRepairResult accordRepairResult = new AccordRepairResult(accordRanges, TimeUnit.MILLISECONDS.toMicros(currentTimeMillis()));
                     ConsensusMigrationRepairResult repairResult = ConsensusMigrationRepairResult.fromRepair(startEpoch, accordRepairResult, true, true, true, false, false);
-                    ConsensusTableMigration.completedRepairJobHandler.onSuccess(new RepairResult(desc, null, repairResult));
+                    ConsensusTableMigration.completedRepairJobHandler.onSuccess(new RepairResult(desc, null, repairResult, null));
                     return epochAfterRepair.getEpoch();
                 });
             // Make sure 1 and 2 are up to date and know the reverse migration happens

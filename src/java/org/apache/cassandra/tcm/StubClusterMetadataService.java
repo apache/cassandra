@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -183,6 +184,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
                                               ConsensusMigrationState.EMPTY,
+                                              MutationTrackingMigrationState.EMPTY,
                                               ImmutableMap.of(),
                                               AccordStaleReplicas.EMPTY);
             }
