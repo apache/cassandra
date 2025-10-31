@@ -296,6 +296,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                     logger.info(sb.toString());
                 else if (logger.isTraceEnabled())
                     logger.trace(sb.toString());
+
                 if (duration > this.getConcurrentStatusThresholdInMs())
                     StatusLogger.log();
             }
@@ -307,6 +308,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                     logger.info(sb.toString());
                 else if (logger.isTraceEnabled())
                     logger.trace(sb.toString());
+
                 if (duration > this.getStatusThresholdInMs())
                     StatusLogger.log();
             }
@@ -409,14 +411,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcWarnThresholdInMs(long threshold)
     {
-        try
-        {
-            DatabaseDescriptor.setGCWarnThreshold((int)threshold);
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalArgumentException(t.getMessage());
-        }
+        DatabaseDescriptor.setGCWarnThreshold((int)threshold);
     }
 
     public long getGcWarnThresholdInMs()
@@ -426,14 +421,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcLogThresholdInMs(long threshold)
     {
-        try
-        {
-            DatabaseDescriptor.setGCLogThreshold((int) threshold);
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalArgumentException(t.getMessage());
-        }
+        DatabaseDescriptor.setGCLogThreshold((int) threshold);
     }
 
     public int getGcConcurrentPhaseWarnThresholdInMs()
@@ -443,14 +431,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcConcurrentPhaseWarnThresholdInMs(int threshold)
     {
-        try
-        {
-            DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalArgumentException(t.getMessage());
-        }
+        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
     }
 
     public int getGcConcurrentPhaseLogThresholdInMs()
@@ -460,14 +441,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcConcurrentPhaseLogThresholdInMs(int threshold)
     {
-        try
-        {
-            DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalArgumentException(t.getMessage());
-        }
+        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
     }
 
     public long getGcLogThresholdInMs()

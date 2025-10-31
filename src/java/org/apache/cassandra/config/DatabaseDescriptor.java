@@ -1221,11 +1221,21 @@ public class DatabaseDescriptor
         if (conf.audit_logging_options != null)
             setAuditLoggingOptions(conf.audit_logging_options);
 
-        // just run through the validation by setting current values back to their setters, so we are sure that their values are valid
-        DatabaseDescriptor.setGCLogThreshold((int) DatabaseDescriptor.getGCLogThreshold());
-        DatabaseDescriptor.setGCWarnThreshold((int) DatabaseDescriptor.getGCWarnThreshold());
-        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(DatabaseDescriptor.getGCConcurrentPhaseLogThreshold());
-        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold());
+        try
+        {
+            // Run through the validation by setting current values back to their setters, so we are sure that their values are valid.
+            // We are catching IllegalArgumentException and translating it to ConfigurationException to comply with
+            // rest of the logic in this method. These setters are also called in GCInspectorMXBean were IllegalArgumentException
+            // is thrown when arguments are invalid instead ConfigurationException, on purpose.
+            DatabaseDescriptor.setGCLogThreshold((int) DatabaseDescriptor.getGCLogThreshold());
+            DatabaseDescriptor.setGCWarnThreshold((int) DatabaseDescriptor.getGCWarnThreshold());
+            DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(DatabaseDescriptor.getGCConcurrentPhaseLogThreshold());
+            DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold());
+        }
+        catch (IllegalArgumentException ex)
+        {
+            throw new ConfigurationException(ex.getMessage());
+        }
     }
 
     @VisibleForTesting
@@ -4728,12 +4738,12 @@ public class DatabaseDescriptor
     public static void setGCLogThreshold(int threshold)
     {
         if (threshold <= 0)
-            throw new ConfigurationException("Threshold value for gc_log_threshold must be greater than 0");
+            throw new IllegalArgumentException("Threshold value for gc_log_threshold must be greater than 0");
 
         long gcWarnThresholdInMs = getGCWarnThreshold();
         if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new ConfigurationException("Threshold value for gc_log_threshold (" + threshold + ") must be less than gc_warn_threshold which is currently "
-                                             + gcWarnThresholdInMs);
+            throw new IllegalArgumentException("Threshold value for gc_log_threshold (" + threshold + ") must be less than gc_warn_threshold which is currently "
+                                               + gcWarnThresholdInMs);
 
         conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
@@ -4746,12 +4756,12 @@ public class DatabaseDescriptor
     public static void setGCWarnThreshold(int threshold)
     {
         if (threshold < 0)
-            throw new ConfigurationException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
+            throw new IllegalArgumentException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
 
         long gcLogThresholdInMs = getGCLogThreshold();
         if (threshold != 0 && threshold <= gcLogThresholdInMs)
-            throw new ConfigurationException("Threshold value for gc_warn_threshold (" + threshold + ") must be greater than gc_log_threshold which is currently "
-                                             + gcLogThresholdInMs);
+            throw new IllegalArgumentException("Threshold value for gc_warn_threshold (" + threshold + ") must be greater than gc_log_threshold which is currently "
+                                               + gcLogThresholdInMs);
 
         conf.gc_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
@@ -4764,12 +4774,12 @@ public class DatabaseDescriptor
     public static void setGCConcurrentPhaseLogThreshold(int threshold)
     {
         if (threshold <= 0)
-            throw new ConfigurationException("Threshold must be greater than 0");
+            throw new IllegalArgumentException("Threshold must be greater than 0");
 
         long gcConcurrentPhaseWarnThresholdInMs = getGCConcurrentPhaseWarnThreshold();
         if (gcConcurrentPhaseWarnThresholdInMs != 0 && threshold > gcConcurrentPhaseWarnThresholdInMs)
-            throw new ConfigurationException("Threshold value for gc_concurrent_phase_log_threshold (" + threshold + ") must be less than gc_concurrent_phase_warn_threshold which is currently "
-                                             + gcConcurrentPhaseWarnThresholdInMs);
+            throw new IllegalArgumentException("Threshold value for gc_concurrent_phase_log_threshold (" + threshold + ") must be less than gc_concurrent_phase_warn_threshold which is currently "
+                                               + gcConcurrentPhaseWarnThresholdInMs);
 
         conf.gc_concurrent_phase_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
@@ -4782,12 +4792,12 @@ public class DatabaseDescriptor
     public static void setGCConcurrentPhaseWarnThreshold(int threshold)
     {
         if (threshold < 0)
-            throw new ConfigurationException("Threshold value for gc_concurrent_phase_warn_threshold must be greater than or equal to 0");
+            throw new IllegalArgumentException("Threshold value for gc_concurrent_phase_warn_threshold must be greater than or equal to 0");
 
         long gcConcurrentPhaseLogThresholdInMs = getGCConcurrentPhaseLogThreshold();
         if (threshold != 0 && threshold <= gcConcurrentPhaseLogThresholdInMs)
-            throw new ConfigurationException("Threshold value for gc_concurrent_phase_warn_threshold (" + threshold + ") must be greater than gc_concurrent_phase_log_threshold which is currently "
-                                             + gcConcurrentPhaseLogThresholdInMs);
+            throw new IllegalArgumentException("Threshold value for gc_concurrent_phase_warn_threshold (" + threshold + ") must be greater than gc_concurrent_phase_log_threshold which is currently "
+                                               + gcConcurrentPhaseLogThresholdInMs);
 
         conf.gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
