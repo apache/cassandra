@@ -92,6 +92,7 @@ public class TableStatsTestBase
         template.bloomFilterFalseRatio = 0D;
         template.bloomFilterSpaceUsed = "0";
         template.indexSummaryOffHeapMemoryUsed = "0";
+        template.compressionDictionariesMemoryUsed = "0";
         template.compressionMetadataOffHeapMemoryUsed = "0";
         template.compactedPartitionMinimumBytes = 0L;
         template.compactedPartitionMaximumBytes = 0L;
@@ -415,6 +416,13 @@ public class TableStatsTestBase
         humanReadableTable4.memtableDataSize = "999 bytes";
         humanReadableTable5.memtableDataSize = "3.14 MiB";
         humanReadableTable6.memtableDataSize = "0 bytes";
+        // human readable compression dictionaries cached memory used: 1 > 3 > 5 > 2 > 4 > 6
+        humanReadableTable1.compressionDictionariesMemoryUsed = "1.21 TiB";
+        humanReadableTable2.compressionDictionariesMemoryUsed = "42 KiB";
+        humanReadableTable3.compressionDictionariesMemoryUsed = "2.71 GiB";
+        humanReadableTable4.compressionDictionariesMemoryUsed = "999 bytes";
+        humanReadableTable5.compressionDictionariesMemoryUsed = "3.14 MiB";
+        humanReadableTable6.compressionDictionariesMemoryUsed = "0 bytes";
 
         // cretae human-readable SAI disk space used size:
         humanReadableTable5.saiDiskUsedBytes = "40 bytes";

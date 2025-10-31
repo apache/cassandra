@@ -2088,6 +2088,7 @@ public class NodeProbe implements AutoCloseable
                 case "BloomFilterFalseRatio":
                 case "BloomFilterOffHeapMemoryUsed":
                 case "IndexSummaryOffHeapMemoryUsed":
+                case "CompressionDictionariesMemoryUsed":
                 case "CompressionMetadataOffHeapMemoryUsed":
                 case "CompressionRatio":
                 case "EstimatedColumnCountHistogram":

@@ -53,4 +53,11 @@ public interface ICompressionDictionaryCache extends AutoCloseable
      * @param compressionDictionary the compression dictionary to cache, may be null
      */
     void add(@Nullable CompressionDictionary compressionDictionary);
+
+    /**
+     * Gives number of bytes cached compression dictionaries occupy in this cache.
+     *
+     * @return number of bytes cached dictionaries occupy
+     */
+    long cachedDictionariesMemoryUsed();
 }

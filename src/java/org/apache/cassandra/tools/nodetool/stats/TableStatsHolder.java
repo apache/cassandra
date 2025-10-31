@@ -156,6 +156,8 @@ public class TableStatsHolder implements StatsHolder
             mpTable.put("bloom_filter_off_heap_memory_used", table.bloomFilterOffHeapMemoryUsed);
         if (table.indexSummaryOffHeapUsed)
             mpTable.put("index_summary_off_heap_memory_used", table.indexSummaryOffHeapMemoryUsed);
+        if (table.compressionDictionariesUsed)
+            mpTable.put("compression_dictionaries_memory_used", table.compressionDictionariesMemoryUsed);
         if (table.compressionMetadataOffHeapUsed)
             mpTable.put("compression_metadata_off_heap_memory_used",
                         table.compressionMetadataOffHeapMemoryUsed);
@@ -282,6 +284,7 @@ public class TableStatsHolder implements StatsHolder
                 Long bloomFilterOffHeapSize = null;
                 Long indexSummaryOffHeapSize = null;
                 Long compressionMetadataOffHeapSize = null;
+                Long compressionDictionariesMemoryUsed = null;
                 Long offHeapSize = null;
                 Double percentRepaired = null;
                 Long bytesRepaired = null;
@@ -295,6 +298,7 @@ public class TableStatsHolder implements StatsHolder
                     memtableOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableOffHeapSize");
                     bloomFilterOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterOffHeapMemoryUsed");
                     indexSummaryOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "IndexSummaryOffHeapMemoryUsed");
+                    compressionDictionariesMemoryUsed = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionDictionariesMemoryUsed");
                     compressionMetadataOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionMetadataOffHeapMemoryUsed");
                     offHeapSize = memtableOffHeapSize + bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
                     percentRepaired = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "PercentRepaired");
@@ -379,6 +383,11 @@ public class TableStatsHolder implements StatsHolder
                 {
                     statsTable.indexSummaryOffHeapUsed = true;
                     statsTable.indexSummaryOffHeapMemoryUsed = FileUtils.stringifyFileSize(indexSummaryOffHeapSize, humanReadable);
+                }
+                if (compressionDictionariesMemoryUsed != null)
+                {
+                    statsTable.compressionDictionariesUsed = true;
+                    statsTable.compressionDictionariesMemoryUsed = FileUtils.stringifyFileSize(compressionDictionariesMemoryUsed, humanReadable);
                 }
                 if (compressionMetadataOffHeapSize != null)
                 {

@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compression;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 
@@ -110,6 +111,14 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         {
             currentId = currentDictId.get();
         }
+    }
+
+    @Override
+    public long cachedDictionariesMemoryUsed()
+    {
+        AtomicInteger value = new AtomicInteger();
+        cache.asMap().forEach((key, dict) -> value.addAndGet(dict.estimatedOccupiedMemoryBytes()));
+        return value.get();
     }
 
     @Override
