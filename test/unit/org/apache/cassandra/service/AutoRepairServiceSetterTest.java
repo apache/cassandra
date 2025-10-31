@@ -132,6 +132,10 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester
         QueryProcessor.executeInternal(String.format(
         "TRUNCATE %s.%s",
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY));
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (host_id, repair_type) VALUES (%s, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        StorageService.instance.getHostIdForEndpoint(InetAddressAndPort.getLocalHost()), repairTypeStr));
     }
 
     @Test
