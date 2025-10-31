@@ -40,6 +40,7 @@ import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
+import org.apache.cassandra.tcm.transformations.AdvanceMutationTrackingMigration;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
@@ -250,6 +251,7 @@ public interface Transformation
         ACCORD_MARK_REJOINING(40, () -> AccordMarkRejoining.serializer),
         PREPARE_DROP_ACCORD_TABLE(41, () -> PrepareDropAccordTable.serializer),
         FINISH_DROP_ACCORD_TABLE(42, () -> FinishDropAccordTable.serializer),
+        ADVANCE_MUTATION_TRACKING_MIGRATION(43, () -> AdvanceMutationTrackingMigration.serializer),
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

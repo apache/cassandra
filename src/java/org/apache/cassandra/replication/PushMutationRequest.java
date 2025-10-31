@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import com.google.common.base.Preconditions;
 
@@ -75,6 +76,7 @@ public interface PushMutationRequest
             {
                 try
                 {
+                    Preconditions.checkState(userVersion == version);
                     out.write(buffer); // TODO (expected): handle mismatched (messaging) versions
                 }
                 catch (IOException e)
@@ -84,6 +86,31 @@ public interface PushMutationRequest
             });
 
             if (!read) throw new IllegalStateException("Couldn't find mutation " + id + " in the mutation journal");
+        }
+    }
+
+    class Buffer implements PushMutationRequest
+    {
+        private final int userVersion;
+        private final ByteBuffer buffer;
+
+        public Buffer(int userVersion, ByteBuffer buffer)
+        {
+            this.userVersion = userVersion;
+            this.buffer = buffer;
+        }
+
+        @Override
+        public long serializedSize(int version)
+        {
+            return buffer.remaining();
+        }
+
+        @Override
+        public void serialize(DataOutputPlus out, int version) throws IOException
+        {
+            Preconditions.checkState(userVersion == version);
+            out.write(buffer); // TODO (expected): handle mismatched (messaging) versions
         }
     }
 

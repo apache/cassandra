@@ -55,6 +55,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
@@ -246,7 +247,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
     }
     private static PrepareMessage prepareMsg(TimeUUID parentRepairSession, Collection<Range<Token>> ranges)
     {
-        return new PrepareMessage(parentRepairSession, tableIds, Murmur3Partitioner.instance, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE);
+        return new PrepareMessage(parentRepairSession, tableIds, Murmur3Partitioner.instance, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE, Epoch.EMPTY);
     }
 
     private static ValidationRequest validationMsg(Range<Token> range)

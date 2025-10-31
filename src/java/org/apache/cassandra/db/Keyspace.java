@@ -65,6 +65,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -403,9 +404,10 @@ public class Keyspace
 
     public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return getMetadata().useMutationTracking()
-             ? applyInternalTracked(mutation, new AsyncPromise<>())
-             : applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
+        if (mutation.id().isNone())
+            return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
+        else
+            return applyInternalTracked(mutation, new AsyncPromise<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -435,7 +437,7 @@ public class Keyspace
                       boolean updateIndexes,
                       boolean isDroppable)
     {
-        if (getMetadata().useMutationTracking())
+        if (MigrationRouter.isFullyTracked(mutation))
             applyInternalTracked(mutation, null);
         else
             applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
@@ -612,7 +614,7 @@ public class Keyspace
      */
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
-        Preconditions.checkState(getMetadata().useMutationTracking() && !mutation.id().isNone());
+        Preconditions.checkState(MigrationRouter.isFullyTracked(mutation) && !mutation.id().isNone());
         ClusterMetadata cm = ClusterMetadata.current();
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))

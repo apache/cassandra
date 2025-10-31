@@ -157,6 +157,10 @@ class Segments<K, V>
         }
     }
 
+    /**
+     * Find index of first segment with timestamp >= given timestamp.
+     * Returns sorted.size() if timestamp greater than all segments.
+     */
     int findIdxFor(long timestamp)
     {
         List<Segment<K, V>> sorted = allSorted(true);
@@ -172,7 +176,7 @@ class Segments<K, V>
             else
                 high = mid - 1;
         }
-        throw new IllegalStateException(String.format("Could not find a segment with timestamp %d among %s", timestamp, sorted));
+        return low;
     }
 
     boolean isSwitched(ActiveSegment<K, V> active)

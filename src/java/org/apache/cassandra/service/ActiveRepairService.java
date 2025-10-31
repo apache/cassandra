@@ -109,6 +109,7 @@ import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -468,6 +469,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean repairAccord,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
+                                             Epoch minEpoch,
                                              String... cfnames)
     {
         if (repairPaxos && previewKind != PreviewKind.NONE)
@@ -483,7 +485,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                         range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairData, repairPaxos,
-                                                        dontPurgeTombstones, repairAccord, cfnames);
+                                                        dontPurgeTombstones, repairAccord, minEpoch, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -668,7 +670,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return true;
     }
 
-    public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
+    public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores, Epoch minEpoch)
     {
         if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
             failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
@@ -693,7 +695,15 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (partitioners.size() > 1)
             failRepair(parentRepairSession, "The tables involved in repair are configured with multiple partitioners.");
 
-        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, columnFamilyStores.get(0).getPartitioner(), options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+        PrepareMessage message = new PrepareMessage(parentRepairSession,
+                                                    tableIds,
+                                                    columnFamilyStores.get(0).getPartitioner(),
+                                                    options.getRanges(),
+                                                    options.isIncremental(),
+                                                    repairedAt,
+                                                    options.isGlobal(),
+                                                    options.getPreviewKind(),
+                                                    minEpoch);
         register(new ParticipateState(ctx.clock(), ctx.broadcastAddressAndPort(), message));
         for (InetAddressAndPort neighbour : endpoints)
         {

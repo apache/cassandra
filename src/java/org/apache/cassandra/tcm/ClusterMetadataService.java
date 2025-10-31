@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
@@ -309,6 +310,7 @@ public class ClusterMetadataService
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
+                                   MutationTrackingMigrationState.EMPTY,
                                    Collections.emptyMap(),
                                    AccordStaleReplicas.EMPTY);
 

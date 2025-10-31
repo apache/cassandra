@@ -311,6 +311,8 @@ public class ClusterMetadataTransformationTest
             return metadata.consensusMigrationState;
         else if (key == ACCORD_STALE_REPLICAS)
             return metadata.accordStaleReplicas;
+        else if (key == MUTATION_TRACKING_MIGRATION_STATE)
+            return metadata.mutationTrackingMigrationState;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

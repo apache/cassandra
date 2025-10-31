@@ -834,6 +834,11 @@ public class PartitionUpdate extends AbstractBTreePartition
             return Pair.create(header.key, tableMetadata);
         }
 
+        public TableId deserializeTableId(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            return TableId.deserialize(in);
+        }
+
         public PartitionUpdate deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableMetadata tableMetadata = tables.deserialize(in);

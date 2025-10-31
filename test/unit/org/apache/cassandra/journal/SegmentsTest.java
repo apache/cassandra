@@ -83,6 +83,112 @@ public class SegmentsTest
         });
     }
 
+    @Test
+    public void testSelectWithTimestampBeforeFirstSegment()
+    {
+        withRandom(rng -> {
+            java.io.File file = File.createTempFile("segments", "test");
+            // Create segments with timestamps starting at 1000
+            List<Segment<String, String>> segmentList = new ArrayList<>();
+            segmentList.add(new TestSegment<>(file, 1000));
+            segmentList.add(new TestSegment<>(file, 2000));
+            segmentList.add(new TestSegment<>(file, 3000));
+
+            Segments<String, String> segments = Segments.of(segmentList);
+
+            // Search with timestamp before first segment
+            List<Segment<String, String>> selected = new ArrayList<>();
+            segments.select(500, 2500, selected);
+
+            // Should select from first segment (1000) up to and including segments with timestamp <= maxTimestamp (2500)
+            List<Segment<String, String>> expected = List.of(segmentList.get(0), segmentList.get(1));
+            if (!Objects.equals(expected, selected))
+            {
+                throw new AssertionError(String.format("Timestamp before first segment failed:\nExpected: %s\nSelected: %s",
+                                                       expected, selected));
+            }
+        });
+    }
+
+    @Test
+    public void testSelectWithTimestampBetweenSegments()
+    {
+        withRandom(rng -> {
+            java.io.File file = File.createTempFile("segments", "test");
+            List<Segment<String, String>> segmentList = new ArrayList<>();
+            segmentList.add(new TestSegment<>(file, 1000));
+            segmentList.add(new TestSegment<>(file, 2000));
+            segmentList.add(new TestSegment<>(file, 3000));
+            segmentList.add(new TestSegment<>(file, 4000));
+
+            Segments<String, String> segments = Segments.of(segmentList);
+
+            // Search with timestamp between segments
+            List<Segment<String, String>> selected = new ArrayList<>();
+            segments.select(1500, 3500, selected);
+
+            // Should start from segment 2000
+            List<Segment<String, String>> expected = List.of(segmentList.get(1), segmentList.get(2));
+            if (!Objects.equals(expected, selected))
+            {
+                throw new AssertionError(String.format("Timestamp between segments failed:\nExpected: %s\nSelected: %s",
+                                                       expected, selected));
+            }
+        });
+    }
+
+    @Test
+    public void testSelectWithTimestampAfterLastSegment()
+    {
+        withRandom(rng -> {
+            java.io.File file = File.createTempFile("segments", "test");
+            List<Segment<String, String>> segmentList = new ArrayList<>();
+            segmentList.add(new TestSegment<>(file, 1000));
+            segmentList.add(new TestSegment<>(file, 2000));
+            segmentList.add(new TestSegment<>(file, 3000));
+
+            Segments<String, String> segments = Segments.of(segmentList);
+
+            // Search with minTimestamp after all segments
+            List<Segment<String, String>> selected = new ArrayList<>();
+            segments.select(5000, 10000, selected);
+
+            if (!selected.isEmpty())
+            {
+                throw new AssertionError(String.format("Timestamp after last segment should return empty:\nSelected: %s",
+                                                       selected));
+            }
+        });
+    }
+
+    @Test
+    public void testSelectPreMigrationFlushScenario()
+    {
+        withRandom(rng -> {
+            java.io.File file = File.createTempFile("segments", "test");
+            // Simulate migration scenario: journal segments only exist from post-migration time
+            List<Segment<String, String>> segmentList = new ArrayList<>();
+            segmentList.add(new TestSegment<>(file, 1762973770000L)); // Journal started here
+            segmentList.add(new TestSegment<>(file, 1762973780000L));
+
+            Segments<String, String> segments = Segments.of(segmentList);
+
+            // Flush notification for pre-migration data (timestamp before journal tracking started)
+            List<Segment<String, String>> selected = new ArrayList<>();
+            long preMigrationTimestamp = 1762973760306L; // Before first segment
+            segments.select(preMigrationTimestamp, 1762973775000L, selected);
+
+            // Should start from first available segment (1762973770000)
+            // Include segments with timestamp <= 1762973775000: 1762973770000 (yes), 1762973780000 (no, > max)
+            List<Segment<String, String>> expected = List.of(segmentList.get(0));
+            if (!Objects.equals(expected, selected))
+            {
+                throw new AssertionError(String.format("Pre-migration flush scenario failed:\nExpected: %s\nSelected: %s",
+                                                       expected, selected));
+            }
+        });
+    }
+
     private static class TestSegment<K, V> extends Segment<K, V>
     {
         TestSegment(File dir, long timestamp)
