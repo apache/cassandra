@@ -129,7 +129,7 @@ public class DefaultDiskErrorsHandler implements DiskErrorsHandler
                 logger.error("Exiting forcefully due to file system exception on startup, disk failure policy \"{}\"",
                              DatabaseDescriptor.getDiskFailurePolicy(),
                              t);
-                JVMStabilityInspector.killCurrentJVM(t, true);
+                JVMStabilityInspector.killCurrentJVM(t, true, true);
                 break;
             default:
                 break;
@@ -174,10 +174,10 @@ public class DefaultDiskErrorsHandler implements DiskErrorsHandler
         if (!StorageService.instance.isDaemonSetupCompleted())
         {
             logger.error("Exiting due to error while processing commit log during initialization.", t);
-            JVMStabilityInspector.killCurrentJVM(t, true);
+            JVMStabilityInspector.killCurrentJVM(t, true, true);
         }
         else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
-            JVMStabilityInspector.killCurrentJVM(t, false);
+            JVMStabilityInspector.killCurrentJVM(t, false, true);
     }
 
     private boolean shouldMaybeRemoveData(Throwable error)

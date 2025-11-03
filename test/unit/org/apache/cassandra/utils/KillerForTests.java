@@ -27,6 +27,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
 {
     private boolean killed = false;
     private boolean quiet = false;
+    private boolean callShutDownOnLogger = false;
     private final boolean expected;
 
     public KillerForTests()
@@ -54,6 +55,22 @@ public class KillerForTests extends JVMStabilityInspector.Killer
         this.quiet = quiet;
     }
 
+    @Override
+    public void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
+    {
+        if (!expected)
+            Assert.fail("Saw JVM Kill but did not expect it.");
+
+        if (killed)
+        {
+            // Can only be killed once
+            return;
+        }
+        this.killed = true;
+        this.quiet = quiet;
+        this.callShutDownOnLogger = callShutDownOnLogger;
+    }
+
     public boolean wasKilled()
     {
         return killed;
@@ -64,8 +81,15 @@ public class KillerForTests extends JVMStabilityInspector.Killer
         return quiet;
     }
 
+    public boolean calledShutDownOnLogger()
+    {
+        return callShutDownOnLogger;
+    }
+
     public void reset()
     {
         killed = false;
+        quiet = false;
+        callShutDownOnLogger = false;
     }
 }

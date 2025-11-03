@@ -122,7 +122,7 @@ public final class JVMStabilityInspector
 
             logger.error("OutOfMemory error letting the JVM handle the error:", t);
 
-            StorageService.instance.removeShutdownHook();
+            StorageService.instance.removeShutdownHook(false);
 
             forceHeapSpaceOomMaybe((OutOfMemoryError) t);
 
@@ -226,16 +226,21 @@ public final class JVMStabilityInspector
         killer.killCurrentJVM(t, quiet);
     }
 
+    public static void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
+    {
+        killer.killCurrentJVM(t, quiet, callShutDownOnLogger);
+    }
+
     public static void userFunctionTimeout(Throwable t)
     {
         switch (DatabaseDescriptor.getUserFunctionTimeoutPolicy())
         {
             case die:
                 // policy to give 250ms grace time to
-                ScheduledExecutors.nonPeriodicTasks.schedule(() -> killer.killCurrentJVM(t), 250, TimeUnit.MILLISECONDS);
+                ScheduledExecutors.nonPeriodicTasks.schedule(() -> killer.killCurrentJVM(t, false, true), 250, TimeUnit.MILLISECONDS);
                 break;
             case die_immediate:
-                killer.killCurrentJVM(t);
+                killer.killCurrentJVM(t, false, true);
                 break;
             case ignore:
                 logger.error(t.getMessage());
@@ -279,7 +284,23 @@ public final class JVMStabilityInspector
 
             if (doExit && killing.compareAndSet(false, true))
             {
-                StorageService.instance.removeShutdownHook();
+                StorageService.instance.removeShutdownHook(false);
+                System.exit(100);
+            }
+        }
+
+        public void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
+        {
+            if (!quiet)
+            {
+                t.printStackTrace(System.err);
+                logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
+            }
+
+            boolean doExit = killerHook != null ? killerHook.execute(t) : true;
+
+            if (doExit && killing.compareAndSet(false, true)) {
+                StorageService.instance.removeShutdownHook(callShutDownOnLogger);
                 System.exit(100);
             }
         }

@@ -916,12 +916,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * In the event of forceful termination we need to remove the shutdown hook to prevent hanging (OOM for instance)
      */
-    public void removeShutdownHook()
+    public void removeShutdownHook(boolean callShutDownOnLogger)
     {
         PathUtils.clearOnExitThreads();
 
         if (drainOnShutdown != null)
+        {
+            if (callShutDownOnLogger)
+                LoggingSupportFactory.getLoggingSupport().onShutdown();
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+        }
     }
 
     public boolean shouldJoinRing()
