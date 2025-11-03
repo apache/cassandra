@@ -46,6 +46,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -1056,22 +1057,10 @@ public class DescribeStatementTest extends CQLTester
     {
         try
         {
-            // Create keyspace with comment and security label
             execute("CREATE KEYSPACE test_comments WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
-            execute("COMMENT ON KEYSPACE test_comments IS 'This is a test keyspace with comments'");
-            execute("SECURITY LABEL ON KEYSPACE test_comments IS 'confidential'");
-
-            String expectedKeyspaceOutput = "CREATE KEYSPACE test_comments WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                           "  AND durable_writes = true" +
-                                           "  AND fast_path = 'simple';\n" +
-                                           "COMMENT ON KEYSPACE test_comments IS 'This is a test keyspace with comments';\n" +
-                                           "SECURITY LABEL ON KEYSPACE test_comments IS 'confidential';";
-
-            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
-            {
-                assertRowsNet(executeDescribeNet(describeKeyword + " ONLY KEYSPACE test_comments"),
-                              row("test_comments", "keyspace", "test_comments", expectedKeyspaceOutput));
-            }
+            String describeStatement = "DESCRIBE KEYSPACE test_comments";
+            String dropStatement = "DROP KEYSPACE IF EXISTS test_comments";
+            testDescribeOnSchemaElement("KEYSPACE", "test_comments", describeStatement, dropStatement);
         }
         finally
         {
@@ -1084,34 +1073,32 @@ public class DescribeStatementTest extends CQLTester
     {
         try
         {
-            // Create keyspace and table with comments and security labels
-            execute("CREATE KEYSPACE test_table_comments WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
-            execute("CREATE TABLE test_table_comments.users (id int PRIMARY KEY, name text, email text)");
-
-            // Add comments and security labels to table and columns
-            execute("COMMENT ON TABLE test_table_comments.users IS 'User information table'");
-            execute("SECURITY LABEL ON TABLE test_table_comments.users IS 'restricted'");
-            execute("COMMENT ON COLUMN test_table_comments.users.name IS 'User full name'");
-            execute("SECURITY LABEL ON COLUMN test_table_comments.users.name IS 'pii'");
-
-            String expectedTableOutput = "CREATE TABLE test_table_comments.users (\n" +
-                                        "    id int PRIMARY KEY,\n" +
-                                        "    email text,\n" +
-                                        "    name text\n" +
-                                        ") WITH " + tableParametersCql("User information table") + "\n" +
-                                        "COMMENT ON TABLE test_table_comments.users IS 'User information table';\n" +
-                                        "SECURITY LABEL ON TABLE test_table_comments.users IS 'restricted';\n" +
-                                        "COMMENT ON COLUMN test_table_comments.users.name IS 'User full name';\n" +
-                                        "SECURITY LABEL ON COLUMN test_table_comments.users.name IS 'pii';";
-            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
-            {
-                assertRowsNet(executeDescribeNet("test_table_comments", describeKeyword + " TABLE users"),
-                              row("test_table_comments", "table", "users", expectedTableOutput));
-            }
+            execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".table_comment_test (id int PRIMARY KEY, name text)");
+            testDescribeOnSchemaElement("TABLE",
+                                        KEYSPACE_PER_TEST + ".table_comment_test",
+                                        "DESCRIBE TABLE " + KEYSPACE_PER_TEST + ".table_comment_test",
+                                        "DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".table_comment_test");
         }
         finally
         {
-            execute("DROP KEYSPACE IF EXISTS test_table_comments");
+            execute("DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".table_comment_test");
+        }
+    }
+
+    @Test
+    public void testDescribeColumnWithCommentsAndSecurityLabels() throws Throwable
+    {
+        try
+        {
+            execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".column_test (id int PRIMARY KEY, test_column text)");
+            testDescribeOnSchemaElement("COLUMN",
+                                        KEYSPACE_PER_TEST + ".column_test.test_column",
+                                        "DESCRIBE TABLE " + KEYSPACE_PER_TEST + ".column_test",
+                                        "ALTER TABLE " + KEYSPACE_PER_TEST + ".column_test DROP test_column");
+        }
+        finally
+        {
+            execute("DROP TABLE IF EXISTS " + KEYSPACE_PER_TEST + ".column_test");
         }
     }
 
@@ -1120,25 +1107,8 @@ public class DescribeStatementTest extends CQLTester
     {
         try
         {
-            // Create a user-defined type with comments and security labels
             String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (name text, age int, address text)");
-
-            execute("COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Person information type'");
-            execute("SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'personal_data'");
-
-            String expectedTypeOutput = "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
-                                       "    name text,\n" +
-                                       "    age int,\n" +
-                                       "    address text\n" +
-                                       ");\n" +
-                                       "COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." +  type + " IS 'Person information type';\n" +
-                                       "SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." +  type + " IS 'personal_data';";
-
-            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
-            {
-                assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, describeKeyword + " TYPE " + type),
-                              row(KEYSPACE_PER_TEST, "type", type, expectedTypeOutput));
-            }
+            testDescribeOnSchemaElement("TYPE", KEYSPACE_PER_TEST + "." + type, "DESCRIBE TYPE " + KEYSPACE_PER_TEST + "." + type, "DROP TYPE IF EXISTS " + KEYSPACE_PER_TEST + "." + type);
         }
         finally
         {
@@ -1151,32 +1121,9 @@ public class DescribeStatementTest extends CQLTester
     {
         try
         {
-            // Create a user-defined type with field-level comments and security labels
             String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (latitude double, longitude double)");
+            testDescribeOnSchemaElement("FIELD", KEYSPACE_PER_TEST + "." + type + ".latitude", "DESCRIBE TYPE " + KEYSPACE_PER_TEST + "." + type, "DROP TYPE " + KEYSPACE_PER_TEST + "." + type);
 
-            execute("COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Geographic location'");
-            execute("SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'GEODATA'");
-            execute("COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'Latitude in decimal degrees'");
-            execute("SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'SENSITIVE'");
-            execute("COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'Longitude in decimal degrees'");
-            execute("SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'SENSITIVE'");
-
-            String expectedTypeOutput = "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
-                                       "    latitude double,\n" +
-                                       "    longitude double\n" +
-                                       ");\n" +
-                                       "COMMENT ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'Geographic location';\n" +
-                                       "COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'Latitude in decimal degrees';\n" +
-                                       "COMMENT ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'Longitude in decimal degrees';\n" +
-                                       "SECURITY LABEL ON TYPE " + KEYSPACE_PER_TEST + "." + type + " IS 'GEODATA';\n" +
-                                       "SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".latitude IS 'SENSITIVE';\n" +
-                                       "SECURITY LABEL ON FIELD " + KEYSPACE_PER_TEST + "." + type + ".longitude IS 'SENSITIVE';";
-
-            for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
-            {
-                assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, describeKeyword + " TYPE " + type),
-                              row(KEYSPACE_PER_TEST, "type", type, expectedTypeOutput));
-            }
         }
         finally
         {
@@ -1184,66 +1131,80 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
-    @Test
-    public void testDescribeSchemaWithCommentsAndSecurityLabels() throws Throwable
+    /**
+     * Helper method to set comment and security label on a schema element and test DESCRIBE output.
+     * Handles special cases for FIELD and COLUMN which don't have their own DESCRIBE commands.
+     */
+    private void testDescribeOnSchemaElement(String objectType, String objectName, String describeCommand, String dropStatement) throws Throwable
     {
-        try
+        String commentStatement = String.format("COMMENT ON %s %s IS 'testComment'", objectType, objectName);
+        String securitylabelStatement = String.format("SECURITY LABEL ON %s %s IS 'sensitive'", objectType, objectName);
+
+        testSetCommentAndLabel(describeCommand, commentStatement, securitylabelStatement);
+        testUnsetCommentAndLabel(describeCommand, objectType, objectName, commentStatement, securitylabelStatement);
+        testDropRemovesCommentAndLabel(objectType, objectName, commentStatement, securitylabelStatement, dropStatement);
+    }
+
+    private void testSetCommentAndLabel(String describeCommand, String commentStatement, String securitylabelStatement) throws Throwable
+    {
+        execute(commentStatement);
+        execute(securitylabelStatement);
+
+        String schema = describeSchemaElement(describeCommand);
+        assertTrue(schema.contains(commentStatement));
+        assertTrue(schema.contains(securitylabelStatement));
+        String fullSchema = describeFullSchema();
+        assertTrue(fullSchema.contains(commentStatement));
+        assertTrue(fullSchema.contains(securitylabelStatement));
+    }
+
+    private void testUnsetCommentAndLabel(String describeCommand, String objectType, String objectName,
+                                          String commentStatement, String securitylabelStatement) throws Throwable
+    {
+        String unsetCommentStatement = String.format("COMMENT ON %s %s IS NULL", objectType, objectName);
+        String unsetSecurityLabelStatement = String.format("SECURITY LABEL ON %s %s IS NULL", objectType, objectName);
+        execute(unsetCommentStatement);
+        execute(unsetSecurityLabelStatement);
+
+        String schema = describeSchemaElement(describeCommand);
+        String fullSchema = describeFullSchema();
+        assertFalse(schema.contains(unsetSecurityLabelStatement));
+        assertFalse(schema.contains(unsetCommentStatement));
+        assertFalse(fullSchema.contains(commentStatement));
+        assertFalse(fullSchema.contains(securitylabelStatement));
+    }
+
+    private void testDropRemovesCommentAndLabel(String objectType, String objectName,
+                                                String commentStatement, String securitylabelStatement,
+                                                String dropStatement) throws Throwable
+    {
+        execute(commentStatement);
+        execute(securitylabelStatement);
+        execute(dropStatement);
+
+        String unsetCommentStatement = String.format("COMMENT ON %s %s IS NULL", objectType, objectName);
+        String unsetSecurityLabelStatement = String.format("SECURITY LABEL ON %s %s IS NULL", objectType, objectName);
+        String fullSchema = describeFullSchema();
+        assertFalse(fullSchema.contains(unsetSecurityLabelStatement));
+        assertFalse(fullSchema.contains(unsetCommentStatement));
+        assertFalse(fullSchema.contains(commentStatement));
+        assertFalse(fullSchema.contains(securitylabelStatement));
+    }
+
+    private String describeSchemaElement(String describeCommand) throws Throwable
+    {
+        return executeDescribeNet(describeCommand).one().getString("create_statement");
+    }
+
+    private String describeFullSchema() throws Throwable
+    {
+        ResultSet result = executeDescribeNet("DESCRIBE SCHEMA");
+        StringBuilder fullSchema = new StringBuilder();
+        for (Row row : result.all())
         {
-            // Create a comprehensive schema with comments and security labels
-            execute("CREATE KEYSPACE test_schema WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}");
-            execute("COMMENT ON KEYSPACE test_schema IS 'Test schema for comments and security labels'");
-            execute("SECURITY LABEL ON KEYSPACE test_schema IS 'test_environment'");
-
-            execute("CREATE TYPE test_schema.address_type (street text, city text, zip text)");
-            String type = "address_type";
-            execute("COMMENT ON TYPE test_schema." + type + " IS 'Address information'");
-            execute("SECURITY LABEL ON TYPE test_schema." + type + " IS 'location_data'");
-
-            execute("CREATE TABLE test_schema.customers (id int PRIMARY KEY, name text, addr " + type + ")");
-            execute("COMMENT ON TABLE test_schema.customers IS 'Customer information'");
-            execute("SECURITY LABEL ON TABLE test_schema.customers IS 'customer_data'");
-            execute("COMMENT ON COLUMN test_schema.customers.name IS 'Customer name'");
-            execute("SECURITY LABEL ON COLUMN test_schema.customers.name IS 'pii'");
-
-            ResultSet result = executeDescribeNet("DESCRIBE SCHEMA");
-            boolean foundKeyspaceWithComment = false;
-            boolean foundTypeWithComment = false;
-            boolean foundTableWithComment = false;
-
-            for (Row row : result.all())
-            {
-                String createStatement = row.getString("create_statement");
-
-                if (row.getString("type").equals("keyspace") && row.getString("name").equals("test_schema"))
-                {
-                    assertTrue("Keyspace should include comment", createStatement.contains("COMMENT ON KEYSPACE test_schema IS 'Test schema for comments and security labels'"));
-                    assertTrue("Keyspace should include security label", createStatement.contains("SECURITY LABEL ON KEYSPACE test_schema IS 'test_environment'"));
-                    foundKeyspaceWithComment = true;
-                }
-                else if (row.getString("type").equals("type") && row.getString("name").equals(type))
-                {
-                    assertTrue("Type should include comment", createStatement.contains("COMMENT ON TYPE test_schema." + type + " IS 'Address information'"));
-                    assertTrue("Type should include security label", createStatement.contains("SECURITY LABEL ON TYPE test_schema." +  type + " IS 'location_data'"));
-                    foundTypeWithComment = true;
-                }
-                else if (row.getString("type").equals("table") && row.getString("name").equals("customers"))
-                {
-                    assertTrue("Table should include comment", createStatement.contains("COMMENT ON TABLE test_schema.customers IS 'Customer information';"));
-                    assertTrue("Table should include security label", createStatement.contains("SECURITY LABEL ON TABLE test_schema.customers IS 'customer_data'"));
-                    assertTrue("Table should include column comment", createStatement.contains("COMMENT ON COLUMN test_schema.customers.name IS 'Customer name'"));
-                    assertTrue("Table should include column security label", createStatement.contains("SECURITY LABEL ON COLUMN test_schema.customers.name IS 'pii'"));
-                    foundTableWithComment = true;
-                }
-            }
-
-            assertTrue("Should find keyspace with comment in schema", foundKeyspaceWithComment);
-            assertTrue("Should find type with comment in schema", foundTypeWithComment);
-            assertTrue("Should find table with comment in schema", foundTableWithComment);
+            fullSchema.append(row.getString("create_statement")).append("\n");
         }
-        finally
-        {
-            execute("DROP KEYSPACE IF EXISTS test_schema");
-        }
+        return fullSchema.toString();
     }
 
     private static String allTypesTable()

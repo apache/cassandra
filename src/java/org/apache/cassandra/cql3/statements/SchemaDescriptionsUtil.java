@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -49,43 +48,9 @@ public class SchemaDescriptionsUtil
      * Maximum length for comments and security labels.
      * This limit helps prevent excessive memory usage and storage overhead.
      */
-    public static final int MAX_METADATA_LENGTH = 1024;
 
     private SchemaDescriptionsUtil()
     {
-    }
-
-    /**
-     * Validates that a comment does not exceed the maximum allowed length.
-     *
-     * @param comment the comment to validate (can be null)
-     * @throws InvalidRequestException if the comment exceeds the maximum length
-     */
-    public static void validateComment(String comment)
-    {
-        if (comment != null && comment.length() > MAX_METADATA_LENGTH)
-        {
-            String msg = String.format("Comment length (%d) exceeds maximum allowed length (%d)",
-                                       comment.length(),
-                                       MAX_METADATA_LENGTH);
-            throw new InvalidRequestException(msg);
-        }
-    }
-
-    /**
-     * Validates that a security label does not exceed the maximum allowed length.
-     *
-     * @param securityLabel the security label to validate (can be null)
-     * @throws InvalidRequestException if the security label exceeds the maximum length
-     */
-    public static void validateSecurityLabel(String securityLabel)
-    {
-        if (securityLabel != null && securityLabel.length() > MAX_METADATA_LENGTH)
-        {
-            throw new InvalidRequestException(String.format("Security label length (%d) exceeds maximum allowed length (%d)",
-                                                           securityLabel.length(),
-                                                           MAX_METADATA_LENGTH));
-        }
     }
 
     /**

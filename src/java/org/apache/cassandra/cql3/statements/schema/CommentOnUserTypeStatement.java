@@ -22,76 +22,51 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.UTName;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-
 /**
- * Handles the execution of SECURITY LABEL ON TYPE CQL statements.
+ * Handles the execution of COMMENT ON TYPE CQL statements.
  * <p>
- * This statement allows users to add security classification labels to user-defined types.
- * Security labels are stored in the type metadata and displayed when using DESCRIBE TYPE.
+ * This statement allows users to add descriptive comments to user-defined types for documentation purposes.
+ * Comments are stored in the type metadata and displayed when using DESCRIBE TYPE.
  * </p>
  * <p>
- * Syntax: {@code SECURITY LABEL ON TYPE [keyspace_name.]type_name IS 'label';}
+ * Syntax: {@code COMMENT ON TYPE [keyspace_name.]type_name IS 'comment text';}
  * </p>
  * <p>
- * Security labels can be used to mark data sensitivity levels or compliance requirements.
- * Labels can be removed by setting them to an empty string or null.
+ * Comments can be removed by setting them to an empty string or null.
  * </p>
  *
- * @see SecurityLabelOnKeyspaceStatement
- * @see SecurityLabelOnTableStatement
- * @see SecurityLabelOnColumnStatement
+ * @see CommentOnKeyspaceStatement
+ * @see CommentOnTableStatement
+ * @see CommentOnColumnStatement
  */
-public final class SecurityLabelOnTypeStatement extends AlterSchemaStatement
+public final class CommentOnUserTypeStatement extends SchemaDescriptionStatement
 {
     private final String typeName;
-    private final String securityLabel;
-    private final String provider;
 
-    public SecurityLabelOnTypeStatement(String keyspaceName, String typeName, String securityLabel, String provider)
+    public CommentOnUserTypeStatement(String keyspaceName, String typeName, String comment)
     {
-        super(keyspaceName);
+        super(keyspaceName, comment, DescriptionType.COMMENT);
         this.typeName = typeName;
-        this.securityLabel = securityLabel;
-        this.provider = provider;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateSecurityLabel(securityLabel);
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
+        UserType type = validateAndGetType(schema, typeName);
+        UserType newType = type.withComment(effectiveDescription());
+
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
-
-        UserType type = keyspace.types.getNullable(bytes(typeName));
-        if (null == type)
-            throw ire("Type '%s.%s' doesn't exist", keyspaceName, typeName);
-
-        if (provider != null)
-            ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-
-        UserType newType = type.withSecurityLabel(securityLabel);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.types.withUpdatedUserType(newType));
 
         return schema.withAddedOrUpdated(newKeyspace);
@@ -106,42 +81,39 @@ public final class SecurityLabelOnTypeStatement extends AlterSchemaStatement
     @Override
     public void authorize(ClientState client)
     {
-        client.ensureKeyspacePermission(keyspaceName, Permission.ALTER);
+        client.ensureAllTablesPermission(keyspaceName, Permission.ALTER);
     }
 
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.SECURITY_LABEL_TYPE, keyspaceName, typeName);
+        return new AuditLogContext(AuditLogEntryType.COMMENT_TYPE, keyspaceName, typeName);
     }
 
     @Override
     public String toString()
     {
-        return String.format("%s (%s.%s, %s)", getClass().getSimpleName(), keyspaceName, typeName, securityLabel);
+        return String.format("%s (%s.%s, %s)", getClass().getSimpleName(), keyspaceName, typeName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw
     {
         private final UTName typeName;
-        private final String securityLabel;
-        private final String provider;
+        private final String comment;
 
-        public Raw(UTName typeName, String securityLabel, String provider)
+        public Raw(UTName typeName, String comment)
         {
             this.typeName = typeName;
-            this.securityLabel = securityLabel;
-            this.provider = provider;
+            this.comment = comment;
         }
 
         @Override
-        public SecurityLabelOnTypeStatement prepare(ClientState state)
+        public CommentOnUserTypeStatement prepare(ClientState state)
         {
             String keyspaceName = typeName.hasKeyspace() ? typeName.getKeyspace() : state.getKeyspace();
-            return new SecurityLabelOnTypeStatement(keyspaceName,
+            return new CommentOnUserTypeStatement(keyspaceName,
                                                   typeName.getStringTypeName(),
-                                                  securityLabel,
-                                                  provider);
+                                                  comment);
         }
     }
 }

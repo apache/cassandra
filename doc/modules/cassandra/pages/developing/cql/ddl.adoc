@@ -805,9 +805,9 @@ However, tables are the only object that can be truncated currently, and the `TA
 Truncating a table permanently removes all existing data from the table, but without removing the table itself.
 
 [[comment-statement]]
-== COMMENT ON
+== COMMENT
 
-The `COMMENT ON` statement allows you to add descriptive comments to schema elements for documentation purposes.
+The `COMMENT` statement allows you to add descriptive comments to schema elements for documentation purposes.
 Comments are stored in the schema metadata and displayed when using `DESCRIBE` statements.
 
 === COMMENT ON KEYSPACE
@@ -833,8 +833,8 @@ Add or modify a comment on a table:
 
 [source,cql]
 ----
-COMMENT ON TABLE [keyspace_name.]table_name IS 'comment text';
-COMMENT ON TABLE [keyspace_name.]table_name IS NULL;  -- Remove comment
+COMMENT ON TABLE keyspace_name.table_name IS 'comment text';
+COMMENT ON TABLE keyspace_name.table_name IS NULL;  -- Remove comment
 ----
 
 Example:
@@ -850,8 +850,8 @@ Add or modify a comment on a column:
 
 [source,cql]
 ----
-COMMENT ON COLUMN [keyspace_name.]table_name.column_name IS 'comment text';
-COMMENT ON COLUMN [keyspace_name.]table_name.column_name IS NULL;  -- Remove comment
+COMMENT ON COLUMN keyspace_name.table_name.column_name IS 'comment text';
+COMMENT ON COLUMN keyspace_name.table_name.column_name IS NULL;  -- Remove comment
 ----
 
 Example:
@@ -867,8 +867,8 @@ Add or modify a comment on a user-defined type:
 
 [source,cql]
 ----
-COMMENT ON TYPE [keyspace_name.]type_name IS 'comment text';
-COMMENT ON TYPE [keyspace_name.]type_name IS NULL;  -- Remove comment
+COMMENT ON TYPE keyspace_name.type_name IS 'comment text';
+COMMENT ON TYPE keyspace_name.type_name IS NULL;  -- Remove comment
 ----
 
 Example:
@@ -884,24 +884,24 @@ Add or modify a comment on a field within a user-defined type:
 
 [source,cql]
 ----
-COMMENT ON FIELD [keyspace_name.]type_name.field_name IS 'comment text';
-COMMENT ON FIELD [keyspace_name.]type_name.field_name IS NULL;  -- Remove comment
+COMMENT ON FIELD keyspace_name.type_name.field_name IS 'comment text';
+COMMENT ON FIELD keyspace_name.type_name.field_name IS NULL;  -- Remove comment
 ----
 
 Example:
 
 [source,cql]
 ----
-include::cassandra:example$CQL/comment_on_field.cql[]
+COMMENT ON FIELD cycling.address.street IS 'Street address line';
 ----
 
 NOTE: Comments can be removed by setting them to `NULL`. Comments are displayed when using `DESCRIBE` statements
 and are useful for documenting the purpose and structure of your schema elements.
 
 [[security-label-statement]]
-== SECURITY LABEL ON
+== SECURITY LABEL
 
-The `SECURITY LABEL ON` statement allows you to add security classification labels to schema elements.
+The `SECURITY LABEL` statement allows you to add security classification labels to schema elements.
 Security labels are stored in the schema metadata and displayed when using `DESCRIBE` statements.
 These labels can be used to mark data sensitivity levels or compliance requirements.
 
@@ -928,8 +928,8 @@ Add or modify a security label on a table:
 
 [source,cql]
 ----
-SECURITY LABEL ON TABLE [keyspace_name.]table_name IS 'label';
-SECURITY LABEL ON TABLE [keyspace_name.]table_name IS NULL;  -- Remove label
+SECURITY LABEL ON TABLE keyspace_name.table_name IS 'label';
+SECURITY LABEL ON TABLE keyspace_name.table_name IS NULL;  -- Remove label
 ----
 
 Example:
@@ -945,8 +945,8 @@ Add or modify a security label on a column:
 
 [source,cql]
 ----
-SECURITY LABEL ON COLUMN [keyspace_name.]table_name.column_name IS 'label';
-SECURITY LABEL ON COLUMN [keyspace_name.]table_name.column_name IS NULL;  -- Remove label
+SECURITY LABEL ON COLUMN keyspace_name.table_name.column_name IS 'label';
+SECURITY LABEL ON COLUMN keyspace_name.table_name.column_name IS NULL;  -- Remove label
 ----
 
 Example:
@@ -962,8 +962,8 @@ Add or modify a security label on a user-defined type:
 
 [source,cql]
 ----
-SECURITY LABEL ON TYPE [keyspace_name.]type_name IS 'label';
-SECURITY LABEL ON TYPE [keyspace_name.]type_name IS NULL;  -- Remove label
+SECURITY LABEL ON TYPE keyspace_name.type_name IS 'label';
+SECURITY LABEL ON TYPE keyspace_name.type_name IS NULL;  -- Remove label
 ----
 
 Example:
@@ -979,19 +979,16 @@ Add or modify a security label on a field within a user-defined type:
 
 [source,cql]
 ----
-SECURITY LABEL ON FIELD [keyspace_name.]type_name.field_name IS 'label';
-SECURITY LABEL ON FIELD [keyspace_name.]type_name.field_name IS NULL;  -- Remove label
+SECURITY LABEL ON FIELD keyspace_name.type_name.field_name IS 'label';
+SECURITY LABEL ON FIELD keyspace_name.type_name.field_name IS NULL;  -- Remove label
 ----
 
 Example:
 
 [source,cql]
 ----
-include::cassandra:example$CQL/security_label_on_field.cql[]
+SECURITY LABEL ON FIELD cycling.personal_info.ssn IS 'PII-SSN';
 ----
 
 NOTE: Security labels can be removed by setting them to `NULL`. Security labels are displayed when using `DESCRIBE` statements
 and can be used in conjunction with custom authorization plugins or audit systems to enforce data access policies.
-
-IMPORTANT: `COMMENT ON` and `SECURITY LABEL ON` statements require schema version V8 or higher.
-Ensure all nodes in your cluster support this version before using these features.

@@ -161,13 +161,13 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath) && comment.equals(p.comment) && securityLabel.equals(p.securityLabel);
+        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(durableWrites, replication, fastPath, comment, securityLabel);
+        return Objects.hashCode(durableWrites, replication, fastPath);
     }
 
     @Override
@@ -218,7 +218,8 @@ public final class KeyspaceParams
         {
             return ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites) +
-                   (version.isAtLeast(Version.V8) ? (TypeSizes.sizeof(t.comment) + TypeSizes.sizeof(t.securityLabel)) : 0) +
+                   (version.isAtLeast(Version.V8) ? TypeSizes.sizeof(t.comment) : 0) +
+                   (version.isAtLeast(Version.V8) ? TypeSizes.sizeof(t.securityLabel) : 0) +
                    (version.isAtLeast(MIN_ACCORD_VERSION) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
         }
     }

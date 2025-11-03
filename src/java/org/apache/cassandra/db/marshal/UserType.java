@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
@@ -359,13 +360,13 @@ public class UserType extends TupleType implements SchemaElement
                 .map(subtype -> (subtype.isFreezable() && subtype.isMultiCell() ? subtype.freeze() : subtype))
                 .collect(Collectors.toList());
 
-        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell, comment, securityLabel, fieldComments, fieldSecurityLabels);
+        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell, comment, securityLabel);
+        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell);
     }
 
     @Override
@@ -412,9 +413,7 @@ public class UserType extends TupleType implements SchemaElement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && keyspace.equals(other.keyspace)
-            && isMultiCell == other.isMultiCell
-            && comment.equals(other.comment)
-            && securityLabel.equals(other.securityLabel);
+            && isMultiCell == other.isMultiCell;
     }
 
     public boolean equalsWithOutKs(UserType other)
@@ -422,9 +421,7 @@ public class UserType extends TupleType implements SchemaElement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && types.equals(other.types)
-            && isMultiCell == other.isMultiCell
-            && comment.equals(other.comment)
-            && securityLabel.equals(other.securityLabel);
+            && isMultiCell == other.isMultiCell;
     }
 
     public Optional<Difference> compare(UserType other)
@@ -711,6 +708,16 @@ public class UserType extends TupleType implements SchemaElement
                .append(");");
 
         return builder.toString();
+    }
+
+    @Override
+    public String describe(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+    {
+        String baseStatement = toCqlString(withWarnings, withInternals, ifNotExists);
+        StringBuilder result = new StringBuilder(baseStatement);
+        SchemaDescriptionsUtil.appendCommentOnType(result, this);
+        SchemaDescriptionsUtil.appendSecurityLabelOnType(result, this);
+        return result.toString();
     }
 
     @Override

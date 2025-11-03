@@ -21,13 +21,11 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -39,49 +37,58 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
  * Security labels are stored in the keyspace metadata and displayed when using DESCRIBE KEYSPACE.
  * </p>
  * <p>
- * Syntax: {@code SECURITY LABEL ON KEYSPACE keyspace_name IS 'label';}
+ * Syntax: {@code SECURITY LABEL [FOR provider_name] ON KEYSPACE keyspace_name IS 'label';}
  * </p>
  * <p>
  * Security labels can be used to mark data sensitivity levels or compliance requirements.
- * Labels can be removed by setting them to an empty string or null.
+ * Labels can be removed by setting them to NULL.
+ * </p>
+ * <h3>Provider Support</h3>
+ * <p>
+ * The optional {@code FOR provider_name} clause is accepted in the syntax to support future
+ * extensibility. Providers are intended to be pluggable security policy modules that can
+ * interpret and enforce access controls based on security labels. However, provider
+ * functionality is not currently implemented. If a provider is specified, a warning will be
+ * issued but the security label will still be applied. The provider parameter is reserved
+ * for future use.
+ * </p>
+ * <p>
+ * Example usage:
+ * <pre>
+ * // Basic syntax without provider
+ * SECURITY LABEL ON KEYSPACE production IS 'confidential';
+ *
+ * // Syntax with provider (accepted but not yet implemented)
+ * SECURITY LABEL FOR custom_provider ON KEYSPACE production IS 'top_secret';
+ *
+ * // Remove security label
+ * SECURITY LABEL ON KEYSPACE production IS NULL;
+ * </pre>
  * </p>
  *
  * @see SecurityLabelOnTableStatement
  * @see SecurityLabelOnColumnStatement
- * @see SecurityLabelOnTypeStatement
+ * @see SecurityLabelOnUserTypeStatement
  */
-public final class SecurityLabelOnKeyspaceStatement extends AlterSchemaStatement
+public final class SecurityLabelOnKeyspaceStatement extends SchemaDescriptionStatement
 {
-    private final String securityLabel;
     private final String provider;
 
     public SecurityLabelOnKeyspaceStatement(String keyspaceName, String securityLabel, String provider)
     {
-        super(keyspaceName);
-        this.securityLabel = securityLabel;
+        super(keyspaceName, securityLabel, DescriptionType.SECURITY_LABEL);
         this.provider = provider;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateSecurityLabel(securityLabel);
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
-        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
+        KeyspaceMetadata keyspace = validateAndGetKeyspace(schema);
 
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
+        providerWarning(provider);
 
-        if (provider != null)
-            ClientWarn.instance.warn("Provider is not yet implemented but will proceed with adding the security label");
-
-        KeyspaceParams newParams = keyspace.params.withSecurityLabel(securityLabel);
+        KeyspaceParams newParams = keyspace.params.withSecurityLabel(effectiveDescription());
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(newParams);
 
         return schema.withAddedOrUpdated(newKeyspace);
@@ -108,7 +115,7 @@ public final class SecurityLabelOnKeyspaceStatement extends AlterSchemaStatement
     @Override
     public String toString()
     {
-        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, securityLabel);
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw

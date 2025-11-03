@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -395,6 +396,16 @@ public final class KeyspaceMetadata implements SchemaElement
             builder.append(';');
         }
         return builder.toString();
+    }
+
+    @Override
+    public String describe(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+    {
+        String cqlString = toCqlString(withWarnings, withInternals, ifNotExists);
+        StringBuilder result = new StringBuilder(cqlString);
+        SchemaDescriptionsUtil.appendCommentOnKeyspace(result, this);
+        SchemaDescriptionsUtil.appendSecurityLabelOnKeyspace(result, this);
+        return result.toString();
     }
 
     public void validate(ClusterMetadata metadata)

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -86,6 +87,6 @@ final class SchemaCommentsTable extends AbstractSchemaMetadataTable
     @Override
     protected String extractFieldMetadata(UserType udt, String fieldName)
     {
-        return udt.fieldComment(org.apache.cassandra.cql3.FieldIdentifier.forUnquoted(fieldName));
+        return udt.fieldComment(FieldIdentifier.forUnquoted(fieldName));
     }
 }

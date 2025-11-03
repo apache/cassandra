@@ -290,10 +290,10 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st51=securityLabelOnTableStatement   { $stmt = st51; }
     | st52=commentOnColumnStatement        { $stmt = st52; }
     | st53=securityLabelOnColumnStatement  { $stmt = st53; }
-    | st54=commentOnTypeStatement          { $stmt = st54; }
-    | st55=securityLabelOnTypeStatement    { $stmt = st55; }
-    | st56=commentOnFieldStatement         { $stmt = st56; }
-    | st57=securityLabelOnFieldStatement   { $stmt = st57; }
+    | st54=commentOnUserTypeStatement      { $stmt = st54; }
+    | st55=securityLabelOnUserTypeStatement    { $stmt = st55; }
+    | st56=commentOnUserTypeFieldStatement     { $stmt = st56; }
+    | st57=securityLabelOnUserTypeFieldStatement   { $stmt = st57; }
     ;
 
 /*
@@ -1291,7 +1291,7 @@ dropKeyspaceStatement returns [DropKeyspaceStatement.Raw stmt]
  * COMMENT ON KEYSPACE <keyspace> IS <comment>;
  */
 commentOnKeyspaceStatement returns [CommentOnKeyspaceStatement.Raw stmt]
-    : K_COMMENT K_ON K_KEYSPACE ks=keyspaceName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnKeyspaceStatement.Raw(ks, comment != null ? $comment.text : ""); }
+    : K_COMMENT K_ON K_KEYSPACE ks=keyspaceName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnKeyspaceStatement.Raw(ks, comment != null ? $comment.text : null); }
     ;
 
 /**
@@ -1299,14 +1299,14 @@ commentOnKeyspaceStatement returns [CommentOnKeyspaceStatement.Raw stmt]
  */
 securityLabelOnKeyspaceStatement returns [SecurityLabelOnKeyspaceStatement.Raw stmt]
     @init { String provider = null; }
-    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_KEYSPACE ks=keyspaceName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnKeyspaceStatement.Raw(ks, label != null ? $label.text : "", provider); }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_KEYSPACE ks=keyspaceName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnKeyspaceStatement.Raw(ks, label != null ? $label.text : null, provider); }
     ;
 
 /**
  * COMMENT ON TABLE <table> IS <comment>;
  */
 commentOnTableStatement returns [CommentOnTableStatement.Raw stmt]
-    : K_COMMENT K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnTableStatement.Raw(cf, comment != null ? $comment.text : ""); }
+    : K_COMMENT K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnTableStatement.Raw(cf, comment != null ? $comment.text : null); }
     ;
 
 /**
@@ -1314,7 +1314,7 @@ commentOnTableStatement returns [CommentOnTableStatement.Raw stmt]
  */
 securityLabelOnTableStatement returns [SecurityLabelOnTableStatement.Raw stmt]
     @init { String provider = null; }
-    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnTableStatement.Raw(cf, label != null ? $label.text : "", provider); }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_COLUMNFAMILY cf=columnFamilyName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnTableStatement.Raw(cf, label != null ? $label.text : null, provider); }
     ;
 
 /**
@@ -1323,7 +1323,7 @@ securityLabelOnTableStatement returns [SecurityLabelOnTableStatement.Raw stmt]
  */
 commentOnColumnStatement returns [CommentOnColumnStatement.Raw stmt]
     : K_COMMENT K_ON K_COLUMN columnRef=columnReference K_IS (comment=STRING_LITERAL | K_NULL)
-      { $stmt = new CommentOnColumnStatement.Raw($columnRef.table, $columnRef.column, comment != null ? $comment.text : ""); }
+      { $stmt = new CommentOnColumnStatement.Raw($columnRef.table, $columnRef.column, comment != null ? $comment.text : null); }
     ;
 
 /**
@@ -1333,41 +1333,41 @@ commentOnColumnStatement returns [CommentOnColumnStatement.Raw stmt]
 securityLabelOnColumnStatement returns [SecurityLabelOnColumnStatement.Raw stmt]
     @init { String provider = null; }
     : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_COLUMN columnRef=columnReference K_IS (label=STRING_LITERAL | K_NULL)
-      { $stmt = new SecurityLabelOnColumnStatement.Raw($columnRef.table, $columnRef.column, label != null ? $label.text : "", provider); }
+      { $stmt = new SecurityLabelOnColumnStatement.Raw($columnRef.table, $columnRef.column, label != null ? $label.text : null, provider); }
     ;
 
 /**
  * COMMENT ON TYPE <type> IS <comment>;
  */
-commentOnTypeStatement returns [CommentOnTypeStatement.Raw stmt]
-    : K_COMMENT K_ON K_TYPE tn=userTypeName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnTypeStatement.Raw(tn, comment != null ? $comment.text : ""); }
+commentOnUserTypeStatement returns [CommentOnUserTypeStatement.Raw stmt]
+    : K_COMMENT K_ON K_TYPE tn=userTypeName K_IS (comment=STRING_LITERAL | K_NULL) { $stmt = new CommentOnUserTypeStatement.Raw(tn, comment != null ? $comment.text : null); }
     ;
 
 /**
  * SECURITY LABEL [FOR <provider>] ON TYPE <type> IS <label>;
  */
-securityLabelOnTypeStatement returns [SecurityLabelOnTypeStatement.Raw stmt]
+securityLabelOnUserTypeStatement returns [SecurityLabelOnUserTypeStatement.Raw stmt]
     @init { String provider = null; }
-    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_TYPE tn=userTypeName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnTypeStatement.Raw(tn, label != null ? $label.text : "", provider); }
+    : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_TYPE tn=userTypeName K_IS (label=STRING_LITERAL | K_NULL) { $stmt = new SecurityLabelOnUserTypeStatement.Raw(tn, label != null ? $label.text : null, provider); }
     ;
 
 /**
  * COMMENT ON FIELD <type>.<field> IS <comment>;
  * COMMENT ON FIELD <keyspace>.<type>.<field> IS <comment>;
  */
-commentOnFieldStatement returns [CommentOnFieldStatement.Raw stmt]
+commentOnUserTypeFieldStatement returns [CommentOnUserTypeFieldStatement.Raw stmt]
     : K_COMMENT K_ON K_FIELD typeFieldRef=typeFieldReference K_IS (comment=STRING_LITERAL | K_NULL)
-      { $stmt = new CommentOnFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, comment != null ? $comment.text : ""); }
+      { $stmt = new CommentOnUserTypeFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, comment != null ? $comment.text : null); }
     ;
 
 /**
  * SECURITY LABEL [FOR <provider>] ON FIELD <type>.<field> IS <label>;
  * SECURITY LABEL [FOR <provider>] ON FIELD <keyspace>.<type>.<field> IS <label>;
  */
-securityLabelOnFieldStatement returns [SecurityLabelOnFieldStatement.Raw stmt]
+securityLabelOnUserTypeFieldStatement returns [SecurityLabelOnUserTypeFieldStatement.Raw stmt]
     @init { String provider = null; }
     : K_SECURITY K_LABEL (K_FOR prov=noncol_ident { provider = prov.toString(); })? K_ON K_FIELD typeFieldRef=typeFieldReference K_IS (label=STRING_LITERAL | K_NULL)
-      { $stmt = new SecurityLabelOnFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, label != null ? $label.text : "", provider); }
+      { $stmt = new SecurityLabelOnUserTypeFieldStatement.Raw($typeFieldRef.typeName, $typeFieldRef.field, label != null ? $label.text : null, provider); }
     ;
 
 /**

@@ -70,6 +70,7 @@ import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERI
 import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
 import static org.apache.cassandra.schema.TableParams.Option.PENDING_DROP;
 import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SECURITY_LABEL;
 import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
@@ -341,7 +342,7 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(COMMENT.toString(), comment)
-                          .add(Option.SECURITY_LABEL.toString(), securityLabel)
+                          .add(SECURITY_LABEL.toString(), securityLabel)
                           .add(ADDITIONAL_WRITE_POLICY.toString(), additionalWritePolicy)
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
@@ -383,7 +384,7 @@ public final class TableParams
                .append("AND cdc = ").append(cdc)
                .newLine()
                // TODO: AND comment should be deprecatod in future releases in favor of
-               //  JIRA Introducing comments and security labels for schema elements
+               //  JIRA CASSANDRA-20943 Introducing comments and security labels for schema elements
                .append("AND comment = ").appendWithSingleQuotes(comment)
                .newLine()
                .append("AND compaction = ").append(compaction.asMap())

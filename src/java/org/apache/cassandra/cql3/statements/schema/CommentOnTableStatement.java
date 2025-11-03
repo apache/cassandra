@@ -22,7 +22,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -49,45 +48,28 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
  *
  * @see CommentOnKeyspaceStatement
  * @see CommentOnColumnStatement
- * @see CommentOnTypeStatement
+ * @see CommentOnUserTypeStatement
  */
-public final class CommentOnTableStatement extends AlterSchemaStatement
+public final class CommentOnTableStatement extends SchemaDescriptionStatement
 {
     private final String tableName;
-    private final String comment;
 
     public CommentOnTableStatement(String keyspaceName, String tableName, String comment)
     {
-        super(keyspaceName);
+        super(keyspaceName, comment, DescriptionType.COMMENT);
         this.tableName = tableName;
-        this.comment = comment;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateComment(comment);
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
-        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
-
-        TableMetadata table = keyspace.getTableOrViewNullable(tableName);
-        if (null == table)
-            throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
-
-        if (table.isView())
-            throw ire("Cannot set comment on materialized view '%s.%s'. Comments should be set on the base table.", keyspaceName, tableName);
-
-        TableParams newParams = table.params.unbuild().comment(comment).build();
+        TableMetadata table = validateAndGetTable(schema, tableName);
+        TableParams newParams = table.params.unbuild().comment(effectiveDescription()).build();
         TableMetadata newTable = table.withSwapped(newParams);
+
+        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
 
         return schema.withAddedOrUpdated(newKeyspace);
@@ -114,7 +96,7 @@ public final class CommentOnTableStatement extends AlterSchemaStatement
     @Override
     public String toString()
     {
-        return String.format("%s (%s.%s, %s)", getClass().getSimpleName(), keyspaceName, tableName, comment);
+        return String.format("%s (%s.%s, %s)", getClass().getSimpleName(), keyspaceName, tableName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw

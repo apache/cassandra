@@ -97,14 +97,12 @@ public class ColumnSpecification
         return this.ksName.equals(that.ksName) &&
                this.cfName.equals(that.cfName) &&
                this.name.equals(that.name) &&
-               this.type.equals(that.type) &&
-               Objects.equal(this.comment, that.comment) &&
-               Objects.equal(this.securityLabel, that.securityLabel);
+               this.type.equals(that.type);
     }
 
     public int hashCode()
     {
-        return Objects.hashCode(ksName, cfName, name, type, comment, securityLabel);
+        return Objects.hashCode(ksName, cfName, name, type);
     }
 
     @Override

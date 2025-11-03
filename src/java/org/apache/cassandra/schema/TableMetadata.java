@@ -56,6 +56,7 @@ import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionExceptio
 import org.apache.cassandra.cql3.constraints.NotNullConstraint;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.Columns;
@@ -1492,7 +1493,7 @@ public class TableMetadata implements SchemaElement
         {
             ColumnMetadata column = columns.get(name.bytes);
             if (column == null)
-                throw new IllegalArgumentException("Column " + name + " is invalid");
+                throw new IllegalArgumentException("Column " + name + " doesn't exist");
 
             ColumnMetadata newColumn = column.withNewComment(comment);
 
@@ -1505,7 +1506,7 @@ public class TableMetadata implements SchemaElement
         {
             ColumnMetadata column = columns.get(name.bytes);
             if (column == null)
-                throw new IllegalArgumentException("Column " + name + " is invalid" );
+                throw new IllegalArgumentException("Column " + name + " doesn't exist" );
 
             ColumnMetadata newColumn = column.withNewSecurityLabel(securityLabel);
 
@@ -1638,6 +1639,16 @@ public class TableMetadata implements SchemaElement
         CqlBuilder builder = new CqlBuilder(2048);
         appendCqlTo(builder, withWarnings, withInternals, withInternals, ifNotExists);
         return builder.toString();
+    }
+
+    @Override
+    public String describe(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+    {
+        String baseStatement = toCqlString(withWarnings, withInternals, ifNotExists);
+        StringBuilder result = new StringBuilder(baseStatement);
+        SchemaDescriptionsUtil.appendCommentOnTable(result, this);
+        SchemaDescriptionsUtil.appendSecurityLabelOnTable(result, this);
+        return result.toString();
     }
 
     public String toCqlString(boolean withWarnings,

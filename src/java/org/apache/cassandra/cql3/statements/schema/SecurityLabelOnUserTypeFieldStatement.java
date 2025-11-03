@@ -21,27 +21,27 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.UTName;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
 /**
- * Handles the execution of SECURITY LABEL ON COLUMN CQL statements.
+ * Handles the execution of SECURITY LABEL ON FIELD CQL statements.
  * <p>
- * This statement allows users to add security classification labels to individual columns.
- * Security labels are stored in the column metadata and displayed when using DESCRIBE TABLE.
+ * This statement allows users to add security classification labels to individual fields of user-defined types.
+ * Security labels are stored in the type metadata and displayed when using DESCRIBE TYPE.
  * </p>
  * <p>
- * Syntax: {@code SECURITY LABEL [FOR provider_name] ON COLUMN [keyspace_name.]table_name.column_name IS 'label';}
+ * Syntax: {@code SECURITY LABEL [FOR provider_name] ON FIELD [keyspace_name.]type_name.field_name IS 'label';}
  * </p>
  * <p>
  * Security labels can be used to mark data sensitivity levels or compliance requirements.
@@ -60,50 +60,46 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
  * Example usage:
  * <pre>
  * // Basic syntax without provider
- * SECURITY LABEL ON COLUMN users.ssn IS 'PII';
+ * SECURITY LABEL ON FIELD address.street IS 'public';
  *
  * // Syntax with provider (accepted but not yet implemented)
- * SECURITY LABEL FOR custom_provider ON COLUMN users.ssn IS 'sensitive';
+ * SECURITY LABEL FOR custom_provider ON FIELD address.street IS 'confidential';
  *
  * // Remove security label
- * SECURITY LABEL ON COLUMN users.ssn IS NULL;
+ * SECURITY LABEL ON FIELD address.street IS NULL;
  * </pre>
  * </p>
  *
- * @see SecurityLabelOnKeyspaceStatement
- * @see SecurityLabelOnTableStatement
  * @see SecurityLabelOnUserTypeStatement
+ * @see SecurityLabelOnColumnStatement
  */
-public final class SecurityLabelOnColumnStatement extends SchemaDescriptionStatement
+public final class SecurityLabelOnUserTypeFieldStatement extends SchemaDescriptionStatement
 {
-    private final String tableName;
-    private final ColumnIdentifier columnName;
+    private final String typeName;
+    private final FieldIdentifier fieldName;
     private final String provider;
 
-    public SecurityLabelOnColumnStatement(String keyspaceName, String tableName, ColumnIdentifier columnName, String securityLabel, String provider)
+    public SecurityLabelOnUserTypeFieldStatement(String keyspaceName, String typeName, FieldIdentifier fieldName, String securityLabel, String provider)
     {
         super(keyspaceName, securityLabel, DescriptionType.SECURITY_LABEL);
-        this.tableName = tableName;
-        this.columnName = columnName;
+        this.typeName = typeName;
+        this.fieldName = fieldName;
         this.provider = provider;
     }
-
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
-        TableMetadata table = validateAndGetTable(schema, tableName);
+        UserType type = validateAndGetTypeField(schema, typeName, fieldName);
 
-        ColumnMetadata column = table.getColumn(columnName);
-        if (null == column)
-            throw ire("Column '%s' doesn't exist in table '%s.%s'", columnName, keyspaceName, tableName);
+        if (provider != null)
+            ClientWarn.instance.warn("Provider functionality not implemented." +
+                                     " Provider '" + provider + "' will not be loaded or invoked.");
 
-        providerWarning(provider);
-
-        TableMetadata newTable = table.unbuild().alterColumnSecurityLabel(columnName, effectiveDescription()).build();
+        UserType newType = type.withFieldSecurityLabel(fieldName, effectiveDescription());
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-        KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
+        KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.types.withUpdatedUserType(newType));
 
         return schema.withAddedOrUpdated(newKeyspace);
     }
@@ -111,51 +107,51 @@ public final class SecurityLabelOnColumnStatement extends SchemaDescriptionState
     @Override
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
     {
-        return new SchemaChange(Change.UPDATED, Target.TABLE, keyspaceName, tableName);
+        return new SchemaChange(Change.UPDATED, Target.TYPE, keyspaceName, typeName);
     }
 
     @Override
     public void authorize(ClientState client)
     {
-        client.ensureTablePermission(keyspaceName, tableName, Permission.ALTER);
+        client.ensureAllTablesPermission(keyspaceName, Permission.ALTER);
     }
 
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.SECURITY_LABEL_COLUMN, keyspaceName, tableName);
+        return new AuditLogContext(AuditLogEntryType.SECURITY_LABEL_TYPE, keyspaceName, typeName);
     }
 
     @Override
     public String toString()
     {
-        return String.format("%s (%s.%s.%s, %s)", getClass().getSimpleName(), keyspaceName, tableName, columnName, description);
+        return String.format("%s (%s.%s.%s, %s)", getClass().getSimpleName(), keyspaceName, typeName, fieldName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw
     {
-        private final QualifiedName tableName;
-        private final ColumnIdentifier columnName;
+        private final UTName typeName;
+        private final FieldIdentifier fieldName;
         private final String securityLabel;
         private final String provider;
 
-        public Raw(QualifiedName tableName, ColumnIdentifier columnName, String securityLabel, String provider)
+        public Raw(UTName typeName, FieldIdentifier fieldName, String securityLabel, String provider)
         {
-            this.tableName = tableName;
-            this.columnName = columnName;
+            this.typeName = typeName;
+            this.fieldName = fieldName;
             this.securityLabel = securityLabel;
             this.provider = provider;
         }
 
         @Override
-        public SecurityLabelOnColumnStatement prepare(ClientState state)
+        public SecurityLabelOnUserTypeFieldStatement prepare(ClientState state)
         {
-            String keyspaceName = tableName.hasKeyspace() ? tableName.getKeyspace() : state.getKeyspace();
-            return new SecurityLabelOnColumnStatement(keyspaceName,
-                                                      tableName.getName(),
-                                                      columnName,
-                                                      securityLabel,
-                                                      provider);
+            String keyspaceName = typeName.hasKeyspace() ? typeName.getKeyspace() : state.getKeyspace();
+            return new SecurityLabelOnUserTypeFieldStatement(keyspaceName,
+                                                             typeName.getStringTypeName(),
+                                                             fieldName,
+                                                             securityLabel,
+                                                             provider);
         }
     }
 }

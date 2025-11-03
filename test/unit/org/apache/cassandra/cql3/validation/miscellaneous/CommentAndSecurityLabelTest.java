@@ -23,6 +23,7 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -65,7 +66,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
 
         // Test provider warning
         ResultSet result = executeNet(String.format("SECURITY LABEL FOR test_provider ON KEYSPACE %s IS 'SENSITIVE'", SECURITY_KEYSPACE));
-        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider functionality not implemented.");
         assertSecurityLabel(ObjectType.KEYSPACE, SECURITY_KEYSPACE, SECURITY_KEYSPACE, "SENSITIVE");
     }
 
@@ -88,7 +89,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
 
         // Test provider warning
         ResultSet result = executeNet(String.format("SECURITY LABEL FOR my_provider ON TABLE %s IS 'CONFIDENTIAL'", tableRef));
-        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider functionality not implemented.");
         assertSecurityLabel(ObjectType.TABLE, SECURITY_KEYSPACE, tableRef, "CONFIDENTIAL");
     }
 
@@ -112,7 +113,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
 
         // Test provider warning
         ResultSet result = executeNet(String.format("SECURITY LABEL FOR data_classifier ON COLUMN %s IS 'PII'", columnRef));
-        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider functionality not implemented.");
         assertSecurityLabel(ObjectType.COLUMN, SECURITY_KEYSPACE, columnRef, "PII");
     }
 
@@ -136,7 +137,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
 
         // Test provider warning
         ResultSet result = executeNet(String.format("SECURITY LABEL FOR security_provider ON TYPE %s IS 'RESTRICTED'", typeRef));
-        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider functionality not implemented.");
         assertSecurityLabel(ObjectType.TYPE, SECURITY_KEYSPACE, typeRef, "RESTRICTED");
     }
 
@@ -159,7 +160,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
 
         // Test provider warning
         ResultSet result = executeNet(String.format("SECURITY LABEL FOR healthcare_provider ON FIELD %s IS 'PHI'", fieldRef));
-        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider is not yet implemented");
+        assertWarningsContain(result.getExecutionInfo().getWarnings(), "Provider functionality not implemented.");
         assertSecurityLabel(ObjectType.FIELD, SECURITY_KEYSPACE, fieldRef, "PHI");
     }
 
@@ -250,14 +251,14 @@ public class CommentAndSecurityLabelTest extends CQLTester
         createTableWithName(KEYSPACE_NAME, TABLE_NAME);
         String tableRef = String.format("%s.%s", KEYSPACE_NAME, TABLE_NAME);
 
-        // Test empty string
-        setComment(ObjectType.TABLE, tableRef, "");
-        assertComment(ObjectType.TABLE, KEYSPACE_NAME, tableRef, "");
+        // Test empty string - should be rejected
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.TABLE, tableRef, ""));
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.TABLE, tableRef, ""));
 
         // Test special characters
-        String specialComment = "Comment with \"quotes\" and 'apostrophes' and \nnewlines";
+        String specialComment = "Comment with \"quotes\" and '' and \nnewlines";
         setComment(ObjectType.TABLE, tableRef, specialComment);
-        assertComment(ObjectType.TABLE, KEYSPACE_NAME, tableRef, "Comment with \"quotes\" and 'apostrophes' and \nnewlines");
+        assertComment(ObjectType.TABLE, KEYSPACE_NAME, tableRef, "Comment with \"quotes\" and '' and \nnewlines");
 
         // Test Unicode characters
         String unicodeComment = "Unicode comment: 测试 ñoño 🚀";
@@ -323,9 +324,9 @@ public class CommentAndSecurityLabelTest extends CQLTester
         waitForViewBuild("test_mv");
 
         // Test that comment and security label statements fail
-        assertInvalidMessage("Cannot set comment on materialized view",
+        assertInvalidMessage("Cannot set comment on non-regular table",
                            "COMMENT ON TABLE " + mvFullName + " IS 'fail'");
-        assertInvalidMessage("Cannot set security label on materialized view",
+        assertInvalidMessage("Cannot set security label on non-regular table",
                            "SECURITY LABEL ON TABLE " + mvFullName + " IS 'fail'");
     }
 
@@ -343,6 +344,33 @@ public class CommentAndSecurityLabelTest extends CQLTester
         // Test comment and security label on virtual keyspaces
         assertInvalidMessage("is not user-modifiable", "COMMENT ON KEYSPACE system_views IS 'fail'");
         assertInvalidMessage("is not user-modifiable", "SECURITY LABEL ON KEYSPACE system_views IS 'fail'");
+    }
+
+    @Test
+    public void testEmptyStringRejection()
+    {
+        createKeyspaceWithName(KEYSPACE_NAME);
+        createTableWithName(KEYSPACE_NAME, TABLE_NAME);
+        execute(String.format("CREATE TYPE %s.test_type (field1 text, field2 int)", KEYSPACE_NAME));
+
+        String tableRef = String.format("%s.%s", KEYSPACE_NAME, TABLE_NAME);
+        String columnRef = String.format("%s.%s.name", KEYSPACE_NAME, TABLE_NAME);
+        String typeRef = String.format("%s.test_type", KEYSPACE_NAME);
+        String fieldRef = String.format("%s.test_type.field1", KEYSPACE_NAME);
+
+        // Test that empty strings are rejected for comments on all schema elements
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.KEYSPACE, KEYSPACE_NAME, ""));
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.TABLE, tableRef, ""));
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.COLUMN, columnRef, ""));
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.TYPE, typeRef, ""));
+        assertInvalidMessage("Cannot set comment to empty string", buildCommentStatement(ObjectType.FIELD, fieldRef, ""));
+
+        // Test that empty strings are rejected for security labels on all schema elements
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.KEYSPACE, KEYSPACE_NAME, ""));
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.TABLE, tableRef, ""));
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.COLUMN, columnRef, ""));
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.TYPE, typeRef, ""));
+        assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.FIELD, fieldRef, ""));
     }
 
     // Helper methods for setting comments and security labels
@@ -436,7 +464,7 @@ public class CommentAndSecurityLabelTest extends CQLTester
             case FIELD:
                 String[] fieldParts = parseColumnReference(objectName);
                 UserType type1 = getUserType(keyspace, fieldParts[0]);
-                org.apache.cassandra.cql3.FieldIdentifier fieldId = org.apache.cassandra.cql3.FieldIdentifier.forUnquoted(fieldParts[1]);
+                FieldIdentifier fieldId = FieldIdentifier.forUnquoted(fieldParts[1]);
                 return isComment ? type1.fieldComment(fieldId) : type1.fieldSecurityLabel(fieldId);
             default:
                 throw new IllegalArgumentException("Unsupported object type: " + type);
@@ -476,6 +504,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
         String updatedValue = isComment ? UPDATED_COMMENT : UPDATED_LABEL;
         if (isComment)
         {
+            String emptyStringStatement = buildCommentStatement(type, objectName, "");
+            assertInvalidMessage("Cannot set comment to empty string", emptyStringStatement);
             setComment(type, objectName, testValue);
             assertComment(type, keyspace, objectName, testValue);
             setComment(type, objectName, updatedValue);
@@ -487,6 +517,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
         }
         else
         {
+            String emptyStringStatement = buildSecurityLabelStatement(type, objectName, "");
+            assertInvalidMessage("Cannot set security label to empty string", emptyStringStatement);
             setSecurityLabel(type, objectName, testValue);
             assertSecurityLabel(type, keyspace, objectName, testValue);
             setSecurityLabel(type, objectName, updatedValue);

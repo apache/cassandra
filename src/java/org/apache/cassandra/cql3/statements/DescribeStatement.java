@@ -36,7 +36,6 @@ import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -375,7 +374,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                         bytes(element.elementType().toString()),
                                         bytes(element.elementNameQuotedIfNeeded()),
-                                        bytes(element.toCqlString(true, withInternals, false)));
+                                        bytes(element.describe(true, withInternals, false)));
             }
         };
     }
@@ -425,7 +424,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
                                     bytes(element.elementType().toString()),
                                     bytes(element.elementNameQuotedIfNeeded()),
-                                    bytes(element.toCqlString(true, withInternals, false)));
+                                    bytes(element.describe(true, withInternals, false)));
         }
     }
 
@@ -439,11 +438,11 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
     private static Stream<? extends SchemaElement> getKeyspaceElements(KeyspaceMetadata ks, boolean onlyKeyspace)
     {
-        Stream<? extends SchemaElement> s = Stream.of(descriptions(ks));
+        Stream<? extends SchemaElement> s = Stream.of(ks);
 
         if (!onlyKeyspace)
         {
-            s = Stream.concat(s, ks.types.sortedStream().map(t -> descriptions(t)));
+            s = Stream.concat(s, ks.types.sortedStream());
             s = Stream.concat(s, ks.userFunctions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
             s = Stream.concat(s, ks.userFunctions.udas().sorted(SchemaElement.NAME_COMPARATOR));
             s = Stream.concat(s, ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR)
@@ -455,7 +454,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
     private static Stream<? extends SchemaElement> getTableElements(KeyspaceMetadata ks, TableMetadata table)
     {
-        Stream<? extends SchemaElement> s = Stream.of(descriptions(table));
+        Stream<? extends SchemaElement> s = Stream.of(table);
         s = Stream.concat(s, table.indexes.stream()
                                           .map(i -> toDescribable(table, i))
                                           .sorted(SchemaElement.NAME_COMPARATOR));
@@ -475,7 +474,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                                                "Table '%s' not found in keyspace '%s'", t, ks.name);
 
 
-            Stream<SchemaElement> withIndexes = Stream.concat(Stream.of(descriptions(table)), table.indexes.stream()
+            Stream<SchemaElement> withIndexes = Stream.concat(Stream.of(table), table.indexes.stream()
                                                                                              .map(index -> toDescribable(table, index))
                                                                                              .sorted(SchemaElement.NAME_COMPARATOR));
 
@@ -526,7 +525,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         return new Element(keyspace, name, (ks, type) -> {
 
             return ks.types.get(ByteBufferUtil.bytes(type))
-                           .map(t -> Stream.of(descriptions(t)))
+                           .map(Stream::of)
                            .orElseThrow(() -> invalidRequest("User defined type '%s' not found in '%s'",
                                                              type,
                                                              ks.name));
@@ -615,69 +614,6 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
             {
                 return viewMetadata.toCqlString(withWarnings, withInternals, ifNotExists);
-            }
-        };
-    }
-
-    /**
-     * Wraps a schema element to append its associated comments and security labels.
-     * <p>
-     * This method creates a wrapper around schema elements (keyspaces, tables, types) that
-     * augments their CQL string representation with any defined comments or security labels.
-     * The wrapper delegates all SchemaElement interface methods to the wrapped element,
-     * but overrides toCqlString() to append COMMENT and SECURITY LABEL statements.
-     * </p>
-     *
-     * @param element the schema element to wrap
-     * @return a wrapped schema element that includes comments and security labels in its CQL output
-     */
-    private static SchemaElement descriptions(SchemaElement element)
-    {
-        return new SchemaElement()
-        {
-            @Override
-            public SchemaElementType elementType()
-            {
-                return element.elementType();
-            }
-
-            @Override
-            public String elementKeyspace()
-            {
-                return element.elementKeyspace();
-            }
-
-            @Override
-            public String elementName()
-            {
-                return element.elementName();
-            }
-
-            @Override
-            public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
-            {
-                String baseStatement = element.toCqlString(withWarnings, withInternals, ifNotExists);
-                StringBuilder result = new StringBuilder(baseStatement);
-                if (element instanceof KeyspaceMetadata)
-                {
-                    KeyspaceMetadata ksm = (KeyspaceMetadata) element;
-                    SchemaDescriptionsUtil.appendCommentOnKeyspace(result, ksm);
-                    SchemaDescriptionsUtil.appendSecurityLabelOnKeyspace(result, ksm);
-                }
-                else if (element instanceof TableMetadata)
-                {
-                    TableMetadata tbm = (TableMetadata) element;
-                    SchemaDescriptionsUtil.appendCommentOnTable(result, tbm);
-                    SchemaDescriptionsUtil.appendSecurityLabelOnTable(result, tbm);
-                }
-                else if (element instanceof UserType)
-                {
-                    UserType userType = (UserType) element;
-                    SchemaDescriptionsUtil.appendCommentOnType(result, userType);
-                    SchemaDescriptionsUtil.appendSecurityLabelOnType(result, userType);
-                }
-
-                return result.toString();
             }
         };
     }

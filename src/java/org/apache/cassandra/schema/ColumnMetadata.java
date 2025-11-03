@@ -820,6 +820,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 if (t.hasConstraint())
                     constraintsSize += t.getColumnConstraints().serializer().serializedSize(t.columnConstraints, version);
             }
+            long commentsAndSecurityLabelSize = 0;
+            if (version.isAtLeast(Version.V8))
+            {
+                commentsAndSecurityLabelSize += sizeof(t.comment);
+                commentsAndSecurityLabelSize += sizeof(t.securityLabel);
+            }
             return sizeof(t.ksName) +
                    sizeof(t.cfName) +
                    sizeof(t.kind.name()) +
@@ -832,7 +838,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
                    constraintsSize +
                    (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0) +
-                   (version.isAtLeast(Version.V8) ? (sizeof(t.comment) + sizeof(t.securityLabel)) : 0);
+                   commentsAndSecurityLabelSize;
         }
     }
 }

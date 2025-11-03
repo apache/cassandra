@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -196,7 +197,7 @@ abstract class AbstractSchemaMetadataTable extends AbstractVirtualTable
             {
                 addUdtRow(result, keyspace, udt);
 
-                for (org.apache.cassandra.cql3.FieldIdentifier field : udt.fieldNames())
+                for (FieldIdentifier field : udt.fieldNames())
                     addFieldRow(result, keyspace, udt, field.toString());
             }
         }
@@ -242,7 +243,7 @@ abstract class AbstractSchemaMetadataTable extends AbstractVirtualTable
                 break;
             case FIELD:
                 for (UserType udt : keyspace.types)
-                    for (org.apache.cassandra.cql3.FieldIdentifier field : udt.fieldNames())
+                    for (FieldIdentifier field : udt.fieldNames())
                         addFieldRow(result, keyspace, udt, field.toString());
                 break;
         }

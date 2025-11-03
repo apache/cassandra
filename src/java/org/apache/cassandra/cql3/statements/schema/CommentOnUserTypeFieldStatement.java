@@ -21,8 +21,8 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.UTName;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -33,58 +33,44 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-
 /**
- * Handles the execution of COMMENT ON TYPE CQL statements.
+ * Handles the execution of COMMENT ON FIELD CQL statements.
  * <p>
- * This statement allows users to add descriptive comments to user-defined types for documentation purposes.
- * Comments are stored in the type metadata and displayed when using DESCRIBE TYPE.
+ * This statement allows users to add descriptive comments to individual fields of user-defined types
+ * for documentation purposes. Comments are stored in the type metadata and displayed when using DESCRIBE TYPE.
  * </p>
  * <p>
- * Syntax: {@code COMMENT ON TYPE [keyspace_name.]type_name IS 'comment text';}
+ * Syntax: {@code COMMENT ON FIELD [keyspace_name.]type_name.field_name IS 'comment text';}
  * </p>
  * <p>
  * Comments can be removed by setting them to an empty string or null.
  * </p>
  *
- * @see CommentOnKeyspaceStatement
- * @see CommentOnTableStatement
+ * @see CommentOnUserTypeStatement
  * @see CommentOnColumnStatement
  */
-public final class CommentOnTypeStatement extends AlterSchemaStatement
+public final class CommentOnUserTypeFieldStatement extends SchemaDescriptionStatement
 {
     private final String typeName;
-    private final String comment;
+    private final FieldIdentifier fieldName;
 
-    public CommentOnTypeStatement(String keyspaceName, String typeName, String comment)
+    public CommentOnUserTypeFieldStatement(String keyspaceName, String typeName, FieldIdentifier fieldName, String comment)
     {
-        super(keyspaceName);
+        super(keyspaceName, comment, DescriptionType.COMMENT);
         this.typeName = typeName;
-        this.comment = comment;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateComment(comment);
+        this.fieldName = fieldName;
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
+        UserType type = validateAndGetTypeField(schema, typeName, fieldName);
+
+        String effectiveComment = effectiveDescription();
+        UserType newType = type.withFieldComment(fieldName, effectiveComment);
+
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
-
-        UserType type = keyspace.types.getNullable(bytes(typeName));
-        if (null == type)
-            throw ire("Type '%s.%s' doesn't exist", keyspaceName, typeName);
-
-        UserType newType = type.withComment(comment);
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.types.withUpdatedUserType(newType));
 
         return schema.withAddedOrUpdated(newKeyspace);
@@ -99,7 +85,7 @@ public final class CommentOnTypeStatement extends AlterSchemaStatement
     @Override
     public void authorize(ClientState client)
     {
-        client.ensureKeyspacePermission(keyspaceName, Permission.ALTER);
+        client.ensureAllTablesPermission(keyspaceName, Permission.ALTER);
     }
 
     @Override
@@ -111,27 +97,30 @@ public final class CommentOnTypeStatement extends AlterSchemaStatement
     @Override
     public String toString()
     {
-        return String.format("%s (%s.%s, %s)", getClass().getSimpleName(), keyspaceName, typeName, comment);
+        return String.format("%s (%s.%s.%s, %s)", getClass().getSimpleName(), keyspaceName, typeName, fieldName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw
     {
         private final UTName typeName;
+        private final FieldIdentifier fieldName;
         private final String comment;
 
-        public Raw(UTName typeName, String comment)
+        public Raw(UTName typeName, FieldIdentifier fieldName, String comment)
         {
             this.typeName = typeName;
+            this.fieldName = fieldName;
             this.comment = comment;
         }
 
         @Override
-        public CommentOnTypeStatement prepare(ClientState state)
+        public CommentOnUserTypeFieldStatement prepare(ClientState state)
         {
             String keyspaceName = typeName.hasKeyspace() ? typeName.getKeyspace() : state.getKeyspace();
-            return new CommentOnTypeStatement(keyspaceName,
-                                            typeName.getStringTypeName(),
-                                            comment);
+            return new CommentOnUserTypeFieldStatement(keyspaceName,
+                                                       typeName.getStringTypeName(),
+                                                       fieldName,
+                                                       comment);
         }
     }
 }

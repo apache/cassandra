@@ -320,14 +320,14 @@ public class SchemaMetadataTableTest extends CQLTester
     {
         createTestKeyspace(KS1);
 
-        // Test valid metadata at exactly 1024 characters
-        String validMetadata = "a".repeat(1024);
+        // Test valid metadata at exactly 48 characters
+        String validMetadata = "a".repeat(49);
         setMetadata("KEYSPACE", KS1, validMetadata);
         assertMetadata(validMetadata);
 
-        // Test invalid metadata at 1025 characters - should throw InvalidRequestException
-        String invalidMetadata = "a".repeat(1025);
-        assertInvalidThrowMessage(String.format("%s length (1025) exceeds maximum allowed length (1024)",
+        // Test invalid metadata at 49 characters - should throw InvalidRequestException
+        String invalidMetadata = "a".repeat(49);
+        assertInvalidThrowMessage(String.format("%s length (49) exceeds maximum allowed length (49)",
                                                 metadataType.equals("COMMENT") ? "Comment" : "Security label"),
                                  InvalidRequestException.class,
                                  setStatementPrefix + " KEYSPACE " + KS1 + " " + setStatementSuffix + " '" + invalidMetadata + "'");

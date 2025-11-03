@@ -21,7 +21,6 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
@@ -46,37 +45,22 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
  *
  * @see CommentOnTableStatement
  * @see CommentOnColumnStatement
- * @see CommentOnTypeStatement
+ * @see CommentOnUserTypeStatement
  */
-public final class CommentOnKeyspaceStatement extends AlterSchemaStatement
+public final class CommentOnKeyspaceStatement extends SchemaDescriptionStatement
 {
-    private final String comment;
-
     public CommentOnKeyspaceStatement(String keyspaceName, String comment)
     {
-        super(keyspaceName);
-        this.comment = comment;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateComment(comment);
+        super(keyspaceName, comment, DescriptionType.COMMENT);
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
-        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
-
-        KeyspaceParams newParams = keyspace.params.withComment(comment);
+        KeyspaceMetadata keyspace = validateAndGetKeyspace(schema);
+        KeyspaceParams newParams = keyspace.params.withComment(effectiveDescription());
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(newParams);
-
         return schema.withAddedOrUpdated(newKeyspace);
     }
 
@@ -101,7 +85,7 @@ public final class CommentOnKeyspaceStatement extends AlterSchemaStatement
     @Override
     public String toString()
     {
-        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, comment);
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw

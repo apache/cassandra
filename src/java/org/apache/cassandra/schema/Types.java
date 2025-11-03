@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -44,6 +45,7 @@ import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
@@ -551,8 +553,8 @@ public final class Types implements Iterable<UserType>
                     fieldTypes.add(in.readUTF());
                 String comment = EMPTY_COMMENT;
                 String securityLabel = EMPTY_SECURITY_LABEL;
-                List<String> fieldComments = new ArrayList<>();
-                List<String> fieldSecurityLabels = new ArrayList<>();
+                List<String> fieldComments = new ArrayList<>(Collections.nCopies(fieldNamesSize, ""));
+                List<String> fieldSecurityLabels = new ArrayList<>(Collections.nCopies(fieldNamesSize, ""));
                 if (version.isAtLeast(Version.V8))
                 {
                     comment = in.readUTF();
@@ -597,27 +599,24 @@ public final class Types implements Iterable<UserType>
         }
 
         private void serializeSparseMetadata(List<FieldIdentifier> fieldIdentifiers,
-                                            java.util.function.Function<FieldIdentifier, String> metadataGetter,
-                                            DataOutputPlus out) throws IOException
+                                             Function<FieldIdentifier, String> metadataGetter,
+                                             DataOutputPlus out) throws IOException
         {
-            // Count non-empty values
-            int nonEmptyCount = 0;
-            for (FieldIdentifier fieldId : fieldIdentifiers)
-            {
-                if (!metadataGetter.apply(fieldId).isEmpty())
-                    nonEmptyCount++;
-            }
-
-            // Write count followed by position-value pairs
-            out.writeInt(nonEmptyCount);
+            // Collect only non-empty indexes
+            List<Integer> nonEmptyIndexes = new ArrayList<>();
             for (int i = 0; i < fieldIdentifiers.size(); i++)
             {
                 String value = metadataGetter.apply(fieldIdentifiers.get(i));
                 if (!value.isEmpty())
-                {
-                    out.writeInt(i);
-                    out.writeUTF(value);
-                }
+                    nonEmptyIndexes.add(i);
+            }
+
+            // Write count followed by position-value pairs
+            out.writeUnsignedVInt32(nonEmptyIndexes.size());
+            for (int index : nonEmptyIndexes)
+            {
+                out.writeUnsignedVInt32(index);
+                out.writeUTF(metadataGetter.apply(fieldIdentifiers.get(index)));
             }
         }
 
@@ -629,14 +628,11 @@ public final class Types implements Iterable<UserType>
 
         private void deserializeSparseMetadata(DataInputPlus in, List<String> target) throws IOException
         {
-            int count = in.readInt();
+            int count = in.readUnsignedVInt32();
             for (int i = 0; i < count; i++)
             {
-                int position = in.readInt();
+                int position = in.readUnsignedVInt32();
                 String value = in.readUTF();
-                // Ensure the list is large enough to accommodate this position
-                while (target.size() <= position)
-                    target.add("");
                 target.set(position, value);
             }
         }
@@ -659,7 +655,7 @@ public final class Types implements Iterable<UserType>
                 if (!value.isEmpty())
                 {
                     nonEmptyCount++;
-                    dataSize += sizeof(0);     // position (int)
+                    dataSize += sizeofUnsignedVInt(0);     // position (int)
                     dataSize += sizeof(value); // value string
                 }
             }

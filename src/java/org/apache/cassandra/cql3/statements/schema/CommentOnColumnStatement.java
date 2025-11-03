@@ -23,7 +23,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -50,50 +49,31 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
  *
  * @see CommentOnKeyspaceStatement
  * @see CommentOnTableStatement
- * @see CommentOnTypeStatement
+ * @see CommentOnUserTypeStatement
  */
-public final class CommentOnColumnStatement extends AlterSchemaStatement
+public final class CommentOnColumnStatement extends SchemaDescriptionStatement
 {
     private final String tableName;
     private final ColumnIdentifier columnName;
-    private final String comment;
 
     public CommentOnColumnStatement(String keyspaceName, String tableName, ColumnIdentifier columnName, String comment)
     {
-        super(keyspaceName);
+        super(keyspaceName, comment, DescriptionType.COMMENT);
         this.tableName = tableName;
         this.columnName = columnName;
-        this.comment = comment;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-        SchemaDescriptionsUtil.validateComment(comment);
     }
 
     @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
-        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-
-        if (null == keyspace)
-            throw ire("Keyspace '%s' doesn't exist", keyspaceName);
-
-        TableMetadata table = keyspace.getTableOrViewNullable(tableName);
-        if (null == table)
-            throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
-
-        if (table.isView())
-            throw ire("Cannot set comment on column in materialized view '%s.%s'. Comments should be set on the base table.", keyspaceName, tableName);
-
-        ColumnMetadata column = table.getColumn(columnName);
-        if (null == column)
+        TableMetadata table = validateAndGetTable(schema, tableName);
+        ColumnMetadata columnMetadata = table.getColumn(columnName);
+        if (null == columnMetadata)
             throw ire("Column '%s' doesn't exist in table '%s.%s'", columnName, keyspaceName, tableName);
 
-        TableMetadata newTable = table.unbuild().alterColumnComment(columnName, comment).build();
+        KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
+        TableMetadata newTable = table.unbuild().alterColumnComment(columnName, effectiveDescription()).build();
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
 
         return schema.withAddedOrUpdated(newKeyspace);
@@ -120,7 +100,7 @@ public final class CommentOnColumnStatement extends AlterSchemaStatement
     @Override
     public String toString()
     {
-        return String.format("%s (%s.%s.%s, %s)", getClass().getSimpleName(), keyspaceName, tableName, columnName, comment);
+        return String.format("%s (%s.%s.%s, %s)", getClass().getSimpleName(), keyspaceName, tableName, columnName, description);
     }
 
     public static final class Raw extends CQLStatement.Raw

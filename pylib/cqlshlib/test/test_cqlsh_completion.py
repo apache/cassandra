@@ -238,7 +238,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('INSERT INTO twenty_rows_composite_table',
                             immediate=' ')
         self.trycompletions('INSERT INTO twenty_rows_composite_table ',
-                            choices=['(', 'JSON', 'COMMENT', 'SECURITY'])
+                            choices=['(', 'JSON'])
         self.trycompletions('INSERT INTO twenty_rows_composite_table (a, b ',
                             choices=(')', ','))
         self.trycompletions('INSERT INTO twenty_rows_composite_table (a, b, ',

@@ -1,1 +1,0 @@
-SECURITY LABEL ON TYPE cycling.address IS 'SENSITIVE';
