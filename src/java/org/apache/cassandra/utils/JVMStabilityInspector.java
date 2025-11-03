@@ -47,6 +47,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
 
@@ -122,7 +123,7 @@ public final class JVMStabilityInspector
 
             logger.error("OutOfMemory error letting the JVM handle the error:", t);
 
-            StorageService.instance.removeShutdownHook(false);
+            StorageService.instance.removeShutdownHook();
 
             forceHeapSpaceOomMaybe((OutOfMemoryError) t);
 
@@ -269,24 +270,12 @@ public final class JVMStabilityInspector
         */
         public void killCurrentJVM(Throwable t)
         {
-            killCurrentJVM(t, false);
+            killCurrentJVM(t, false, false);
         }
 
         public void killCurrentJVM(Throwable t, boolean quiet)
         {
-            if (!quiet)
-            {
-                t.printStackTrace(System.err);
-                logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
-            }
-
-            boolean doExit = killerHook != null ? killerHook.execute(t) : true;
-
-            if (doExit && killing.compareAndSet(false, true))
-            {
-                StorageService.instance.removeShutdownHook(false);
-                System.exit(100);
-            }
+            killCurrentJVM(t, quiet, false);
         }
 
         public void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
@@ -300,7 +289,9 @@ public final class JVMStabilityInspector
             boolean doExit = killerHook != null ? killerHook.execute(t) : true;
 
             if (doExit && killing.compareAndSet(false, true)) {
-                StorageService.instance.removeShutdownHook(callShutDownOnLogger);
+                if (callShutDownOnLogger)
+                    LoggingSupportFactory.getLoggingSupport().onShutdown();
+                StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }
         }

@@ -43,16 +43,7 @@ public class KillerForTests extends JVMStabilityInspector.Killer
     @Override
     public void killCurrentJVM(Throwable t, boolean quiet)
     {
-        if (!expected)
-            Assert.fail("Saw JVM Kill but did not expect it.");
-
-        if (killed)
-        {
-            // Can only be killed once
-            return;
-        }
-        this.killed = true;
-        this.quiet = quiet;
+        killCurrentJVM(t, quiet, false);
     }
 
     @Override
