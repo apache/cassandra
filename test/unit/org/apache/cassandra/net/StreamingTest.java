@@ -42,7 +42,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
-//import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStreaming;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
 public class StreamingTest
@@ -99,7 +98,6 @@ public class StreamingTest
     {
         Result<Result.StreamingSuccess> nowResult = streamingConnect(new AcceptVersions(current_version + 1, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
         Assert.assertNull(nowResult.success());
-        System.out.println(nowResult.outcome);
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, nowResult.outcome);
         Assert.assertEquals(current_version, nowResult.incompatible().closestSupportedVersion);
         Assert.assertEquals(current_version, nowResult.incompatible().maxMessagingVersion);
@@ -108,10 +106,9 @@ public class StreamingTest
     @Test
     public void testCompatibleVersion() throws InterruptedException, ExecutionException
     {
-        Result<Result.StreamingSuccess> nowResult = streamingConnect(new AcceptVersions(MessagingService.minimum_version, current_version + 1), new AcceptVersions(minimum_version + 2, current_version + 3));
-        //new AcceptVersions(VERSION_40, VERSION_40), new AcceptVersions(VERSION_40, VERSION_40));
+        Result<Result.StreamingSuccess> nowResult = streamingConnect(new AcceptVersions(current_version, current_version + 1), new AcceptVersions(current_version, current_version + 1));
+//        Result<Result.StreamingSuccess> nowResult = streamingConnect( new AcceptVersions(VERSION_40, VERSION_40 + 1), new AcceptVersions(VERSION_40, VERSION_40 + 1));
         Assert.assertNotNull(nowResult.success());
-        System.out.println(nowResult.outcome);
         Assert.assertNotNull(nowResult.success().channel);
         Assert.assertEquals(Result.Outcome.SUCCESS, nowResult.outcome);
         Assert.assertEquals(current_version, nowResult.success().messagingVersion);
