@@ -1,4 +1,5 @@
 5.1
+ * Added additional parameter to JVM shutdown to allow for logs to be properly shutdown (CASSANDRA-20978)
  * Improve isGossipOnlyMember and location lookup performance (CASSANDRA-21039)
  * Refactor the way we check if a transformation is allowed to be committed during upgrades (CASSANDRA-21043)
  * Improve debug around paused and disabled compaction (CASSANDRA-20131,CASSANDRA-19728)
