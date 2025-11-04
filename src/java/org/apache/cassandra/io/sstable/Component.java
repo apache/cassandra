@@ -73,20 +73,24 @@ public class Component
         CUSTOM(null);
 
         public final String repr;
+        private final Pattern pattern;
 
         Type(String repr)
         {
             this.repr = repr;
+            this.pattern = (repr != null) ? Pattern.compile(repr) : null;
         }
 
         @VisibleForTesting
         public static Type fromRepresentation(String repr)
         {
+            if (repr == null)
+                throw new IllegalArgumentException("Component representation cannot be null");
+
             for (Type type : TYPES)
-            {
-                if (type.repr != null && Pattern.matches(type.repr, repr))
+                if (type.pattern != null && type.pattern.matcher(repr).matches())
                     return type;
-            }
+
             return CUSTOM;
         }
     }
