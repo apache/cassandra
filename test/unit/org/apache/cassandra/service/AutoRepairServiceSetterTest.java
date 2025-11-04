@@ -141,6 +141,9 @@ public class AutoRepairServiceSetterTest<T> extends CQLTester
         QueryProcessor.executeInternal(String.format(
         "INSERT INTO %s.%s (host_id, repair_type) VALUES (%s, '%s')",
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, Gossiper.instance.getHostId(InetAddressAndPort.getLocalHost()), repairTypeStr));
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, repair_priority) VALUES ('%s', {})",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, repairTypeStr));
     }
 
     @Test

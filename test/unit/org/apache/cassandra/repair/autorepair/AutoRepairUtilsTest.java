@@ -355,6 +355,11 @@ public class AutoRepairUtilsTest extends CQLTester
     @Test
     public void testAddPriorityHost()
     {
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, repair_priority) VALUES ('%s', {})",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
+        repairType.toString()));
+
         AutoRepairUtils.addPriorityHosts(repairType, ImmutableSet.of(localEndpoint));
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
