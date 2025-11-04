@@ -270,7 +270,7 @@ public final class JVMStabilityInspector
         */
         public void killCurrentJVM(Throwable t)
         {
-            killCurrentJVM(t, false, false);
+            killCurrentJVM(t, false);
         }
 
         public void killCurrentJVM(Throwable t, boolean quiet)
