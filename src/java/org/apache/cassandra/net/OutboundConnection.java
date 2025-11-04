@@ -53,7 +53,6 @@ import io.netty.util.concurrent.SucceededFuture;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result.Success;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
