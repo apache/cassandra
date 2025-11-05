@@ -1603,4 +1603,8 @@ public class Config
     // this is used to remove Gossip dependency for some version checks in the hot path
     // a null value means that the minimum version is not specified (old behavior remains the same)
     public CassandraVersion minimum_cassandra_version_for_any_cluster_node = null;
+
+    // Whether to enable the logging for client quries and the max threshold for execution time
+    public boolean enable_client_query_logging= false;
+    public DurationSpec.LongMillisecondsBound  client_query_logging_execution_time_threshold = new DurationSpec.LongMillisecondsBound("1000ms");
 }

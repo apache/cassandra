@@ -18,12 +18,19 @@
 package org.apache.cassandra.transport;
 
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.service.QueryState;
+import org.assertj.core.groups.Tuple;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,7 +43,15 @@ import org.apache.cassandra.transport.messages.SupportedMessage;
 import org.apache.cassandra.utils.MonotonicClock;
 import io.netty.channel.Channel;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
+
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import java.util.Map;
+
 
 public class DispatcherTest extends CQLTester
 {
@@ -879,5 +894,50 @@ public class DispatcherTest extends CQLTester
         boolean capacity2 = dispatcher2.hasQueueCapacity();
 
         assertTrue("Both dispatchers should return valid capacity results", true);
+    }
+
+    /**
+     * Test the logQueryFingerprintFromCustomPayload
+     */
+    @Test
+    public void testLogQueryFingerprintFromCustomPayload()
+    {
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        ch.qos.logback.classic.Logger ssLogger = (Logger) LoggerFactory.getLogger(Dispatcher.class);
+
+        ssLogger.addAppender(listAppender);
+        listAppender.start();
+
+        Message.Request request = new Message.Request(Message.Type.EXECUTE)
+        {
+            @Override
+            protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
+            {
+                return null;
+            }
+        };
+        String fingerprintStr = "1234read";
+        int enqueuedTimeMiliseconds = 5;
+        request.setCustomPayload(Map.of(
+        "FINGERPRINT", ByteBuffer.wrap(fingerprintStr.getBytes(StandardCharsets.UTF_8))
+        ));
+
+        boolean loggingEnabled = DatabaseDescriptor.getEnableClientQueryLogging();
+        DurationSpec.LongMillisecondsBound queryTimeThreshold = DatabaseDescriptor.getClientQueryLoggingExecutionTimeThreshold();
+
+        DatabaseDescriptor.setEnableClientQueryLogging(true);
+        DatabaseDescriptor.setClientQueryLoggingExecutionTimeThreshold(0);
+
+        Dispatcher dispatcher = new Dispatcher(true);
+        long nowInNanos = MonotonicClock.Global.preciseTime.now();
+        dispatcher.logQueryFingerprintFromCustomPayload(request, new Dispatcher.RequestTime(nowInNanos-TimeUnit.MILLISECONDS.toNanos(enqueuedTimeMiliseconds), nowInNanos));
+
+        DatabaseDescriptor.setEnableClientQueryLogging(loggingEnabled);
+        DatabaseDescriptor.setClientQueryLoggingExecutionTimeThreshold(queryTimeThreshold.toMilliseconds());
+
+        assertThat(listAppender.list)
+        .extracting(ILoggingEvent::getFormattedMessage, ILoggingEvent::getLevel)
+        .contains(Tuple.tuple(String.format("Client query: {QUERY_FINGERPRINT=%s, QUERY_EXECUTION_TIME=%dms}", fingerprintStr, enqueuedTimeMiliseconds), Level.INFO));
+        
     }
 }

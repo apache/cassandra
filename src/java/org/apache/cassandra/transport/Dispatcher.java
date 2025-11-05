@@ -18,6 +18,12 @@
 
 package org.apache.cassandra.transport;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +51,7 @@ import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -55,6 +62,8 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
     public static final String NATIVE_TRANSPORT_THREAD_POOL = "Native-Transport-Requests";
+
+    private static final Set<Message.Type> queryLoggingTypes = Set.of(Message.Type.EXECUTE, Message.Type.QUERY, Message.Type.PREPARE, Message.Type.BATCH);
 
     @VisibleForTesting
     static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
@@ -477,6 +486,9 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
         Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
         flush(toFlush);
+
+        // Log the query fingerprint if the query logging is enabled
+        logQueryFingerprintFromCustomPayload(request, requestTime);
     }
 
     private void flush(FlushItem<?> item)
@@ -495,6 +507,36 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         flusher.start();
     }
 
+    void logQueryFingerprintFromCustomPayload(Message.Request request, RequestTime requestTime) {
+        // Print the query excecution time with its fingerprint if the query logging is enabled
+        if (DatabaseDescriptor.getEnableClientQueryLogging())
+        {
+            if (queryLoggingTypes.contains(request.type))
+            {
+                long executionTime = TimeUnit.NANOSECONDS.toMillis(MonotonicClock.Global.preciseTime.now() - requestTime.enqueuedAtNanos);
+                if (executionTime > DatabaseDescriptor.getClientQueryLoggingExecutionTimeThreshold().toMilliseconds())
+                {
+                    Map<String, ByteBuffer> customPayload = request.getCustomPayload();
+                    if (customPayload != null)
+                    {
+                        ByteBuffer messageFingerprint = customPayload.getOrDefault("FINGERPRINT", null);
+                        if (messageFingerprint != null)
+                        {
+                            try
+                            {
+                                Map<String, String> queryLoggingInfo = new HashMap<>();
+                                queryLoggingInfo.put("QUERY_FINGERPRINT", ByteBufferUtil.string(messageFingerprint, StandardCharsets.UTF_8));
+                                queryLoggingInfo.put("QUERY_EXECUTION_TIME", String.format("%sms", executionTime));
+                                logger.info("Client query: {}", queryLoggingInfo);
+                            } catch (CharacterCodingException exc) {
+                                logger.debug("paylayload fingerprint value contained non-UTF8 characters:{}", exc);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     public static void shutdown()
     {
         requestExecutor.shutdown();

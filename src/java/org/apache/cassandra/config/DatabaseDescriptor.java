@@ -5469,4 +5469,24 @@ public class DatabaseDescriptor
     {
         partitioner = FBUtilities.newPartitioner(name);
     }
+
+    public static void setEnableClientQueryLogging(boolean enabled)
+    {
+        conf.enable_client_query_logging = enabled;
+    }
+
+    public static boolean getEnableClientQueryLogging()
+    {
+        return conf.enable_client_query_logging;
+    }
+
+    public static void setClientQueryLoggingExecutionTimeThreshold(long timeThresholdMillis)
+    {
+        conf.client_query_logging_execution_time_threshold = new DurationSpec.LongMillisecondsBound(timeThresholdMillis);;
+    }
+
+    public static DurationSpec.LongMillisecondsBound getClientQueryLoggingExecutionTimeThreshold()
+    {
+        return conf.client_query_logging_execution_time_threshold;
+    }
 }
