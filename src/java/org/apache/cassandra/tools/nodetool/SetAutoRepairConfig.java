@@ -50,7 +50,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "|parallel_repair_count|parallel_repair_percentage" +
                   "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
                   "|materialized_view_repair_enabled|repair_max_retries" +
-                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
+                  "|repair_retry_backoff|repair_session_timeout|repair_task_min_duration" +
                   "|repair_by_keyspace|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
@@ -89,7 +89,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
             case "history_clear_delete_hosts_buffer_interval":
                 probe.setAutoRepairHistoryClearDeleteHostsBufferDuration(paramVal);
                 return;
-            case "min_repair_task_duration":
+            case "repair_task_min_duration":
                 probe.setAutoRepairMinRepairTaskDuration(paramVal);
                 return;
             default:

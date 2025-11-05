@@ -114,7 +114,7 @@ public class SetAutoRepairConfigTest
         @Test
         public void testMinRepairDuration()
         {
-            cmd.args = ImmutableList.of("min_repair_task_duration", "4s");
+            cmd.args = ImmutableList.of("repair_task_min_duration", "4s");
 
             cmd.execute(probe);
 
