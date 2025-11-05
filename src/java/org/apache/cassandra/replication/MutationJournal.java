@@ -760,4 +760,9 @@ public class MutationJournal
     {
         return journal.countStaticSegmentsForTesting();
     }
+
+    public long getDiskSpaceUsed()
+    {
+        return journal.getDiskSpaceUsed();
+    }
 }

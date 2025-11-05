@@ -888,6 +888,22 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    public long getDiskSpaceUsed()
+    {
+        long totalSize = 0;
+
+        try (ReferencedSegments<K, V> refs = selectAndReference(s -> true))
+        {
+            for (Segment<K, V> segment : refs.all())
+            {
+                File dataFile = segment.descriptor.fileFor(Component.DATA);
+                if (dataFile.exists())
+                    totalSize += dataFile.length();
+            }
+        }
+        return totalSize;
+    }
+
     private ActiveSegment<K, V> createSegment()
     {
         Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion());

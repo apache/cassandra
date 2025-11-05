@@ -314,6 +314,16 @@ public class Shard
         return getOrCreate(logId.asLong());
     }
 
+    public long getUnreconciledCount()
+    {
+        long count = 0;
+        for (CoordinatorLog log : logs.values())
+        {
+            count += log.getUnreconciledCount();
+        }
+        return count;
+    }
+
     @Nonnull
     private CoordinatorLog get(CoordinatorLogId logId)
     {

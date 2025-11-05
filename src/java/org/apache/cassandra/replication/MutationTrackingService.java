@@ -57,6 +57,7 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
@@ -419,7 +420,9 @@ public class MutationTrackingService
         shardLock.readLock().lock();
         try
         {
-            return getOrCreateShards(tableId).createSummaryForKey(key, tableId, includePending);
+            MutationSummary summary = getOrCreateShards(tableId).createSummaryForKey(key, tableId, includePending);
+            MutationTrackingMetrics.instance.readSummarySize.update(summary.size());
+            return summary;
         }
         finally
         {
@@ -432,7 +435,9 @@ public class MutationTrackingService
         shardLock.readLock().lock();
         try
         {
-            return getOrCreateShards(tableId).createSummaryForRange(range, tableId, includePending);
+            MutationSummary summary = getOrCreateShards(tableId).createSummaryForRange(range, tableId, includePending);
+            MutationTrackingMetrics.instance.readSummarySize.update(summary.size());
+            return summary;
         }
         finally
         {
@@ -457,6 +462,20 @@ public class MutationTrackingService
         {
             shardLock.readLock().unlock();
         }
+    }
+
+    public long getUnreconciledMutationCount()
+    {
+        if (!isStarted())
+            return 0L;
+
+        final long[] count = {0L};
+        forEachKeyspace(ks -> {
+            ks.forEachShard(shard -> {
+                count[0] += shard.getUnreconciledCount();
+            });
+        });
+        return count[0];
     }
 
     public void collectLocallyMissingMutations(MutationSummary remoteSummary, Log2OffsetsMap.Mutable into)
