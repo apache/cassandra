@@ -46,6 +46,7 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -206,8 +207,14 @@ public abstract class CoordinatorLog
 
     private void updateWitnessedReplicatedOffsets(Offsets offsets, int onNodeId)
     {
+        // Track newly-witnessed offsets from broadcasts (use array for lambda)
+        int[] newlyWitnessedCount = {0};
+
         witnessedOffsets.get(onNodeId).addAll(offsets, (ignore, start, end) ->
         {
+            // Count the newly-witnessed offsets in this range
+            newlyWitnessedCount[0] += (end - start + 1);
+
             for (int offset = start; offset <= end; ++offset)
             {
                 // TODO (desired): use the fact that Offsets are ordered to optimise this look up
@@ -219,6 +226,9 @@ public abstract class CoordinatorLog
                 logger.trace("done applying WRO, now {}", witnessedOffsets);
             }
         });
+
+        // Record metric for newly witnessed offsets only
+        MutationTrackingMetrics.instance.broadcastOffsetsDiscovered.inc(newlyWitnessedCount[0]);
     }
 
     private void updatePersistedReplicatedOffsets(Offsets offsets, int onNodeId)
@@ -273,6 +283,19 @@ public abstract class CoordinatorLog
         }
     }
 
+    public long getUnreconciledCount()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return unreconciledMutations.size();
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     boolean startWriting(Mutation mutation)
     {
         lock.writeLock().lock();
@@ -301,6 +324,9 @@ public abstract class CoordinatorLog
             // we've raced with another write, no need to do anything else
             if (!witnessedOffsets.get(localNodeId).add(offset))
                 return;
+
+            // Track write-time discovery of newly-witnessed offset
+            MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.inc();
 
             unreconciledMutations.finishWriting(mutation);
 
