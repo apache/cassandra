@@ -228,6 +228,11 @@ public class UnreconciledMutations
         return statesMap.isEmpty();
     }
 
+    public int size()
+    {
+        return statesMap.size();
+    }
+
     static UnreconciledMutations loadFromJournal(Node2OffsetsMap witnessedOffsets, int localNodeId)
     {
         UnreconciledMutations result = new UnreconciledMutations();
