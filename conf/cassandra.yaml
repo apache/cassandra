@@ -2610,6 +2610,14 @@ drop_compact_storage_enabled: false
 # Defaults to true, which means that reconfiguration of password validator via JMX is possible.
 #password_policy_reconfiguration_enabled: true
 
+# Maximum allowed length for comments on schema elements (keyspaces, tables, columns, types, type fields).
+# Comments exceeding this length will be rejected. Defaults to 128 characters.
+max_comment_length: 128
+
+# Maximum allowed length for security labels on schema elements (tables, columns).
+# Security labels exceeding this length will be rejected. Defaults to 48 characters.
+max_security_label_length: 48
+
 # Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
 # It is suspicious to use default_time_to_live set to 0 with such compaction strategy.

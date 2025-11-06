@@ -847,7 +847,7 @@ public class DescribeStatementTest extends CQLTester
     {
         requireNetwork();
         DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
-        String souceTable = createTable(KEYSPACE_PER_TEST,
+        String sourceTable = createTable(KEYSPACE_PER_TEST,
                                         "CREATE TABLE %s (" +
                                         "  pk1 text, " +
                                         "  pk2 int MASKED WITH DEFAULT, " +
@@ -859,14 +859,14 @@ public class DescribeStatementTest extends CQLTester
                                         "PRIMARY KEY ((pk1, pk2), ck1, ck2 ))");
         TableMetadata source = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
         assertNotNull(source);
-        String targetTable = createTableLike("CREATE TABLE %s LIKE %s", souceTable, KEYSPACE_PER_TEST, KEYSPACE_PER_TEST);
+        String targetTable = createTableLike("CREATE TABLE %s LIKE %s", sourceTable, KEYSPACE_PER_TEST, KEYSPACE_PER_TEST);
         TableMetadata target = getTableMetadata(KEYSPACE_PER_TEST, currentTable());
         assertNotNull(target);
         assertTrue(equalsWithoutTableNameAndDropCns(source, target, true, true, true));
         assertNotEquals(source.id, target.id);
         assertNotEquals(source.name, target.name);
 
-        String sourceTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " (\n" +
+        String sourceTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + sourceTable + " (\n" +
                                             "    pk1 text,\n" +
                                             "    pk2 int MASKED WITH system.mask_default(),\n" +
                                             "    ck1 int,\n" +
@@ -891,10 +891,10 @@ public class DescribeStatementTest extends CQLTester
                                             "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                             "    AND " + tableParametersCql();
 
-        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + souceTable + " WITH INTERNALS"),
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + sourceTable + " WITH INTERNALS"),
                       row(KEYSPACE_PER_TEST,
                           "table",
-                          souceTable,
+                          sourceTable,
                           sourceTableCreateStatement));
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + targetTable + " WITH INTERNALS"),
                       row(KEYSPACE_PER_TEST,

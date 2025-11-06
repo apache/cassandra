@@ -123,7 +123,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
         TableMetadata sourceTableMeta = sourceKeyspaceMeta.getTableOrViewNullable(sourceTableName);
 
         if (null == sourceTableMeta)
-            throw ire("Souce Table '%s.%s' doesn't exist", sourceKeyspace, sourceTableName);
+            throw ire("Source Table '%s.%s' doesn't exist", sourceKeyspace, sourceTableName);
 
         if (sourceTableMeta.isIndex())
             throw ire("Cannot use CREATE TABLE LIKE on an index table '%s.%s'.", sourceKeyspace, sourceTableName);
@@ -196,7 +196,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
         if (!sourceTableMeta.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-        // withInternals can be set to false as it is only used for souce table id, which is not need for target table and the table
+        // withInternals can be set to false as it is only used for source table id, which is not need for target table and the table
         // id can be set through create table like cql using WITH ID
         String sourceCQLString = sourceTableMeta.toCqlString(false, false, false, false);
 

@@ -383,7 +383,7 @@ public final class TableParams
                .newLine()
                .append("AND cdc = ").append(cdc)
                .newLine()
-               // TODO: AND comment should be deprecatod in future releases in favor of
+               // TODO: AND comment should be deprecated in future releases in favor of
                //  JIRA CASSANDRA-20943 Introducing comments and security labels for schema elements
                .append("AND comment = ").appendWithSingleQuotes(comment)
                .newLine()

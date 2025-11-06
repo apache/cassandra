@@ -582,7 +582,7 @@ public class CreateLikeTest extends CQLTester
     {
         createTable(sourceKs, "CREATE TABLE %s (a int PRIMARY KEY, b int, c text)", "tb");
         String index = createIndex("CREATE INDEX ON " + sourceKs + ".tb (c)");
-        assertInvalidThrowMessage("Souce Table '" + targetKs + "." + index + "' doesn't exist", InvalidRequestException.class,
+        assertInvalidThrowMessage("Source Table '" + targetKs + "." + index + "' doesn't exist", InvalidRequestException.class,
                                   "CREATE TABLE " + sourceKs + ".newtb LIKE  " + targetKs + "." + index + ";");
         assertInvalidThrowMessage("System keyspace 'system' is not user-modifiable", InvalidRequestException.class,
                                   "CREATE TABLE system.local_clone LIKE system.local ;");

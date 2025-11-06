@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3.statements.schema;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -32,7 +33,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public abstract class SchemaDescriptionStatement extends AlterSchemaStatement
 {
-    private static final int MAX_COMMENT_SECURITY_LABEL_LENGTH = 48;
     private static final String NO_DESCRIPTION = "";
     protected final String description;
     private final DescriptionType descriptionType;
@@ -59,12 +59,12 @@ public abstract class SchemaDescriptionStatement extends AlterSchemaStatement
             throw new InvalidRequestException(String.format("Cannot set %s to empty string", descriptionType.value));
         }
 
-        if (description.length() > MAX_COMMENT_SECURITY_LABEL_LENGTH)
+        if (description.length() > descriptionType.maxLength)
         {
             String msg = String.format("%s length (%d) exceeds maximum allowed length (%d)",
                                        descriptionType.value,
                                        description.length(),
-                                       MAX_COMMENT_SECURITY_LABEL_LENGTH);
+                                       descriptionType.maxLength);
             throw new InvalidRequestException(msg);
         }
     }
@@ -130,13 +130,16 @@ public abstract class SchemaDescriptionStatement extends AlterSchemaStatement
 
     protected enum DescriptionType
     {
-        COMMENT("comment"),
-        SECURITY_LABEL("security label");
-        private final String value;
+        COMMENT("comment", DatabaseDescriptor.getMaxCommentLength()),
+        SECURITY_LABEL("security label", DatabaseDescriptor.getMaxSecurityLabelLength());
 
-        DescriptionType(String value)
+        private final String value;
+        private final int maxLength;
+
+        DescriptionType(String value, int maxLength)
         {
             this.value = value;
+            this.maxLength = maxLength;
         }
     }
 }

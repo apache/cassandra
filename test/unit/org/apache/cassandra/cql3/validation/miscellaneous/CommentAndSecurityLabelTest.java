@@ -514,6 +514,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
             assertComment(type, keyspace, objectName, "");
             setComment(type, objectName, null);
             assertComment(type, keyspace, objectName, "");
+            String longComment = buildCommentStatement(type, objectName, "a".repeat(129));
+            assertInvalidMessage("comment length (129) exceeds maximum allowed length (128)", longComment);
         }
         else
         {
@@ -527,6 +529,8 @@ public class CommentAndSecurityLabelTest extends CQLTester
             assertSecurityLabel(type, keyspace, objectName, "");
             setSecurityLabel(type, objectName, null);
             assertSecurityLabel(type, keyspace, objectName, "");
+            String longSecurityLabel = buildSecurityLabelStatement(type, objectName, "a".repeat(49));
+            assertInvalidMessage("security label length (49) exceeds maximum allowed length (48)", longSecurityLabel);
         }
     }
 
