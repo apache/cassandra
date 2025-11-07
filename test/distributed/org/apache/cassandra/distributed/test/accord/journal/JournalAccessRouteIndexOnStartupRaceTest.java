@@ -64,7 +64,9 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
     @Test
     public void test() throws IOException
     {
-        try (Cluster cluster = Cluster.build(1).withInstanceInitializer(BBHelper::install).start())
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(config -> config.set("accord.catchup_on_start", "false"))
+                                      .withInstanceInitializer(BBHelper::install).start())
         {
             IInvokableInstance node = cluster.get(1);
             node.nodetoolResult("disableautocompaction", ACCORD_KEYSPACE_NAME, JOURNAL).asserts().success();

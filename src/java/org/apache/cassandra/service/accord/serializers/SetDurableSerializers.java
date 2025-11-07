@@ -22,8 +22,9 @@ import java.io.IOException;
 import accord.messages.SetGloballyDurable;
 import accord.messages.SetShardDurable;
 import accord.primitives.Deps;
-import accord.primitives.FullRoute;
-import accord.primitives.SyncPoint;
+import accord.primitives.MinimalSyncPoint;
+import accord.primitives.RangeRoute;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -38,7 +39,7 @@ public class SetDurableSerializers
         @Override
         public void serialize(SetShardDurable msg, DataOutputPlus out) throws IOException
         {
-            syncPoint.serialize(msg.exclusiveSyncPoint, out);
+            syncPoint.serialize(msg.syncPoint, out);
             CommandSerializers.outcomeDurability.serialize(msg.durability, out);
         }
 
@@ -52,7 +53,7 @@ public class SetDurableSerializers
         @Override
         public long serializedSize(SetShardDurable msg)
         {
-            return syncPoint.serializedSize(msg.exclusiveSyncPoint)
+            return syncPoint.serializedSize(msg.syncPoint)
                 + CommandSerializers.outcomeDurability.serializedSize(msg.durability);
         }
     };
@@ -78,34 +79,34 @@ public class SetDurableSerializers
         }
     };
 
-    public static final UnversionedSerializer<SyncPoint> syncPoint = new UnversionedSerializer<>()
+    public static final UnversionedSerializer<MinimalSyncPoint> syncPoint = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(SyncPoint sp, DataOutputPlus out) throws IOException
+        public void serialize(MinimalSyncPoint sp, DataOutputPlus out) throws IOException
         {
             CommandSerializers.txnId.serialize(sp.syncId, out);
             ExecuteAtSerializer.serialize(sp.syncId, sp.executeAt, out);
-            DepsSerializers.deps.serialize(sp.waitFor, out);
-            KeySerializers.fullRoute.serialize(sp.route, out);
+            DepsSerializers.deps.serialize(Deps.NONE, out);
+            KeySerializers.route.serialize(sp.route, out);
         }
 
         @Override
-        public SyncPoint deserialize(DataInputPlus in) throws IOException
+        public MinimalSyncPoint deserialize(DataInputPlus in) throws IOException
         {
             TxnId syncId = CommandSerializers.txnId.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(syncId, in);
-            Deps waitFor = DepsSerializers.deps.deserialize(in);
-            FullRoute<?> route = KeySerializers.fullRoute.deserialize(in);
-            return SyncPoint.SerializationSupport.construct(syncId, executeAt, waitFor, route);
+            DepsSerializers.deps.deserialize(in);
+            Route<?> route = KeySerializers.route.deserialize(in);
+            return MinimalSyncPoint.SerializationSupport.construct(syncId, executeAt, (RangeRoute) route);
         }
 
         @Override
-        public long serializedSize(SyncPoint sp)
+        public long serializedSize(MinimalSyncPoint sp)
         {
             return   CommandSerializers.txnId.serializedSize(sp.syncId)
                    + ExecuteAtSerializer.serializedSize(sp.syncId, sp.executeAt)
-                   + DepsSerializers.deps.serializedSize(sp.waitFor)
-                   + KeySerializers.fullRoute.serializedSize(sp.route);
+                   + DepsSerializers.deps.serializedSize(Deps.NONE)
+                   + KeySerializers.route.serializedSize(sp.route);
         }
     };
 }

@@ -95,6 +95,7 @@ public class AccordJournalReplayTest extends TestBaseImpl
                                                                   .set("accord.shard_durability_target_splits", "1")
                                                                   .set("accord.retry_syncpoint", "1s*attempts")
                                                                   .set("accord.retry_durability", "1s*attempts")
+                                                                  .set("accord.catchup_on_start", "false")
                                                                   .with(NETWORK, GOSSIP))
                                       .start())
         {
@@ -125,8 +126,8 @@ public class AccordJournalReplayTest extends TestBaseImpl
                 Command command = Command.Executed.executed(txnId, SaveStatus.PreApplied, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, writes, ResultSerializers.APPLIED);
                 commandStore.journal.saveCommand(commandStore.id(), new Journal.CommandUpdate(null, command), () -> {});
 
-                SyncPoint<accord.primitives.Range> syncPoint = AccordService.getBlocking(CoordinateSyncPoint.exclusive(node, syncPointId, Ranges.of(key.asRange())));
-                AccordService.getBlocking(ExecuteSyncPoint.coordinate(node, syncPoint, 1).onQuorum());
+                SyncPoint syncPoint = AccordService.getBlocking(CoordinateSyncPoint.exclusive(node, syncPointId, Ranges.of(key.asRange())));
+                AccordService.getBlocking(ExecuteSyncPoint.coordinate(node, syncPoint, 1).onQuorumOrDone());
                 Keyspace.open("ks").getColumnFamilyStore("tbl").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 Keyspace.open("system_accord").getColumnFamilyStore("commands_for_key").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 spinUntilTrue(() -> {

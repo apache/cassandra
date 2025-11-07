@@ -1001,9 +1001,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void startInternal(Caches caches)
         {
-            for (RoutingKey key : caches.commandsForKeys().keySet())
+            for (Range range : ranges)
             {
-                if (ranges.contains(key))
+                for (RoutingKey key : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
                     intersectingKeys.add((TokenKey) key);
             }
             caches.commandsForKeys().register(keyWatcher);

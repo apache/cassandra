@@ -55,6 +55,7 @@ import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
@@ -490,12 +491,16 @@ public class AccordCommandStore extends CommandStore
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
-                for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                for (Range range : ranges)
                 {
-                    if (ranges.contains(e.key()) && e.isModified())
+                    for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
                     {
-                        ready.increment();
-                        caches.global().saveWhenReadyExclusive(e, ready);
+                        AccordCacheEntry<RoutingKey, CommandsForKey> e = caches.commandsForKeys().getUnsafe(k);
+                        if (e.isModified())
+                        {
+                            ready.increment();
+                            caches.global().saveWhenReadyExclusive(e, ready);
+                        }
                     }
                 }
             }

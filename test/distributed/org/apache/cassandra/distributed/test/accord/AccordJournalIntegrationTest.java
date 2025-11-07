@@ -47,6 +47,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     {
         try (WithProperties wp = new WithProperties().set(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED, "true");
              Cluster cluster = init(Cluster.build(1)
+                                           .withConfig(config -> config.set("accord.catchup_on_start", "false"))
                                            .withoutVNodes()
                                            .start()))
         {
@@ -95,6 +96,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(1)
                                       .withoutVNodes()
+                                      .withConfig(config -> config.set("accord.catchup_on_start", "false"))
                                       .start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
@@ -122,7 +124,13 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     @Test
     public void restartWithEpochChanges() throws IOException
     {
-        try (Cluster cluster = Cluster.build(3).withoutVNodes().withConfig(c -> c.with(GOSSIP).with(NETWORK)).start())
+        try (Cluster cluster = Cluster.build(3)
+                                      .withoutVNodes()
+                                      .withConfig(c -> {
+                                          c.with(GOSSIP).with(NETWORK);
+                                          c.set("accord.catchup_on_start", "false");
+                                      })
+                                      .start())
         {
             init(cluster);
             final String TABLE = createTable(cluster);
