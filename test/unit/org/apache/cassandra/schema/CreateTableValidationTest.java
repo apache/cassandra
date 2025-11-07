@@ -134,6 +134,13 @@ public class CreateTableValidationTest extends CQLTester
                              String.format("CREATE TABLE %s.\"    \" (key int PRIMARY KEY, val int)", KEYSPACE));
     }
 
+    @Test
+    public void testInvalidCompactionOptions()
+    {
+        expectedFailure(ConfigurationException.class, "CREATE TABLE %s (k int PRIMARY KEY, v int) WITH compaction = {'class': 'LeveledCompactionStrategy', 'fanout_size': '90', 'sstable_size_in_mb': '1089'}",
+                        "your maxSSTableSize must be absurdly high to compute");
+    }
+
     private void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)
     {
 
