@@ -17,6 +17,7 @@ Merged from 4.0:
 Merged from 4.1:
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
 Merged from 4.0:
+ * Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created (CASSANDRA-20570)
  * Fixed incorrect error message constant for keyspace name length validation (CASSANDRA-20915)
  * Prevent too long table names not fitting file names (CASSANDRA-20389)
  * Update Jackson to 2.19.2 (CASSANDRA-20848)
