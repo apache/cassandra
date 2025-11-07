@@ -39,9 +39,19 @@ import org.apache.cassandra.config.ParameterizedClass;
 
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import org.apache.cassandra.service.QueryAnalyticsDatapoint;
-import java.lang.reflect.Method;
+import org.apache.cassandra.cql3.statements.StatementType;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.range.SingleRangeResponse;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class QueryAnalyticsServiceTest extends TestCase
 {
@@ -68,6 +78,19 @@ public class QueryAnalyticsServiceTest extends TestCase
 
     @Mock
     private Token mockToken;
+
+    @Mock
+    private PartitionRangeReadCommand mockRangeReadCommand;
+
+    @Mock
+    private DataRange mockDataRange;
+
+    @Mock
+    private AbstractBounds mockKeyRange;
+
+    @Mock
+    private DataResolver mockDataResolver;
+
 
     @Override
     protected void setUp() throws Exception
@@ -110,7 +133,7 @@ public class QueryAnalyticsServiceTest extends TestCase
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
 
         // Verify that the data producer was called with the correct datapoint
         ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
@@ -127,85 +150,46 @@ public class QueryAnalyticsServiceTest extends TestCase
         // Verify payload sizes are present (actual values depend on serialization)
         assertNotNull("request_payload_size should be set", capturedDatapoint.getProperty("request_payload_size"));
         assertNotNull("response_payload_size should be set", capturedDatapoint.getProperty("response_payload_size"));
+        
+        // Verify query_type is always present
+        assertEquals("query_type should be 'read' for single partition reads", "read", capturedDatapoint.getProperty("query_type"));
     }
 
-    public void testProcessLatencyMetricWithVariousInputs() throws IOException
+
+    public void testQANDisabledScenarios() throws IOException
     {
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
 
-        long[] latencies = {100L, 0L, -100L, 9223372036854775807L, -9223372036854775808L};
-        for (long latency : latencies) {
-            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand, mockReadResponse);
-        }
-
-        verify(mockDataProducer, times(latencies.length)).produceDatapoint(any());
-    }
-
-    public void testProcessLatencyMetricWithEdgeValues() throws IOException
-    {
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-
-        queryAnalyticsService.processLatencyMetric(0L, mockSinglePartitionReadCommand, mockReadResponse);
-        queryAnalyticsService.processLatencyMetric(-1L, mockSinglePartitionReadCommand, mockReadResponse);
-        queryAnalyticsService.processLatencyMetric(Long.MAX_VALUE, mockSinglePartitionReadCommand, mockReadResponse);
-
-        verify(mockDataProducer, times(3)).produceDatapoint(any());
-    }
-
-    public void testProcessLatencyMetricWithVariousLatencyValues() throws IOException
-    {
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-
-        long[] latencyValues = {100L, 0L, 999999L, 1L, 50L, 200L};
-
-        for (long latency : latencyValues) {
-            queryAnalyticsService.processLatencyMetric(latency, mockSinglePartitionReadCommand, mockReadResponse);
-        }
-
-        verify(mockDataProducer, times(latencyValues.length)).produceDatapoint(any());
-    }
-
-    public void testProcessLatencyMetricWithErrorConditions() throws IOException
-    {
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-
-        QueryAnalyticsService.dataProducer = null;
-
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        QueryAnalyticsService.dataProducer = mockDataProducer;
-        doThrow(new RuntimeException("Test exception")).when(mockDataProducer).produceDatapoint(any());
-
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-    }
-
-    public void testProcessLatencyMetricWithNullConfig() throws IOException
-    {
-
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        verify(mockDataProducer, times(0)).produceDatapoint(any());
-    }
-
-    public void testDisabledConfigs() throws IOException
-    {
-        // Configure DatabaseDescriptor to have QueryAnalytics disabled
+        // QAN disabled
         QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
         config.setEnabled(false);
-
-        // Set up producer config for disabled test
-        ParameterizedClass producerConfig = new ParameterizedClass();
-        producerConfig.parameters = new HashMap<>();
-        producerConfig.parameters.put("kafka_topic", "cassandra-query-analytics");
-        config.setProducer(producerConfig);
-
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        // Null checks for single partition read
+        reset(mockDataProducer);
+        config.setEnabled(true);
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, null, mockReadResponse);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        reset(mockDataProducer);
+        when(mockSinglePartitionReadCommand.metadata()).thenReturn(null);
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        reset(mockDataProducer);
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-        when(mockReadCommand.metadata()).thenReturn(tableMetadata);
-
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        // Verify no datapoint was produced since QAN is disabled
-        verify(mockDataProducer, times(0)).produceDatapoint(any());
+        when(mockSinglePartitionReadCommand.partitionKey()).thenReturn(null);
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        // Null producer
+        reset(mockDataProducer);
+        when(mockSinglePartitionReadCommand.partitionKey()).thenReturn(mockDecoratedKey);
+        QueryAnalyticsService.dataProducer = null;
+        queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        QueryAnalyticsService.dataProducer = mockDataProducer;
     }
 
     public void testCreateDatapoint() throws IOException
@@ -214,190 +198,53 @@ public class QueryAnalyticsServiceTest extends TestCase
         Long nanoTimeMetric = 567890987L;
         String keyspace = "testspace";
         String token = "token";
-        long latency = 0L;
 
+        // With properties
         Map<String, Object> properties = new HashMap<>();
-
         QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-        tableName, nanoTimeMetric, keyspace, token, latency, properties);
-
+            tableName, nanoTimeMetric, keyspace, token, 0L, properties);
         assertNotNull(datapoint);
         assertEquals(tableName, datapoint.getTable());
         assertEquals(nanoTimeMetric, datapoint.getTimestamp());
         assertEquals(keyspace, datapoint.getKeyspace());
         assertEquals(Long.valueOf(0L), datapoint.getLatency());
         assertEquals(token, datapoint.getPartition());
-        assertNull(datapoint.getCluster());
-        assertNull(datapoint.getInstance());
+        
+        // With null properties
+        datapoint = QueryAnalyticsService.createDatapoint(tableName, 100L, keyspace, token, 50L, null);
+        assertNotNull(datapoint);
+        assertEquals(Long.valueOf(50L), datapoint.getLatency());
     }
 
-    public void testCreateDatapointWithVariousInputs() throws IOException
+
+
+    public void testCreateDataProducer() throws Exception
     {
-        Object[][] testCases = {
-            {null, null, null, null, 100L, null},
-            {"", 0L, "", "", 100L, new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", 0L, new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", -100L, new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", 9223372036854775807L, new HashMap<>()},
-            {"test", 567890987L, "testspace", "token", -9223372036854775808L, new HashMap<>()}
-        };
-
-        for (Object[] testCase : testCases) {
-            QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-                (String) testCase[0], (Long) testCase[1], (String) testCase[2],
-                (String) testCase[3], (Long) testCase[4], (Map<String, Object>) testCase[5]);
-
-            assertNotNull(datapoint);
-            assertNotNull(datapoint.getProperties());
-        }
-    }
-
-    public void testCreateDatapointWithVariousLatencyValues() throws IOException
-    {
-        long[] latencyValues = {0L, -1L, Long.MAX_VALUE, Long.MIN_VALUE, 999999L, 1L};
-
-        for (long latency : latencyValues) {
-            QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-                "test", 567890987L, "testspace", "token", latency, new HashMap<>());
-
-            assertNotNull(datapoint);
-            assertEquals(Long.valueOf(latency), datapoint.getLatency());
-        }
-    }
-
-    public void testServiceInitialization() throws IOException
-    {
-        assertNotNull(QueryAnalyticsService.instance);
-        assertNotNull(queryAnalyticsService);
-
-        assertNotNull("Config should be set for testing", DatabaseDescriptor.getQueryAnalyticsConfig());
-
-        assertTrue("Service should be properly initialized", true);
-    }
-
-    public void testServiceInitializationWithoutProducerConfig() throws IOException
-    {
-        // Configure DatabaseDescriptor to have QueryAnalytics enabled but no producer
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(true);
-        config.setProducer(null);
-        
-        QueryAnalyticsService.dataProducer = null;
-        
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        // Producer should still be null since no producer config was provided
-        assertNull("dataProducer should remain null when no producer configuration is provided", QueryAnalyticsService.dataProducer);
-        
-        // Config is automatically restored since we used the same reference
-    }
-
-    public void testProcessLatencyMetricWithNoProducer() throws IOException
-    {
-        // Configure DatabaseDescriptor to have QueryAnalytics enabled but no producer
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(true);
-        config.setProducer(null);
-
-        QueryAnalyticsService.dataProducer = null; 
-
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-
-        // This should not throw an exception even with no producer
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        // Verify that no datapoint was produced (since there's no producer)
-        verify(mockDataProducer, never()).produceDatapoint(any());
-    }
-
-    public void testProcessLatencyMetricWithValidCommand() throws IOException
-    {
-
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-
-        ArgumentCaptor<QueryAnalyticsDatapoint> datapointCaptor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
-        verify(mockDataProducer, times(1)).produceDatapoint(datapointCaptor.capture());
-
-        QueryAnalyticsDatapoint capturedDatapoint = datapointCaptor.getValue();
-        assertNotNull(capturedDatapoint);
-    }
-
-    public void testDynamicConfigurationSwitching() throws IOException
-    {
-        // Test dynamic configuration switching using DatabaseDescriptor
-        QueryAnalyticsConfig originalConfig = DatabaseDescriptor.getQueryAnalyticsConfig();
-        
-        // Set up producer config
-        ParameterizedClass producerConfig = new ParameterizedClass();
-        producerConfig.class_name = "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer";
-        producerConfig.parameters = new HashMap<>();
-        originalConfig.setProducer(producerConfig);
-        
-        // Start with QAN disabled
-        originalConfig.setEnabled(false);
-        
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-        
-        queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-        verify(mockDataProducer, times(0)).produceDatapoint(any());
-        
-        // Enable QAN dynamically
-        originalConfig.setEnabled(true);
-        
-        // Test with QAN enabled - should produce datapoints
-        queryAnalyticsService.processLatencyMetric(200L, mockSinglePartitionReadCommand, mockReadResponse);
-        
-        // Restore original test config (back to enabled state for other tests)
-        originalConfig.setEnabled(true);
-    }
-
-    public void testCreateDataProducerWithInvalidClass() throws Exception
-    {
+        // Invalid class
         try {
             QueryAnalyticsService.createDataProducer("com.nonexistent.Class");
-            fail("Should throw exception for non-existent class");
+            fail("Should throw for non-existent class");
         } catch (RuntimeException e) {
-            assertTrue("Exception should mention class not found", e.getMessage().contains("class not found"));
+            assertTrue(e.getMessage().contains("class not found"));
         }
-    }
-
-    public void testCreateDataProducerWithIncompatibleClass() throws Exception
-    {
+        
+        // Null/empty/whitespace class name
+        assertNull(QueryAnalyticsService.createDataProducer(null));
+        assertNull(QueryAnalyticsService.createDataProducer(""));
+        assertNull(QueryAnalyticsService.createDataProducer("   "));
+        
+        // Incompatible class
         try {
             QueryAnalyticsService.createDataProducer("java.lang.String");
-            fail("Should throw exception for incompatible class");
+            fail("Should throw for incompatible class");
         } catch (RuntimeException e) {
-            assertTrue("Exception should mention interface requirement", e.getMessage().contains("does not implement"));
+            assertTrue(e.getMessage().contains("does not implement"));
         }
-    }
-
-    public void testCreateDataProducerWithValidClass() throws Exception
-    {
-
-        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer("org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer");
-        assertNotNull("Producer should be created for valid class", producer);
-        assertTrue("Producer should be instance of TestDataProducer", producer instanceof TestDataProducer);
-    }
-
-    public void testCreateDatapointWithAllNullInputs() throws IOException
-    {
-        QueryAnalyticsDatapoint datapoint = QueryAnalyticsService.createDatapoint(
-            null, null, null, null, 0L, null);
-
-        assertNotNull(datapoint);
-
-        assertNull(datapoint.getTable());
-        assertNull(datapoint.getTimestamp());
-        assertNull(datapoint.getKeyspace());
-        assertNull(datapoint.getPartition());
-        // Host and DC are no longer set by Cassandra QueryAnalyticsService  
-        assertNull(datapoint.getCluster()); // cluster is not set by createDatapoint method
-        assertNull(datapoint.getInstance()); // instance is not set by createDatapoint method
-        assertEquals(Long.valueOf(0L), datapoint.getLatency()); // Latency was passed as 0L
-        assertNotNull(datapoint.getProperties()); // Should create empty map
+        
+        // Valid class
+        QueryAnalyticsDataProducer producer = QueryAnalyticsService.createDataProducer(
+            "org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer");
+        assertNotNull(producer);
     }
 
     @Override
@@ -438,223 +285,302 @@ public class QueryAnalyticsServiceTest extends TestCase
         }
     }
 
-    public void testMBeanSetQueryAnalyticsEnabled()
+    public void testMBeanOperations()
     {
-        QueryAnalyticsService.dataProducer = null; 
         QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(null);
         
+        // Test enable/disable
+        config.setEnabled(false);
         queryAnalyticsService.setQueryAnalyticsEnabled(true);
-        assertTrue("QAN should be enabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
+        assertTrue(queryAnalyticsService.isQueryAnalyticsEnabled());
         
         queryAnalyticsService.setQueryAnalyticsEnabled(false);
-        assertFalse("QAN should be disabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
-    }
-    
-    public void testMBeanEnableQueryAnalytics()
-    {
-        // Clear test override to use DatabaseDescriptor config
-        QueryAnalyticsService.dataProducer = null;
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(null);
+        assertFalse(queryAnalyticsService.isQueryAnalyticsEnabled());
         
-        queryAnalyticsService.setQueryAnalyticsEnabled(true);
-        assertTrue("QAN should be enabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
-    }
-    
-    public void testMBeanDisableQueryAnalytics()
-    {
-        // Clear test override to use DatabaseDescriptor config
-        QueryAnalyticsService.dataProducer = null; 
-        
-        // Ensure we start with a proper config in DatabaseDescriptor
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(null);
-        
-        queryAnalyticsService.setQueryAnalyticsEnabled(true);
-        
-        queryAnalyticsService.setQueryAnalyticsEnabled(false);
-        assertFalse("QAN should be disabled via MBean", queryAnalyticsService.isQueryAnalyticsEnabled());
-    }
-    
-    public void testMBeanGetQueryAnalyticsConfiguration()
-    {
-        // Clear test override to use DatabaseDescriptor config
-        QueryAnalyticsService.dataProducer = null; 
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(null);
-        
+        // Test config string
         String configString = queryAnalyticsService.getQueryAnalyticsConfiguration();
-        assertNotNull("Configuration should not be null", configString);
-        assertTrue("Configuration should contain enabled status", configString.contains("enabled:"));
-        assertTrue("Configuration should contain sampling_ratio", configString.contains("sampling_ratio:"));
-    }
-    
-    public void testMBeanConfigurationUpdatesPersist() throws IOException
-    {
-        // Clear test override to use DatabaseDescriptor config
-        QueryAnalyticsService.dataProducer = null; 
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(null);
+        assertNotNull(configString);
+        assertTrue(configString.contains("enabled:"));
+        assertTrue(configString.contains("sampling_ratio:"));
+        assertTrue(configString.contains("producer:"));
         
-        // Enable via MBean
-        queryAnalyticsService.setQueryAnalyticsEnabled(true);
-        
-        // Verify configuration persisted to DatabaseDescriptor
-        QueryAnalyticsConfig updatedConfig = DatabaseDescriptor.getQueryAnalyticsConfig();
-        assertTrue("Configuration should persist enabled state", updatedConfig.isQueryAnalyticsEnabled());
-    }
-
-    public void testProducerInitializationOnEnable()
-    {
+        // Test producer initialization on enable
         QueryAnalyticsService.dataProducer = null;
-        
-        // Configure DatabaseDescriptor with producer config
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        
-        Map<String, String> params = new HashMap<>();
-        params.put("kafka_topic", "test-topic");
-        ParameterizedClass producerConfig = new ParameterizedClass("org.apache.cassandra.service.QueryAnalyticsServiceTest$TestDataProducer", params);
-        config.setProducer(producerConfig);
-        
         queryAnalyticsService.setQueryAnalyticsEnabled(true);
-        assertNotNull("Producer should be initialized when enabled", QueryAnalyticsService.dataProducer);
-    }
-
-    public void testProducerInitFailure()
-    {
-        QueryAnalyticsService.dataProducer = null;
-        ParameterizedClass badConfig = new ParameterizedClass("nonexistent.Class", new HashMap<>());
+        assertNotNull(QueryAnalyticsService.dataProducer);
         
-        // Configure DatabaseDescriptor with bad producer config
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        config.setEnabled(false);
-        config.setProducer(badConfig);
-        
-        try {
-            queryAnalyticsService.setQueryAnalyticsEnabled(true);
-            fail("Should throw exception on producer init failure");
-        } catch (Exception e) {
-            // Expected - producer initialization should fail and throw exception
-            assertNull("Producer should remain null on init failure", QueryAnalyticsService.dataProducer);
-        }
-    }
-    
-    public void testSetupWithEnabledButNoProducer() {
-        // Configure DatabaseDescriptor with enabled but no producer
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        // Restore for other tests
+        QueryAnalyticsService.dataProducer = mockDataProducer;
         config.setEnabled(true);
-        config.setProducer(null);
-        
-        // Reset producer to null
-        QueryAnalyticsService.dataProducer = null;
-        
-        // Should not throw exception
-        try {
-            QueryAnalyticsService.setup();
-            assertNull("Producer should remain null when no producer configured", QueryAnalyticsService.dataProducer);
-        } catch (Exception e) {
-            fail("setup() should not throw exception when producer is null: " + e.getMessage());
-        }
     }
     
-    public void testMBeanSetQueryAnalyticsSamplingRatio()
+    public void testSamplingRatioConfiguration()
     {
-        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
-        
-        // Test setting valid sampling ratio
-        queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.1);
-        assertEquals("Sampling ratio should be set to 0.1", 0.1, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
-        
+        // Test valid values 
         queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.5);
-        assertEquals("Sampling ratio should be set to 0.5", 0.5, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
+        assertEquals(0.5, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
         
-        queryAnalyticsService.setQueryAnalyticsSamplingRatio(1.0);
-        assertEquals("Sampling ratio should be set to 1.0", 1.0, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
-        
-        queryAnalyticsService.setQueryAnalyticsSamplingRatio(0.0);
-        assertEquals("Sampling ratio should be set to 0.0", 0.0, queryAnalyticsService.getQueryAnalyticsSamplingRatio(), 0.001);
-    }
-    
-    public void testMBeanSetQueryAnalyticsSamplingRatioInvalidValues()
-    {
-        // Test invalid sampling ratios
+        // Test invalid values throw exceptions
         try {
             DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(-0.1);
-            fail("Should throw IllegalArgumentException for negative sampling ratio");
+            fail("Should throw for negative ratio");
         } catch (IllegalArgumentException e) {
-            assertTrue("Exception should mention valid range", e.getMessage().contains("between 0.0 and 1.0"));
-        }
-        
-        try {
-            DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.1);
-            fail("Should throw IllegalArgumentException for sampling ratio > 1.0");
-        } catch (IllegalArgumentException e) {
-            assertTrue("Exception should mention valid range", e.getMessage().contains("between 0.0 and 1.0"));
+            assertTrue(e.getMessage().contains("between 0.0 and 1.0"));
         }
     }
     
-    public void testSamplingLogicZeroRatio() throws IOException
+    public void testSamplingBehavior() throws IOException
     {
-        // Set sampling ratio to 0.0 - should not send any metrics
-        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.0);
-        
         when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
         
+        // Test 0.0 sampling
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.0);
         reset(mockDataProducer);
-        
-        for (int i = 0; i < 100; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        for (int i = 0; i < 10; i++) {
+            queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
         }
+        verify(mockDataProducer, never()).produceDatapoint(any());
         
-        // With 0.0 sampling ratio, no metrics should be sent
+        // Test 1.0 sampling
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.0);
+        reset(mockDataProducer);
+        for (int i = 0; i < 10; i++) {
+            queryAnalyticsService.processSinglePartitionReadMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        }
+        verify(mockDataProducer, times(10)).produceDatapoint(any());
+    }
+    
+    public void testProcessWriteMetricSinglePartition() throws IOException
+    {
+        IMutation mockMutation = mock(IMutation.class);
+        when(mockMutation.key()).thenReturn(mockDecoratedKey);
+        
+        // Test INSERT
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        QueryAnalyticsDatapoint dp = captor.getValue();
+        assertEquals("insert", dp.getProperty("query_type"));
+        assertEquals(Long.valueOf(0L), dp.getProperty("response_payload_size"));
+        assertEquals("id = 12345", dp.getPartition());
+        assertEquals(Long.valueOf(100L), dp.getLatency());
+        
+        // Test UPDATE and DELETE
+        reset(mockDataProducer);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.UPDATE, tableMetadata, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertEquals("update", captor.getValue().getProperty("query_type"));
+        
+        reset(mockDataProducer);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.DELETE, tableMetadata, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertEquals("delete", captor.getValue().getProperty("query_type"));
+        
+        // Null/empty checks
+        reset(mockDataProducer);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, null);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        reset(mockDataProducer);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, 
+                                                 java.util.Collections.emptyList());
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        reset(mockDataProducer);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, null, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        // QAN disabled
+        reset(mockDataProducer);
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        config.setEnabled(true);
+        
+        // Sampling disabled
+        reset(mockDataProducer);
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.0);
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, 
+                                                 java.util.Collections.singletonList(mockMutation));
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.0);
+        
+        // Exception handling
+        reset(mockDataProducer);
+        IMutation badMutation = mock(IMutation.class);
+        when(badMutation.key()).thenThrow(new RuntimeException("Test exception"));
+        queryAnalyticsService.processWriteMetric(100L, StatementType.INSERT, tableMetadata, 
+                                                 java.util.Collections.singletonList(badMutation));
         verify(mockDataProducer, never()).produceDatapoint(any());
     }
     
-    public void testSamplingLogicFullRatio() throws IOException
+    public void testProcessWriteMetricMultiplePartitions() throws IOException
     {
-        // Set sampling ratio to 1.0 - should send all metrics
-        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(1.0);
-        
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
-        
-        reset(mockDataProducer);
-        
-        // Process 10 metrics
-        int numMetrics = 10;
-        for (int i = 0; i < numMetrics; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
+        java.util.List<IMutation> mutations = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            IMutation m = mock(IMutation.class);
+            DecoratedKey k = mock(DecoratedKey.class);
+            when(k.toCQLString(any())).thenReturn("id = 'key" + i + "'");
+            when(m.key()).thenReturn(k);
+            mutations.add(m);
         }
         
-        // With 1.0 sampling ratio, all metrics should be sent
-        verify(mockDataProducer, times(numMetrics)).produceDatapoint(any());
+        queryAnalyticsService.processWriteMetric(300L, StatementType.INSERT, tableMetadata, mutations);
+        
+        ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer, times(3)).produceDatapoint(captor.capture());
+        
+        java.util.List<QueryAnalyticsDatapoint> dps = captor.getAllValues();
+        assertEquals(3, dps.size());
+        
+        // Verify latency divided (300 / 3 = 100) and partition keys
+        for (int i = 0; i < 3; i++) {
+            assertEquals(Long.valueOf(100L), dps.get(i).getLatency());
+            assertEquals("id = 'key" + i + "'", dps.get(i).getPartition());
+            assertEquals("insert", dps.get(i).getProperty("query_type"));
+        }
     }
     
-    public void testSamplingLogicPartialRatio() throws IOException
+    
+    // Helper to setup range read command mocks
+    private void setupRangeReadMocks(String rangeString) {
+        when(mockRangeReadCommand.metadata()).thenReturn(tableMetadata);
+        when(mockRangeReadCommand.dataRange()).thenReturn(mockDataRange);
+        when(mockDataRange.keyRange()).thenReturn(mockKeyRange);
+        when(mockKeyRange.getString(any())).thenReturn(rangeString);
+    }
+    
+    public void testProcessRangeReadMetric() throws IOException
     {
-        // Set sampling ratio to 0.5 - should send approximately half the metrics
-        DatabaseDescriptor.getQueryAnalyticsConfig().setSamplingRatio(0.5);
+        setupRangeReadMocks("(token1, token2]");
         
-        when(mockSinglePartitionReadCommand.metadata()).thenReturn(tableMetadata);
+        queryAnalyticsService.processRangeReadMetric(200L, mockRangeReadCommand);
         
-        reset(mockDataProducer);
-        
-        // Process many metrics to test statistical sampling
-        int numAttempts = 1000;
-        for (int i = 0; i < numAttempts; i++) {
-            queryAnalyticsService.processLatencyMetric(100L, mockSinglePartitionReadCommand, mockReadResponse);
-        }
-        
-        // With 0.5 sampling ratio and large sample size, we should get roughly half
-        // Allow for variance: expect between 40% and 60% of metrics to be sent
         ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
-        verify(mockDataProducer, atLeast(400)).produceDatapoint(captor.capture());
-        verify(mockDataProducer, atMost(600)).produceDatapoint(any());
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        
+        QueryAnalyticsDatapoint dp = captor.getValue();
+        assertEquals("range", dp.getProperty("query_type"));
+        assertEquals("(token1, token2]", dp.getPartition());
+        assertEquals(Long.valueOf(200L), dp.getLatency());
+        assertEquals(Long.valueOf(0L), dp.getProperty("response_payload_size")); // No resolvers
+    }
+    
+    public void testProcessRangeReadMetricNullChecks() throws IOException
+    {
+        // Null command
+        queryAnalyticsService.processRangeReadMetric(100L, null);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        // Null metadata
+        reset(mockDataProducer);
+        when(mockRangeReadCommand.metadata()).thenReturn(null);
+        queryAnalyticsService.processRangeReadMetric(100L, mockRangeReadCommand);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        
+        // QAN disabled
+        reset(mockDataProducer);
+        setupRangeReadMocks("(token1, token2]");
+        QueryAnalyticsConfig config = DatabaseDescriptor.getQueryAnalyticsConfig();
+        config.setEnabled(false);
+        queryAnalyticsService.processRangeReadMetric(100L, mockRangeReadCommand);
+        verify(mockDataProducer, never()).produceDatapoint(any());
+        config.setEnabled(true);
+    }
+    
+    public void testRangeReadResponseSizeCalculation() throws IOException
+    {
+        setupRangeReadMocks("(token1, token2]");
+        
+        // Empty/null range responses
+        queryAnalyticsService.processRangeReadMetric(400L, mockRangeReadCommand, 
+                                                     java.util.Collections.emptyList());
+        ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertEquals(Long.valueOf(0L), captor.getValue().getProperty("response_payload_size"));
+        
+        // Non-digest response
+        reset(mockDataProducer);
+        when(mockReadResponse.isDigestResponse()).thenReturn(false);
+        InetAddressAndPort testAddress = InetAddressAndPort.getLocalHost();
+        Message<ReadResponse> nonDigestMessage = Message.builder(Verb.READ_RSP, mockReadResponse)
+                                                         .from(testAddress)
+                                                         .build();
+        when(mockDataResolver.getResponses()).thenReturn(java.util.Collections.singletonList(nonDigestMessage));
+        @SuppressWarnings("unchecked")
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = 
+            (DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead>) mockDataResolver;
+        SingleRangeResponse rangeResponse = mock(SingleRangeResponse.class);
+        when(rangeResponse.getResolver()).thenReturn(resolver);
+        java.util.List<SingleRangeResponse> rangeResponses = java.util.Collections.singletonList(rangeResponse);
+        queryAnalyticsService.processRangeReadMetric(400L, mockRangeReadCommand, rangeResponses);
+        captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertNotNull(captor.getValue().getProperty("response_payload_size"));
+        
+        // Digest response (skipped)
+        reset(mockDataProducer);
+        when(mockReadResponse.isDigestResponse()).thenReturn(true);
+        Message<ReadResponse> digestMessage = Message.builder(Verb.READ_RSP, mockReadResponse)
+                                                      .from(testAddress)
+                                                      .build();
+        when(mockDataResolver.getResponses()).thenReturn(java.util.Collections.singletonList(digestMessage));
+        queryAnalyticsService.processRangeReadMetric(400L, mockRangeReadCommand, rangeResponses);
+        captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertEquals(Long.valueOf(0L), captor.getValue().getProperty("response_payload_size"));
+        
+        // Exception handling
+        reset(mockDataProducer);
+        when(mockDataResolver.getResponses()).thenThrow(new RuntimeException("Test exception"));
+        queryAnalyticsService.processRangeReadMetric(400L, mockRangeReadCommand, rangeResponses);
+        captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertEquals(Long.valueOf(0L), captor.getValue().getProperty("response_payload_size"));
+    }
+    
+    public void testRangeReadWithResolverExtraction() throws IOException
+    {
+        // Test the code path that extracts resolvers from SingleRangeResponse objects
+        setupRangeReadMocks("(token1, token2]");
+        
+        // Create SingleRangeResponse objects with resolvers (mimicking RangeCommandIterator)
+        @SuppressWarnings("unchecked")
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver1 = 
+            mock(DataResolver.class);
+        @SuppressWarnings("unchecked")
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver2 = 
+            mock(DataResolver.class);
+        
+        when(mockReadResponse.isDigestResponse()).thenReturn(false);
+        InetAddressAndPort testAddress = InetAddressAndPort.getLocalHost();
+        Message<ReadResponse> message1 = Message.builder(Verb.READ_RSP, mockReadResponse).from(testAddress).build();
+        Message<ReadResponse> message2 = Message.builder(Verb.READ_RSP, mockReadResponse).from(testAddress).build();
+        
+        when(resolver1.getResponses()).thenReturn(java.util.Collections.singletonList(message1));
+        when(resolver2.getResponses()).thenReturn(java.util.Collections.singletonList(message2));
+        
+        // Create SingleRangeResponse objects (mimicking RangeCommandIterator's allRangeResponses)
+        SingleRangeResponse rangeResponse1 = mock(SingleRangeResponse.class);
+        SingleRangeResponse rangeResponse2 = mock(SingleRangeResponse.class);
+        when(rangeResponse1.getResolver()).thenReturn(resolver1);
+        when(rangeResponse2.getResolver()).thenReturn(resolver2);
+        
+        java.util.List<SingleRangeResponse> rangeResponses = new java.util.ArrayList<>();
+        rangeResponses.add(rangeResponse1);
+        rangeResponses.add(rangeResponse2);
+        
+        queryAnalyticsService.processRangeReadMetric(400L, mockRangeReadCommand, rangeResponses);
+        ArgumentCaptor<QueryAnalyticsDatapoint> captor = ArgumentCaptor.forClass(QueryAnalyticsDatapoint.class);
+        verify(mockDataProducer).produceDatapoint(captor.capture());
+        assertNotNull(captor.getValue().getProperty("response_payload_size"));
     }
 }

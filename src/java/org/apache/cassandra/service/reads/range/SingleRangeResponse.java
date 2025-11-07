@@ -28,7 +28,7 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.utils.AbstractIterator;
 
-class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
+public class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
     private final ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
@@ -48,6 +48,11 @@ class SingleRangeResponse extends AbstractIterator<RowIterator> implements Parti
     ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> getReadRepair()
     {
         return readRepair;
+    }
+
+    public DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> getResolver()
+    {
+        return resolver;
     }
 
     private void waitForResponse() throws ReadTimeoutException

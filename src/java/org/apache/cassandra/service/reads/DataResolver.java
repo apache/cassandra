@@ -96,6 +96,15 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return !responses.isEmpty();
     }
 
+    /**
+     * Get all ReadResponse messages for this resolver.
+     * @return snapshot of all response messages
+     */
+    public Collection<Message<ReadResponse>> getResponses()
+    {
+        return responses.snapshot();
+    }
+
     public PartitionIterator resolve()
     {
         return resolve(null);

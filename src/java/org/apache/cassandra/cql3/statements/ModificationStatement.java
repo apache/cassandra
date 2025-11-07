@@ -60,6 +60,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryAnalyticsService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
@@ -74,6 +75,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -618,8 +620,26 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
                          requestTime);
+        
         if (!mutations.isEmpty())
+        {
+            long startTime = MonotonicClock.Global.preciseTime.now();
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
+            
+            // Emit Query Analytics metrics for write operations
+            try
+            {
+                if (DatabaseDescriptor.getQueryAnalyticsConfig().isQueryAnalyticsEnabled())
+                {
+                    long latency = MonotonicClock.Global.preciseTime.now() - startTime;
+                    QueryAnalyticsService.instance.processWriteMetric(latency, type, metadata, mutations);
+                }
+            }
+            catch (Exception e)
+            {
+                logger.warn("Error processing write metric: ", e);
+            }
+        }
 
         return null;
     }

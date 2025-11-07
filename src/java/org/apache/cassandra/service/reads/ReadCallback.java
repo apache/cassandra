@@ -254,7 +254,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             {
                 long latency = MonotonicClock.Global.preciseTime.now() - requestTime.startedAtNanos();
                 
-                QueryAnalyticsService.instance.processLatencyMetric(
+                QueryAnalyticsService.instance.processSinglePartitionReadMetric(
                     latency,
                     (SinglePartitionReadCommand) command,
                     message.payload

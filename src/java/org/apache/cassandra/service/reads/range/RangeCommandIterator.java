@@ -50,6 +50,7 @@ import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.QueryAnalyticsService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -88,6 +89,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private int rangesQueried;
     private int batchesRequested = 0;
     private ConsistencyLevel consistencyLevel;
+    // Track all SingleRangeResponse objects for response size aggregation in QAN
+    private final List<SingleRangeResponse> allRangeResponses = new ArrayList<>();
 
     public RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                          PartitionRangeReadCommand command,
@@ -235,7 +238,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
         PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-        
+
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
@@ -281,6 +284,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                 @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
                 SingleRangeResponse response = query(replicaPlan, i == 0);
                 concurrentQueries.add(response);
+                allRangeResponses.add(response);
                 readRepairs.add(response.getReadRepair());
                 // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
                 rangesQueried += replicaPlan.vnodeCount();
@@ -321,6 +325,16 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             rangeMetrics.addNano(latency);
             StorageProxyMetricsManager.markMetric(command.metadata().keyspace, consistencyLevel, m -> m.rangeMetrics.addNano(latency));
             Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
+
+            // Emit Query Analytics metrics for range reads
+            try
+            {
+                QueryAnalyticsService.instance.processRangeReadMetric(latency, command, allRangeResponses);
+            }
+            catch (Exception e)
+            {
+                logger.warn("Error processing Query Analytics metrics: ", e);
+            }
         }
     }
 

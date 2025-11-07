@@ -1,9 +1,11 @@
 Unreleased
+ * [SO-55354] Ingest INSERT/DELETE Queries
  * [SO-57838] Implement repair_loop_min_duration auto-repair option
  * [SO-52378] Fix label for repair_task_min_duration in nodetool setautorepairconfig
  * [SO-54680] Add the server side config for logging the query time with fingerprint
  * [SO-55616] LCS enforcement should be applied to MVs as normal tables
  * [SO-55132] Persist the MV backfill finished ranges in system_distributed keyspace
+ * [SO-55342] Ingest request and response payload to QAN
  * [SO-54026] Improve the calculation of the pending tasks for single sstable4.1.10.1
  * [SO-55322] Fix schema CQL builder for nested UDTs
  * [SO-54103] Enforce serial read if rebuild on strict MV enabled table
