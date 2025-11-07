@@ -176,6 +176,16 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval", null});
         q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval_in_ms';";
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
+
+        // test non matching auth related properties
+        q = "SELECT * FROM vts.settings WHERE name = 'authenticator';";
+        assertRowsNet(executeNet(q), new Object[] {"authenticator", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'authorizer';";
+        assertRowsNet(executeNet(q), new Object[] {"authorizer", null});
+        q = "SELECT * FROM vts.settings WHERE name = 'network_authorizer';";
+        assertRowsNet(executeNet(q), new Object[] {"network_authorizer", null});
+        q= "select * from vts.settings where name = 'role_manager';";
+        assertRowsNet(executeNet(q), new Object[] {"role_manager", null});
     }
 
     private void check(String keyspaceTable, String setting, String expected)
