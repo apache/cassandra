@@ -104,7 +104,7 @@ public class Retry implements WaitStrategy
             return -1;
 
         if (deadlineNanos == Long.MAX_VALUE)
-            return wait;
+            return units.convert(wait, TimeUnit.NANOSECONDS);
 
         long now = nanoTime();
         wait = Math.min(deadlineNanos - now, wait);
