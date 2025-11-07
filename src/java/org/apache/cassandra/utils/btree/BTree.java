@@ -75,7 +75,7 @@ public class BTree
      * _DO NOT_ attempt to modify this field directly. Instead, use BRANCH_SHIFT above instead, as branch factor
      * should _always_ be a power of 2.
      */
-    static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
+    public static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
     public static final int MAX_KEYS = BRANCH_FACTOR - 1;
     public static final long STOP_SENTINEL_VALUE = Long.MAX_VALUE;
@@ -535,6 +535,17 @@ public class BTree
                 builder.leaf().copy(inode, ipos, isz - ipos, updateF);
             }
             return builder.build();
+        }
+    }
+
+    /**
+     * Subtracts {@code subtract} from {@code update}.
+     */
+    public static <Compare> Object[] subtract(Object[] toUpdate, Object[] subtract, Comparator<Compare> comparator)
+    {
+        try (Subtraction subtraction = Subtraction.get(comparator))
+        {
+            return subtraction.subtract(toUpdate, subtract);
         }
     }
 
@@ -4237,6 +4248,20 @@ public class BTree
             super.reset();
             remove = null;
             comparator = null;
+        }
+    }
+
+    static class Subtraction<K, T extends K> extends AbstractSubtraction<K, T>
+    {
+        static final ThreadLocal<Subtraction> SHARED = new ThreadLocal<>();
+
+        static <K, T extends K> Subtraction<K, T> get(Comparator<K> comparator)
+        {
+            Subtraction subtraction = SHARED.get();
+            if (subtraction == null)
+                SHARED.set(subtraction = new Subtraction());
+            subtraction.comparator = comparator;
+            return subtraction;
         }
     }
 
