@@ -200,6 +200,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -2070,9 +2071,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (keyspaceMetadata.params.replication.isMeta())
             {
-                rangeToEndpointMap.put(MetaStrategy.entireRange,
-                                       metadata.placements.get(keyspaceMetadata.params.replication)
-                                       .reads.forRange(MetaStrategy.entireRange).get());
+                DataPlacement placement = metadata.placements.get(keyspaceMetadata.params.replication);
+                // May be empty if mid-upgrade and CMS is not yet initialized
+                if (!placement.reads.isEmpty())
+                    rangeToEndpointMap.put(MetaStrategy.entireRange, placement.reads.forRange(MetaStrategy.entireRange).get());
             }
             else
             {
