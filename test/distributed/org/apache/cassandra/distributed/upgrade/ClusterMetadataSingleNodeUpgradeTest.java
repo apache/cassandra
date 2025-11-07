@@ -22,6 +22,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.service.StorageService;
+
+import static org.junit.Assert.assertTrue;
 
 /**
  * @see org.apache.cassandra.tools.nodetool.CMSAdmin.InitializeCMS
@@ -42,6 +46,7 @@ public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
+            assertTrue(((IInvokableInstance)cluster.get(1)).callOnInstance(() -> StorageService.instance.getRangeToAddressMap("system_cluster_metadata").isEmpty()));
             cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
             // make sure we can execute transformations:
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
