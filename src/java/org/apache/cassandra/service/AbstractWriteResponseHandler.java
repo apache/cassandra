@@ -26,12 +26,14 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
@@ -247,6 +249,17 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected boolean waitingFor(InetAddressAndPort from)
     {
+        // If feature is enabled, don't wait for replacement pending replicas
+        if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
+        {
+            TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+            if (tokenMetadata != null && tokenMetadata.isReplacementPendingNode(from))
+            {
+                // This is a replacement node, don't count its response
+                return false;
+            }
+        }
+        
         return true;
     }
 

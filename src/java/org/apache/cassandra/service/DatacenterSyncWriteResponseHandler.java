@@ -28,6 +28,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
@@ -69,8 +70,18 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
 
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
+        // However, if feature is enabled, exclude replacement pending replicas
         for (Replica pending : replicaPlan.pending())
         {
+            // Skip replacement pending replicas if feature is enabled
+            if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
+            {
+                TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+                if (tokenMetadata != null && tokenMetadata.isReplacementPendingNode(pending.endpoint()))
+                {
+                    continue;
+                }
+            }
             responses.get(snitch.getDatacenter(pending)).incrementAndGet();
         }
     }
@@ -79,6 +90,13 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     {
         try
         {
+            // Only process if we're waiting for this response
+            if (message != null && !waitingFor(message.from()))
+            {
+                logResponseToIdealCLDelegate(message);
+                return;
+            }
+
             String dataCenter = message == null
                                 ? DatabaseDescriptor.getLocalDataCenter()
                                 : snitch.getDatacenter(message.from());

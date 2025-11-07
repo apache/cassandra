@@ -446,6 +446,19 @@ public class TokenMetadata
         }
     }
 
+    /**
+     * Check if an endpoint is a replacement pending node.
+     * 
+     * A replacement pending node is one that is joining to replace an existing node.
+     *
+     * @param endpoint the endpoint to check
+     * @return true if endpoint is a replacement node, false otherwise
+     */
+    public boolean isReplacementPendingNode(InetAddressAndPort endpoint)
+    {
+        return getReplacingNode(endpoint).isPresent();
+    }
+
     public void removeBootstrapTokens(Collection<Token> tokens)
     {
         assert tokens != null && !tokens.isEmpty();

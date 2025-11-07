@@ -2307,6 +2307,13 @@ public class DatabaseDescriptor
 
     public static ConsistencyLevel getWriteCLDefault() { return conf.write_cl_default; }
 
+    public static boolean isExcludeReplacementPendingForWrite() { return conf.write_requests_not_wait_on_pending_replacements; }
+
+    public static void setExcludeReplacementPendingForWrite(boolean value)
+    {
+        conf.write_requests_not_wait_on_pending_replacements = value;
+    }
+
     public static CompactionStrategyMigrationOptions getCompactionStrategyMigrationOptions()
     {
         return conf.compaction_strategy_migration_options;

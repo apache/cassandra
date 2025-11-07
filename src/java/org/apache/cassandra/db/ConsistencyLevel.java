@@ -28,7 +28,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolException;
+
+import java.util.Optional;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
 
@@ -174,21 +178,46 @@ public enum ConsistencyLevel
         assert pending != null;
 
         int blockFor = blockFor(replicationStrategy);
+
+        // Filter out replacement pending replicas if feature is enabled
+        Endpoints<?> pendingToAdd = pending;
+        if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
+        {
+            TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+            if (tokenMetadata != null)
+            {
+                pendingToAdd = filterOutReplacementPendingReplicas(pending, tokenMetadata);
+            }
+        }
+
         switch (this)
         {
             case ANY:
                 break;
             case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
                 // we will only count local replicas towards our response count, as these queries only care about local guarantees
-                blockFor += pending.count(InOurDc.replicas());
+                blockFor += pendingToAdd.count(InOurDc.replicas());
                 break;
             case ONE: case TWO: case THREE:
             case QUORUM: case EACH_QUORUM:
             case SERIAL:
             case ALL:
-                blockFor += pending.size();
+                blockFor += pendingToAdd.size();
         }
         return blockFor;
+    }
+
+    /**
+     * Filters out replacement pending replicas from the given endpoints collection.
+     * A pending replica is considered a replacement if it's replacing an existing node.
+     *
+     * @param pending the endpoints to filter
+     * @param tokenMetadata the token metadata containing replacement node information
+     * @return filtered endpoints excluding replacement pending replicas
+     */
+    private static Endpoints<?> filterOutReplacementPendingReplicas(Endpoints<?> pending, TokenMetadata tokenMetadata)
+    {
+        return pending.filter(replica -> !tokenMetadata.isReplacementPendingNode(replica.endpoint()));
     }
 
     /**

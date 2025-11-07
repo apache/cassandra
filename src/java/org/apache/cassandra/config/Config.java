@@ -1069,6 +1069,11 @@ public class Config
     public volatile Set<ConsistencyLevel> write_consistency_enforcement_soft = Collections.emptySet();
     // (Uber specific) The set of consistency levels where Hard write CL enforcement (see definition above) will be applied
     public volatile Set<ConsistencyLevel> write_consistency_enforcement_hard = Collections.emptySet();
+    // (Uber specific) During node replacement, exclude the replacement pending replica from write blockFor calculation
+    // Default: false (keeps current behavior where all pending replicas are included in blockFor)
+    // When enabled: only consistency level of natural replicas is required for writes during node replacement
+    // For normal bootstrap (non-replacement), pending replicas are still included
+    public volatile boolean write_requests_not_wait_on_pending_replacements = false;
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean group_by_enabled = true;
     public volatile boolean alter_table_compaction_strategy_enabled = true;
