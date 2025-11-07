@@ -2137,6 +2137,13 @@ public class DatabaseDescriptor
         conf.compaction_tombstone_warning_threshold = count;
     }
 
+    public static boolean isExcludeReplacementPendingForWrite() { return conf.write_requests_not_wait_on_pending_replacements; }
+
+    public static void setExcludeReplacementPendingForWrite(boolean value)
+    {
+        conf.write_requests_not_wait_on_pending_replacements = value;
+    }
+
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;
