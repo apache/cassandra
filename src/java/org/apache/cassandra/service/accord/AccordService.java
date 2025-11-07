@@ -38,13 +38,16 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import accord.local.Catchup;
 import accord.topology.ActiveEpochs;
 import accord.topology.EpochReady;
 import accord.primitives.Txn;
+import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
@@ -142,6 +145,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurab
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.journal.Params.ReplayMode.RESET;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
@@ -288,30 +292,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         unsafeInstance = as;
-        as.node.unsafeSetReplaying(true);
-        try
-        {
-            as.startup();
-            replayJournal(as);
-        }
-        finally
-        {
-            as.node.unsafeSetReplaying(false);
-        }
-
-        as.finishInitialization();
-
-        as.fastPathCoordinator.start();
-
-        ClusterMetadataService.instance().log().addListener(as.fastPathCoordinator);
-        as.node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
-                                                  Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
-                                                  Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
-        as.node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        as.state = State.STARTED;
-        // Only enable durability scheduling _after_ we have fully replayed journal
-        as.node.durability().start();
-
+        as.startup();
         instance = as;
         
         AccordReplicaMetrics.touch();
@@ -326,7 +307,7 @@ public class AccordService implements IAccordService, Shutdownable
     public static boolean replayJournal(AccordService as)
     {
         logger.info("Starting journal replay.");
-        long before = Clock.Global.nanoTime();
+        long start = nanoTime();
         if (as.journalConfiguration().replayMode() == RESET)
             AccordKeyspace.truncateCommandsForKey();
 
@@ -337,8 +318,8 @@ public class AccordService implements IAccordService, Shutdownable
         as.journal.unsafeSetStarted();
         as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
 
-        long after = Clock.Global.nanoTime();
-        logger.info("Finished journal replay. {}ms elapsed", NANOSECONDS.toMillis(after - before));
+        long end = nanoTime();
+        logger.info("Finished journal replay. {}s elapsed", String.format("%.2f", NANOSECONDS.toMillis(end - start)/1000.0));
         return true;
     }
 
@@ -414,28 +395,116 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (state != State.INIT)
             return;
-        journal.start(node);
-        node.load();
 
-        ClusterMetadata metadata = ClusterMetadata.current();
-        endpointMapper.updateMapping(metadata);
-
-        List<TopologyUpdate> images = journal.replayTopologies();
-        if (!images.isEmpty())
+        node.unsafeSetReplaying(true);
+        try
         {
-            // Initialise command stores using latest topology from the log;
-            // if there are no local command stores, don't report any topologies and simply fetch the latest known in the cluster
-            // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
-            // epochs having been garbage collected by the other nodes in the cluster
-            TopologyUpdate last = images.get(images.size() - 1);
-            if (!last.commandStores.isEmpty())
-            {
-                node.commandStores().initializeTopologyUnsafe(last);
+            journal.start(node);
+            node.load();
 
-                // Replay local epochs
-                for (TopologyUpdate image : images)
-                    node.topology().reportTopology(image.global);
+            ClusterMetadata metadata = ClusterMetadata.current();
+            endpointMapper.updateMapping(metadata);
+
+            List<TopologyUpdate> images = journal.replayTopologies();
+            if (!images.isEmpty())
+            {
+                // Initialise command stores using latest topology from the log;
+                // if there are no local command stores, don't report any topologies and simply fetch the latest known in the cluster
+                // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
+                // epochs having been garbage collected by the other nodes in the cluster
+                TopologyUpdate last = images.get(images.size() - 1);
+                if (!last.commandStores.isEmpty())
+                {
+                    node.commandStores().initializeTopologyUnsafe(last);
+
+                    // Replay local epochs
+                    for (TopologyUpdate image : images)
+                        node.topology().reportTopology(image.global);
+                }
             }
+            replayJournal(this);
+        }
+        finally
+        {
+            node.unsafeSetReplaying(false);
+        }
+
+        finishInitialization();
+        catchup();
+
+        fastPathCoordinator.start();
+        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+
+        node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
+                                               Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
+                                               Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        // Only enable durability scheduling _after_ we have fully replayed journal
+        node.durability().start();
+        state = State.STARTED;
+    }
+
+    void catchup()
+    {
+        AccordSpec spec = DatabaseDescriptor.getAccord();
+        if (!spec.catchup_on_start)
+        {
+            logger.info("Not catching up with peers");
+            return;
+        }
+
+        BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
+        if (bootstrapState == COMPLETED)
+        {
+            long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
+            int attempts = 1;
+            while (true)
+            {
+                logger.info("Catching up with quorum...");
+                long start = nanoTime();
+                long failAt = start + maxLatencyNanos;
+                Future<Void> f = toFuture(Catchup.catchup(node));
+                if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
+                {
+                    if (spec.catchup_on_start_exit_on_failure)
+                    {
+                        logger.error("Catch up exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
+                        throw new RuntimeException("Could not catch up with peers");
+                    }
+                    logger.error("Catch up exceeded maximum latency of {}ns; starting up", maxLatencyNanos);
+                    break;
+                }
+
+                Throwable failed = f.cause();
+                if (failed != null)
+                    throw new RuntimeException("Could not catch up with peers", failed);
+
+                long end = nanoTime();
+                double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
+                logger.info("Finished catching up with all quorums. {}s elapsed.", String.format("%.2f", seconds));
+
+                // TODO (expected): make configurable
+                if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
+                    break;
+
+                if (++attempts > spec.catchup_on_start_max_attempts)
+                {
+                    if (spec.catchup_on_start_exit_on_failure)
+                    {
+                        logger.error("Catch up was slow, aborting after {} attempts and shutting down", attempts);
+                        throw new RuntimeException("Could not catch up with peers");
+                    }
+
+                    logger.info("Catch up was slow; continuing to startup after {} attempts.", attempts - 1);
+                    break;
+                }
+
+                logger.info("Catch up was slow, so we may behind again; retrying");
+            }
+        }
+        else
+        {
+            logger.info("Not catching up with quorum, as bootstrap state is {}", bootstrapState);
         }
     }
 
@@ -444,8 +513,7 @@ public class AccordService implements IAccordService, Shutdownable
      *  the latest epoch known to the node prior to restart. After that, we replay journal itself, and only after
      *  that we finish initializaiton and replay the rest of epochs.
      */
-    @VisibleForTesting
-    public void finishInitialization()
+    void finishInitialization()
     {
         endpointMapper.updateMapping(ClusterMetadata.current());
         TopologyManager topology = node.topology();
