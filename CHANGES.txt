@@ -1,4 +1,5 @@
 5.1
+ * Retry without time limit calculates wait time incorrectly (CASSANDRA-21002)
  * Don't submit AlterSchemaStatements which produce no effect locally to the CMS (CASSANDRA-21001)
  * Avoid iterating all prepared statements when getting PreparedStatementsCacheSize metric (CASSANDRA-21038)
  * Reduce performance impact of TableMetadataRef.get and KeyspaceMetadataRef.get (CASSANDRA-20465)
