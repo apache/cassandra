@@ -23,8 +23,10 @@ include::cassandra:example$BNF/ks_table.bnf[]
 ----
 
 Both keyspace and table name should be comprised of only alphanumeric
-characters, cannot be empty and are limited in size to 48 characters
-(that limit exists mostly to avoid filenames (which may include the
+or underscore characters and cannot be empty. 
+Keyspace name is limited in size to 48 characters, while
+table name is limited in size to 222 characters
+(those limits exist mostly to avoid filenames (which may include the
 keyspace and table name) to go over the limits of certain file systems).
 By default, keyspace and table names are case-insensitive (`myTable` is
 equivalent to `mytable`) but case sensitivity can be forced by using

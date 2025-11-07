@@ -112,6 +112,9 @@ public class CreateTableValidationTest extends CQLTester
         String tableName = "t".repeat(FILENAME_LENGTH - tableIdSuffix);
         String tooLongTableName = "l".repeat(FILENAME_LENGTH - tableIdSuffix + 1);
 
+        // Assert that the documented value of 222 corresponds to the actual constant.
+        assertThat(TABLE_NAME_LENGTH).isEqualTo(222);
+
         execute(String.format("CREATE KEYSPACE %s with replication = " +
                               "{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
                               keyspaceName));
