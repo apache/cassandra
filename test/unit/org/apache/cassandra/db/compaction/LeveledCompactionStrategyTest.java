@@ -955,6 +955,24 @@ public class LeveledCompactionStrategyTest
         }
     }
 
+    @Test()
+    public void testInvalidFanoutAndSSTableSize()
+    {
+        try
+        {
+            Map<String, String> options = new HashMap<>();
+            options.put("class", "LeveledCompactionStrategy");
+            options.put("fanout_size", "90");
+            options.put("sstable_size_in_mb", "1089");
+            LeveledCompactionStrategy.validateOptions(options);
+            Assert.fail("fanout_sizeed and sstable_size_in_mb are invalid, but did not throw ConfigurationException");
+        }
+        catch (ConfigurationException e)
+        {
+            assertTrue(e.getMessage().contains("your maxSSTableSize must be absurdly high to compute"));
+        }
+    }
+
     @Test
     public void testReduceScopeL0()
     {

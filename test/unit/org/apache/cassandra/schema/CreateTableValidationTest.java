@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -203,9 +204,22 @@ public class CreateTableValidationTest extends CQLTester
                              String.format("CREATE TABLE %s.\"    \" (key int PRIMARY KEY, val int)", KEYSPACE));
     }
 
-    private void expectedFailure(String statement, String errorMsg)
+    @Test
+    public void testInvalidCompactionOptions()
+    {
+        expectedFailure(ConfigurationException.class, "CREATE TABLE %s (k int PRIMARY KEY, v int) WITH compaction = {'class': 'LeveledCompactionStrategy', 'fanout_size': '90', 'sstable_size_in_mb': '1089'}",
+                        "your maxSSTableSize must be absurdly high to compute");
+    }
+
+    private void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)
     {
 
+        assertThatExceptionOfType(exceptionType)
+        .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
+    }
+
+    private void expectedFailure(String statement, String errorMsg)
+    {
         assertThatExceptionOfType(InvalidRequestException.class)
         .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
     }
