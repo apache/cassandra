@@ -54,6 +54,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
 import org.yaml.snakeyaml.introspector.Property;
 
+import static org.apache.cassandra.db.virtual.SettingsTable.BACKWARDS_COMPATIBLE_NAMES;
+
 /**
  * To create the test files used by this class, run {@link ConfigCompatibilityTestGenerate}.
  */
@@ -163,7 +165,9 @@ public class ConfigCompatibilityTest
         Map<Class<?>, Map<String, Replacement>> replacements = Replacements.getNameReplacements(type);
         Set<String> missing = new HashSet<>();
         Set<String> errors = new HashSet<>();
-        diff(loader, replacements, previous, type, "", missing, errors);
+        Map<String, String> backwardsCompatNames = BACKWARDS_COMPATIBLE_NAMES;
+
+        diff(loader, replacements, previous, type, "", missing, errors, backwardsCompatNames);
         missing = Sets.difference(missing, ignore);
         errors = Sets.difference(errors, expectedErrors);
         StringBuilder msg = new StringBuilder();
@@ -179,7 +183,7 @@ public class ConfigCompatibilityTest
             throw new AssertionError(msg);
     }
 
-    private void diff(Loader loader, Map<Class<?>, Map<String, Replacement>> replacements, ClassTree previous, Class<?> type, String prefix, Set<String> missing, Set<String> errors)
+    private void diff(Loader loader, Map<Class<?>, Map<String, Replacement>> replacements, ClassTree previous, Class<?> type, String prefix, Set<String> missing, Set<String> errors, Map<String, String> backwardsCompatNames)
     {
         Map<String, Replacement> replaces = replacements.getOrDefault(type, Collections.emptyMap());
         Map<String, Property> properties = loader.getProperties(type);
@@ -210,7 +214,7 @@ public class ConfigCompatibilityTest
             if (node instanceof ClassTree)
             {
                 // current is nested type
-                diff(loader, replacements, (ClassTree) node, prop.getType(), prefix + name + ".", missing, errors);
+                diff(loader, replacements, (ClassTree) node, prop.getType(), prefix + name + ".", missing, errors, backwardsCompatNames);
             }
             else
             {
@@ -225,7 +229,19 @@ public class ConfigCompatibilityTest
                     // previous is leaf, is current?
                     Map<String, Property> children = Properties.isPrimitive(prop) || Properties.isCollection(prop) ? Collections.emptyMap() : loader.getProperties(prop.getType());
                     if (!children.isEmpty())
+                    {
                         errors.add(String.format("Property %s used to be a value-type, but now is nested type %s", name, prop.getType()));
+
+                        // Verify SettingsTable maps old name to new nested path for backwards compatibility (e.g., "authenticator" -> "authenticator.class_name")
+                        if (!backwardsCompatNames.containsKey(name))
+                        {
+                            errors.add(String.format(
+                                    "Property %s changed to nested type but is missing from SettingsTable.BACKWARDS_COMPATIBLE_NAMES. " +
+                                            "Add mapping for '%s' to its new nested property path.",
+                                    name, name));
+                        }
+                    }
+
                     typeCheck(null, toString(prop.getType()), ((Leaf) node).type, name, errors);
                 }
             }

@@ -1,4 +1,5 @@
 5.0.7
+ * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)
 Merged from 4.1:
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
