@@ -402,6 +402,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         for (InetAddressAndPort endpoint : unreachableEndpoints.keySet())
         {
             NodeId nodeId = metadata.directory.peerId(endpoint);
+            // If the endpoint is not known to cluster metadata, the peer is probably a leftover of upgrading as
+            // long-gone hibernating peers may persist indefinitely. By definition though, such a peer cannot be
+            // a token owner, so it is safe to exclude it.
+            if (nodeId == null)
+                continue;
             NodeState state = metadata.directory.peerState(nodeId);
             switch (state)
             {
