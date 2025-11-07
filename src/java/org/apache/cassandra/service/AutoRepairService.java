@@ -273,6 +273,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         config.setRepairRetryBackoff(RepairType.parse(repairType), interval);
     }
 
+    @Override
+    public void setRepairLoopMinDuration(String repairType, String interval)
+    {
+        config.setRepairLoopMinDuration(RepairType.parse(repairType), interval);
+    }
+
     private String formatRepairTypeConfig(RepairType repairType, AutoRepairConfig config)
     {
         StringBuilder sb = new StringBuilder();
@@ -304,6 +310,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
             appendConfig(sb, "force_repair_new_node", config.getForceRepairNewNode(repairType));
             appendConfig(sb, "repair_max_retries", config.getRepairMaxRetries(repairType));
             appendConfig(sb, "repair_retry_backoff", config.getRepairRetryBackoff(repairType));
+            appendConfig(sb, "repair_loop_min_duration", config.getRepairLoopMinDuration(repairType));
 
             final ParameterizedClass splitterClass = config.getTokenRangeSplitter(repairType);
             final String splitterClassName =  splitterClass.class_name != null ? splitterClass.class_name : AutoRepairConfig.DEFAULT_SPLITTER.getName();

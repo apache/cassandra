@@ -1,4 +1,5 @@
 Unreleased
+ * [SO-57838] Implement repair_loop_min_duration auto-repair option
  * [SO-52378] Fix label for repair_task_min_duration in nodetool setautorepairconfig
  * [SO-54680] Add the server side config for logging the query time with fingerprint
  * [SO-55616] LCS enforcement should be applied to MVs as normal tables

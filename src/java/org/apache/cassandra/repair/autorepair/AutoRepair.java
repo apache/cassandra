@@ -271,6 +271,12 @@ public class AutoRepair
                     repairKeyspace(repairType, primaryRangeOnly, repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments(), collectedRepairStats);
                 }
 
+                // Enforce minimum repair loop duration to ensure consistent metrics collection
+                // This must be done BEFORE cleanupAndUpdateStats so that the repair is still marked as "in progress"
+                // during the soak time, ensuring metrics collectors see the full minimum duration.
+                long minDurationMillis = TimeUnit.SECONDS.toMillis(config.getRepairLoopMinDuration(repairType).toSeconds());
+                soakAfterRepair(startTime, minDurationMillis);
+
                 cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, collectedRepairStats);
             }
             else

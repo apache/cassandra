@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -965,5 +966,122 @@ public class AutoRepairParameterizedTest extends CQLTester
         listener.progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0, "test"));
 
         listener.await(new DurationSpec.IntSecondsBound("12h"));
+    }
+
+    @Test
+    public void testRepairLoopMinDurationEnforcement()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairMinInterval(repairType, "0s");
+        // Set minimum duration to a large value to ensure sleep is always triggered
+        config.setRepairLoopMinDuration(repairType, "1h");
+        config.setRepairRetryBackoff(repairType, "0s");
+        config.setAutoRepairTableMaxRepairTime(repairType, "0s");
+
+        // Mock sleep to capture the sleep duration
+        AtomicReference<Long> sleepDuration = new AtomicReference<>(0L);
+        AtomicReference<TimeUnit> sleepUnit = new AtomicReference<>(null);
+        AtomicBoolean sleepCalled = new AtomicBoolean(false);
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalled.set(true);
+            sleepDuration.set(duration);
+            sleepUnit.set(unit);
+        };
+
+        // Set last repair time to allow repair to run
+        AutoRepair.instance.repairStates.get(repairType).setLastRepairTime(1000L);
+
+        // Run the repair
+        AutoRepair.instance.repair(repairType);
+
+        // Verify that sleep was called
+        assertTrue("Sleep should have been called for minimum duration enforcement", sleepCalled.get());
+        // Verify that sleep was called with a positive duration to meet minimum duration
+        assertTrue("Sleep should have been called with positive duration: " + sleepDuration.get(),
+                   sleepDuration.get() > 0);
+        assertEquals("Sleep should use MILLISECONDS", TimeUnit.MILLISECONDS, sleepUnit.get());
+        // Since we set 1 hour minimum and repairs take seconds, sleep should be substantial
+        assertTrue("Sleep duration should be at least 30 minutes: " + sleepDuration.get() + "ms",
+                   sleepDuration.get() >= TimeUnit.MINUTES.toMillis(30));
+    }
+
+    @Test
+    public void testRepairLoopMinDurationNotEnforcedWhenRepairTakesLonger()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairMinInterval(repairType, "0s");
+        // Set minimum duration to something small that real repair will exceed
+        config.setRepairLoopMinDuration(repairType, "1s");
+        config.setRepairRetryBackoff(repairType, "0s");
+        config.setAutoRepairTableMaxRepairTime(repairType, "0s");
+
+        // Track sleep calls
+        AtomicBoolean sleepCalled = new AtomicBoolean(false);
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepCalled.set(true);
+        };
+
+        AtomicInteger timeFuncCalls = new AtomicInteger(0);
+        AutoRepair.timeFunc = () -> {
+            // Simulate repair taking 2 seconds
+            return timeFuncCalls.incrementAndGet() * 2000L;
+        };
+
+        // Set last repair time to allow repair to run
+        AutoRepair.instance.repairStates.get(repairType).setLastRepairTime(1000L);
+
+        // Run the repair
+        AutoRepair.instance.repair(repairType);
+
+        assertFalse("Sleep should not have been called for minimum duration enforcement", sleepCalled.get());
+    }
+
+    @Test
+    public void testRepairInProgressRemainsTrueDuringSoakTime()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairMinInterval(repairType, "0s");
+        // Set a large minimum duration to ensure sleep happens
+        config.setRepairLoopMinDuration(repairType, "1h");
+        config.setRepairRetryBackoff(repairType, "0s");
+        config.setAutoRepairTableMaxRepairTime(repairType, "0s");
+
+        // Mock sleep to capture the repair state during the soak time
+        AtomicBoolean repairInProgressDuringSoak = new AtomicBoolean(false);
+        AtomicBoolean sleepWasCalled = new AtomicBoolean(false);
+        AutoRepair.sleepFunc = (Long duration, TimeUnit unit) -> {
+            sleepWasCalled.set(true);
+            // Check if repair is still marked as in progress during the soak/sleep
+            repairInProgressDuringSoak.set(AutoRepair.instance.getRepairState(repairType).isRepairInProgress());
+        };
+
+        // Verify repair is not in progress before starting
+        assertFalse("Repair should not be in progress before starting",
+                    AutoRepair.instance.getRepairState(repairType).isRepairInProgress());
+
+        // Set last repair time to allow repair to run
+        AutoRepair.instance.repairStates.get(repairType).setLastRepairTime(1000L);
+
+        // Run the repair
+        AutoRepair.instance.repair(repairType);
+
+        // Verify that sleep was actually called
+        assertTrue("Sleep should have been called", sleepWasCalled.get());
+
+        // Verify that during the soak time, repair was still marked as in progress
+        assertTrue("Repair should remain in progress during soak time", repairInProgressDuringSoak.get());
+
+        // Verify that after repair completes (including soak), repair is no longer in progress
+        assertFalse("Repair should not be in progress after completion",
+                    AutoRepair.instance.getRepairState(repairType).isRepairInProgress());
     }
 }

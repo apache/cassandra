@@ -51,7 +51,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
                   "|materialized_view_repair_enabled|repair_max_retries" +
                   "|repair_retry_backoff|repair_session_timeout|repair_task_min_duration" +
-                  "|repair_by_keyspace|token_range_splitter.<property>]",
+                  "|repair_by_keyspace|repair_loop_min_duration|token_range_splitter.<property>]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -170,6 +170,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 break;
             case "repair_retry_backoff":
                 probe.setAutoRepairRetryBackoff(repairTypeStr, paramVal);
+                break;
+            case "repair_loop_min_duration":
+                probe.setRepairLoopMinDuration(repairTypeStr, paramVal);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);

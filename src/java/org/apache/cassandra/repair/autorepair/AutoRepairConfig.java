@@ -382,6 +382,16 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.abort_auto_repair_after);
     }
 
+    public void setRepairLoopMinDuration(RepairType repairType, String interval)
+    {
+        getOptions(repairType).repair_loop_min_duration = new DurationSpec.LongSecondsBound(interval);
+    }
+
+    public DurationSpec.LongSecondsBound getRepairLoopMinDuration(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.repair_loop_min_duration);
+    }
+
     @VisibleForTesting
     static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(RepairType repairType, ParameterizedClass parameterizedClass) throws ConfigurationException
     {
@@ -483,6 +493,7 @@ public class AutoRepairConfig implements Serializable
             opts.repair_max_retries = 3;
             opts.repair_retry_backoff = new DurationSpec.LongSecondsBound("30s");
             opts.abort_auto_repair_after = new DurationSpec.LongSecondsBound("15m");
+            opts.repair_loop_min_duration = new DurationSpec.LongSecondsBound("0s");
 
             return opts;
         }
@@ -552,6 +563,9 @@ public class AutoRepairConfig implements Serializable
         // Currently, this setting only applies to the "bootstrap" repair type.
         // It is not used for other repair types at this time, though future support can be added.
         public volatile DurationSpec.LongSecondsBound abort_auto_repair_after;
+        // Minimum duration for the auto-repair loop. This ensures that the auto-repair loop runs for at a set minimum duration.
+        // Useful for improving the reliability of metrics collection.
+        public volatile DurationSpec.LongSecondsBound repair_loop_min_duration;
 
         public String toString()
         {
@@ -573,6 +587,10 @@ public class AutoRepairConfig implements Serializable
                    ", token_range_splitter=" + token_range_splitter +
                    ", intial_scheduler_delay=" + initial_scheduler_delay +
                    ", repair_session_timeout=" + repair_session_timeout +
+                   ", repair_max_retries=" + repair_max_retries +
+                   ", repair_retry_backoff=" + repair_retry_backoff +
+                   ", abort_auto_repair_after=" + abort_auto_repair_after +
+                   ", repair_loop_min_duration=" + repair_loop_min_duration +
                    '}';
         }
     }

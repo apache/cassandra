@@ -80,4 +80,6 @@ public interface AutoRepairServiceMBean
     public void setAutoRepairMaxRetriesCount(String repairType, int retries);
 
     public void setAutoRepairRetryBackoff(String repairType, String interval);
+
+    public void setRepairLoopMinDuration(String repairType, String interval);
 }

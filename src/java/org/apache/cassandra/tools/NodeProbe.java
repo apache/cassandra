@@ -2864,6 +2864,11 @@ public class NodeProbe implements AutoCloseable
     {
         autoRepairProxy.setAutoRepairRetryBackoff(repairType, interval);
     }
+
+    public void setRepairLoopMinDuration(String repairType, String interval)
+    {
+        autoRepairProxy.setRepairLoopMinDuration(repairType, interval);
+    }
     
     public void setQueryAnalyticsEnabled(boolean enabled)
     {
