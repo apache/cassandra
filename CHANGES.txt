@@ -1,4 +1,5 @@
 Unreleased
+4.1.10.2
  * [SO-57837] Add feature to ignore pending node from node replacement during write consistency level calculation
  * [SO-55354] Ingest INSERT/DELETE Queries
  * [SO-57838] Implement repair_loop_min_duration auto-repair option
