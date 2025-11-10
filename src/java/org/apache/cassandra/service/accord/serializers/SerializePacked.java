@@ -23,6 +23,7 @@ import java.io.IOException;
 import accord.utils.BitUtils;
 import accord.utils.Invariants;
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -33,17 +34,82 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class SerializePacked
 {
-    public static void serializePackedInts(int[] vs, int from, int to, int max, DataOutputPlus out) throws IOException
+    public static void serializePackedSortedIntsAndLength(int[] vs, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(vs.length);
+        serializePackedSortedInts(vs, out);;
+    }
+
+    public static void serializePackedSortedInts(int[] vs, DataOutputPlus out) throws IOException
+    {
+        if (vs.length == 0)
+            return;
+
+        int last = vs[vs.length - 1];
+        out.writeUnsignedVInt32(last);
+        serializePackedInts(vs, 0, vs.length - 1, last - 1, out);
+    }
+
+    public static int[] deserializePackedSortedIntsAndLength(DataInputPlus in) throws IOException
+    {
+        return deserializePackedSortedInts(in.readUnsignedVInt32(), in);
+    }
+
+    public static int[] deserializePackedSortedInts(int length, DataInputPlus in) throws IOException
+    {
+        if (length == 0)
+            return new int[0];
+
+        int last = in.readUnsignedVInt32();
+        int[] vs = new int[length];
+        deserializePackedInts(vs, 0, length - 1, last - 1, in);
+        vs[length - 1] = last;
+        return vs;
+    }
+
+    public static void skipPackedSortedIntsAndLength(DataInputPlus in) throws IOException
+    {
+        skipPackedSortedInts(in.readUnsignedVInt32(), in);
+    }
+
+    public static void skipPackedSortedInts(int length, DataInputPlus in) throws IOException
+    {
+        if (length > 0)
+        {
+            int last = in.readUnsignedVInt32();
+            skipPackedInts(0, length - 1, last - 1, in);
+        }
+    }
+
+    public static long serializedSizeOfPackedSortedIntsAndLength(int[] vs)
+    {
+        return TypeSizes.sizeofUnsignedVInt(vs.length) + serializedSizeOfPackedSortedInts(vs);
+    }
+
+    public static long serializedSizeOfPackedSortedInts(int[] vs)
+    {
+        if (vs.length == 0)
+            return 0;
+        int last = vs[vs.length - 1];
+        return TypeSizes.sizeofUnsignedVInt(last) + serializedPackedSize(vs.length - 1, last - 1);
+    }
+
+    public static void serializePackedInts(int[] vs, int from, int to, long max, DataOutputPlus out) throws IOException
     {
         serializePacked((in, i) -> in[i], vs, from, to, max, out);
     }
 
-    public static void deserializePackedInts(int[] vs, int from, int to, int max, DataInputPlus in) throws IOException
+    public static void deserializePackedInts(int[] vs, int from, int to, long max, DataInputPlus in) throws IOException
     {
         deserializePacked((out, i, v) -> out[i] = (int)v, vs, from, to, max, in);
     }
 
-    public static long serializedPackedIntsSize(int[] vs, int from, int to, int max)
+    public static void skipPackedInts(int from, int to, long max, DataInputPlus in) throws IOException
+    {
+        in.skipBytesFully(serializedPackedSize(to - from, max));
+    }
+
+    public static long serializedPackedIntsSize(int[] vs, int from, int to, long max)
     {
         return serializedPackedSize(to - from, max);
     }
@@ -60,12 +126,13 @@ public class SerializePacked
         if (bitsPerEntry == 0)
             return;
 
+        long outOfRange = -1L << bitsPerEntry;
         long buffer = 0L;
         int bufferCount = 0;
         for (int i = from; i < to; i++)
         {
             long v = adapter.get(in, i);
-            Invariants.require(v <= max);
+            Invariants.require((v & outOfRange) == 0);
             buffer |= v << bufferCount;
             bufferCount = bufferCount + bitsPerEntry;
             if (bufferCount >= 64)

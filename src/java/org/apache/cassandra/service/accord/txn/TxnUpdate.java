@@ -54,6 +54,7 @@ import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.SerializePacked;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -96,7 +97,7 @@ public class TxnUpdate extends AccordUpdate
             {
                 out.writeUnsignedVInt32(t.id);
                 writeWithVIntLength(t.condition.bytes(), out);
-                ArraySerializers.serializeUnsignedVInt32Array(t.fragmentIds, out);
+                SerializePacked.serializePackedSortedIntsAndLength(t.fragmentIds, out);
             }
 
             @Override
@@ -106,7 +107,7 @@ public class TxnUpdate extends AccordUpdate
                 SerializedTxnCondition condition = new SerializedTxnCondition(readWithVIntLength(in));
 
                 // Deserialize mutations
-                int[] mutations = ArraySerializers.deserializeUnsignedVInt32Array(in);
+                int[] mutations = SerializePacked.deserializePackedSortedIntsAndLength(in);
                 return new ConditionalBlock(id, condition, mutations);
             }
 
@@ -115,7 +116,7 @@ public class TxnUpdate extends AccordUpdate
             {
                 in.readUnsignedVInt32();
                 skipWithVIntLength(in);
-                ArraySerializers.skipUnsignedVInt32Array(in);
+                SerializePacked.skipPackedSortedIntsAndLength(in);
             }
 
             @Override
@@ -123,7 +124,7 @@ public class TxnUpdate extends AccordUpdate
             {
                 long size = TypeSizes.sizeofUnsignedVInt(t.id);
                 size += serializedSizeWithVIntLength(t.condition.bytes());
-                size += ArraySerializers.serializedUnsignedVInt32ArraySize(t.fragmentIds);
+                size += SerializePacked.serializedSizeOfPackedSortedIntsAndLength(t.fragmentIds);
                 return size;
             }
         };
