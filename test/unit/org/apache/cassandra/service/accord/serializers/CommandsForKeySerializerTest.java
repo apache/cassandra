@@ -99,6 +99,7 @@ import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.SimpleBitSets;
 import accord.utils.SortedArrays;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
@@ -204,7 +205,7 @@ public class CommandsForKeySerializerTest
             if (saveStatus.known.outcome() == Known.Outcome.Apply)
             {
                 if (txnId.is(Kind.Write))
-                    builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)));
+                    builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
                 builder.result(new TxnData());
             }
             return builder;

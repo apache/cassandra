@@ -1,4 +1,5 @@
 5.1
+ * Add support in the binary protocol to allow transactions to have multiple conditions (CASSANDRA-20883)
  * Enable CQLSSTableWriter to create SSTables compressed with a dictionary (CASSANDRA-20938)
  * Support ZSTD dictionary compression (CASSANDRA-17021)
  * Fix ExceptionsTable when stacktrace has zero elements (CASSANDRA-20992)

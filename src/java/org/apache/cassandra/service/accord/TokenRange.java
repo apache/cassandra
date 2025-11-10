@@ -54,6 +54,11 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange(start, end);
     }
 
+    public static TokenRange create(TableId tableId, Token start, Token end)
+    {
+        return new TokenRange(new TokenKey(tableId, start), new TokenKey(tableId, end));
+    }
+
     public static TokenRange createUnsafe(TokenKey start, TokenKey end)
     {
         return new TokenRange(start, end);
