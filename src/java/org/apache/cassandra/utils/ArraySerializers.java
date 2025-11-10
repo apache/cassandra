@@ -21,7 +21,11 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.util.function.IntFunction;
 
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
+import org.apache.cassandra.io.ParameterisedVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
