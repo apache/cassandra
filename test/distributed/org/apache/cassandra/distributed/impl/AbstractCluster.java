@@ -697,6 +697,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return instance;
     }
 
+    public synchronized void unsafeRemoveNode(I toRemove)
+    {
+        instances.remove(toRemove);
+        instanceMap.remove(toRemove.broadcastAddress(), toRemove);
+    }
+
+    public void unsafeUpdateNodeIdTopology(int num, NetworkTopology.DcAndRack location)
+    {
+        nodeIdTopology.put(num, location);
+    }
+
     /**
      * WARNING: we index from 1 here, for consistency with inet address!
      */
