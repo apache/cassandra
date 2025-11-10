@@ -480,9 +480,10 @@ public class ClusterMetadata
             return this;
         }
 
-        public Transformer register(NodeId nodeId, NodeAddresses addresses, Location location, NodeVersion version)
+        @VisibleForTesting
+        public Transformer unsafeRegisterForTesting(NodeId nodeId, NodeAddresses addresses, Location location, NodeVersion version)
         {
-            directory = directory.with(nodeId, addresses, location, version);
+            directory = directory.unsafeWithNodeForTesting(nodeId, addresses, location, version);
             return this;
         }
 
