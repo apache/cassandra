@@ -81,7 +81,7 @@ public class AccordTopologyUtils
         NodeId nodeId = nodeId(node);
         InetAddressAndPort ep = ep(node);
         NodeAddresses addresses = new NodeAddresses(nodeId.toUUID(), ep, ep, ep);
-        transformer.register(nodeId, addresses, LOCATION, NodeVersion.CURRENT);
+        transformer.unsafeRegisterForTesting(nodeId, addresses, LOCATION, NodeVersion.CURRENT);
         transformer.withNodeState(nodeId, NodeState.JOINED);
         transformer.proposeToken(nodeId, Collections.singleton(token));
         transformer.addToRackAndDC(nodeId);
