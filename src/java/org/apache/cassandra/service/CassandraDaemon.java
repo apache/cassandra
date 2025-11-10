@@ -90,6 +90,7 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -278,7 +279,12 @@ public class CassandraDaemon
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             AccordOperations.initJmx();
-            if (ClusterMetadata.current().myNodeId() != null)
+            NodeState nodeStateForLocalAddress = ClusterMetadata.current().myNodeState();
+            // If another node with the same address was previously a member and was decommissioned, it can be
+            // present in ClusterMetadata with a LEFT state. That should not trigger _this_ node to update
+            // RegistrationStatus. During the startup process the old node will be expunged and this node
+            // will register, prompting another call to onRegistration.
+            if (nodeStateForLocalAddress != null && nodeStateForLocalAddress != NodeState.LEFT)
                 RegistrationStatus.instance.onRegistration();
         }
         catch (InterruptedException | ExecutionException | IOException e)
