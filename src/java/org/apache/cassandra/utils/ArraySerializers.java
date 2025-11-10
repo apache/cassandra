@@ -23,6 +23,7 @@ import java.util.function.IntFunction;
 
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -58,6 +59,13 @@ public class ArraySerializers
         out.writeUnsignedVInt32(items.length);
         for (T item : items)
             serializer.serialize(item, p, out, version);
+    }
+
+    public static <T, P> void serializeArray(T[] items, P p, DataOutputPlus out, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
+    {
+        out.writeUnsignedVInt32(items.length);
+        for (T item : items)
+            serializer.serialize(item, p, out);
     }
 
     public static <T> T[] deserializeArray(DataInputPlus in, UnversionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
@@ -118,6 +126,22 @@ public class ArraySerializers
             serializer.skip(p, in, version);
     }
 
+    public static <T, P> T[] deserializeArray(P p, DataInputPlus in, ParameterisedUnversionedSerializer<T, P> serializer, IntFunction<T[]> arrayFactory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        T[] items = arrayFactory.apply(size);
+        for (int i = 0; i < size; i++)
+            items[i] = serializer.deserialize(p, in);
+        return items;
+    }
+
+    public static <T, P> void skipArray(P p, DataInputPlus in, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            serializer.skip(p, in);
+    }
+
     public static <T> long serializedArraySize(T[] array, UnversionedSerializer<T> serializer)
     {
         long size = sizeofUnsignedVInt(array.length);
@@ -147,6 +171,14 @@ public class ArraySerializers
         long size = sizeofUnsignedVInt(array.length);
         for (T item : array)
             size += serializer.serializedSize(item, p, version);
+        return size;
+    }
+
+    public static <T, P> long serializedArraySize(T[] array, P p, ParameterisedUnversionedSerializer<T, P> serializer)
+    {
+        long size = sizeofUnsignedVInt(array.length);
+        for (T item : array)
+            size += serializer.serializedSize(item, p);
         return size;
     }
 }

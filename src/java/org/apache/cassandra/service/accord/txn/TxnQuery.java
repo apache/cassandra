@@ -119,7 +119,7 @@ public abstract class TxnQuery implements Query
 
             AccordUpdate accordUpdate = (AccordUpdate)update;
             TxnData txnData = (TxnData)data;
-            boolean conditionCheck = accordUpdate.checkCondition(data);
+            boolean conditionCheck = accordUpdate.checkAnyConditionMatch(data);
             // If the condition applied an empty result indicates success
             if (conditionCheck)
                 return new TxnData();

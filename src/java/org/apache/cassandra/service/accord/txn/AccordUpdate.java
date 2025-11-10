@@ -72,7 +72,7 @@ public abstract class AccordUpdate implements Update
 
     }
 
-    public boolean checkCondition(Data data)
+    public boolean checkAnyConditionMatch(Data data)
     {
         throw new UnsupportedOperationException();
     }

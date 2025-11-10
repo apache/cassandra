@@ -74,5 +74,10 @@ public interface AsymmetricParameterisedUnversionedSerializer<In, P, Out>
         }
     }
 
+    default void skip(P p, DataInputPlus in) throws IOException
+    {
+        deserialize(p, in);
+    }
+
     long serializedSize(In t, P p);
 }
