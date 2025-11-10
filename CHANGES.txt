@@ -1,4 +1,5 @@
 5.1
+ * Don't update registration status if node state for decommissioned peer is found with the same address (CASSANDRA-21005)
  * Avoid NPE when meta keyspace placements are empty before CMS is initialized (CASSANDRA-21004)
  * Gossip entries for hibernating non-members don't block truncate (CASSANDRA-21003)
  * Retry without time limit calculates wait time incorrectly (CASSANDRA-21002)
