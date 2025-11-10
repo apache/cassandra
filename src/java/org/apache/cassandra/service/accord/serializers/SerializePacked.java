@@ -32,9 +32,11 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * These are packed into an "array" of fixed bit width, so that the total size consumed is ceil((bits*elements)/8).
  * This can (in future) be read directly without deserialization, by indexing into the byte stream directly.
  * <p/>
- * The serialized value is optimized for values in the range 0 to 256 (negative will be rejected), and should produce
- * output smaller or equal to vint serialization; when values are larger than 256, then the packing can produce 1 extra
- * serialized byte.  Serialization is safe in these cases, and faster to skip.
+ * Each item is encoded using the number of bits required to represent the maximum (i.e. last) value.
+ * This means the format produces its most competitive size when the maximum value is close in scale to the median.
+ * By comparison to vint encoding, this format is _always_ more space-efficient when the domain is [0..256).
+ * Due to the simplicity of the serialization, this format is particularly suited to cases where deserializing or skipping
+ * needs to be especially efficient, or accessing elements directly without deserialization is desired.
  */
 public class SerializePacked
 {
