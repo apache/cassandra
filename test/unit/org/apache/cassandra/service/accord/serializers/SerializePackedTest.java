@@ -44,8 +44,9 @@ public class SerializePackedTest
 
     private static final Gen<int[]> monotonic = rs -> {
         int[] array = new int[rs.nextInt(0, 10)];
+        int value = rs.nextInt(0, Integer.MAX_VALUE - array.length);
         for (int i = 0; i < array.length; i++)
-            array[i] = i;
+            array[i] = value++;
         return array;
     };
 
