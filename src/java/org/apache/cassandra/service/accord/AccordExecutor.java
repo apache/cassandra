@@ -69,6 +69,12 @@ import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
+import org.apache.cassandra.metrics.AccordExecutorMetrics;
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
+import org.apache.cassandra.metrics.ShardedDecayingHistograms;
+import org.apache.cassandra.metrics.ShardedDecayingHistograms.DecayingHistogramsShard;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.UniqueSave;
@@ -98,6 +104,8 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AbstractAsyncExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
+    public static final ShardedDecayingHistograms HISTOGRAMS = new ShardedDecayingHistograms();
+
     public interface AccordExecutorFactory
     {
         AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent);
@@ -159,6 +167,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     private List<Condition> waitingForQuiescence;
     private Queue<WaitForCompletion> waitingForCompletion;
 
+    final LogLinearDecayingHistograms histograms;
+    final LogLinearDecayingHistogram elapsedPreparingToRun;
+    final LogLinearDecayingHistogram elapsedWaitingToRun;
+    final LogLinearDecayingHistogram elapsedRunning;
+    final LogLinearDecayingHistogram keys;
+    public final AccordReplicaMetrics.Shard replicaMetrics;
+
     private static class WaitForCompletion
     {
         final int position;
@@ -212,6 +227,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         registerJfrListener(executorId, commandsForKey, "CommandsForKey");
 
         this.caches = new ExclusiveGlobalCaches(this, cache, commands, commandsForKey);
+
+        DecayingHistogramsShard histogramsShard = HISTOGRAMS.newShard(lock);
+        this.histograms = histogramsShard.unsafeGetInternal();
+        this.elapsedPreparingToRun = AccordExecutorMetrics.INSTANCE.elapsedPreparingToRun.forShard(histogramsShard);
+        this.elapsedWaitingToRun = AccordExecutorMetrics.INSTANCE.elapsedWaitingToRun.forShard(histogramsShard);
+        this.elapsedRunning = AccordExecutorMetrics.INSTANCE.elapsedRunning.forShard(histogramsShard);
+        this.keys = AccordExecutorMetrics.INSTANCE.keys.forShard(histogramsShard);
+        this.replicaMetrics = new AccordReplicaMetrics.Shard(histogramsShard);
         ScheduledExecutors.scheduledFastTasks.scheduleAtFixedRate(() -> {
             executeDirectlyWithLock(cache::processNoEvictQueue);
         }, 1L, 1L, TimeUnit.SECONDS);
@@ -1761,4 +1784,18 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
+    public int unsafePreparingToRunCount()
+    {
+        return waitingToLoad.size() + waitingToLoadRangeTxns.size() + scanningRanges.size() + loading.size();
+    }
+
+    public int unsafeWaitingToRunCount()
+    {
+        return waitingToRun.size();
+    }
+
+    public int unsafeRunningCount()
+    {
+        return running.size();
+    }
 }

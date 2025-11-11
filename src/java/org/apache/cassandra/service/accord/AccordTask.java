@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -59,12 +60,14 @@ import accord.utils.async.Cancellable;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.DebuggableTask;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.AccordExecutor.SubmittableTask;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
@@ -201,6 +204,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
     @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey;
     @Nullable Object2ObjectHashMap<Object, AccordSafeState<?, ?>> loading;
+    LogLinearDecayingHistograms.Buffer histogramBuffer;
     // TODO (desired): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
@@ -299,12 +303,20 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             Invariants.require(rangeScanner == null || rangeScanner.scanned);
             Invariants.require(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
             waitingToRunAt = nanoTime();
+            commandStore.executor().elapsedPreparingToRun.increment(waitingToRunAt - createdAt, runningAt);
         }
         else if (state == RUNNING)
         {
             runningAt = nanoTime();
+            if (waitingToRunAt == 0)
+            {
+                waitingToRunAt = runningAt;
+                commandStore.executor().elapsedPreparingToRun.increment(waitingToRunAt - createdAt, runningAt);
+            }
+            commandStore.executor().elapsedWaitingToRun.increment(runningAt - waitingToRunAt, runningAt);
+            commandStore.executor().keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
         }
-        else if (state.isExecuted())
+        else if (state.isExecuted() && completedAt == 0)
         {
             completedAt = nanoTime();
         }
@@ -756,7 +768,17 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         if (state == FAILING)
             state(FAILED);
+        Invariants.expect(state.isExecuted());
         releaseResources(commandStore.cachesExclusive());
+        if (runningAt != 0)
+        {
+            commandStore.executor().elapsedRunning.increment(completedAt - runningAt, completedAt);
+        }
+        if (histogramBuffer != null)
+        {
+            histogramBuffer.flush(completedAt);
+            histogramBuffer = null;
+        }
     }
 
     @Nullable
@@ -979,13 +1001,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                 default: throw new AssertionError("Unhandled Status: " + entry.status());
                 case WAITING_TO_LOAD:
                 case LOADING:
-                    if (scanned)
-                        // if we've finished scanning and not already taken a reference we shouldn't need to witness (unless modified)
-                        return;
-                    ensureLoading().put(entry.key(), commandsForKeyCache.acquire(entry));
-                    if (entry.status() == Status.WAITING_TO_LOAD)
-                        ensureWaitingToLoad().add(entry);
-                    entry.loadingOrWaiting().add(AccordTask.this);
                     return;
 
                 case MODIFIED:
@@ -995,6 +1010,23 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                 case FAILED_TO_SAVE:
                     if (commandsForKey != null && commandsForKey.containsKey(entry.key()))
                         return;
+
+                    Object v = entry.getOrShrunkExclusive();
+                    if (v == null) return;
+                    else if (v instanceof CommandsForKey)
+                    {
+                        if (!summaryLoader.isRelevant((CommandsForKey) v))
+                            return;
+                    }
+                    else
+                    {
+                        TxnId last = CommandSerializers.txnId.deserialize((ByteBuffer) v);
+                        int position = (int)CommandSerializers.txnId.serializedSize(last);
+                        TxnId minUndecided = CommandSerializers.txnId.deserialize((ByteBuffer) v, position);
+                        if (!summaryLoader.isRelevant(entry.key(), last, minUndecided))
+                            return;
+                    }
+
                     ensureCommandsForKey().putIfAbsent(entry.key(), commandsForKeyCache.acquire(entry));
             }
         }
