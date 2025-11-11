@@ -69,7 +69,6 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AccordCommandTest
 {
-
     static final AtomicLong clock = new AtomicLong(0);
     private static final Node.Id ID1 = new Node.Id(1);
     private static final Node.Id ID2 = new Node.Id(2);

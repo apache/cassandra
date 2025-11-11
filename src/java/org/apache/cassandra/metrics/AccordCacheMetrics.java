@@ -44,7 +44,7 @@ public class AccordCacheMetrics
 
         public AccordCacheGlobalMetrics()
         {
-            DefaultNameFactory factory = new DefaultNameFactory("AccordCache");
+            DefaultNameFactory factory = new DefaultNameFactory(ACCORD_CACHE);
             this.usedBytes = Metrics.gauge(factory.createMetricName("UsedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().weightedSize()), 0L));
             this.unreferencedBytes = Metrics.gauge(factory.createMetricName("UnreferencedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().unreferencedBytes()), 0L));
         }
@@ -89,7 +89,7 @@ public class AccordCacheMetrics
 
     public AccordCacheMetrics(String subTypeName)
     {
-        DefaultNameFactory factory = new DefaultNameFactory("AccordCache", subTypeName);
+        DefaultNameFactory factory = new DefaultNameFactory(ACCORD_CACHE, subTypeName);
         this.objectSize = Metrics.shardedHistogram(factory.createMetricName("EntrySize"));
         this.hits = Metrics.gauge(factory.createMetricName("Hits"), hitRate::totalHits);
         this.misses = Metrics.gauge(factory.createMetricName("Misses"), hitRate::totalMisses);

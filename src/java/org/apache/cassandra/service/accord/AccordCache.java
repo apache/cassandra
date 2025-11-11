@@ -54,6 +54,7 @@ import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
@@ -62,11 +63,11 @@ import org.apache.cassandra.metrics.ShardedHitRate;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.btree.BTree;
 
 import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.require;
@@ -219,6 +220,7 @@ public class AccordCache implements CacheSize
     {
         require(node.references() == 0);
 
+        // TODO (desired): special-case evict queue with 1 element as no point shrinking first
         if (shrinkingOn && node.tryShrink())
         {
             IntrusiveLinkedList<AccordCacheEntry<?,?>> queue;
@@ -1107,6 +1109,11 @@ public class AccordCache implements CacheSize
         @Override
         public Runnable save(AccordCommandStore commandStore, RoutingKey key, @Nullable CommandsForKey value, @Nullable Object serialized)
         {
+            if (serialized != null)
+            {
+                ByteBuffer bb = (ByteBuffer)serialized;
+                serialized = bb.duplicate().position(prefixBytes(bb));
+            }
             return commandStore.saveCommandsForKey(key, value, serialized);
         }
 
@@ -1125,19 +1132,35 @@ public class AccordCache implements CacheSize
         @Override
         public Object fullShrink(RoutingKey key, CommandsForKey value)
         {
-            if (value.isEmpty())
+            if (value.isEmpty() || value.isLoadingPruned())
                 return null;
 
-            if (value.isLoadingPruned())
-                return value;
+            TxnId last = value.size() == 0 ? null : value.get(value.size() - 1);
+            TxnId minUndecided = value.minUndecided();
+            int lastSize = (int) CommandSerializers.txnId.serializedSize(last);
+            int minUndecidedSize = (int) CommandSerializers.txnId.serializedSize(minUndecided);
+            ByteBuffer result = Serialize.toBytesWithoutKey(lastSize + minUndecidedSize, value.maximalPrune());
+            int limit = result.limit();
+            result.limit(lastSize + minUndecidedSize);
+            CommandSerializers.txnId.serialize(last, result, ByteBufferAccessor.instance, 0);
+            CommandSerializers.txnId.serialize(minUndecided, result, ByteBufferAccessor.instance, lastSize);
+            result.limit(limit);
+            return result;
+        }
 
-            return Serialize.toBytesWithoutKey(value.maximalPrune());
+        private static int prefixBytes(ByteBuffer bb)
+        {
+            int prefix = (int) CommandSerializers.txnId.serializedSize(CommandSerializers.txnId.deserialize(bb, 0));
+            prefix += (int)CommandSerializers.txnId.serializedSize(CommandSerializers.txnId.deserialize(bb, prefix));
+            return prefix;
         }
 
         @Override
         public CommandsForKey inflate(AccordCommandStore commandStore, RoutingKey key, Object shrunk)
         {
-            return Serialize.fromBytes(key, (ByteBuffer)shrunk);
+            ByteBuffer bb = ((ByteBuffer)shrunk).duplicate();
+            bb.position(prefixBytes(bb));
+            return Serialize.fromBytes(key, bb, false);
         }
 
         @Override

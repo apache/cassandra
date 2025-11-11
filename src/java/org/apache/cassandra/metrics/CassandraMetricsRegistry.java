@@ -118,6 +118,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                    .add(AccordCoordinatorMetrics.ACCORD_COORDINATOR)
                                    .add(AccordCacheMetrics.ACCORD_CACHE)
                                    .add(AccordReplicaMetrics.ACCORD_REPLICA)
+                                   .add(AccordExecutorMetrics.ACCORD_EXECUTOR)
                                    .add(AccordSystemMetrics.ACCORD_SYSTEM)
                                    .add(BatchMetrics.TYPE_NAME)
                                    .add(BufferPoolMetrics.TYPE_NAME)

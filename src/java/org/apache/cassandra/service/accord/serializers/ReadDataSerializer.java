@@ -42,6 +42,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.VersionedSerializer;
@@ -82,7 +83,7 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         boolean hasExecuteAtEpoch = (read.executeAt() != null ? read.executeAt() : read.txnId).epoch() != read.executeAtEpoch;
 
         out.writeUnsignedVInt32(type.ordinal()
-                                | (read.flags.bits() << 3)
+                                | shiftedExecuteFlags(read.flags)
                                 | (hasTxn ? HAS_TXN : 0)
                                 | (hasExecuteAt ? HAS_EXECUTE_AT : 0)
                                 | (hasExecuteAtEpoch ? HAS_EXECUTE_AT_EPOCH : 0)
@@ -154,7 +155,7 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         {
             int tmp = in.readUnsignedVInt32();
             type = TYPES[tmp & 0x7];
-            flags = ExecuteFlags.get((tmp >>> 3) & 0x3);
+            flags = ExecuteFlags.get(unshiftedExecuteFlags(tmp));
             hasTxn = (tmp & HAS_TXN) != 0;
             hasExecuteAt = (tmp & HAS_EXECUTE_AT) != 0;
             hasExecuteAtEpoch = (tmp & HAS_EXECUTE_AT_EPOCH) != 0;
@@ -219,6 +220,17 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         }
     }
 
+    private static int shiftedExecuteFlags(ExecuteFlags flags)
+    {
+        Invariants.require(flags.bits() <= 0x7);
+        return ((flags.bits() & 0x3) << 3) | ((flags.bits() & ~0x3) << 6);
+    }
+
+    private static int unshiftedExecuteFlags(int flags)
+    {
+        return ((flags & 0x18) >> 3) | ((flags & 0x100) >> 6);
+    }
+
     @Override
     public long serializedSize(ReadData read, Version version)
     {
@@ -228,12 +240,13 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         boolean hasExecuteAtEpoch = (read.executeAt() != null ? read.executeAt() : read.txnId).epoch() != read.executeAtEpoch;
 
         long size = VIntCoding.computeUnsignedVIntSize(type.ordinal()
-                                                       | (read.flags.bits() << 3)
+                                                       | shiftedExecuteFlags(read.flags)
                                                        | (hasTxn ? HAS_TXN : 0)
                                                        | (hasExecuteAt ? HAS_EXECUTE_AT : 0)
                                                        | (hasExecuteAtEpoch ? HAS_EXECUTE_AT_EPOCH : 0))
                     + CommandSerializers.txnId.serializedSize(read.txnId)
                     + KeySerializers.participants.serializedSize(read.scope);
+
         if (hasTxn)
             size += CommandSerializers.partialTxn.serializedSize(read.partialTxn(), version);
         if (hasExecuteAt)

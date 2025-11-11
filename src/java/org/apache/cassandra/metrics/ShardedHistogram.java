@@ -43,19 +43,6 @@ public class ShardedHistogram extends OverrideHistogram
             this.histogram = histogram;
         }
 
-        long total()
-        {
-            lock.lock();
-            try
-            {
-                return histogram.totalCount;
-            }
-            finally
-            {
-                lock.unlock();
-            }
-        }
-
         public void updateSnapshot(LogLinearSnapshot snapshot)
         {
             lock.lock();
