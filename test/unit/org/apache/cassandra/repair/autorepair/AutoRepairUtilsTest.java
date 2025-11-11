@@ -538,4 +538,42 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         assertFalse(AutoRepairUtils.shouldConsiderKeyspace(Keyspace.open(SchemaConstants.TRACE_KEYSPACE_NAME)));
     }
+
+    @Test
+    public void testAutoRepairHistoryOutOfOrderDeleteRaceCondition()
+    {
+        // Setup: Create a node that will be deleted
+        UUID nodeToDelete = UUID.randomUUID();
+        UUID votingNode = UUID.randomUUID();
+        
+        // Insert an initial row for the node to be deleted
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts) VALUES ('%s', %s, 100, 200)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType, nodeToDelete));
+        
+        // Verify the row exists
+        UntypedResultSet beforeDelete = QueryProcessor.executeInternal(String.format(
+        "SELECT * FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType, nodeToDelete));
+        assertNotNull(beforeDelete);
+        assertEquals(1, beforeDelete.size());
+        
+        // Simulate the race condition:
+        // 1. First, the delete is executed (this should create a tombstone)
+        AutoRepairUtils.deleteAutoRepairHistory(repairType, nodeToDelete);
+        
+        // 2. Then, a vote to delete arrives after the row has already been deleted
+        AutoRepairUtils.addHostIdToDeleteHosts(repairType, votingNode, nodeToDelete);
+        
+        // Verify that the row is still deleted despite the out-of-order vote
+        UntypedResultSet afterRace = QueryProcessor.executeInternal(String.format(
+        "SELECT * FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType, nodeToDelete));
+        assertNotNull(afterRace);
+        // The row should not exist - the delete should win despite the vote arriving later
+        assertEquals("Row should remain deleted despite out-of-order vote", 0, afterRace.size());
+    }
 }
