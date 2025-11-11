@@ -75,7 +75,8 @@ public class AutoRepairOrphanCleanupTest extends TestBaseImpl
                                                                     ImmutableMap.builder()
                                                                                 .put("initial_scheduler_delay", "0s")
                                                                                 .put("enabled", "true")
-                                                                                // Set very high min_repair_interval to ensure repairs are skipped
+                                                                                // Set very high min_repair_interval
+                                                                                // to ensure repairs are skipped
                                                                                 .put("min_repair_interval", "24h")
                                                                                 .put("allow_parallel_replica_repair", "true")
                                                                                 .put("repair_by_keyspace", "true")
