@@ -28,7 +28,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.utils.Invariants;
+import accord.utils.SortedArrays;
 import com.codahale.metrics.Snapshot;
+
+import static accord.utils.SortedArrays.Search.CEIL;
 
 /**
  * A simple single-threaded histogram with log-linear buckets.
@@ -40,13 +43,13 @@ import com.codahale.metrics.Snapshot;
  */
 public class LogLinearHistogram
 {
-    private static final int MAX_INDEX = 247;
+    public static final int MAX_INDEX = 247;
     private long[] buckets;
     long totalCount;
 
     public LogLinearHistogram(long expectedMaxValue)
     {
-        buckets = new long[buckets(expectedMaxValue)];
+        buckets = new long[bucketCount(expectedMaxValue)];
     }
 
     public void increment(long value)
@@ -99,12 +102,12 @@ public class LogLinearHistogram
         return buckets;
     }
 
-    private static int buckets(long maxValue)
+    static int bucketCount(long maxValue)
     {
         return 1 + (index(maxValue) | 0x3);
     }
 
-    private static int index(long value)
+    static int index(long value)
     {
         if (value < 4)
             return (int) value;
@@ -113,7 +116,7 @@ public class LogLinearHistogram
         return (log + 1) * 4 + linear;
     }
 
-    private static long invertIndex(int index)
+    static long invertIndex(int index)
     {
         if (index < 4)
             return index;
@@ -141,7 +144,7 @@ public class LogLinearHistogram
 
         public static LogLinearSnapshot emptyForMax(long maxValue)
         {
-            return new LogLinearSnapshot(buckets(maxValue));
+            return new LogLinearSnapshot(bucketCount(maxValue));
         }
 
         LogLinearSnapshot(int size)
@@ -163,33 +166,37 @@ public class LogLinearHistogram
                 cumulative = new long[raw.length];
                 long sum = 0;
                 for (int i = 0 ; i < cumulative.length ; ++i)
-                    cumulative[i] = sum += cumulative[i];
+                    cumulative[i] = sum += raw[i];
             }
             return cumulative;
         }
 
-        private long get(long tot)
+        private double get(long tot)
         {
-            if (totalCount == 0)
+            if (totalCount == 0 || tot == 0)
                 return 0;
 
             long[] cumulative = cumulative();
-            int i = Arrays.binarySearch(cumulative, tot);
-            if (i >= 0) while (i > 0 && cumulative[i-1] == tot) --i;
-            else i = Math.max(0, -2 - i);
-            long prevValue = invertIndex(i);
+            int i = SortedArrays.binarySearch(cumulative, 0, cumulative.length, tot, CEIL);
+            if (i >= 0)
+                return invertIndex(i);
+
+            i = Math.max(0, -2 - i);
             long prevCount = cumulative[i];
+            long nextCount = cumulative[i + 1];
+
+            long prevValue = invertIndex(i);
             long nextValue = invertIndex(i + 1);
-            long nextCount = i + 1 == cumulative.length ? totalCount : cumulative[i + 1];
-            long gap = tot - prevCount;
-            // should we use double arithmetic here to avoid overflow?
-            return prevValue + ((nextValue - prevValue) * gap) / (nextCount - prevCount);
+
+            double granularity = (nextValue - prevValue) / (double)(nextCount - prevCount);
+            double targetGap = tot - prevCount;
+            return prevValue + Math.round(targetGap * granularity);
         }
 
         @Override
         public double getValue(double quantile)
         {
-            return get(Math.round(totalCount * quantile));
+            return get(Math.max(1L, (long)Math.ceil(totalCount * quantile)));
         }
 
         @Override
@@ -199,23 +206,47 @@ public class LogLinearHistogram
         }
 
         @Override
-        public long getMax()
-        {
-            return get(totalCount);
-        }
-
-        @Override
         public double getMean()
         {
-            if (totalCount <= 1)
+            if (totalCount == 0)
                 return 0.0D;
-            return get(totalCount / 2);
+
+            double sum = 0;
+            for (int i = 0; i < raw.length; i++)
+            {
+                if (raw[i] != 0)
+                    sum += raw[i] * (double) invertIndex(i);
+            }
+            return sum / totalCount;
         }
 
         @Override
         public long getMin()
         {
-            return get(1);
+            if (totalCount == 0)
+                return 0;
+
+            long[] cumulative = cumulative();
+            int i = SortedArrays.binarySearch(cumulative, 0, cumulative.length, 1, CEIL);
+            if (i < 0)
+            {
+                i = Math.max(0, -2 - i);
+                if (cumulative[i] == 0)
+                    ++i;
+            }
+            return invertIndex(i);
+        }
+
+        @Override
+        public long getMax()
+        {
+            if (totalCount == 0)
+                return 0;
+
+            long[] cumulative = cumulative();
+            int i = SortedArrays.binarySearch(cumulative, 0, cumulative.length, totalCount, CEIL);
+            if (i < 0) i = -2 - i;
+            return invertIndex(i + 1);
         }
 
         /**
@@ -230,23 +261,19 @@ public class LogLinearHistogram
         public double getStdDev()
         {
             if (totalCount <= 1)
-            {
                 return 0.0D;
-            }
-            else
+
+            double mean = this.getMean();
+            double sum = 0.0D;
+
+            for(int i = 0; i < raw.length; ++i)
             {
-                double mean = this.getMean();
-                double sum = 0.0D;
-
-                for(int i = 0; i < raw.length; ++i)
-                {
-                    long value = invertIndex(i);
-                    double diff = value - mean;
-                    sum += diff * diff * raw[i];
-                }
-
-                return Math.sqrt(sum / (totalCount - 1));
+                long value = invertIndex(i);
+                double diff = value - mean;
+                sum += diff * diff * raw[i];
             }
+
+            return Math.sqrt(sum / (totalCount - 1));
         }
 
         @Override
@@ -274,13 +301,18 @@ public class LogLinearHistogram
         return result;
     }
 
+    public LogLinearSnapshot copyToSnapshot()
+    {
+        return new LogLinearSnapshot(buckets.clone(), totalCount);
+    }
+
     public void updateSnapshot(LogLinearSnapshot snapshot)
     {
         if (snapshot.raw.length < buckets.length)
             snapshot.raw = Arrays.copyOf(snapshot.raw, buckets.length);
 
         long[] raw = snapshot.raw;
-        for (int i = 0 ; i < raw.length ; ++i)
+        for (int i = 0 ; i < buckets.length ; ++i)
             raw[i] = raw[i] + buckets[i];
         snapshot.totalCount += totalCount;
         snapshot.cumulative = null;

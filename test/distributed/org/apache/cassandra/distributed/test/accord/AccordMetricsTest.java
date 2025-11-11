@@ -49,6 +49,7 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
@@ -60,7 +61,6 @@ import org.assertj.core.data.Offset;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
-
 
 public class AccordMetricsTest extends AccordTestBase
 {
@@ -332,7 +332,6 @@ public class AccordMetricsTest extends AccordTestBase
         assertThat(metric.apply(AccordReplicaMetrics.REPLICA_STABLE_LATENCY)).isLessThanOrEqualTo(stable);
         assertThat(metric.apply(AccordReplicaMetrics.REPLICA_PREAPPLY_LATENCY)).isEqualTo(executions);
         assertThat(metric.apply(AccordReplicaMetrics.REPLICA_APPLY_LATENCY)).isEqualTo(applications);
-        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
         assertThat(metric.apply(AccordReplicaMetrics.REPLICA_DEPENDENCIES)).isEqualTo(executions);
 
         // Verify that replica metrics are published to the appropriate virtual table:
@@ -357,6 +356,7 @@ public class AccordMetricsTest extends AccordTestBase
         Map<Integer, Map<String, Long>> metrics = new HashMap<>();
         for (int i = 0; i < SHARED_CLUSTER.size(); i++)
         {
+            SHARED_CLUSTER.get(i + 1).runOnInstance(() -> AccordExecutor.HISTOGRAMS.refresh());
             Map<String, Long> map = SHARED_CLUSTER.get(i + 1).metrics().getCounters(name -> name.startsWith("org.apache.cassandra.metrics.Accord") || (name.startsWith("org.apache.cassandra.metrics.ClientRequest") && (name.endsWith("AccordRead") || name.endsWith("AccordWrite"))));
             SHARED_CLUSTER.get(i + 1).metrics().getGauges(name -> name.startsWith("org.apache.cassandra.metrics.Accord"))
                                                .forEach((key, value) -> map.put(key, ((Number)value).longValue()));

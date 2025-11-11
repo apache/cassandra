@@ -67,6 +67,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults.CountingResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -162,6 +163,7 @@ public class AccordCommandStore extends CommandStore
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
+    LogLinearDecayingHistograms.Buffer metricsBuffer;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
