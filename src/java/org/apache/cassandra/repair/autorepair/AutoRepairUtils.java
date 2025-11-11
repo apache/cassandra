@@ -133,10 +133,10 @@ public class AutoRepairUtils
     "SELECT * FROM %s.%s WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String DEL_REPAIR_PRIORITY = String.format(
-    "DELETE %s[?] FROM %s.%s WHERE %s = ? IF EXISTS", COL_REPAIR_PRIORITY, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    "DELETE %s[?] FROM %s.%s WHERE %s = ?", COL_REPAIR_PRIORITY, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_TYPE);
     final static String ADD_PRIORITY_HOST = String.format(
-    "UPDATE %s.%s SET %s = %s + ?  WHERE %s = ? IF EXISTS", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    "UPDATE %s.%s SET %s = %s + ?  WHERE %s = ?", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_PRIORITY, COL_REPAIR_TYPE);
 
     final static String INSERT_NEW_REPAIR_HISTORY = String.format(
