@@ -251,12 +251,11 @@ public class ConfigCompatibilityTest
                         errors.add(String.format("Property %s used to be a value-type, but now is nested type %s", name, prop.getType()));
 
                         // Verify SettingsTable maps old name to new nested path for backwards compatibility (e.g., "authenticator" -> "authenticator.class_name")
-                        if (!backwardsCompatNames.containsKey(name))
-                        {
+                        if (!backwardsCompatNames.containsKey(name)) {
                             errors.add(String.format(
-                                "Property %s changed to nested type but is missing from SettingsTable.BACKWARDS_COMPATIBLE_NAMES. " +
-                                "Add: names.put(\"%s\", \"%s.class_name\");",
-                                name, name, name));
+                                    "Property %s changed to nested type but is missing from SettingsTable.BACKWARDS_COMPATIBLE_NAMES. " +
+                                            "Add mapping for '%s' to its new nested property path.",
+                                    name, name));
                         }
                     }
 
