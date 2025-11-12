@@ -15,6 +15,7 @@
 * xref:cassandra:managing/operating/repair.adoc[Repair]
 * xref:cassandra:managing/operating/read_repair.adoc[Read repair]
 * xref:cassandra:managing/operating/security.adoc[Security]
+* xref:cassandra:managing/operating/snitch.adoc[Snitches]
 * xref:cassandra:managing/operating/topo_changes.adoc[Topology changes]
 * xref:cassandra:managing/operating/transientreplication.adoc[Transient replication]
 * xref:cassandra:managing/operating/virtualtables.adoc[Virtual tables]
