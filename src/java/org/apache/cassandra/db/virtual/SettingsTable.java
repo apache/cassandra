@@ -163,7 +163,8 @@ public final class SettingsTable extends AbstractVirtualTable
                 assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
             }
         }
-        for (Map.Entry<String, String> e : BACKWARDS_COMPATIBLE_NAMES.entrySet()) {
+        for (Map.Entry<String, String> e : BACKWARDS_COMPATIBLE_NAMES.entrySet())
+        {
             String oldName = e.getKey();
             if (properties.containsKey(oldName))
                 throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
@@ -182,7 +183,8 @@ public final class SettingsTable extends AbstractVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    private static Map<String, String> getBackwardsCompatibleNames() {
+    private static Map<String, String> getBackwardsCompatibleNames()
+    {
         Map<String, String> names = new HashMap<>();
         // Names that dont match yaml
         names.put("audit_logging_options_logger", "audit_logging_options.logger.class_name");
