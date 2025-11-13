@@ -760,6 +760,9 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
 
     public Tracing trace(TxnId txnId, @Nullable Participants<?> participants, CoordinationKind kind)
     {
+        if (kind == CoordinationKind.FetchDurableBefore)
+            return (cs, msg) -> logger.info("Catchup/FetchDurableBefore: {}", msg);
+
         if (!txnIdMap.containsKey(txnId) && null == maybeTrace(txnId, participants, kind, NewOrFailure.NEW, traceNewPatterns))
             return null;
 

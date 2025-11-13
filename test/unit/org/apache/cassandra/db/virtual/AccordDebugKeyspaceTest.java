@@ -37,6 +37,7 @@ import org.junit.Test;
 import accord.api.ProtocolModifiers;
 import accord.messages.NoWaitRequest;
 import accord.api.RoutingKey;
+import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
@@ -209,7 +210,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         CQLTester.setUpClass();
         CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
 
-        AccordService.startup(ClusterMetadata.current().myNodeId());
+        AccordService.localStartup(ClusterMetadata.current().myNodeId());
+        AccordService.distributedStartup();
         requireNetwork();
     }
 
@@ -235,8 +237,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         MessagingService.instance().outboundSink.add(filter);
         try
         {
-            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.appliesTo(id);
 
             execute(SET_TRACE, 1, "{WaitProgress}", id.toString());
@@ -276,8 +278,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         MessagingService.instance().outboundSink.add(filter);
         try
         {
-            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 1, 1, 1);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.appliesTo(id);
 
             execute(SET_TRACE_REMOTE, 1, "{WaitProgress}", nodeId, id.toString());
@@ -339,8 +341,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
             execute(SET_PATTERN_TRACE, "leaky", 0, count, 1.0f, matchKey.toString(), "*", "{}", "*", "leaky", 1, 1, "*", 1);
             for (int i = 0 ; i < count + 1 ; ++i)
             {
-                TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
                 Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, i, 0);
+                TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
                 getBlocking(accord.node().coordinate(id, txn));
                 if (i < count) assertRows(execute(QUERY_TRACE, id.toString()), row(id.toString(), 1, "*"));
                 else assertRows(execute(QUERY_TRACE, id.toString()));
@@ -356,8 +358,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
             execute(SET_PATTERN_TRACE, "leaky", 0, count, 1.0f, matchKey.asRange().toString(), "{KE}", "{}", "{PreAccept}", "leaky", 1, 1, "*", 1);
             for (int i = 0 ; i < count ; ++i)
             {
-                TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
                 Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, i, 0);
+                TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
                 getBlocking(accord.node().coordinate(id, txn));
                 assertRows(execute(QUERY_TRACE, id.toString()));
             }
@@ -365,8 +367,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
             List<TxnId> txnIds = new ArrayList<>();
             for (int i = 0 ; i < count + 1 ; ++i)
             {
-                TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.EphemeralRead, Routable.Domain.Key);
                 Txn txn = createTxn(wrapInTxn(String.format("SELECT * FROM %s.%s WHERE k = ? AND c = ?", KEYSPACE, tableName)), 0, i);
+                TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.EphemeralRead, Routable.Domain.Key);
                 getBlocking(accord.node().coordinate(id, txn));
                 if (i < count) assertRows(execute(QUERY_TRACE, id.toString()), row(id.toString(), 1, "*"));
                 else assertRows(execute(QUERY_TRACE, id.toString()));
@@ -379,8 +381,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
 
         {
-            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 1, 1, 1);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             execute(SET_PATTERN_TRACE, "leaky", 0, count, 1.0f, "" + txn.keys().get(0).toUnseekable(), "{KW}", "*", "{}", "leaky", 1, 1, "{}", 1);
 
             AccordMsgFilter filter = new AccordMsgFilter();
@@ -461,7 +463,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     {
         AccordService accord = accord();
         int nodeId = accord.nodeId().id;
-        TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
+        TxnId id = accord.node().nextTxnIdWithDefaultFlags(Keys.of(), Txn.Kind.Write, Routable.Domain.Key);
         try
         {
             execute(ERASE_JOURNAL_REMOTE, nodeId, 1, id.toString());
@@ -479,8 +481,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
         AccordService accord = accord();
         int nodeId = accord.nodeId().id;
         AccordMsgFilter filter = new AccordMsgFilter();
-        TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+        TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
         filter.appliesTo(id);
         filter.dropVerbs = Set.of();
         MessagingService.instance().outboundSink.add(filter);
@@ -562,7 +564,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
             int nodeId = accord.nodeId().id;
-            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
                                              "    IF r IS NULL THEN\n " +
@@ -570,6 +571,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
                                              "    END IF\n" +
                                              "COMMIT TRANSACTION", KEYSPACE, tableName, KEYSPACE, tableName);
             Txn txn = createTxn(insertTxn, 0, 0, 0, 0, 0);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.appliesTo(id);
             accord.node().coordinate(id, txn).beginAsResult();
 
@@ -603,16 +605,17 @@ public class AccordDebugKeyspaceTest extends CQLTester
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
             AccordService accord = accord();
             int nodeId = accord.nodeId().id;
-            TxnId first = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
                                              "    IF r IS NULL THEN\n " +
                                              "        INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?);\n" +
                                              "    END IF\n" +
                                              "COMMIT TRANSACTION", KEYSPACE, tableName, KEYSPACE, tableName);
+            Txn txn = createTxn(insertTxn, 0, 0, 0, 0, 0);
+            TxnId first = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
 
             filter.appliesTo(first);
-            accord.node().coordinate(first, createTxn(insertTxn, 0, 0, 0, 0, 0)).beginAsResult();
+            accord.node().coordinate(first, txn).beginAsResult();
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
@@ -627,10 +630,10 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
             filter.reset();
 
-            TxnId second = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
+            TxnId second = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.reset();
             filter.appliesTo(second);
-            accord.node().coordinate(second, createTxn(insertTxn, 0, 0, 0, 0, 0)).beginAsResult();
+            accord.node().coordinate(second, txn).beginAsResult();
 
             filter.commit.awaitThrowUncheckedOnInterrupt();
 
@@ -695,9 +698,10 @@ public class AccordDebugKeyspaceTest extends CQLTester
                                              KEYSPACE,
                                              tableName);
             AccordService accord = accord();
-            TxnId id = accord.node().nextTxnIdWithDefaultFlags(Txn.Kind.Write, Routable.Domain.Key);
+            Txn txn = createTxn(insertTxn, 0, 0, 0);
+            TxnId id = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.appliesTo(id);
-            accord.node().coordinate(id, createTxn(insertTxn, 0, 0, 0)).beginAsResult();
+            accord.node().coordinate(id, txn).beginAsResult();
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             String QUERY_JOURNAL = String.format("SELECT txn_id, save_status, command_store_id FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.JOURNAL);

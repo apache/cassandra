@@ -128,8 +128,8 @@ public class RepairJobTest
                                         boolean dontPurgeTombstones, boolean repairAccord, String... cfnames)
         {
             super(SharedContext.Global.instance, new Scheduler.NoopScheduler(),
-                  parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairData, repairPaxos, dontPurgeTombstones, repairAccord, cfnames);
+                  parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, false, isIncremental, pullRepair,
+                  previewKind, optimiseStreams, repairData, repairPaxos, dontPurgeTombstones, repairAccord, false, cfnames);
         }
 
         @Override

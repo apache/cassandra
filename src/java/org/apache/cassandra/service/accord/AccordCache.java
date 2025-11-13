@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -60,6 +61,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.LogLinearHistogram;
 import org.apache.cassandra.metrics.ShardedHitRate;
+import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
@@ -100,11 +102,14 @@ public class AccordCache implements CacheSize
 
     public interface Adapter<K, V, S>
     {
+        enum Shrink { EVICT, DONE, PERFORM_WITHOUT_LOCK }
+
         @Nullable V load(AccordCommandStore commandStore, K key);
         @Nullable Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk);
         default boolean canSave(@Nullable V value, @Nullable Object shrunk) { return true; }
         // a result of null means we can immediately evict, without saving
         @Nullable V quickShrink(V value);
+        Shrink decideFullShrink(K key, V value);
         // a result of null means we cannot shrink, and should save/evict as appropriate
         @Nullable Object fullShrink(K key, V value);
         @Nullable V inflate(AccordCommandStore commandStore, K key, Object shrunk);
@@ -149,6 +154,7 @@ public class AccordCache implements CacheSize
     private long bytesCached;
     private int noEvictGeneration;
     private boolean shrinkingOn = true;
+    private boolean tryShrinkOrEvict;
 
     public AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes)
     {
@@ -156,11 +162,12 @@ public class AccordCache implements CacheSize
         this.maxSizeInBytes = maxSizeInBytes;
     }
 
+    // note: only affects current contents after lock is released
     @Override
     public void setCapacity(long sizeInBytes)
     {
         maxSizeInBytes = sizeInBytes;
-        maybeShrinkOrEvictSomeNodes();
+        tryShrinkOrEvict = true;
     }
 
     public void setShrinkingOn(boolean shrinkingOn)
@@ -206,31 +213,56 @@ public class AccordCache implements CacheSize
      * Roughly respects LRU semantics when evicting. Might consider prioritising keeping MODIFIED nodes around
      * for longer to maximise the chances of hitting system tables fewer times (or not at all).
      */
-    private void maybeShrinkOrEvictSomeNodes()
+    void tryShrinkOrEvict(Lock lock)
     {
+        if (!tryShrinkOrEvict)
+            return;
+
         while (bytesCached > maxSizeInBytes && !evictQueue.isEmpty())
         {
             AccordCacheEntry<?, ?> node = evictQueue.peek();
-            shrinkOrEvict(node);
+            shrinkOrEvict(lock, node);
         }
+        tryShrinkOrEvict = false;
     }
 
     @VisibleForTesting
-    private <K, V> void shrinkOrEvict(AccordCacheEntry<K, V> node)
+    private <K, V> void shrinkOrEvict(Lock lock, AccordCacheEntry<K, V> node)
     {
         require(node.references() == 0);
 
-        // TODO (desired): special-case evict queue with 1 element as no point shrinking first
-        if (shrinkingOn && node.tryShrink())
+        Shrink shrink = shrinkingOn ? node.tryShrink() : Shrink.EVICT;
+        if (shrink == Shrink.EVICT)
+        {
+            tryEvict(node);
+        }
+        else
         {
             IntrusiveLinkedList<AccordCacheEntry<?,?>> queue;
             queue = node.isNoEvict() ? noEvictQueue : evictQueue;
             node.unlink();
-            queue.addLast(node);
-        }
-        else
-        {
-            tryEvict(node);
+            if (shrink == Shrink.DONE)
+            {
+                queue.addLast(node);
+            }
+            else
+            {
+                K key = node.key();
+                V cur = node.tryGetExclusive();
+                Object upd = null;
+                lock.unlock();
+                try
+                {
+                    upd = node.owner.parent().adapter().fullShrink(key, cur);
+                }
+                finally
+                {
+                    //noinspection LockAcquiredButNotSafelyReleased
+                    lock.lock();
+                    node.tryApplyShrink(cur, upd);
+                    queue.addLast(node);
+                }
+            }
         }
     }
 
@@ -463,7 +495,7 @@ public class AccordCache implements CacheSize
                 node.initSize(parent());
                 ++size;
                 node.notifyListeners(Listener::onAdd);
-                maybeShrinkOrEvictSomeNodes();
+                tryShrinkOrEvict = true;
                 return node;
             }
 
@@ -557,7 +589,7 @@ public class AccordCache implements CacheSize
                     }
                 }
 
-                maybeShrinkOrEvictSomeNodes();
+                tryShrinkOrEvict = true;
             }
 
             AccordCacheEntry<K, ?> remove(K key)
@@ -1010,6 +1042,12 @@ public class AccordCache implements CacheSize
         }
 
         @Override
+        public Shrink decideFullShrink(K key, V value)
+        {
+            return Shrink.DONE;
+        }
+
+        @Override
         public Object fullShrink(K key, V value)
         {
             return shrink.apply(key, value);
@@ -1087,6 +1125,7 @@ public class AccordCache implements CacheSize
         @Override public V load(AccordCommandStore commandStore, K key) { return null; }
         @Override public Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk) { return null; }
         @Override public V quickShrink(V value) { return null; }
+        @Override public Shrink decideFullShrink(K key, V value) { return Shrink.DONE; }
         @Override public Object fullShrink(K key, V value) { return null; }
         @Override public V inflate(AccordCommandStore commandStore, K key, Object shrunk) { return null; }
         @Override public long estimateHeapSize(V value) { return 0; }
@@ -1127,6 +1166,18 @@ public class AccordCache implements CacheSize
         public CommandsForKey quickShrink(CommandsForKey value)
         {
             return value;
+        }
+
+        @Override
+        public Shrink decideFullShrink(RoutingKey key, CommandsForKey value)
+        {
+            if (value.isEmpty() || value.isLoadingPruned())
+                return Shrink.EVICT;
+
+            if (value.size() < 64)
+                return Shrink.DONE;
+
+            return Shrink.PERFORM_WITHOUT_LOCK;
         }
 
         @Override
@@ -1247,6 +1298,19 @@ public class AccordCache implements CacheSize
                 logger.warn("Failed to serialize {}", value, e);
                 return null;
             }
+        }
+
+        @Override
+        public Shrink decideFullShrink(TxnId txnId, Command value)
+        {
+            if (txnId.is(Txn.Kind.EphemeralRead))
+                Invariants.expect(value.saveStatus().compareTo(SaveStatus.ReadyToExecute) < 0);
+
+            // TODO (expected): improve heuristics and consider transaction size
+            if (value.partialDeps() == null || value.partialDeps().txnIds().size() < 64)
+                return Shrink.DONE;
+
+            return Shrink.PERFORM_WITHOUT_LOCK;
         }
 
         @Override

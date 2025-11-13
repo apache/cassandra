@@ -68,7 +68,6 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
-import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SimpleBitSetSerializers;
@@ -545,7 +544,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public void skip(Seekables keys, DataInputPlus in, Version version) throws IOException
         {
             TableMetadatas tables = TableMetadatas.deserializeSelf(in);
-            BooleanSerializer.serializer.deserialize(in);
+            SimpleBitSetSerializers.any.deserialize(in);
             skipArray(new TableMetadatasAndKeys(tables, keys), in, version, Update.serializer);
         }
 

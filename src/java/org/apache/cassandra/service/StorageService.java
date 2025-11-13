@@ -847,7 +847,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.waitToSettle();
 
         NodeId self = Register.maybeRegister();
-        AccordService.startup(self);
+        if (!AccordService.isSetupOrStarting())
+            AccordService.localStartup(self);
+        AccordService.distributedStartup();
+
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
 
@@ -3165,7 +3168,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                 true,                       // repairData
                                                 false,                      // repairPaxos
                                                 true,                       // dontPurgeTombstones
-                                                false                       // repairAccord
+                                                false,                      // repairAccord
+                                                false                       // permit no quorum
         );
 
         return new RepairCoordinator(this, cmd, options, keyspace);
@@ -3846,8 +3850,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 transientMode = Optional.of(Mode.DRAINING);
             }
 
-            if (AccordService.isSetup())
-                AccordService.instance().markShuttingDown();
+            if (AccordService.isSetupOrStarting())
+                AccordService.unsafeInstance().markShuttingDown();
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3863,14 +3867,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.error("Messaging service timed out shutting down", t);
             }
 
-            if (AccordService.isSetup())
+            if (AccordService.isSetupOrStarting())
             {
                 logger.info("Flushing Accord caches");
-                if (!AccordService.instance().flushCaches().awaitUninterruptibly(1, MINUTES))
+                if (!AccordService.unsafeInstance().flushCaches().awaitUninterruptibly(1, MINUTES))
                     logger.error("Could not flush Accord caches promptly");
                 if (AccordColumnFamilyStores.commandsForKey != null)
                     AccordColumnFamilyStores.commandsForKey.forceBlockingFlush(INTERNALLY_FORCED);
-                AccordService.instance().shutdownAndWait(1, MINUTES);
+                AccordService.unsafeInstance().shutdownAndWait(1, MINUTES);
             }
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.

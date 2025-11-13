@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.List;
-
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -26,20 +24,15 @@ import org.apache.cassandra.utils.concurrent.Future;
 public class NormalRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
-    private final List<CommonRange> commonRanges;
-    private final boolean excludedDeadNodes;
     private final String[] cfnames;
 
     protected NormalRepairTask(RepairCoordinator coordinator,
                                TimeUUID parentSession,
-                               List<CommonRange> commonRanges,
-                               boolean excludedDeadNodes,
+                               RepairCoordinator.NeighborsAndRanges neighborsAndRanges,
                                String[] cfnames)
     {
-        super(coordinator);
+        super(coordinator, neighborsAndRanges);
         this.parentSession = parentSession;
-        this.commonRanges = commonRanges;
-        this.excludedDeadNodes = excludedDeadNodes;
         this.cfnames = cfnames;
     }
 
@@ -52,6 +45,6 @@ public class NormalRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        return runRepair(parentSession, false, executor, validationScheduler, commonRanges, excludedDeadNodes, cfnames);
+        return runRepair(parentSession, false, executor, validationScheduler, neighborsAndRanges.commonRanges, neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
     }
 }

@@ -142,6 +142,7 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void close()
         {
+            global().tryShrinkOrEvict(lock);
             lock.unlock();
         }
     }
@@ -208,10 +209,14 @@ public class AccordCommandStore extends CommandStore
                 ranges = update.newRangesForEpoch;
             Invariants.require(ranges != null, "CommandStore %d created with no ranges", id);
         }
+
         tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
+
+        if (AccordService.isStarted())
+            progressLog.unsafeStart();
     }
 
     static Factory factory(IntFunction<AccordExecutor> executorFactory)

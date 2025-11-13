@@ -380,7 +380,7 @@ public abstract class ConsensusTableMigration
         boolean optimiseStreams = false;
         boolean ignoreUnreplicatedKeyspaces = true;
         boolean dontPurgeTombstones = false;
-        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord);
+        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, false);
         tables.forEach(table -> repairOption.getColumnFamilies().add(table.tableName));
         return repairOption;
     }

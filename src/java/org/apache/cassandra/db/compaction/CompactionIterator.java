@@ -181,7 +181,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                               TopPartitionTracker.Collector topPartitionCollector)
     {
         this(type, scanners, controller, nowInSec, compactionId, activeCompactions, topPartitionCollector,
-             AccordService.isSetup() ? AccordService.instance() : null);
+             accord(controller));
+    }
+
+    private static IAccordService accord(AbstractCompactionController controller)
+    {
+        IAccordService accord = AccordService.tryGetUnsafe();
+        Invariants.require(accord != null || (!isAccordJournal(controller.cfs) && !isAccordCommandsForKey(controller.cfs)));
+        return accord;
     }
 
     public CompactionIterator(OperationType type,
@@ -194,7 +201,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                               IAccordService accord)
     {
         this(type, scanners, controller, nowInSec, compactionId, activeCompactions, topPartitionCollector,
-             () -> accord.getCompactionInfo(),
+             () -> Invariants.nonNull(accord).getCompactionInfo(),
              () -> Version.fromVersion(accord.journalConfiguration().userVersion()));
     }
 

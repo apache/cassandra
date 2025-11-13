@@ -138,7 +138,7 @@ public class AccordSystemMetrics
 
     private AccordSystemMetrics()
     {
-        Invariants.expect(AccordService.isSetup());
+        Invariants.expect(AccordService.isSetupOrStarting());
         DefaultNameFactory factory = new DefaultNameFactory(ACCORD_SYSTEM);
         minEpoch = Metrics.gauge(factory.createMetricName(MIN_EPOCH), fromTopologyManager(TopologyManager::minEpoch));
         maxEpoch = Metrics.gauge(factory.createMetricName(MAX_EPOCH), fromTopologyManager(TopologyManager::epoch));
@@ -164,13 +164,13 @@ public class AccordSystemMetrics
 
     private synchronized void refreshHistograms()
     {
-        if (!AccordService.isSetup())
+        if (!AccordService.isSetupOrStarting())
         {
             snapshot = new Snapshot();
             return;
         }
 
-        IAccordService service = AccordService.instance();
+        IAccordService service = AccordService.unsafeInstance();
         if (!service.isEnabled())
         {
             snapshot = new Snapshot();

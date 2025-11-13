@@ -466,7 +466,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             }
         }
 
-        // TODO (required): Find a better way to test unwritten allocations and/or corruption
+        // TODO (expected): Find a better way to test unwritten allocations and/or corruption
         @VisibleForTesting
         void consumeBufferUnsafe(Consumer<ByteBuffer> fn)
         {

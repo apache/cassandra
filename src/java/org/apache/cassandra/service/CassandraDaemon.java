@@ -74,6 +74,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -91,6 +92,7 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -343,11 +345,12 @@ public class CassandraDaemon
         PaxosState.initializeTrackers();
 
         // replay the log if necessary
-        // TODO samt - when restarting a previously running instance, this needs to happen after reconstructing schema
-        //  from the cluster metadata log or all mutations will throw IncompatibleSchemaException on deserialisation
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
+            NodeId self = ClusterMetadata.current().myNodeId();
+            if (self != null)
+                AccordService.localStartup(self);
         }
         catch (IOException e)
         {

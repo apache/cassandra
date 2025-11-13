@@ -798,6 +798,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, Version userVersion) throws IOException
     {
+        // TODO (expected): reusable buffer to build, or pre-size
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             Writer writer = Writer.make(before, after);
@@ -1149,7 +1150,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    // TODO (required): this optimisation will be easily disabled;
+                    // TODO (expected): this optimisation will be easily disabled;
                     //  should either operate natively on ByteBuffer
                     //  or else use some explicit API for copying bytes while skipping
                     if (deserializeDeps || !(in instanceof DataInputBuffer))

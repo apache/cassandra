@@ -63,6 +63,7 @@ public class RepairOption
     public static final String REPAIR_PAXOS_KEY = "repairPaxos";
     public static final String NO_TOMBSTONE_PURGING = "nopurge";
     public static final String REPAIR_ACCORD_KEY = "repairAccord";
+    public static final String PERMIT_NO_QUORUM_KEY = "permitNoQuorum";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -209,6 +210,7 @@ public class RepairOption
             logger.info("Overriding and disabling Accord repair because Accord is not enabled");
             repairAccord = false;
         }
+        boolean permitNoQuorum = Boolean.parseBoolean(options.get(PERMIT_NO_QUORUM_KEY));
 
         if (previewKind != PreviewKind.NONE)
         {
@@ -233,7 +235,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, permitNoQuorum);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -316,13 +318,14 @@ public class RepairOption
     private final boolean repairPaxos;
     private final boolean dontPurgeTombstones;
     private final boolean repairAccord;
+    private final boolean permitNoQuorum; // has an effect only for Accord at present
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairData, boolean repairPaxos, boolean dontPurgeTombstones, boolean repairAccord)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairData, boolean repairPaxos, boolean dontPurgeTombstones, boolean repairAccord, boolean permitNoQuorum)
     {
         checkArgument(repairData || repairAccord || repairPaxos, "Repair needs to repair at least one of data, Paxos, or Accord");
         this.parallelism = parallelism;
@@ -340,6 +343,7 @@ public class RepairOption
         this.repairPaxos = repairPaxos;
         this.dontPurgeTombstones = dontPurgeTombstones;
         this.repairAccord = repairAccord;
+        this.permitNoQuorum = permitNoQuorum;
     }
 
     public RepairParallelism getParallelism()
@@ -460,6 +464,11 @@ public class RepairOption
         return repairAccord;
     }
 
+    public boolean permitNoQuorum()
+    {
+        return repairAccord;
+    }
+
     public boolean dontPurgeTombstones()
     {
         return dontPurgeTombstones;
@@ -514,6 +523,7 @@ public class RepairOption
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
         options.put(NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
         options.put(REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
+        options.put(PERMIT_NO_QUORUM_KEY, Boolean.toString(permitNoQuorum));
         return options;
     }
 }

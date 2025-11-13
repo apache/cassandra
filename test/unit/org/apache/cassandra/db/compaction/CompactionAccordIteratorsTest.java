@@ -279,10 +279,14 @@ public class CompactionAccordIteratorsTest
 
     private static void flush(AccordCommandStore commandStore)
     {
+        long cacheSize;
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            long cacheSize = cache.global.capacity();
+            cacheSize = cache.global.capacity();
             cache.global.setCapacity(0);
+        }
+        try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+        {
             cache.global.setCapacity(cacheSize);
         }
         commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
@@ -313,7 +317,7 @@ public class CompactionAccordIteratorsTest
             Txn txn = txnId.kind().isWrite() ? writeTxn : readTxn;
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeGetRangesForEpoch().currentRanges(), true);
-            Route<?> partialRoute = route.slice(commandStore.unsafeGetRangesForEpoch().currentRanges());
+            Route<?> partialRoute = route.overlapping(commandStore.unsafeGetRangesForEpoch().currentRanges());
             getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, (a, b) -> {});
             }));

@@ -108,6 +108,7 @@ public interface IAccordService
     }
 
     boolean isEnabled();
+
     long currentEpoch();
 
     void setCacheSize(long kb);
@@ -115,7 +116,7 @@ public interface IAccordService
 
     TopologyManager topology();
 
-    void startup();
+    void localStartup();
 
     Future<Void> flushCaches();
     void markShuttingDown();
@@ -185,8 +186,6 @@ public interface IAccordService
     AccordTopologyService topologyService();
 
     Params journalConfiguration();
-
-    boolean shouldAcceptMessages();
 
     Node node();
 
@@ -274,7 +273,7 @@ public interface IAccordService
         }
 
         @Override
-        public void startup()
+        public void localStartup()
         {
             try
             {
@@ -367,12 +366,6 @@ public interface IAccordService
         public Params journalConfiguration()
         {
             throw new UnsupportedOperationException("Cannot return configuration when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public boolean shouldAcceptMessages()
-        {
-            return true;
         }
 
         @Override
@@ -490,9 +483,9 @@ public interface IAccordService
         }
 
         @Override
-        public void startup()
+        public void localStartup()
         {
-            delegate.startup();
+            delegate.localStartup();
         }
 
         @Override
@@ -571,12 +564,6 @@ public interface IAccordService
         public Params journalConfiguration()
         {
             return delegate.journalConfiguration();
-        }
-
-        @Override
-        public boolean shouldAcceptMessages()
-        {
-            return delegate.shouldAcceptMessages();
         }
 
         @Override

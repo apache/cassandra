@@ -114,7 +114,7 @@ public class Journal<K, V> implements Shutdownable
 
     final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
 
-    // TODO (required): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
+    // TODO (expected): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
     private final WaitQueue segmentPrepared = newWaitQueue();
     private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
     private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
@@ -256,6 +256,7 @@ public class Journal<K, V> implements Shutdownable
         {
             Invariants.require(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
                                   "Unexpected journal state while trying to shut down", state);
+            logger.debug("Shutting down " + allocator + " and awaiting termination");
             allocator.shutdown();
             wakeAllocator(); // Wake allocator to force it into shutdown
             // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
@@ -265,6 +266,7 @@ public class Journal<K, V> implements Shutdownable
             compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
             closeAllSegments();
+            logger.debug("Shutting down " + releaser + " and " + closer + " and awaiting termination");
             releaser.shutdown();
             closer.shutdown();
             closer.awaitTermination(1, TimeUnit.MINUTES);

@@ -67,6 +67,7 @@ import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
+import static accord.primitives.Routables.Slice.Minimal;
 import static accord.utils.ArrayBuffers.cachedInts;
 import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
@@ -637,13 +638,13 @@ public class TxnUpdate extends AccordUpdate
     @Override
     public TxnUpdate slice(Ranges ranges)
     {
-        return getTxnUpdate(keys -> keys.slice(ranges));
+        return getTxnUpdate(keys -> keys.slice(ranges, Minimal));
     }
 
     @Override
     public TxnUpdate intersecting(Participants<?> participants)
     {
-        return getTxnUpdate(keys -> keys.intersecting(participants));
+        return getTxnUpdate(keys -> keys.intersecting(participants, Minimal));
     }
 
     @VisibleForTesting

@@ -458,6 +458,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
+                                             boolean allReplicas,
                                              boolean isIncremental,
                                              boolean pullRepair,
                                              PreviewKind previewKind,
@@ -466,6 +467,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean repairPaxos,
                                              boolean dontPurgeTombstones,
                                              boolean repairAccord,
+                                             boolean permitNoQuorum,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -481,9 +483,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
                                                         range, excludedDeadNodes, keyspace,
-                                                        parallelismDegree, isIncremental, pullRepair,
+                                                        parallelismDegree, allReplicas, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairData, repairPaxos,
-                                                        dontPurgeTombstones, repairAccord, cfnames);
+                                                        dontPurgeTombstones, repairAccord, permitNoQuorum, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -568,6 +570,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                           Range<Token> toRepair, Collection<String> dataCenters,
                                           Collection<String> hosts)
     {
+        return filterNeighbors(getNeighbors(keyspaceName, keyspaceLocalRanges, toRepair), toRepair, dataCenters, hosts);
+    }
+
+    /**
+     * Return all of the neighbors with whom we share the provided range.
+     *
+     * @param keyspaceName        keyspace to repair
+     * @param keyspaceLocalRanges local-range for given keyspaceName
+     * @param toRepair            token to repair
+     * @return neighbors with whom we share the provided range
+     */
+    public EndpointsForRange getNeighbors(String keyspaceName, Iterable<Range<Token>> keyspaceLocalRanges, Range<Token> toRepair)
+    {
         StorageService ss = StorageService.instance;
         EndpointsByRange replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
@@ -589,7 +604,22 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return EndpointsForRange.empty(toRepair);
 
         // same as withoutSelf(), but done this way for testing
-        EndpointsForRange neighbors = replicaSets.get(rangeSuperSet).filter(r -> !ctx.broadcastAddressAndPort().equals(r.endpoint()));
+        return replicaSets.get(rangeSuperSet).filter(r -> !ctx.broadcastAddressAndPort().equals(r.endpoint()));
+    }
+
+
+    /**
+     * Return all of the neighbors in the listed data center or host lists
+     *
+     * @param toRepair            token to repair
+     * @param dataCenters         the data centers to involve in the repair
+     * @return neighbors with whom we share the provided range
+     */
+    public EndpointsForRange filterNeighbors(EndpointsForRange neighbors, Range<Token> toRepair, Collection<String> dataCenters,
+                                             Collection<String> hosts)
+    {
+        if (neighbors.isEmpty())
+            return neighbors;
 
         ClusterMetadata metadata = ClusterMetadata.current();
         if (dataCenters != null && !dataCenters.isEmpty())

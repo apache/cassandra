@@ -159,7 +159,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         Ranges ranges = topology.ranges();
         if (tableId != null)
-            ranges = ranges.slice(Ranges.of(TokenRange.create(TokenKey.min(tableId, getPartitioner()), TokenKey.max(tableId, getPartitioner()))));
+            ranges = ranges.overlapping(Ranges.of(TokenRange.create(TokenKey.min(tableId, getPartitioner()), TokenKey.max(tableId, getPartitioner()))));
         CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), ranges);
         updateHolder.add(topology.epoch(), rangesForEpoch, ranges);
 
@@ -258,10 +258,10 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public void onUncaughtException(Throwable t)
+            public void onException(Throwable t)
             {
                 if (ignoreExceptions.test(t)) return;
-                super.onUncaughtException(t);
+                super.onException(t);
             }
         };
 

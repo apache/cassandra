@@ -45,9 +45,9 @@ public class AccordMetricUtils
 
     static <I, T> Gauge<T> fromAccordService(Function<IAccordService, I> initialStep, Function<I, T> finalStep, T ifNotSetup)
     {
-        if (AccordService.isSetup())
+        if (AccordService.isSetupOrStarting())
         {
-            IAccordService service = AccordService.instance();
+            IAccordService service = AccordService.unsafeInstance();
             if (!service.isEnabled())
                 return () -> ifNotSetup;
             I intermediate = initialStep.apply(service);

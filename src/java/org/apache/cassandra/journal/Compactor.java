@@ -24,6 +24,9 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
 
@@ -31,6 +34,8 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 public final class Compactor<K, V> implements Runnable, Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
+
     private final Journal<K, V> journal;
     private final SegmentCompactor<K, V> segmentCompactor;
     private final ScheduledExecutorPlus executor;
@@ -99,6 +104,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     @Override
     public void shutdown()
     {
+        logger.debug("Shutting down " + executor);
         executor.shutdown();
     }
 

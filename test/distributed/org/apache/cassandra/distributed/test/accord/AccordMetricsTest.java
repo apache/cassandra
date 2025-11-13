@@ -194,7 +194,6 @@ public class AccordMetricsTest extends AccordTestBase
 
             assertClientMetrics(0, "AccordRead", 1, 0);
             assertClientMetrics(1, "AccordRead", 0, 0);
-            // TODO (required): reenable or remove metric
             assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
             assertCoordinatorMetrics(1, "ro"    , 0, 0, 0, 0, 1);
             assertReplicaMetrics(0, "ro", 0, 0, 0);

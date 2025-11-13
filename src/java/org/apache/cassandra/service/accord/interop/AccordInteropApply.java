@@ -178,7 +178,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         else if (failure != null)
         {
             node.reply(replyTo, replyContext, null, failure);
-            node.agent().onUncaughtException(failure);
+            node.agent().onException(failure);
             fail();
         }
 

@@ -728,12 +728,12 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public void fail(Throwable throwable)
     {
-        commandStore.agent().onUncaughtException(throwable);
+        commandStore.agent().onException(throwable);
         if (state.isComplete())
             return;
 
         if (commandStore.hasSafeStore())
-            commandStore.agent().onUncaughtException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
+            commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
 
         state(FAILING);
         if (callback != null)
@@ -747,12 +747,12 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         {
             if (newFailure)
             {
-                commandStore.agent().onUncaughtException(throwable);
+                commandStore.agent().onException(throwable);
                 if (state.isComplete())
                     return;
 
                 if (commandStore.hasSafeStore())
-                    commandStore.agent().onUncaughtException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
+                    commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
             }
 
             state(FAILED);
@@ -860,7 +860,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         catch (Throwable t)
         {
             releaseResourcesSlow(caches, t);
-            commandStore.agent().onUncaughtException(t);
+            commandStore.agent().onException(t);
         }
     }
 
