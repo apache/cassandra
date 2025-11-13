@@ -233,14 +233,30 @@ public class SchemaDescriptionsUtil
      * @param descriptionType the type of description (COMMENT or SECURITY LABEL)
      * @param schemaElement the type of schema element (KEYSPACE, TABLE, COLUMN, or TYPE)
      * @param schemaElementName the fully qualified name of the schema element
-     * @param comment the comment or security label text (null or empty values are ignored)
+     * @param description the comment or security label text (null or empty values are ignored)
      */
-    private static void addDescription(StringBuilder builder, String descriptionType, String schemaElement, String schemaElementName, String comment)
+    private static void addDescription(StringBuilder builder, String descriptionType, String schemaElement, String schemaElementName, String description)
     {
-        if (StringUtils.isEmpty(comment))
+        if (StringUtils.isEmpty(description))
         {
             return;
         }
+
+        /**
+         * CQL Injection Prevention: Single quotes in comments and security labels must be escaped.
+         *
+         * Example of unescaped input creating a CQL injection vulnerability:
+         *   COMMENT ON COLUMN keyspace1.tbl.key IS 'a'; DROP TABLE keyspace1.tbl;';
+         *
+         * Without proper escaping, this would execute as two separate statements:
+         *   1. COMMENT ON COLUMN keyspace1.tbl.key IS 'a';
+         *   2. DROP TABLE keyspace1.tbl;';
+         *
+         * This is particularly dangerous when operators use DESCRIBE statements to export
+         * schema from one database and import it into another, as malicious comments could
+         * execute arbitrary CQL commands in the target database.
+         */
+        String escapedSingleQuoteDescription = StringUtils.replace(description, "'", "''");
         builder.append("\n")
                .append(descriptionType)
                .append(" ON ")
@@ -249,7 +265,7 @@ public class SchemaDescriptionsUtil
                .append(schemaElementName)
                .append(" IS ")
                .append('\'')
-               .append(comment)
+               .append(escapedSingleQuoteDescription)
                .append('\'')
                .append(';');
     }

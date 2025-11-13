@@ -649,13 +649,13 @@ public final class Types implements Iterable<UserType>
             int nonEmptyCount = 0;
             long dataSize = 0;
 
-            for (FieldIdentifier fieldId : fieldIdentifiers)
+            for (int i = 0; i < fieldIdentifiers.size(); i++)
             {
-                String value = metadataGetter.apply(fieldId);
+                String value = metadataGetter.apply(fieldIdentifiers.get(i));
                 if (!value.isEmpty())
                 {
                     nonEmptyCount++;
-                    dataSize += sizeofUnsignedVInt(0);     // position (int)
+                    dataSize += sizeofUnsignedVInt(i);     // position (int)
                     dataSize += sizeof(value); // value string
                 }
             }

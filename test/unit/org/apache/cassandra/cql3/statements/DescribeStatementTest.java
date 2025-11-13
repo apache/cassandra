@@ -1131,6 +1131,19 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
+
+    @Test
+    public void testDescribeEscapesSingleQuotesInKeyspaceComment() throws Throwable
+    {
+        String commentWithQuotes ="a''; DROP KEYSPACE " + KEYSPACE_PER_TEST + ";";
+        execute(String.format("COMMENT ON KEYSPACE %s IS '%s'", KEYSPACE_PER_TEST, commentWithQuotes));
+        String describeOutput = executeDescribeNet("DESCRIBE KEYSPACE " + KEYSPACE_PER_TEST).one().getString("create_statement");
+
+        // Verify that single quotes are properly escaped (doubled) in the output
+        assertTrue("DESCRIBE output should contain escaped single quotes in comment",
+                  describeOutput.contains("COMMENT ON KEYSPACE " + KEYSPACE_PER_TEST + " IS 'a''; DROP KEYSPACE " + KEYSPACE_PER_TEST + ";';"));
+    }
+
     /**
      * Helper method to set comment and security label on a schema element and test DESCRIBE output.
      * Handles special cases for FIELD and COLUMN which don't have their own DESCRIBE commands.
