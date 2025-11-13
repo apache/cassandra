@@ -42,12 +42,13 @@ import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.service.ClientWarn;
 import org.yaml.snakeyaml.introspector.Property;
 
-final class SettingsTable extends AbstractVirtualTable
+@VisibleForTesting
+public final class SettingsTable extends AbstractVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
 
-    private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
+    public static final Map<String, String> BACKWARDS_COMPATIBLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatibleNames());
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
 
     private final Config config;
@@ -76,8 +77,8 @@ final class SettingsTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
-        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
+        if (BACKWARDS_COMPATIBLE_NAMES.containsKey(name))
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATIBLE_NAMES.get(name) + "'");
         if (PROPERTIES.containsKey(name))
             result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
         return result;
@@ -163,7 +164,7 @@ final class SettingsTable extends AbstractVirtualTable
                 assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
             }
         }
-        for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
+        for (Map.Entry<String, String> e : BACKWARDS_COMPATIBLE_NAMES.entrySet())
         {
             String oldName = e.getKey();
             if (properties.containsKey(oldName))
@@ -183,7 +184,7 @@ final class SettingsTable extends AbstractVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    private static Map<String, String> getBackwardsCompatableNames()
+    private static Map<String, String> getBackwardsCompatibleNames()
     {
         Map<String, String> names = new HashMap<>();
         // Names that dont match yaml
@@ -192,6 +193,12 @@ final class SettingsTable extends AbstractVirtualTable
         names.put("server_encryption_options_endpoint_verification", "server_encryption_options.require_endpoint_verification");
         names.put("server_encryption_options_legacy_ssl_storage_port", "server_encryption_options.legacy_ssl_storage_port_enabled");
         names.put("server_encryption_options_protocol", "server_encryption_options.accepted_protocols");
+        names.put("authenticator", "authenticator.class_name");
+        names.put("authorizer", "authorizer.class_name");
+        names.put("network_authorizer", "network_authorizer.class_name");
+        names.put("role_manager", "role_manager.class_name");
+        names.put("internode_authenticator", "internode_authenticator.class_name");
+
 
         // matching names
         names.put("audit_logging_options_audit_logs_dir", "audit_logging_options.audit_logs_dir");
