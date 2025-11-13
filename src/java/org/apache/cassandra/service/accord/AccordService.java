@@ -70,7 +70,6 @@ import accord.local.durability.DurabilityService;
 import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
 import accord.messages.Request;
-import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Seekable;
@@ -149,6 +148,7 @@ import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.journal.Params.ReplayMode.RESET;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -233,7 +233,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordResponseVerbHandler<? extends Reply> responseHandler;
 
     @GuardedBy("this")
-    private State state = State.INIT;
+    private volatile State state = State.INIT;
 
     private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
 
@@ -254,9 +254,24 @@ public class AccordService implements IAccordService, Shutdownable
         unsafeInstance = instance = NOOP_SERVICE;
     }
 
+    public static IAccordService tryGetUnsafe()
+    {
+        return unsafeInstance;
+    }
+
     public static boolean isSetup()
     {
         return instance != null;
+    }
+
+    public static boolean isSetupOrStarting()
+    {
+        return unsafeInstance != null;
+    }
+
+    public static boolean isStarted()
+    {
+        return isSetup() && unsafeInstance instanceof AccordService && ((AccordService) unsafeInstance).state == State.STARTED;
     }
 
     public static IVerbHandler<Void> watermarkHandlerOrNoop()
@@ -268,38 +283,47 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
     {
-        if (!isSetup()) return ignore -> {};
-        return instance().requestHandler();
+        if (instance == null) return ignore -> {};
+        return instance.requestHandler();
     }
 
     public static IVerbHandler<? extends Reply> responseHandlerOrNoop()
     {
-        if (!isSetup()) return ignore -> {};
-        return instance().responseHandler();
+        if (unsafeInstance == null) return ignore -> {};
+        return unsafeInstance.responseHandler();
     }
 
     @VisibleForTesting
-    public synchronized static AccordService startup(NodeId tcmId)
+    public synchronized static void localStartup(NodeId tcmId)
     {
+        Invariants.require(instance == null);
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
             unsafeInstance = instance = NOOP_SERVICE;
-            return null;
         }
+        else
+        {
+            AccordService as = new AccordService(tcmIdToAccord(tcmId));
+            unsafeInstance = as;
+            as.localStartup();
+        }
+    }
 
-        if (instance != null)
-            return (AccordService) instance;
+    public synchronized static AccordService distributedStartup()
+    {
+        if (unsafeInstance == NOOP_SERVICE)
+            return null;
 
-        AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
-        unsafeInstance = as;
-        as.startup();
+        AccordService as = (AccordService) unsafeInstance;
+        if (as.state != State.INIT)
+            return as;
+
+        as.distributedStartupInternal();
         instance = as;
-        
+
         AccordReplicaMetrics.touch();
         AccordSystemMetrics.touch();
         AccordViolationHandler.setup();
-
-        WatermarkCollector.fetchAndReportWatermarksAsync(as.topology());
         return as;
     }
 
@@ -321,12 +345,6 @@ public class AccordService implements IAccordService, Shutdownable
         long end = nanoTime();
         logger.info("Finished journal replay. {}s elapsed", String.format("%.2f", NANOSECONDS.toMillis(end - start)/1000.0));
         return true;
-    }
-
-    @Override
-    public boolean shouldAcceptMessages()
-    {
-        return state == State.STARTED && journal.started();
     }
 
     public static IAccordService instance()
@@ -365,7 +383,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.endpointMapper = new EndpointMapping.Updateable();
         this.topologyService = new AccordTopologyService(localId, endpointMapper);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, endpointMapper);
-        this.messageSink = new AccordMessageSink(agent, endpointMapper, callbacks);
+        this.messageSink = new AccordMessageSink(endpointMapper, callbacks);
         this.node = new Node(localId,
                              messageSink,
                              topologyService,
@@ -391,7 +409,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public synchronized void startup()
+    public synchronized void localStartup()
     {
         if (state != State.INIT)
             return;
@@ -428,8 +446,13 @@ public class AccordService implements IAccordService, Shutdownable
         {
             node.unsafeSetReplaying(false);
         }
+    }
 
-        finishInitialization();
+    private void distributedStartupInternal()
+    {
+        finishTopologyInitialization();
+        WatermarkCollector.fetchAndReportWatermarksAsync(topology());
+
         catchup();
 
         fastPathCoordinator.start();
@@ -439,9 +462,12 @@ public class AccordService implements IAccordService, Shutdownable
                                                Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        // Only enable durability scheduling _after_ we have fully replayed journal
+        // Only enable durability scheduling and progress logs _after_ we have fully replayed journal
         node.durability().start();
+        // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
+        // start the progress log on command store initialisation (so creates a synchronisation point)
         state = State.STARTED;
+        node.commandStores().forAll("", safeStore -> safeStore.progressLog().start());
     }
 
     void catchup()
@@ -477,13 +503,18 @@ public class AccordService implements IAccordService, Shutdownable
 
                 Throwable failed = f.cause();
                 if (failed != null)
-                    throw new RuntimeException("Could not catch up with peers", failed);
+                {
+                    if (spec.catchup_on_start_exit_on_failure)
+                        throw new RuntimeException("Could not catch up with peers", failed);
+
+                    logger.error("Could not catch up with peers; continuing to startup");
+                    break;
+                }
 
                 long end = nanoTime();
                 double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
                 logger.info("Finished catching up with all quorums. {}s elapsed.", String.format("%.2f", seconds));
 
-                // TODO (expected): make configurable
                 if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
                     break;
 
@@ -511,9 +542,9 @@ public class AccordService implements IAccordService, Shutdownable
     /**
      * Startup is broken up in two phases: local and distributed startup. During local startup, we replay up to
      *  the latest epoch known to the node prior to restart. After that, we replay journal itself, and only after
-     *  that we finish initializaiton and replay the rest of epochs.
+     *  that we finish initialization and replay the rest of epochs.
      */
-    void finishInitialization()
+    void finishTopologyInitialization()
     {
         endpointMapper.updateMapping(ClusterMetadata.current());
         TopologyManager topology = node.topology();
@@ -686,10 +717,9 @@ public class AccordService implements IAccordService, Shutdownable
     private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
         TxnId txnId = node.nextTxnId(minBound, keys, Write);
-        FullRoute<?> route = node.computeRoute(txnId, keys);
         return node.withEpochAtLeast(txnId.epoch(), null, () -> {
             Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.UNSAFE_EMPTY, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
-            return CoordinateTransaction.coordinate(node, route, txnId, txn)
+            return CoordinateTransaction.coordinate(node, txnId, txn)
                                         .mapToNull();
         });
     }
@@ -782,7 +812,7 @@ public class AccordService implements IAccordService, Shutdownable
             return keys;
 
         TableId tableId = tableId(keys, r -> ((AccordRoutableKey)r).table());
-        return sliceToAccord(tableId, keys, Keys::slice);
+        return sliceToAccord(tableId, keys, Keys::overlapping);
     }
 
     public static Ranges intersecting(Ranges ranges)
@@ -791,7 +821,7 @@ public class AccordService implements IAccordService, Shutdownable
             return ranges;
 
         TableId tableId = tableId(ranges, r -> ((TokenRange)r).table());
-        return sliceToAccord(tableId, ranges, Ranges::slice);
+        return sliceToAccord(tableId, ranges, Ranges::overlapping);
     }
 
     private static <C extends Seekables<?, ?>> C sliceToAccord(TableId tableId, C collection, BiFunction<C, Ranges, C> slice)
@@ -974,7 +1004,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public void shutdownAndWait(long timeout, TimeUnit unit)
     {
-        if (!ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), timeout, unit))
+        if (!ExecutorUtils.shutdownThenWait(shutdownableSubsystems(), timeout, unit))
             logger.error("One or more subsystems did not shut down cleanly.");
     }
 

@@ -42,17 +42,13 @@ import org.apache.cassandra.utils.concurrent.Future;
 public class PreviewRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
-    private final List<CommonRange> commonRanges;
-    private final boolean excludedDeadNodes;
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, boolean excludedDeadNodes, String[] cfnames)
+    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, RepairCoordinator.NeighborsAndRanges neighborsAndRanges, String[] cfnames)
     {
-        super(coordinator);
+        super(coordinator, neighborsAndRanges);
         this.parentSession = parentSession;
-        this.commonRanges = commonRanges;
-        this.excludedDeadNodes = excludedDeadNodes;
         this.cfnames = cfnames;
     }
 
@@ -71,7 +67,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, validationScheduler, commonRanges, excludedDeadNodes, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, validationScheduler, neighborsAndRanges.commonRanges, neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         return f.map(result -> {
             if (result.hasFailed())
                 return result;

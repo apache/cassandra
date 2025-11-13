@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
@@ -36,6 +37,7 @@ import accord.api.ProgressLog.BlockedUntil;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
+import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.SafeCommand;
@@ -193,24 +195,23 @@ public class AccordAgent implements Agent, OwnershipEventListener
         logger.error("This replica has become stale for {} as of {}", ranges, staleSince);
     }
 
-    @Override
-    public void onUncaughtException(Throwable t)
+    public static void handleException(Throwable t)
     {
-        handleUncaughtException(t);
-    }
-
-    public static void handleUncaughtException(Throwable t)
-    {
-        if (t instanceof RequestTimeoutException || t instanceof CancellationException)
+        if (t instanceof RequestTimeoutException || t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
             return;
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override
-    public void onCaughtException(Throwable t, String context)
+    public void onException(Throwable t)
     {
-        logger.warn(context, t);
-        JVMStabilityInspector.inspectThrowable(t);
+        handleException(t);
+    }
+
+    @Override
+    public void onException(Throwable t, String context)
+    {
+        handleException(t);
     }
 
     @Override

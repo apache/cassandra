@@ -32,6 +32,7 @@ import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.AccordSpec.QueueShardModel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
@@ -66,6 +67,14 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         maxQueuedRangeLoads = DatabaseDescriptor.getAccordMaxQueuedRangeLoadCount();
         shrinkingOn = DatabaseDescriptor.getAccordCacheShrinkingOn();
         refreshCapacities();
+        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+            for (AccordExecutor executor : executors)
+            {
+                executor.executeDirectlyWithLock(() -> {
+                    executor.cacheExclusive().processNoEvictQueue();
+                });
+            }
+        }, 1L, 1L, TimeUnit.SECONDS);
     }
 
     static Factory factory()
@@ -204,6 +213,9 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         for (AccordExecutor executor : executors)
         {
             executor.shutdown();
+        }
+        for (AccordExecutor executor : executors)
+        {
             try
             {
                 executor.awaitTermination(1, TimeUnit.MINUTES);

@@ -280,7 +280,8 @@ public class AccordCacheTest
     public void testEvictionOnAcquire()
     {
         AccordCacheMetrics cacheMetrics = new AccordCacheMetrics(nextMetricId());
-        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(new NoOpLock());
+        NoOpLock lock = new NoOpLock();
+        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(lock);
 
         ManualExecutor executor = new ManualExecutor();
         AccordCache cache = new AccordCache(saveExecutor(executor), nodeSize(1) * 5);
@@ -297,6 +298,7 @@ public class AccordCacheTest
             testLoad(executor, safeString, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(safeString.key()));
             instance.release(safeString, null);
+            cache.tryShrinkOrEvict(lock);
         }
 
         assertCacheState(cache, 0, 5, nodeSize(1) * 5);
@@ -305,6 +307,7 @@ public class AccordCacheTest
         assertCacheMetrics(cacheMetrics, 0, 5, 5, 5);
 
         SafeString safeString = instance.acquire("5");
+        cache.tryShrinkOrEvict(lock);
         Assert.assertTrue(instance.isReferenced(safeString.key()));
 
         // since it's not loaded, only the node size is counted here
@@ -327,7 +330,8 @@ public class AccordCacheTest
     public void testEvictionOnRelease()
     {
         AccordCacheMetrics cacheMetrics = new AccordCacheMetrics(nextMetricId());
-        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(new NoOpLock());
+        NoOpLock lock = new NoOpLock();
+        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(lock);
 
         ManualExecutor executor = new ManualExecutor();
         AccordCache cache = new AccordCache(saveExecutor(executor), nodeSize(1) * 4);
@@ -343,6 +347,7 @@ public class AccordCacheTest
             items[i] = safeString;
             testLoad(executor, safeString, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(safeString.key()));
+            cache.tryShrinkOrEvict(lock);
         }
 
         assertCacheState(cache, 5, 5, nodeSize(1) * 5);
@@ -351,12 +356,14 @@ public class AccordCacheTest
         Assert.assertNull(cache.tail());
 
         instance.release(items[2], null);
+        cache.tryShrinkOrEvict(lock);
         assertCacheState(cache, 4, 4, nodeSize(1) * 4);
         assertCacheMetrics(cacheMetrics, 0, 5, 5, 5);
         Assert.assertNull(cache.head());
         Assert.assertNull(cache.tail());
 
         instance.release(items[4], null);
+        cache.tryShrinkOrEvict(lock);
         assertCacheState(cache, 3, 4, nodeSize(1) * 4);
         assertCacheMetrics(cacheMetrics, 0, 5, 5, 5);
         Assert.assertSame(items[4].global, cache.head());
@@ -401,7 +408,8 @@ public class AccordCacheTest
     public void evictionBlockedOnSaving()
     {
         AccordCacheMetrics cacheMetrics = new AccordCacheMetrics(nextMetricId());
-        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(new NoOpLock());
+        NoOpLock lock = new NoOpLock();
+        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(lock);
 
         ManualExecutor executor = new ManualExecutor();
         AccordCache cache = new AccordCache(saveExecutor(executor), nodeSize(1) * 3 + nodeSize(3));
@@ -422,6 +430,7 @@ public class AccordCacheTest
             testLoad(executor, item, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(item.key()));
             instance.release(item, null);
+            cache.tryShrinkOrEvict(lock);
         }
 
         assertCacheState(cache, 0, 4, nodeSize(1) * 3 + nodeSize(2));
@@ -430,6 +439,7 @@ public class AccordCacheTest
         // force cache eviction
         instance.acquire(Integer.toString(0));
         cache.setCapacity(0);
+        cache.tryShrinkOrEvict(lock);
 
         // all should have been evicted except 0
         assertCacheState(cache, 1, 1, nodeSize(2));

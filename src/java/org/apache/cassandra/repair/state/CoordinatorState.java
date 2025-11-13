@@ -132,7 +132,7 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
     {
         if (neighborsAndRanges == null)
             return null;
-        return neighborsAndRanges.filterCommonRanges(keyspace, getColumnFamilyNames());
+        return neighborsAndRanges.filterCommonRanges(keyspace, getColumnFamilyNames()).commonRanges;
     }
 
     @Override

@@ -43,6 +43,7 @@ import accord.primitives.SyncPoint;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.topology.TopologyException;
 import accord.utils.ImmutableBitSet;
 import accord.utils.LargeBitSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -114,7 +115,9 @@ public class AccordJournalReplayTest extends TestBaseImpl
                 Txn syncPointTxn = node.agent().emptySystemTxn(Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range);
                 TxnId syncPointId = node.nextTxnId(syncPointTxn);
                 TxnId txnId = node.nextTxnId(txn);
-                FullRoute<?> route = node.computeRoute(txnId, txn.keys());
+                FullRoute<?> route;
+                try { route = node.computeRoute(txnId, txn.keys()); }
+                catch (TopologyException e) { throw new RuntimeException(e); }
                 AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().unsafeForKey(key.toUnseekable());
                 Deps deps = new Deps(KeyDeps.NONE, RangeDeps.SerializerSupport.create(new accord.primitives.Range[] { key.asRange() }, new TxnId[] { syncPointId }, new int[] { 2, 0 }, new int[] { 2, 0 }));
                 Command.WaitingOn waitingOn; {

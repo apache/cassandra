@@ -174,7 +174,7 @@ public interface MessageDelivery
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 long retryDelay = backoff.computeWait(attempt + 1, NANOSECONDS);
-                // TODO (required): we already have a separate retry predicate, retries should not be taken into consideration when retrying
+                // TODO (expected): we already have a separate retry predicate, retries should not be taken into consideration when retrying
                 if (retryDelay < 0)
                 {
                     onResult.result(attempt, null, new GivingUpException(attempt, errorMessage.apply(attempt, ResponseFailureReason.GiveUp, from, failure)));

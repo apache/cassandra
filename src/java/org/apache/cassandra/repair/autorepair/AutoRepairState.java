@@ -311,7 +311,7 @@ class PreviewRepairedState extends AutoRepairState
     public RepairCoordinator getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly)
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
-                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges, false, false, PreviewKind.REPAIRED, false, true, true, false, false, false);
+                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges, false, false, PreviewKind.REPAIRED, false, true, true, false, false, false, false);
 
         option.getColumnFamilies().addAll(tables);
 
@@ -331,7 +331,7 @@ class IncrementalRepairState extends AutoRepairState
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, true, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
-                                               false, false, PreviewKind.NONE, true, true, true, false, false, false);
+                                               false, false, PreviewKind.NONE, true, true, true, false, false, false, false);
 
         option.getColumnFamilies().addAll(filterOutUnsafeTables(keyspace, tables));
 
@@ -376,7 +376,7 @@ class FullRepairState extends AutoRepairState
     {
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
-                                               false, false, PreviewKind.NONE, true, true, true, false, false, false);
+                                               false, false, PreviewKind.NONE, true, true, true, false, false, false, false);
 
         option.getColumnFamilies().addAll(tables);
 

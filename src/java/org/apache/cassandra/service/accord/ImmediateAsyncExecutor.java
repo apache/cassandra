@@ -36,7 +36,7 @@ public class ImmediateAsyncExecutor implements AbstractAsyncExecutor
         }
         catch (Throwable t)
         {
-            AccordAgent.handleUncaughtException(t);
+            AccordAgent.handleException(t);
         }
     }
 }

@@ -122,7 +122,7 @@ public class TxnUpdateTest
             }
 
             // slice the same key should return the same block
-            TxnUpdate noUpdate = update.getTxnUpdate(k -> k.intersecting(update.keys()));
+            TxnUpdate noUpdate = update.getTxnUpdate(k -> k.overlapping(update.keys()));
             for (int i = 0; i < update.blocks.size(); i++)
                 assertThat(noUpdate.blocks.get(i)).isSameAs(update.blocks.get(i));
 
@@ -131,7 +131,7 @@ public class TxnUpdateTest
             int keyIndex = rs.nextInt(0, update.keys().size());
             Key key = update.keys().get(keyIndex);
             Keys singleKey = Keys.of(key);
-            TxnUpdate singleKeyUpdate = update.getTxnUpdate(k -> k.intersecting(singleKey));
+            TxnUpdate singleKeyUpdate = update.getTxnUpdate(k -> k.overlapping(singleKey));
             for (int i = 0; i < update.blocks.size(); i++)
             {
                 var block = singleKeyUpdate.blocks.get(i);
@@ -162,7 +162,7 @@ public class TxnUpdateTest
             for (int i = 0; i < update.keys().size(); i++)
             {
                 int finalI = i;
-                perKeyUpdate.add(update.getTxnUpdate(k -> k.intersecting(Keys.of(update.keys().get(finalI)))));
+                perKeyUpdate.add(update.getTxnUpdate(k -> k.overlapping(Keys.of(update.keys().get(finalI)))));
             }
 
             assertThat(update.merge(update)).isEqualTo(update); // merge with self produces self

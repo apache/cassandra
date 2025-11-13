@@ -31,6 +31,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.RepairCoordinator.NeighborsAndRanges;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -44,13 +45,15 @@ public abstract class AbstractRepairTask implements RepairTask
     protected final InetAddressAndPort broadcastAddressAndPort;
     protected final RepairOption options;
     protected final String keyspace;
+    protected final NeighborsAndRanges neighborsAndRanges;
 
-    protected AbstractRepairTask(RepairCoordinator coordinator)
+    protected AbstractRepairTask(RepairCoordinator coordinator, NeighborsAndRanges neighborsAndRanges)
     {
         this.coordinator = Objects.requireNonNull(coordinator);
         this.broadcastAddressAndPort = coordinator.ctx.broadcastAddressAndPort();
         this.options = Objects.requireNonNull(coordinator.state.options);
         this.keyspace = Objects.requireNonNull(coordinator.state.keyspace);
+        this.neighborsAndRanges = neighborsAndRanges;
     }
 
     private List<RepairSession> submitRepairSessions(TimeUUID parentSession,
@@ -71,6 +74,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  excludedDeadNodes,
                                                                                  keyspace,
                                                                                  options.getParallelism(),
+                                                                                 neighborsAndRanges.includesAllReplicas,
                                                                                  isIncremental,
                                                                                  options.isPullRepair(),
                                                                                  options.getPreviewKind(),
@@ -79,6 +83,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.repairPaxos(),
                                                                                  options.dontPurgeTombstones(),
                                                                                  options.repairAccord(),
+                                                                                 options.permitNoQuorum(),
                                                                                  executor,
                                                                                  validationScheduler,
                                                                                  cfnames);

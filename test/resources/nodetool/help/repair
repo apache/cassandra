@@ -16,7 +16,8 @@ SYNOPSIS
                 [(-iuk | --ignore-unreplicated-keyspaces)]
                 [(-j <job_threads> | --job-threads <job_threads>)]
                 [(-local | --in-local-dc)] [(-os | --optimise-streams)]
-                [(-paxos-only | --paxos-only)] [(-pl | --pull)]
+                [(-paxos-only | --paxos-only)]
+                [(-permit-no-quorum | --permit-no-quorum)] [(-pl | --pull)]
                 [(-pr | --partitioner-range)] [(-prv | --preview)]
                 [(-seq | --sequential)] [(-skip-accord | --skip-accord)]
                 [(-skip-paxos | --skip-paxos)]
@@ -75,6 +76,11 @@ OPTIONS
         -paxos-only, --paxos-only
             If the --paxos-only flag is included, no table data is repaired,
             only paxos operations..
+
+        -permit-no-quorum, --permit-no-quorum
+            If the --permit-no-quorum flag is included, accord repair is
+            permitted to proceed without a quorum, including only the specified
+            nodes
 
         -pl, --pull
             Use --pull to perform a one way repair where data is only streamed

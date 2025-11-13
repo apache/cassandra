@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -53,6 +54,12 @@ import static org.junit.Assert.fail;
 
 public class DecommissionTest extends TestBaseImpl
 {
+    @BeforeClass
+    public static void before()
+    {
+        CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.setBoolean(true);
+    }
+
     @Test
     public void testDecommission() throws Throwable
     {

@@ -37,8 +37,6 @@ import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 
@@ -62,7 +60,6 @@ import org.apache.cassandra.metrics.AutoRepairMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.AutoRepairService;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -811,9 +808,6 @@ public class AutoRepairParameterizedTest extends CQLTester
     @Test
     public void testSchedulerIgnoresErrorsFromUnrelatedRepairRunables()
     {
-        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, repairType == AutoRepairConfig.RepairType.INCREMENTAL, false,
-                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Collections.emptySet(),
-                                                 false, false, PreviewKind.NONE, false, true, true, false, false, false);
         AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
         AutoRepairState spyState = spy(repairState);
         AtomicReference<AutoRepair.RepairProgressListener> failingListener = new AtomicReference<>();

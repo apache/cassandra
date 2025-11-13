@@ -50,6 +50,7 @@ import accord.primitives.SyncPoint;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.TopologyException;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -78,6 +79,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static accord.primitives.Routables.Slice.Minimal;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize;
@@ -219,7 +221,6 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             Invariants.nonNull(future);
             Invariants.require(this.future == null, "future was not null: %s", this.future);
             this.future = future;
-            logger.info("StreamFuture for plan {} received for bootstrap of {} from {}", planId, range, from);
             maybeListen();
         }
 
@@ -228,6 +229,8 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             // TODO (required): if for some reason the stream isn't initiated this hangs
             if (range == null || future == null)
                 return;
+
+            logger.info("StreamFuture for plan {} received for bootstrap of {} from {}", planId, range, from);
 
             Invariants.nonNull(from);
             future.addCallback((state, fail) -> {
@@ -328,10 +331,10 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         }
 
         @Override
-        public Read slice(Ranges ranges) { return new StreamingRead(to, this.ranges.slice(ranges)); }
+        public Read slice(Ranges ranges) { return new StreamingRead(to, this.ranges.slice(ranges, Minimal)); }
 
         @Override
-        public Read intersecting(Participants<?> participants) { return new StreamingRead(to, this.ranges.slice(ranges)); }
+        public Read intersecting(Participants<?> participants) { return new StreamingRead(to, this.ranges.slice(ranges, Minimal)); }
 
         @Override
         public Read merge(Read other) { throw new UnsupportedOperationException(); }
@@ -391,7 +394,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     private final Map<TimeUUID, IncomingStream> streams = new HashMap<>();
 
-    public AccordFetchCoordinator(Node node, Ranges ranges, SyncPoint syncPoint, DataStore.FetchRanges fetchRanges, CommandStore commandStore)
+    public AccordFetchCoordinator(Node node, Ranges ranges, SyncPoint syncPoint, DataStore.FetchRanges fetchRanges, CommandStore commandStore) throws TopologyException
     {
         super(node, node.someSequentialExecutor(), ranges, syncPoint, fetchRanges, commandStore);
     }

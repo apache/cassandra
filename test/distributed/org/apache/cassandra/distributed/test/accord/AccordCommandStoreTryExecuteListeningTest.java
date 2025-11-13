@@ -38,6 +38,7 @@ import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.TopologyException;
 import accord.utils.ImmutableBitSet;
 import accord.utils.LargeBitSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -127,7 +128,9 @@ public class AccordCommandStoreTryExecuteListeningTest extends TestBaseImpl
         PartitionKey key = pk(1, "ks", "tbl");
         Txn txn = node.agent().emptySystemTxn(Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range);
         TxnId txnId = node.nextTxnId(txn);
-        FullRoute<?> route = node.computeRoute(txnId, Ranges.of(key.asRange()));
+        FullRoute<?> route;
+        try { route = node.computeRoute(txnId, Ranges.of(key.asRange())); }
+        catch (TopologyException e) { throw new RuntimeException(e); }
         AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().unsafeForKey(key.toUnseekable());
         int[] rangesToTxnIds = new int[dependencies.length + 1];
         rangesToTxnIds[0] = rangesToTxnIds.length;

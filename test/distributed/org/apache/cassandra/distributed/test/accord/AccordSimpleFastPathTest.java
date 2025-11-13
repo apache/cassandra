@@ -110,7 +110,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
 
                 long epoch = cm.epoch.getEpoch();
                 TopologyManager tm = AccordService.instance().topology();
-                Topology topology = tm.active().globalForEpoch(epoch);
+                Topology topology = tm.active().getKnown(epoch).global();
                 Assert.assertFalse(topology.shards().isEmpty());
                 topology.shards().forEach(shard -> Assert.assertEquals(idSet(1, 2, 3), shard.nodes.without(shard.notInFastPath)));
                 return cm.epoch.getEpoch();

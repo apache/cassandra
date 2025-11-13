@@ -94,13 +94,13 @@ public class AccordCacheMetrics
         this.hits = Metrics.gauge(factory.createMetricName("Hits"), hitRate::totalHits);
         this.misses = Metrics.gauge(factory.createMetricName("Misses"), hitRate::totalMisses);
         this.requests = Metrics.gauge(factory.createMetricName("Requests"), hitRate::totalRequests);
-        this.requestRate1m = Metrics.gauge(factory.createMetricName("Requests"), () -> hitRate.requestsPerSecond(1));
-        this.requestRate5m = Metrics.gauge(factory.createMetricName("Requests"), () -> hitRate.requestsPerSecond(5));
+        this.requestRate1m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.ONE_MINUTE + "RequestRate"), () -> hitRate.requestsPerSecond(1));
+        this.requestRate5m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIVE_MINUTE + "RequestRate"), () -> hitRate.requestsPerSecond(5));
         this.requestRate15m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIFTEEN_MINUTE + "RequestRate"), () -> hitRate.requestsPerSecond(15));
         this.hitRate1m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.ONE_MINUTE + "HitRate"), () -> hitRate.hitRate(1));
         this.hitRate5m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIVE_MINUTE + "HitRate"), () -> hitRate.hitRate(5));
         this.hitRate15m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIFTEEN_MINUTE + "HitRate"), () -> hitRate.hitRate(15));
-        this.hitRateAllTime = Metrics.gauge(factory.createMetricName("Misses"), hitRate::hitRateAllTime);
+        this.hitRateAllTime = Metrics.gauge(factory.createMetricName("HitRate"), hitRate::hitRateAllTime);
         this.subTypeName = subTypeName;
     }
 
