@@ -103,7 +103,7 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        Route<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 
@@ -195,7 +195,7 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        Route<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 

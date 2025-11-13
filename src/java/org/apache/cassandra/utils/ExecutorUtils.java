@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -103,13 +104,49 @@ public class ExecutorUtils
                 else
                     throw new IllegalArgumentException(executor.toString());
             }
-            catch (Throwable t)
+            catch (InterruptedException t)
+            {
+                throw new UncheckedInterruptedException(t);
+            }
+        }
+
+        return shutdown;
+    }
+
+    public static boolean shutdownThenWait(Iterable<?> executors, long timeout, TimeUnit unit)
+    {
+        long deadline = nanoTime() + unit.toNanos(timeout);
+
+        for (Object executor : executors)
+        {
+            if (executor instanceof ExecutorService) ((ExecutorService) executor).shutdown();
+            else if (executor instanceof Shutdownable) ((Shutdownable) executor).shutdown();
+            else throw new IllegalArgumentException(executor.toString());
+        }
+
+        for (Object executor : executors)
+        {
+            try
+            {
+                if (executor instanceof ExecutorService)
+                {
+                    if (!((ExecutorService) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS))
+                        return false;
+                }
+                else if (executor instanceof Shutdownable)
+                {
+                    if (!((Shutdownable) executor).awaitTermination(Math.max(0, deadline - nanoTime()), NANOSECONDS))
+                        return false;
+                }
+                else throw new IllegalArgumentException(executor.toString());
+            }
+            catch (InterruptedException t)
             {
                 throw new IllegalStateException("Caught interrupt while shutting down " + executor, t);
             }
         }
 
-        return shutdown;
+        return true;
     }
 
     public static void shutdown(ExecutorService ... executors)

@@ -96,7 +96,16 @@ public class AccordDataStore implements DataStore
             default: throw new UnhandledEnum(kind);
             case Image:
             {
-                AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+                AccordFetchCoordinator coordinator;
+                try
+                {
+                    coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+                }
+                catch (Throwable t)
+                {
+                    return new FetchResult.Failure(t);
+                }
+
                 coordinator.start();
                 return coordinator.result();
             }

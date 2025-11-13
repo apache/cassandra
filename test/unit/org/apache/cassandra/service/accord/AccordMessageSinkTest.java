@@ -28,7 +28,6 @@ import accord.messages.ReadData;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.topology.TopologyUtils;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -72,7 +71,7 @@ public class AccordMessageSinkTest
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataService.initializeForClients();
-        sink = new AccordMessageSink(Mockito.mock(AccordAgent.class), messaging, mapping, new RequestCallbacks(new AccordTimeService()));
+        sink = new AccordMessageSink(messaging, mapping, new RequestCallbacks(new AccordTimeService()));
     }
 
     @Test

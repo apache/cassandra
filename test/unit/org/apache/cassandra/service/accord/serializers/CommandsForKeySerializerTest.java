@@ -662,8 +662,8 @@ public class CommandsForKeySerializerTest
         @Override public void shutdown() { }
         @Override public <T> AsyncChain<T> chain(Callable<T> call) { throw new UnsupportedOperationException(); }
         @Override public OwnershipEventListener ownershipEvents() { return null; }
-        @Override public void onUncaughtException(Throwable t) { throw new UnsupportedOperationException(); }
-        @Override public void onCaughtException(Throwable t, String context) { throw new UnsupportedOperationException(); }
+        @Override public void onException(Throwable t) { throw new UnsupportedOperationException(); }
+        @Override public void onException(Throwable t, String context) { throw new UnsupportedOperationException(); }
         @Override public boolean rejectPreAccept(TimeService time, TxnId txnId) { throw new UnsupportedOperationException(); }
         @Override public long cfkHlcPruneDelta() { return 0; }
         @Override public int cfkPruneInterval() { return 0; }

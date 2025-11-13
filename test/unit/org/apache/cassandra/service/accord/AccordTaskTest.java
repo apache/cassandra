@@ -195,7 +195,7 @@ public class AccordTaskTest
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
-        route.slice(ranges);
+        route.overlapping(ranges);
         PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
         Command command = getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
@@ -205,10 +205,15 @@ public class AccordTaskTest
         }));
 
         // clear cache
-        try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+        long cacheSize;
+        try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
         {
-            long cacheSize = cache.global.capacity();
+            cacheSize = cache.global.capacity();
             cache.global.setCapacity(0);
+        }
+
+        try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
+        {
             cache.global.setCapacity(cacheSize);
         }
 
@@ -238,7 +243,7 @@ public class AccordTaskTest
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
-        Route<?> partialRoute = route.slice(ranges);
+        Route<?> partialRoute = route.overlapping(ranges);
         PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
         Command command = getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
@@ -250,10 +255,14 @@ public class AccordTaskTest
         }));
 
         // clear cache
+        long cacheSize;
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            long cacheSize = cache.global.capacity();
+            cacheSize = cache.global.capacity();
             cache.global.setCapacity(0);
+        }
+        try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+        {
             cache.global.setCapacity(cacheSize);
         }
 
@@ -280,57 +289,58 @@ public class AccordTaskTest
             .withExamples(50)
             .forAll(Gens.random(), Gens.lists(txnIdGen).ofSizeBetween(1, 2))
             .check((rs, ids) -> {
-            before(); // truncate tables
 
-            Participants<RoutingKey> participants = keys.toParticipants();
-            assertNoReferences(commandStore, ids, participants);
-            createCommand(commandStore, rs, ids);
-            awaitDone(commandStore, ids, participants);
-            assertNoReferences(commandStore, ids, participants);
+                before(); // truncate tables
 
-            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
-            Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
+                Participants<RoutingKey> participants = keys.toParticipants();
+                assertNoReferences(commandStore, ids, participants);
+                createCommand(commandStore, rs, ids);
+                awaitDone(commandStore, ids, participants);
+                assertNoReferences(commandStore, ids, participants);
 
-            Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
-            try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
-            {
-                caches.commands.unsafeSetLoadFunction((s, txnId) ->
+                PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+                Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
+
+                Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
+                try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
                 {
-                    logger.info("Attempting to load {}; expected to fail? {}", txnId, failed.get(txnId));
-                    if (!failed.get(txnId))
-                        return commandStore.loadCommand(txnId);
-                    throw new NullPointerException("txn_id " + txnId);
-                });
-            }
-            AccordTask<Void> o1 = AccordTask.create(commandStore, ctx, consumer);
-            AssertionUtils.assertThatThrownBy(() -> getBlocking(o1.chain()))
-                          .hasRootCause()
-                          .isInstanceOf(NullPointerException.class)
-                          .hasNoSuppressedExceptions();
+                    caches.commands.unsafeSetLoadFunction((s, txnId) ->
+                                                          {
+                                                              logger.info("Attempting to load {}; expected to fail? {}", txnId, failed.get(txnId));
+                                                              if (!failed.get(txnId))
+                                                                  return commandStore.loadCommand(txnId);
+                                                              throw new NullPointerException("txn_id " + txnId);
+                                                          });
+                }
+                AccordTask<Void> o1 = AccordTask.create(commandStore, ctx, consumer);
+                AssertionUtils.assertThatThrownBy(() -> getBlocking(o1.chain()))
+                              .hasRootCause()
+                              .isInstanceOf(NullPointerException.class)
+                              .hasNoSuppressedExceptions();
 
-            Mockito.verifyNoInteractions(consumer);
+                Mockito.verifyNoInteractions(consumer);
 
-            assertNoReferences(commandStore, ids, participants);
-            // the first failed load causes the whole operation to fail, so some ids may still be pending
-            // to make sure the next operation does not see a PENDING that will fail, wait for all loads to complete
-            awaitDone(commandStore, ids, participants);
+                assertNoReferences(commandStore, ids, participants);
+                // the first failed load causes the whole operation to fail, so some ids may still be pending
+                // to make sure the next operation does not see a PENDING that will fail, wait for all loads to complete
+                awaitDone(commandStore, ids, participants);
 
-            // can we recover?
-            try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
-            {
-                caches.commands.unsafeSetLoadFunction((s, txnId) -> {
-                    Command cmd = commandStore.loadCommand(txnId);
-                    return cmd;
+                // can we recover?
+                try (ExclusiveGlobalCaches caches = commandStore.executor().lockCaches())
+                {
+                    caches.commands.unsafeSetLoadFunction((s, txnId) -> {
+                        Command cmd = commandStore.loadCommand(txnId);
+                        return cmd;
+                    });
+                }
+                AccordTask<Void> o2 = AccordTask.create(commandStore, ctx, store -> {
+                    ids.forEach(id -> {
+                        store.ifInitialised(id).readyToExecute(store);
+                    });
                 });
-            }
-            AccordTask<Void> o2 = AccordTask.create(commandStore, ctx, store -> {
-                ids.forEach(id -> {
-                    store.ifInitialised(id).readyToExecute(store);
-                });
-            });
-            getBlocking(o2.chain());
-            awaitDone(commandStore, ids, participants);
-            assertNoReferences(commandStore, ids, participants);
+                getBlocking(o2.chain());
+                awaitDone(commandStore, ids, participants);
+                assertNoReferences(commandStore, ids, participants);
 
         });
     }

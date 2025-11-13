@@ -946,7 +946,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 collector.partition(commandStore.id()).collect(collect -> {
                     while (view.advance())
                     {
-                        // TODO (required): view should return an immutable per-row view so that we can call lazyAdd
+                        // TODO (desired): view should return an immutable per-row view so that we can call lazyAdd
                         collect.add(view.txnId().toString())
                                .eagerCollect(columns -> {
                                    columns.add("table_id", tableIdStr)
@@ -1516,7 +1516,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
 
         AbstractJournalTable(TableMetadata metadata)
         {
-            super(metadata, FAIL, ASC);
+            super(metadata, FAIL, UNSORTED, ASC);
         }
 
         @Override

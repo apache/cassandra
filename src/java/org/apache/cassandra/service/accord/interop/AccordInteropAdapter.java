@@ -106,8 +106,18 @@ public class AccordInteropAdapter extends TxnAdapter
         if (updateKind != AccordUpdate.Kind.UNRECOVERABLE_REPAIR && (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE || txn.read().keys().isEmpty()))
             return false;
 
-        new AccordInteropExecution(node, txnId, txn, updateKind, route, ballot, executeAt, deps, callback, executor, consistencyLevel, endpointMapper)
-            .start();
+        AccordInteropExecution execution;
+        try
+        {
+            execution = new AccordInteropExecution(node, txnId, txn, updateKind, route, ballot, executeAt, deps, callback, executor, consistencyLevel, endpointMapper);
+        }
+        catch (Throwable t)
+        {
+            callback.accept(null, t);
+            return true;
+        }
+
+        execution.start();
         return true;
     }
 
@@ -119,9 +129,19 @@ public class AccordInteropAdapter extends TxnAdapter
         if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || writes.isEmpty())
             return false;
 
-        Topologies all = execution(node, any, sendTo, selectSendTo, fullRoute, txnId, executeAt);
-        new AccordInteropPersist(node, executor, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, CoordinationFlags.none(), informDurableOnDone, Minimal, callback)
-            .start();
+        AccordInteropPersist persist;
+        try
+        {
+            Topologies all = execution(node, any, sendTo, selectSendTo, fullRoute, txnId, executeAt);
+            persist = new AccordInteropPersist(node, executor, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, CoordinationFlags.none(), informDurableOnDone, Minimal, callback);
+        }
+        catch (Throwable t)
+        {
+            callback.accept(null, t);
+            return true;
+        }
+
+        persist.start();
         return true;
     }
 }

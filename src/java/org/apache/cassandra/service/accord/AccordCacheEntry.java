@@ -34,6 +34,7 @@ import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.Invariants;
 import accord.utils.async.Cancellable;
 import org.apache.cassandra.service.accord.AccordCache.Adapter;
+import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
@@ -462,16 +463,26 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         state = null;
     }
 
-    boolean tryShrink()
+    Shrink tryShrink()
     {
         if (!isLoaded())
-            return false;
+            return Shrink.EVICT;
 
         AccordCache.Type<K, V, ?> parent = owner.parent();
-        if (!tryShrink(key, parent.adapter()))
-            return false;
-        updateSize(parent);
-        return true;
+        Adapter<K, V, ?> adapter = parent.adapter();
+        if (isShrunk() || state == null)
+            return Shrink.EVICT;
+
+        V cur = (V)unwrap();
+        Shrink shrink = adapter.decideFullShrink(key, cur);
+        if (shrink == Shrink.PERFORM_WITHOUT_LOCK)
+            return Shrink.PERFORM_WITHOUT_LOCK;
+
+        Object upd = adapter.fullShrink(key, cur);
+        if (upd == null || upd == cur)
+            return Shrink.EVICT;
+        applyShrink(parent, cur, upd);
+        return Shrink.DONE;
     }
 
     V tryGetFull()
@@ -584,20 +595,18 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         return ((FailedToSave)state).cause;
     }
 
-    private boolean tryShrink(K key, Adapter<K, V, ?> adapter)
+    void tryApplyShrink(Object cur, Object upd)
     {
-        if (isShrunk() || state == null)
-            return false;
+        if (isLoaded() && unwrap() == cur && upd != cur && upd != null)
+            applyShrink(owner.parent(), cur, upd);
+    }
 
-        Object cur = unwrap();
-        Object upd = adapter.fullShrink(key, (V)cur);
-        if (upd == null || upd == cur)
-            return false;
-
+    private void applyShrink(AccordCache.Type<K, V, ?> parent, Object cur, Object upd)
+    {
         if (isNested()) ((Nested)this.state).state = upd;
         else this.state = upd;
         status |= SHRUNK;
-        return true;
+        updateSize(parent);
     }
 
     private void inflate(AccordCommandStore commandStore, K key, Adapter<K, V, ?> adapter)

@@ -139,7 +139,6 @@ public class WatermarkCollector implements TopologyListener
                        return;
 
                    Snapshot snapshot = m.payload;
-                   long minEpoch = topologyManager.minEpoch();
                    forEachEpoch(topologyManager::onEpochClosed, snapshot.closed);
                    forEachEpoch(topologyManager::onEpochRetired, snapshot.retired);
                    for (Map.Entry<Long, Long> e : snapshot.synced.entrySet())

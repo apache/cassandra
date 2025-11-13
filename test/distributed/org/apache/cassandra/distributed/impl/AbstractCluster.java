@@ -45,6 +45,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -197,7 +198,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
             CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE.setBoolean(false);
-            withInstanceInitializer((classLoader, threadGroup, i, i1) -> {
+            withInstanceInitializer(defaultInitializer());
+        }
+
+        private IInstanceInitializer defaultInitializer()
+        {
+            return (classLoader, threadGroup, i, i1) -> {
                 try
                 {
                     Class<?> ef = classLoader.loadClass(ExecutorFactory.class.getName());
@@ -215,10 +221,21 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                     else
                         logger.info("Unable to set ExecutorFactory for instance {}", i, e);
                 }
-                catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e)
+                catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
+                       IllegalAccessException e)
                 {
                     throw new RuntimeException(e);
                 }
+            };
+        }
+
+        @Override
+        public B withInstanceInitializer(BiConsumer<ClassLoader, Integer> instanceInitializer)
+        {
+            IInstanceInitializer wrap = defaultInitializer();
+            return withInstanceInitializer((classLoader, threadGroup, num, v) -> {
+                wrap.initialise(classLoader, threadGroup, num, v);
+                instanceInitializer.accept(classLoader, num);
             });
         }
 
@@ -573,6 +590,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
+        // start the JNA cleaner on the system class loader to avoid pinning an instance
+        // (we do it here because startup() isn't always called)
+        com.sun.jna.internal.Cleaner.getCleaner();
+
         this.root = builder.getRootPath();
         this.sharedClassLoader = builder.getSharedClassLoader();
         this.sharedClassPredicate = builder.getSharedClasses();
@@ -1068,8 +1089,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void startup()
     {
-        // start the JNA cleaner on the system class loader to avoid pinning an instance
-        com.sun.jna.internal.Cleaner.getCleaner();
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
         {
             monitor.startPolling();

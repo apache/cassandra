@@ -25,8 +25,6 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.api.AsyncExecutor;
 import accord.api.MessageSink;
@@ -48,7 +46,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.utils.Clock;
 
 import static accord.messages.MessageType.StandardMessage.*;
@@ -59,8 +56,6 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowR
 
 public class AccordMessageSink implements MessageSink
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordMessageSink.class);
-
     public enum AccordMessageType implements MessageType
     {
         INTEROP_READ_REQ(Verb.ACCORD_INTEROP_READ_REQ),
@@ -150,22 +145,20 @@ public class AccordMessageSink implements MessageSink
         }
     }
 
-    private final AccordAgent agent;
     private final MessageDelivery messaging;
     private final AccordEndpointMapper endpointMapper;
     private final RequestCallbacks callbacks;
 
-    public AccordMessageSink(AccordAgent agent, MessageDelivery messaging, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(MessageDelivery messaging, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
     {
-        this.agent = agent;
         this.messaging = messaging;
         this.endpointMapper = endpointMapper;
         this.callbacks = callbacks;
     }
 
-    public AccordMessageSink(AccordAgent agent, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
     {
-        this(agent, MessagingService.instance(), endpointMapper, callbacks);
+        this(MessagingService.instance(), endpointMapper, callbacks);
     }
 
     @Override
@@ -177,7 +170,7 @@ public class AccordMessageSink implements MessageSink
         InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to, message);
         if (endpoint == null)
             return;
-        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
+
         messaging.send(message, endpoint);
     }
 
@@ -222,7 +215,6 @@ public class AccordMessageSink implements MessageSink
             return null;
         }
 
-        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         Cancellable cancellable = callbacks.registerAt(message.id(), executor, callback, to, nowNanos, slowAtNanos, expiresAtNanos, NANOSECONDS);
         messaging.send(message, endpoint);
         return cancellable;
@@ -240,7 +232,6 @@ public class AccordMessageSink implements MessageSink
         if (endpoint == null)
             return;
 
-        logger.trace("Replying {} {} to {}", message.verb(), message.payload, endpoint);
         messaging.send(message, endpoint);
     }
 
@@ -252,7 +243,7 @@ public class AccordMessageSink implements MessageSink
         InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(replyingTo, message);
         if (endpoint == null)
             return;
-        logger.trace("Replying with failure {} {} to {}", message.verb(), message.payload, endpoint);
+
         messaging.send(message, endpoint);
     }
 

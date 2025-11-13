@@ -53,7 +53,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
-import static accord.local.durability.DurabilityService.SyncRemote.Quorum;
 import static accord.primitives.Timestamp.mergeMax;
 import static accord.primitives.Timestamp.minForEpoch;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -79,15 +78,15 @@ public class AccordRepair
     private volatile Throwable shouldAbort = null;
     private volatile Thread waiting;
 
-    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints, List<InetAddressAndPort> endpoints)
+    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, SyncRemote syncRemote, List<InetAddressAndPort> endpoints)
     {
         this.ctx = ctx;
         this.cfs = cfs;
         this.repairId = repairId;
+        this.syncRemote = syncRemote;
         // TODO (desired): support unsafe configuration where we permit less than a quorum,
         //  but this is challenging to do safely as repair has no concept of participants from earlier epochs
-        this.syncRemote = requireAllEndpoints ? All : Quorum;
-        if (endpoints != null)
+        if (syncRemote != All && endpoints != null)
         {
             including = new ArrayList<>(endpoints.size());
             AccordEndpointMapper mapper = AccordService.instance().endpointMapper();

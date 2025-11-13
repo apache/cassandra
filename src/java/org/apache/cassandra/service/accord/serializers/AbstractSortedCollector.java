@@ -97,34 +97,38 @@ public abstract class AbstractSortedCollector<T, C> extends AbstractList<T>
         return add;
     }
 
-    public void clear()
-    {
-        if (count > 1)
-            cachedAny().forceDiscard((Object[])buffer, count);
-        buffer = null;
-        count = 0;
-    }
-
     public C build()
     {
+        C result;
         if (count == 0)
         {
-            return empty();
+            result = empty();
         }
         else if (count == 1)
         {
-            return of((T)buffer);
+            result = of((T)buffer);
         }
         else if (count < BTREE_THRESHOLD)
         {
-            C result = copy((Object[])buffer, count);
+            result = copy((Object[])buffer, count);
             cachedAny().forceDiscard((Object[])buffer, count);
-            return result;
         }
         else
         {
-            return copyBtree((Object[])buffer, count);
+            result = copyBtree((Object[])buffer, count);
         }
+        buffer = null;
+        count = 0;
+        return result;
+    }
+
+
+    public void clear()
+    {
+        if (count > 1 && count < BTREE_THRESHOLD)
+            cachedAny().forceDiscard((Object[])buffer, count);
+        buffer = null;
+        count = 0;
     }
 
     @Override

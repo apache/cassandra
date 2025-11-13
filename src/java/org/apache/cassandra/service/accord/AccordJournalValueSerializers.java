@@ -36,7 +36,6 @@ import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.local.CommandStores.RangesForEpoch;
 
-// TODO (required): test with large collection values, and perhaps split out some fields if they have a tendency to grow larger
 public class AccordJournalValueSerializers
 {
     public interface FlyweightImage

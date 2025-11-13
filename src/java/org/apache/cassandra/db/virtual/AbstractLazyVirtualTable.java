@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -223,6 +224,8 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
             if (!dataRange.contains(partitionKey))
                 return dropCks -> {};
 
+
+
             return partitions.computeIfAbsent(partitionKey, SimplePartition::new);
         }
 
@@ -232,36 +235,50 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
             final Iterator<SimplePartition> partitions = this.partitions.values().iterator();
             return new UnfilteredPartitionIterator()
             {
+                private UnfilteredRowIterator next;
+
                 @Override public TableMetadata metadata() { return metadata; }
                 @Override public void close() {}
 
                 @Override
                 public boolean hasNext()
                 {
-                    return partitions.hasNext();
+                    while (next == null && partitions.hasNext())
+                    {
+                        SimplePartition partition = partitions.next();
+                        Iterator<Row> rows = partition.rows();
+
+                        if (!rows.hasNext())
+                            continue;
+
+                        next = new UnfilteredRowIterator()
+                        {
+                            @Override public TableMetadata metadata() { return metadata; }
+                            @Override public boolean isReverseOrder() { return dataRange.isReversed(); }
+                            @Override public RegularAndStaticColumns columns() { return columnFilter.fetchedColumns(); }
+                            @Override public DecoratedKey partitionKey() { return partition.key; }
+
+                            @Override public Row staticRow() { return partition.staticRow(); }
+                            @Override public boolean hasNext() { return rows.hasNext(); }
+                            @Override public Unfiltered next() { return rows.next(); }
+
+                            @Override public void close() {}
+                            @Override public DeletionTime partitionLevelDeletion() { return DeletionTime.LIVE; }
+                            @Override public EncodingStats stats() { return EncodingStats.NO_STATS; }
+                        };
+                    }
+                    return next != null;
                 }
 
                 @Override
                 public UnfilteredRowIterator next()
                 {
-                    SimplePartition partition = partitions.next();
-                    Iterator<Row> rows = partition.rows();
+                    if (!hasNext())
+                        throw new NoSuchElementException();
 
-                    return new UnfilteredRowIterator()
-                    {
-                        @Override public TableMetadata metadata() { return metadata; }
-                        @Override public boolean isReverseOrder() { return dataRange.isReversed(); }
-                        @Override public RegularAndStaticColumns columns() { return columnFilter.fetchedColumns(); }
-                        @Override public DecoratedKey partitionKey() { return partition.key; }
-
-                        @Override public Row staticRow() { return partition.staticRow(); }
-                        @Override public boolean hasNext() { return rows.hasNext(); }
-                        @Override public Unfiltered next() { return rows.next(); }
-
-                        @Override public void close() {}
-                        @Override public DeletionTime partitionLevelDeletion() { return DeletionTime.LIVE; }
-                        @Override public EncodingStats stats() { return EncodingStats.NO_STATS; }
-                    };
+                    UnfilteredRowIterator result = next;
+                    next = null;
+                    return result;
                 }
             };
         }
@@ -312,7 +329,21 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
             if (!dataRange.contains(partitionKey) || !dataRange.clusteringIndexFilter(partitionKey).selects(clustering))
                 return drop -> {};
 
+            if (isSortedByPartitionKey)
+                checkCorrectlySorted(partitionKey);
+
             return partitions.computeIfAbsent(partitionKey, SimplePartition::new).row(clustering);
+        }
+
+        private void checkCorrectlySorted(DecoratedKey newPartitionKey)
+        {
+            if (partitions.isEmpty())
+                return;
+
+            DecoratedKey prevKey = partitions.lastKey();
+            int c = metadata.partitionKeyType.compare(prevKey.getKey(), newPartitionKey.getKey());
+            if (dataRange.isReversed() ? c < 0 : c > 0)
+                throw new IllegalArgumentException(Arrays.toString(composePartitionKeys(prevKey, metadata)) + (dataRange.isReversed() ? " < " : " > ") + Arrays.toString(composePartitionKeys(newPartitionKey, metadata)));
         }
 
         private final class SimplePartition implements PartitionCollector, RowsCollector
@@ -323,6 +354,7 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
             private int rowCount;
             private SimpleRow staticRow;
             private boolean dropRows;
+            private boolean isSortedAndFiltered = true;
 
             private SimplePartition(DecoratedKey key)
             {
@@ -346,6 +378,17 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
                 return row(decomposeClusterings(metadata, clusteringKeys));
             }
 
+            private void checkCorrectlySorted(Clustering<?> newClustering)
+            {
+                if (rowCount == 0)
+                    return;
+
+                Clustering<?> prevClustering = rows[rowCount - 1].clustering;
+                int c = metadata.comparator.compare(prevClustering, newClustering);
+                if (dataRange.isReversed() ? c <= 0 : c >= 0)
+                    throw new IllegalArgumentException(Arrays.toString(composeClusterings(prevClustering, metadata)) + (dataRange.isReversed() ? " <= " : " >= ") + Arrays.toString(composeClusterings(newClustering, metadata)));
+            }
+
             RowCollector row(Clustering<?> clustering)
             {
                 if (nanoTime() > deadlineNanos)
@@ -353,6 +396,9 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
 
                 if (dropRows || !dataRange.clusteringIndexFilter(key).selects(clustering))
                     return drop -> {};
+
+                if (isSorted)
+                    checkCorrectlySorted(clustering);
 
                 if (totalRowCount >= limits.count())
                 {
@@ -370,9 +416,13 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
 
                     if (filter)
                     {
-                        // first filter within each partition
                         for (SimplePartition partition : partitions.values())
+                        {
+                            // first filter within each partition
+                            partition.filterAndSort();
+                            // and truncate if there are per-partition limits
                             partition.truncate(limits.perPartitionCount());
+                        }
 
                         // then drop any partitions that completely fall outside our limit
                         Iterator<SimplePartition> iter = partitions.descendingMap().values().iterator();
@@ -418,12 +468,16 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
                     if (rowCount == rows.length)
                         rows = Arrays.copyOf(rows, Math.max(8, rowCount * 2));
                     rows[rowCount++] = result;
+                    isSortedAndFiltered = false;
                 }
                 return result;
             }
 
             void filterAndSort()
             {
+                if (isSortedAndFiltered)
+                    return;
+
                 int newCount = 0;
                 for (int i = 0 ; i < rowCount; ++i)
                 {
@@ -441,6 +495,7 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
                     rowCount = newCount;
                 }
                 Arrays.sort(rows, 0, newCount, rowComparator());
+                isSortedAndFiltered = true;
             }
 
             int truncate(int newCount)

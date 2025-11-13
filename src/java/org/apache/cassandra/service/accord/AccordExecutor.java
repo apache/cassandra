@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -66,7 +65,6 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
@@ -130,6 +128,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public void close()
         {
             executor.beforeUnlock();
+            global.tryShrinkOrEvict(lock);
             lock.unlock();
         }
     }
@@ -235,9 +234,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         this.elapsedRunning = AccordExecutorMetrics.INSTANCE.elapsedRunning.forShard(histogramsShard);
         this.keys = AccordExecutorMetrics.INSTANCE.keys.forShard(histogramsShard);
         this.replicaMetrics = new AccordReplicaMetrics.Shard(histogramsShard);
-        ScheduledExecutors.scheduledFastTasks.scheduleAtFixedRate(() -> {
-            executeDirectlyWithLock(cache::processNoEvictQueue);
-        }, 1L, 1L, TimeUnit.SECONDS);
     }
 
     public int executorId()
@@ -493,7 +489,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
         catch (Throwable t)
         {
-            agent.onUncaughtException(t);
+            agent.onException(t);
         }
     }
 
@@ -663,6 +659,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
             if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
                 maybeNotifyWaitingForCompletion();
+
+            cache.tryShrinkOrEvict(lock);
         }
     }
 
@@ -745,7 +743,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return;
 
         try { task.failExclusive(fail); }
-        catch (Throwable t) { agent.onUncaughtException(t); }
+        catch (Throwable t) { agent.onException(t); }
         finally
         {
             task.unqueueIfQueued();
@@ -1197,7 +1195,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 return false;
 
             try { run.run(); }
-            catch (Throwable t) { agent.onUncaughtException(t); }
+            catch (Throwable t) { agent.onException(t); }
             finally
             {
                 if (owner == null)
@@ -1322,7 +1320,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 queue.remove(this);
                 completeTaskExclusive(this);
                 try { fail(new CancellationException()); }
-                catch (Throwable t) { agent.onUncaughtException(t); }
+                catch (Throwable t) { agent.onException(t); }
             }
         }
 
@@ -1373,7 +1371,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             if (result != null)
                 result.tryFailure(t);
-            agent.onUncaughtException(t);
+            agent.onException(t);
         }
 
         @Override
@@ -1606,7 +1604,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             }
             catch (Throwable t)
             {
-                agent.onUncaughtException(t);
+                agent.onException(t);
                 return;
             }
         }
@@ -1621,7 +1619,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             catch (Throwable t)
             {
                 fail.addSuppressed(t);
-                agent.onUncaughtException(fail);
+                agent.onException(fail);
             }
         }
     }
