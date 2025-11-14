@@ -278,6 +278,48 @@ public interface ColumnFamilyStoreMBean
     public long[] getPerLevelSizeBytes();
 
     /**
+     * @return average of sstable covered token spaces in each level.
+     *         null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelAvgTokenSpace();
+
+    /**
+     * @return the maximum density each level is allowed to hold.
+     *         null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelMaxDensityThreshold();
+
+    /**
+     * @return the average size of sstables in each level.
+     *         null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelAvgSize();
+
+    /**
+     * @return the average density of sstables in each level.
+     *         null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelAvgDensity();
+
+    /**
+     * @return the ratio of avg density to the maximum density threshold of that level
+     *         in each level. null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelAvgDensityMaxDensityThresholdRatio();
+
+    /**
+     * @return the ratio of maximum density to the maximum density threshold of that level
+     *         in each level. null unless unified compaction strategy is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public double[] getPerLevelMaxDensityMaxDensityThresholdRatio();
+
+    /**
      * @return true if the table is using LeveledCompactionStrategy. false otherwise.
      */
     public boolean isLeveledCompaction();

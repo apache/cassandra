@@ -531,6 +531,24 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     /**
+     * @return a list of the levels in the compaction hierarchy, that also includes SSTables that
+     * are currently undergoing compaction. This is used only for table stats so we can have a consistent
+     * snapshot of the levels.
+     */
+    List<Level> getLevelsSnapshot()
+    {
+        Set<SSTableReader> sstables = getSSTables();
+        List<SSTableReader> suitable = new ArrayList<>(sstables.size());
+        for (SSTableReader rdr : sstables)
+        {
+            if (isSuitableForCompaction(rdr))
+                suitable.add(rdr);
+        }
+
+        return formLevels(suitable);
+    }
+
+    /**
      * Groups the sstables passed in into levels. This is used by the strategy to determine
      * new compactions, and by external tools to analyze the strategy decisions.
      *
@@ -547,6 +565,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return formLevels(suitable);
     }
 
+    /**
+     * Returns the density of the SSTable
+     */
+    public double getDensity(SSTableReader sstable)
+    {
+        return shardManager.density(sstable);
+    }
+
     private List<Level> formLevels(List<SSTableReader> suitable)
     {
         maybeUpdateShardManager();
@@ -558,7 +584,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         Level level = new Level(controller, index, 0, maxDensity);
         for (SSTableReader candidate : suitable)
         {
-            final double density = shardManager.density(candidate);
+            final double density = getDensity(candidate);
             if (density < level.max)
             {
                 level.add(candidate);

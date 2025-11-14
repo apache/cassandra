@@ -100,6 +100,22 @@ public class TableStatsPrinter<T extends StatsHolder>
                                                                                     table.sstableBytesInEachLevel) + "]");
             }
 
+            if (table.isUCSSstable)
+            {
+                out.println(indent + "Average token space for SSTables in each level: [" + String.join(", ",
+                        table.sstableAvgTokenSpaceInEachLevel) + "]");
+                out.println(indent + "Maximum density threshold for SSTables in each level: [" + String.join(", ",
+                        table.sstableMaxDensityThresholdInEachLevel) + "]");
+                out.println(indent + "Average SSTable size in each level: [" + String.join(", ",
+                        table.sstableAvgSizeInEachLevel) + "]");
+                out.println(indent + "Average SSTable density in each level: [" + String.join(", ",
+                        table.sstableAvgDensityInEachLevel) + "]");
+                out.println(indent + "Average SSTable density to max threshold ratio in each level: [" + String.join(", ",
+                        table.sstableAvgDensityMaxDensityThresholdRatioInEachLevel) + "]");
+                out.println(indent + "Maximum SSTable density to max threshold ratio in each level: [" + String.join(", ",
+                        table.sstableMaxDensityMaxDensityThresholdRatioInEachLevel) + "]");
+            }
+
             out.println(indent + "Space used (live): " + table.spaceUsedLive);
             out.println(indent + "Space used (total): " + table.spaceUsedTotal);
             out.println(indent + "Space used by snapshots (total): " + table.spaceUsedBySnapshotsTotal);
