@@ -41,6 +41,9 @@ import javax.annotation.Nullable;
 
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
+    // see CASSANDRA-21021
+    public static final int BEST_COMPRESSION_LEVEL = 9;
+
     private static final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> instancesPerLevel = new ConcurrentHashMap<>();
     private static final Cache<ZstdCompressionDictionary, ZstdDictionaryCompressor> instancePerDict =
     Caffeine.newBuilder()
@@ -74,7 +77,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     public static ZstdDictionaryCompressor create(Map<String, String> options)
     {
         int level = getOrDefaultCompressionLevel(options);
-        validateCompressionLevel(level);
+        validateCompressionLevel(level, BEST_COMPRESSION_LEVEL);
         return getOrCreate(level, null);
     }
 

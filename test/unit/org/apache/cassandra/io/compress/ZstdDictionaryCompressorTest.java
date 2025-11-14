@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.compress;
 
-import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdDictTrainer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
@@ -104,12 +103,20 @@ public class ZstdDictionaryCompressorTest
     @Test
     public void testCreateWithInvalidCompressionLevel()
     {
-        String invalidLevel = String.valueOf(Zstd.maxCompressionLevel() + 1);
+        String invalidLevel = String.valueOf(ZstdDictionaryCompressor.BEST_COMPRESSION_LEVEL + 1);
         Map<String, String> options = Map.of(ZstdCompressor.COMPRESSION_LEVEL_OPTION_NAME, invalidLevel);
 
         assertThatThrownBy(() -> ZstdDictionaryCompressor.create(options))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(ZstdCompressor.COMPRESSION_LEVEL_OPTION_NAME + '=' + invalidLevel + " is invalid");
+    }
+
+    @Test
+    public void testCreateWithMaxCompressionLevel()
+    {
+        String invalidLevel = String.valueOf(ZstdDictionaryCompressor.BEST_COMPRESSION_LEVEL);
+        Map<String, String> options = Map.of(ZstdCompressor.COMPRESSION_LEVEL_OPTION_NAME, invalidLevel);
+        ZstdDictionaryCompressor.create(options);
     }
 
     @Test

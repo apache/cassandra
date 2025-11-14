@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import com.github.luben.zstd.ZstdDictCompress;
 import com.github.luben.zstd.ZstdDictDecompress;
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
+import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SelfRefCounted;
@@ -113,7 +114,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         if (closed.get())
             throw new IllegalStateException("Dictionary has been closed. " + dictId);
 
-        ZstdCompressorBase.validateCompressionLevel(compressionLevel);
+        ZstdCompressorBase.validateCompressionLevel(compressionLevel, ZstdDictionaryCompressor.BEST_COMPRESSION_LEVEL);
 
         return zstdDictCompressPerLevel.computeIfAbsent(compressionLevel, level -> {
             if (closed.get())

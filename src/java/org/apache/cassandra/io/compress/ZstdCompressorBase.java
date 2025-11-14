@@ -34,7 +34,6 @@ public abstract class ZstdCompressorBase implements ICompressor
 {
     // These might change with the version of Zstd we're using
     public static final int FAST_COMPRESSION_LEVEL = Zstd.minCompressionLevel();
-    public static final int BEST_COMPRESSION_LEVEL = Zstd.maxCompressionLevel();
 
     // Compressor Defaults
     public static final int DEFAULT_COMPRESSION_LEVEL = 3;
@@ -168,9 +167,9 @@ public abstract class ZstdCompressorBase implements ICompressor
      *
      * @param level compression level
      */
-    public static void validateCompressionLevel(int level)
+    public static void validateCompressionLevel(int level, int bestCompressionLevel)
     {
-        if (level < FAST_COMPRESSION_LEVEL || level > BEST_COMPRESSION_LEVEL)
+        if (level < FAST_COMPRESSION_LEVEL || level > bestCompressionLevel)
         {
             throw new IllegalArgumentException(String.format("%s=%d is invalid", COMPRESSION_LEVEL_OPTION_NAME, level));
         }

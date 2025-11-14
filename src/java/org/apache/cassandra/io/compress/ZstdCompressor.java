@@ -22,11 +22,14 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.github.luben.zstd.Zstd;
+
 /**
  * ZSTD Compressor
  */
 public class ZstdCompressor extends ZstdCompressorBase implements ICompressor
 {
+    public static final int BEST_COMPRESSION_LEVEL = Zstd.maxCompressionLevel();
     private static final ConcurrentHashMap<Integer, ZstdCompressor> instances = new ConcurrentHashMap<>();
 
     /**
@@ -39,7 +42,7 @@ public class ZstdCompressor extends ZstdCompressorBase implements ICompressor
     public static ZstdCompressor create(Map<String, String> options)
     {
         int level = getOrDefaultCompressionLevel(options);
-        validateCompressionLevel(level);
+        validateCompressionLevel(level, BEST_COMPRESSION_LEVEL);
         return getOrCreate(level);
     }
 
