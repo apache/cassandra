@@ -2995,6 +2995,42 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     @Override
+    public double[] getPerLevelAvgTokenSpace()
+    {
+        return compactionStrategyManager.getPerLevelAvgTokenSpace();
+    }
+
+    @Override
+    public double[] getPerLevelMaxDensityThreshold()
+    {
+        return compactionStrategyManager.getPerLevelMaxDensityThreshold();
+    }
+
+    @Override
+    public double[] getPerLevelAvgSize()
+    {
+        return compactionStrategyManager.getPerLevelAvgSize();
+    }
+
+    @Override
+    public double[] getPerLevelAvgDensity()
+    {
+        return compactionStrategyManager.getPerLevelAvgDensity();
+    }
+
+    @Override
+    public double[] getPerLevelAvgDensityMaxDensityThresholdRatio()
+    {
+        return compactionStrategyManager.getPerLevelAvgDensityMaxDensityThresholdRatio();
+    }
+
+    @Override
+    public double[] getPerLevelMaxDensityMaxDensityThresholdRatio()
+    {
+        return compactionStrategyManager.getPerLevelMaxDensityMaxDensityThresholdRatio();
+    }
+
+    @Override
     public boolean isLeveledCompaction()
     {
         return compactionStrategyManager.isLeveledCompaction();

@@ -29,6 +29,7 @@ public class StatsTable
     public String tableName;
     public boolean isIndex;
     public boolean isLeveledSstable = false;
+    public boolean isUCSSstable = false;
     public Object sstableCount;
     public Object oldSSTableCount;
     public Long maxSSTableSize;
@@ -72,6 +73,12 @@ public class StatsTable
     public long maximumTombstonesPerSliceLastFiveMinutes;
     public List<String> sstablesInEachLevel = new ArrayList<>();
     public List<String> sstableBytesInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgTokenSpaceInEachLevel = new ArrayList<>();
+    public List<String> sstableMaxDensityThresholdInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgSizeInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgDensityInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgDensityMaxDensityThresholdRatioInEachLevel = new ArrayList<>();
+    public List<String> sstableMaxDensityMaxDensityThresholdRatioInEachLevel = new ArrayList<>();
     public int[] sstableCountPerTWCSBucket = null;
     public Boolean isInCorrectLocation = null; // null: option not active
     public double droppableTombstoneRatio;

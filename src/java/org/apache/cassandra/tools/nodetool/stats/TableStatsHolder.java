@@ -124,6 +124,15 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("old_sstable_count", table.oldSSTableCount);
         mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
         mpTable.put("sstable_bytes_in_each_level", table.sstableBytesInEachLevel);
+        if (table.isUCSSstable)
+        {
+            mpTable.put("sstable_avg_token_space_in_each_level", table.sstableAvgTokenSpaceInEachLevel);
+            mpTable.put("sstable_max_density_threshold_in_each_level", table.sstableMaxDensityThresholdInEachLevel);
+            mpTable.put("sstable_avg_size_in_each_level", table.sstableAvgSizeInEachLevel);
+            mpTable.put("sstable_avg_density_in_each_level", table.sstableAvgDensityInEachLevel);
+            mpTable.put("sstable_avg_density_max_density_threshold_ratio_in_each_level", table.sstableAvgDensityMaxDensityThresholdRatioInEachLevel);
+            mpTable.put("sstable_max_density_max_density_threshold_ratio_in_each_level", table.sstableMaxDensityMaxDensityThresholdRatioInEachLevel);
+        }
         mpTable.put("max_sstable_size", table.maxSSTableSize);
         mpTable.put("twcs", table.twcs);
         mpTable.put("space_used_live", table.spaceUsedLive);
@@ -272,6 +281,66 @@ public class TableStatsHolder implements StatsHolder
                     {
                         long size = leveledSSTablesBytes[level];
                         statsTable.sstableBytesInEachLevel.add(FileUtils.stringifyFileSize(size, humanReadable));
+                    }
+                }
+
+                double[] ucsSSTableTokenSpace = table.getPerLevelAvgTokenSpace();
+                if (ucsSSTableTokenSpace != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSSTableTokenSpace.length; level++)
+                    {
+                        statsTable.sstableAvgTokenSpaceInEachLevel.add(String.format("%.03f", ucsSSTableTokenSpace[level]));
+                    }
+                }
+
+                double[] ucsMaxDensityThreshold = table.getPerLevelMaxDensityThreshold();
+                if (ucsMaxDensityThreshold != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsMaxDensityThreshold.length; level++)
+                    {
+                        statsTable.sstableMaxDensityThresholdInEachLevel.add(String.format("%.03f", ucsMaxDensityThreshold[level]));
+                    }
+                }
+
+                double[] ucsSsTableAvgSize = table.getPerLevelAvgSize();
+                if (ucsSsTableAvgSize != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSsTableAvgSize.length; level++)
+                    {
+                        statsTable.sstableAvgSizeInEachLevel.add(String.format("%.03f", ucsSsTableAvgSize[level]));
+                    }
+                }
+
+                double[] ucsSStableAvgDensity = table.getPerLevelAvgDensity();
+                if (ucsSStableAvgDensity != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSStableAvgDensity.length; level++)
+                    {
+                        statsTable.sstableAvgDensityInEachLevel.add(String.format("%.03f", ucsSStableAvgDensity[level]));
+                    }
+                }
+
+                double[] ucsSStableAvgDensityMaxDensityThresholdRatio = table.getPerLevelAvgDensityMaxDensityThresholdRatio();
+                if (ucsSStableAvgDensityMaxDensityThresholdRatio != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSStableAvgDensityMaxDensityThresholdRatio.length; level++)
+                    {
+                        statsTable.sstableAvgDensityMaxDensityThresholdRatioInEachLevel.add(String.format("%.03f", ucsSStableAvgDensityMaxDensityThresholdRatio[level]));
+                    }
+                }
+
+                double[] ucsSStableMaxDensityMaxDensityThresholdRatioInEachLevel = table.getPerLevelMaxDensityMaxDensityThresholdRatio();
+                if (ucsSStableMaxDensityMaxDensityThresholdRatioInEachLevel != null)
+                {
+                    statsTable.isUCSSstable = true;
+                    for (int level = 0; level < ucsSStableMaxDensityMaxDensityThresholdRatioInEachLevel.length; level++)
+                    {
+                        statsTable.sstableMaxDensityMaxDensityThresholdRatioInEachLevel.add(String.format("%.03f", ucsSStableMaxDensityMaxDensityThresholdRatioInEachLevel[level]));
                     }
                 }
 
