@@ -1,4 +1,5 @@
 5.1
+ * Add configuration to disk usage guardrails to stop writes across all replicas of a keyspace when any node replicating that keyspace exceeds the disk usage failure threshold. (CASSANDRA-21024)
  * BETWEEN where token(Y) > token(Z) returns wrong answer (CASSANDRA-20154)
  * Optimize memtable flush logic (CASSANDRA-21083)
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)

@@ -985,6 +985,7 @@ public class Config
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound data_disk_usage_max_disk_size = null;
+    public volatile boolean data_disk_usage_keyspace_wide_protection_enabled = false;
     public volatile int minimum_replication_factor_warn_threshold = -1;
     public volatile int minimum_replication_factor_fail_threshold = -1;
     public volatile int maximum_replication_factor_warn_threshold = -1;

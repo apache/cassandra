@@ -235,6 +235,16 @@ public class NoSpamLogger
         return new NoSpamLogger(wrapped, minInterval, timeUnit);
     }
 
+    public boolean debug(long nowNanos, String s, Object... objects)
+    {
+        return NoSpamLogger.this.log( Level.DEBUG, s, nowNanos, objects);
+    }
+
+    public boolean debug(String s, Object... objects)
+    {
+        return NoSpamLogger.this.debug(CLOCK.nanoTime(), s, objects);
+    }
+
     public boolean info(long nowNanos, String s, Object... objects)
     {
         return NoSpamLogger.this.log( Level.INFO, s, nowNanos, objects);
