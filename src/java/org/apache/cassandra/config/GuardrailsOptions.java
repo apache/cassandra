@@ -989,6 +989,20 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.data_disk_usage_percentage_fail_threshold = x);
     }
 
+
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return config.data_disk_usage_keyspace_wide_protection_enabled;
+    }
+
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("data_disk_usage_keyspace_wide_protection_enabled",
+                                  enabled,
+                                  () -> config.data_disk_usage_keyspace_wide_protection_enabled,
+                                  x -> config.data_disk_usage_keyspace_wide_protection_enabled = x);
+    }
+
     @Override
     public DataStorageSpec.LongBytesBound getDataDiskUsageMaxDiskSize()
     {

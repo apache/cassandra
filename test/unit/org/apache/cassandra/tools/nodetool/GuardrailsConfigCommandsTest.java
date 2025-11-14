@@ -198,24 +198,25 @@ public class GuardrailsConfigCommandsTest extends CQLTester
 
 
     private static final String ALL_FLAGS_GETTER_OUTPUT =
-    "allow_filtering_enabled                         true\n" +
-    "alter_table_enabled                             true\n" +
-    "bulk_load_enabled                               true\n" +
-    "compact_tables_enabled                          true\n" +
-    "drop_keyspace_enabled                           true\n" +
-    "drop_truncate_table_enabled                     true\n" +
-    "group_by_enabled                                true\n" +
-    "intersect_filtering_query_enabled               true\n" +
-    "intersect_filtering_query_warned                true\n" +
-    "non_partition_restricted_index_query_enabled    true\n" +
-    "read_before_write_list_operations_enabled       true\n" +
-    "secondary_indexes_enabled                       true\n" +
-    "simplestrategy_enabled                          true\n" +
-    "uncompressed_tables_enabled                     true\n" +
-    "user_timestamps_enabled                         true\n" +
-    "vector_type_enabled                             true\n" +
-    "zero_ttl_on_twcs_enabled                        true\n" +
-    "zero_ttl_on_twcs_warned                         true\n";
+    "allow_filtering_enabled                          true\n"  +
+    "alter_table_enabled                              true\n"  +
+    "bulk_load_enabled                                true\n"  +
+    "compact_tables_enabled                           true\n"  +
+    "data_disk_usage_keyspace_wide_protection_enabled false\n" +
+    "drop_keyspace_enabled                            true\n"  +
+    "drop_truncate_table_enabled                      true\n"  +
+    "group_by_enabled                                 true\n"  +
+    "intersect_filtering_query_enabled                true\n"  +
+    "intersect_filtering_query_warned                 true\n"  +
+    "non_partition_restricted_index_query_enabled     true\n"  +
+    "read_before_write_list_operations_enabled        true\n"  +
+    "secondary_indexes_enabled                        true\n"  +
+    "simplestrategy_enabled                           true\n"  +
+    "uncompressed_tables_enabled                      true\n"  +
+    "user_timestamps_enabled                          true\n"  +
+    "vector_type_enabled                              true\n"  +
+    "zero_ttl_on_twcs_enabled                         true\n"  +
+    "zero_ttl_on_twcs_warned                          true\n";
 
     private static final String ALL_THRESHOLDS_GETTER_OUTPUT =
     "collection_list_size_threshold               [null, null]  \n" +

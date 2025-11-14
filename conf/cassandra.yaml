@@ -2517,6 +2517,10 @@ drop_compact_storage_enabled: false
 # Min unit: B
 # data_disk_usage_max_disk_size:
 #
+# Configures the disk usage guardrails to block all writes to a keyspace if any node which replicates that keyspace
+# is full. By default, this is disabled.
+# data_disk_usage_keyspace_wide_protection_enabled: false
+#
 # Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher

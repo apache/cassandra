@@ -103,6 +103,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
@@ -124,6 +125,7 @@ import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -412,15 +414,36 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public void validateDiskUsage(QueryOptions options, ClientState state)
     {
-        // reject writes if any replica exceeds disk usage failure limit or warn if it exceeds warn limit
-        if (Guardrails.replicaDiskUsage.enabled(state) && DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+
+        if (Guardrails.diskUsageKeyspaceWideProtection.enabled(state) &&
+            Guardrails.instance.getDataDiskUsageKeyspaceWideProtectionEnabled() &&
+            DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
         {
             Keyspace keyspace = Keyspace.open(keyspace());
-
+            // If the keyspace is using NetworkTopologyStrategy then we can check each datacenter on which
+            // the keyspace is replicated.
+            if (keyspace.getMetadata().replicationStrategy instanceof NetworkTopologyStrategy)
+            {
+                for (String datacenter : ((NetworkTopologyStrategy) keyspace.getMetadata().replicationStrategy).getDatacenters())
+                {
+                    Guardrails.diskUsageKeyspaceWideProtection.guard(datacenter, state);
+                }
+            }
+            // Otherwise, if we are using SimpleStrategy then we have to check if any datacenter contains a full node.
+            else
+            {
+                for (String datacenter : ClusterMetadata.current().directory.knownDatacenters())
+                {
+                    Guardrails.diskUsageKeyspaceWideProtection.guard(datacenter, state);
+                }
+            }
+        }
+        else if (Guardrails.replicaDiskUsage.enabled(state) && DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+        {
+            Keyspace keyspace = Keyspace.open(keyspace());
             for (ByteBuffer key : buildPartitionKeyNames(options, state))
             {
                 Token token = metadata().partitioner.getToken(key);
-
                 for (Replica replica : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all())
                 {
                     Guardrails.replicaDiskUsage.guard(replica.endpoint(), state);

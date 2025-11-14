@@ -1,4 +1,5 @@
 5.1
+ * Add configuration to disk usage guardrails to stop writes across all replicas of a keyspace when any node replicating that keyspace exceeds the disk usage failure threshold. (CASSANDRA-21024)
  * Include Level information for UnifiedCompactionStrategy in nodetool tablestats output (CASSANDRA-20820)
  * Support low-overhead async profiling (CASSANDRA-20854)
  * Minor perf optimizations around memtable put logic (CASSANDRA-21088)

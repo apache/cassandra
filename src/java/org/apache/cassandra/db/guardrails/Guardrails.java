@@ -557,6 +557,19 @@ public final class Guardrails implements GuardrailsMBean
                      isWarning ? "Replica disk usage exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold");
     /**
+     * Guardrail on the data disk usage of replicas across a datacenter which replicates a given keyspace.
+     * This is used at write time to verify the status of any node which might replicate a given keyspace.
+     */
+    public static final Predicates<String> diskUsageKeyspaceWideProtection =
+    new Predicates<>("disk_usage_keyspace_wide_protection",
+                     null,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterStuffed,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterFull,
+                     (isWarning, value) ->
+                     isWarning ? "Disk usage in keyspace datacenter exceeds warning threshold"
+                               : "Write request failed because disk usage exceeds failure threshold in keyspace datacenter.");
+
+    /**
      * Guardrail on passwords for CREATE / ALTER ROLE statements.
      */
     public static final PasswordPolicyGuardrail passwordPolicy =
@@ -1595,6 +1608,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDataDiskUsageMaxDiskSize(@Nullable String size)
     {
         DEFAULT_CONFIG.setDataDiskUsageMaxDiskSize(sizeFromString(size));
+    }
+
+    @Override
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return DEFAULT_CONFIG.getDataDiskUsageKeyspaceWideProtectionEnabled();
+    }
+
+    @Override
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDataDiskUsageKeyspaceWideProtectionEnabled(enabled);
     }
 
     @Override
