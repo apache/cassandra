@@ -1,0 +1,1624 @@
+= VoyageAI Integration Guide for Apache Cassandra Vector Search
+:page-layout: basic
+:description: Complete guide to integrating VoyageAI embeddings with Apache Cassandra vector search capabilities.
+
+Apache Cassandra's vector search capabilities follow a Bring Your Own Embeddings (BYOE) model, allowing you to use any embedding generation service. This guide demonstrates how to integrate VoyageAI's state-of-the-art embedding models with Cassandra for powerful semantic search applications.
+
+== Overview
+
+VoyageAI provides high-quality text embeddings optimized for retrieval and semantic search. Combined with Cassandra's SAI (Storage Attached Index) vector search, you can build scalable, low-latency similarity search applications.
+
+=== Why VoyageAI + Cassandra?
+
+* **High-Quality Embeddings**: VoyageAI's models (voyage-3.5, voyage-3.5-lite) are optimized for retrieval tasks
+* **Flexible Dimensions**: Support for 256, 512, 1024, and 2048 dimensional embeddings
+* **Scalable Storage**: Cassandra handles billions of vectors with horizontal scaling
+* **Low-Latency Search**: SAI indexes provide fast Approximate Nearest Neighbor (ANN) search
+* **BYOE Model**: Generate embeddings externally, store and search in Cassandra
+
+== Prerequisites
+
+Before starting, ensure you have:
+
+* Apache Cassandra 5.0+ with vector search support
+* Python 3.8 or higher
+* VoyageAI API key (obtain from https://dash.voyageai.com/api-keys)
+* Basic familiarity with CQL (Cassandra Query Language)
+
+== Installation and Setup
+
+=== Install Required Python Libraries
+
+[source,bash]
+----
+pip install voyageai cassandra-driver
+----
+
+The `voyageai` package provides the official VoyageAI Python SDK, while `cassandra-driver` is the DataStax Python driver for Apache Cassandra.
+
+=== Configure VoyageAI API Key
+
+Set your VoyageAI API key as an environment variable:
+
+[source,bash]
+----
+export VOYAGE_API_KEY='your-api-key-here'
+----
+
+For production deployments, use secure secrets management (AWS Secrets Manager, HashiCorp Vault, etc.).
+
+=== Verify Cassandra Installation
+
+Ensure Cassandra is running and accessible:
+
+[source,bash]
+----
+cqlsh -e "SELECT release_version FROM system.local;"
+----
+
+== Architecture Overview
+
+The integration follows this workflow:
+
+[source,text]
+----
+1. Application generates text/content
+2. VoyageAI API converts to embeddings (float vectors)
+3. Cassandra stores vectors alongside original data
+4. SAI indexes enable fast similarity search
+5. Queries return semantically similar results
+----
+
+== Step-by-Step Integration
+
+=== Step 1: Initialize VoyageAI Client
+
+[source,python]
+----
+import os
+import voyageai
+
+# Initialize client (automatically uses VOYAGE_API_KEY env var)
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
+
+# Choose your model
+MODEL = "voyage-3.5-lite"  # Options: voyage-3.5, voyage-3.5-lite
+DIMENSION = 1024  # Options: 256, 512, 1024, 2048
+----
+
+=== Step 2: Generate Embeddings
+
+[source,python]
+----
+# Single text embedding
+texts = ["Apache Cassandra is a distributed NoSQL database"]
+result = vo.embed(
+    texts=texts,
+    model=MODEL,
+    input_type="document",  # or "query" for search queries
+    output_dimension=DIMENSION
+)
+
+embeddings = result.embeddings  # List of float arrays
+total_tokens = result.total_tokens  # Token count for billing
+----
+
+==== Batch Processing
+
+VoyageAI supports batch embedding generation with these limits:
+
+* Maximum 1,000 texts per request
+* Token limits vary by model:
+** voyage-3.5-lite: 1M tokens
+** voyage-3.5: 320K tokens
+** voyage-context-3: 32K tokens
+** voyage-multimodal-3: 120K tokens
+
+===== Simple Count-Based Batching
+
+[source,python]
+----
+# Basic batch processing example (NOT RECOMMENDED for production)
+documents = [
+    "First document text...",
+    "Second document text...",
+    # ... up to 1000 documents
+]
+
+batch_size = 128
+all_embeddings = []
+
+for i in range(0, len(documents), batch_size):
+    batch = documents[i:i + batch_size]
+    result = vo.embed(texts=batch, model=MODEL, input_type="document")
+    all_embeddings.extend(result.embeddings)
+----
+
+WARNING: Count-based batching can cause API errors if documents exceed token limits. See Token-Aware Batching below for the recommended approach.
+
+===== Token-Aware Batching (Recommended)
+
+For production use, implement token-aware batching to prevent API errors and maximize batch utilization. This approach uses actual token counts instead of document counts.
+
+[source,python]
+----
+import voyageai
+from typing import List, Generator
+
+# Token limits for VoyageAI models
+VOYAGE_TOKEN_LIMITS = {
+    "voyage-3.5-lite": 1_000_000,
+    "voyage-3.5": 320_000,
+    "voyage-context-3": 32_000,
+    "voyage-multimodal-3": 120_000,
+}
+
+class TokenAwareBatchProcessor:
+    """Process embeddings with token-aware batching."""
+
+    def __init__(self, client: voyageai.Client, model: str):
+        self.client = client
+        self.model = model
+        self.max_tokens = VOYAGE_TOKEN_LIMITS.get(model, 120_000)
+
+    def build_token_batches(self, texts: List[str]) -> Generator[List[str], None, None]:
+        """Build batches based on actual token counts."""
+        if not texts:
+            return
+
+        # Get token counts for all texts in one API call (efficient!)
+        all_token_lists = self.client.tokenize(texts, model=self.model)
+        token_counts = [len(tokens) for tokens in all_token_lists]
+
+        current_batch = []
+        current_batch_tokens = 0
+
+        for i, text in enumerate(texts):
+            n_tokens = token_counts[i]
+
+            # Check if adding this would exceed token limit
+            if current_batch and (current_batch_tokens + n_tokens > self.max_tokens):
+                yield current_batch
+                current_batch = []
+                current_batch_tokens = 0
+
+            current_batch.append(text)
+            current_batch_tokens += n_tokens
+
+        # Yield final batch
+        if current_batch:
+            yield current_batch
+
+    def embed_with_token_batching(
+        self,
+        texts: List[str],
+        input_type: str = "document",
+        dimension: int = 1024
+    ) -> List[List[float]]:
+        """Embed texts using token-aware batching."""
+        all_embeddings = []
+
+        for batch in self.build_token_batches(texts):
+            result = self.client.embed(
+                texts=batch,
+                model=self.model,
+                input_type=input_type,
+                output_dimension=dimension
+            )
+            all_embeddings.extend(result.embeddings)
+
+        return all_embeddings
+
+# Usage example
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
+processor = TokenAwareBatchProcessor(vo, "voyage-3.5")
+
+# Process documents with automatic token-aware batching
+documents = ["Document 1 text...", "Document 2 text...", ...]  # Any number of documents
+embeddings = processor.embed_with_token_batching(documents, input_type="document")
+----
+
+**Benefits of Token-Aware Batching:**
+
+* **Prevents API Errors**: Automatically respects model token limits
+* **Maximizes Utilization**: Creates largest possible batches without exceeding limits
+* **Memory Efficient**: Uses generators to process batches incrementally
+* **Model Agnostic**: Works across all VoyageAI models
+* **Production Ready**: Handles edge cases and variable document sizes
+
+**How It Works:**
+
+1. Calls `client.tokenize()` once to get token counts for all documents
+2. Builds batches that stay within the model's token limit
+3. Uses Python generators for memory efficiency
+4. Automatically adjusts batch sizes based on content
+
+For a complete working example with comparison to count-based batching, see:
+`examples/PYTHON/voyageai-cassandra-example.py` (Example B: Token-Aware Batching)
+
+=== Step 3: Create Cassandra Schema
+
+==== Create Keyspace
+
+[source,cql]
+----
+CREATE KEYSPACE IF NOT EXISTS vector_search_demo
+WITH REPLICATION = {
+    'class': 'SimpleStrategy',
+    'replication_factor': 1
+};
+----
+
+For production, use `NetworkTopologyStrategy`:
+
+[source,cql]
+----
+CREATE KEYSPACE IF NOT EXISTS vector_search_demo
+WITH REPLICATION = {
+    'class': 'NetworkTopologyStrategy',
+    'datacenter1': 3
+};
+----
+
+==== Create Table with Vector Column
+
+[source,cql]
+----
+USE vector_search_demo;
+
+CREATE TABLE IF NOT EXISTS products (
+    product_id UUID PRIMARY KEY,
+    name TEXT,
+    description TEXT,
+    category TEXT,
+    price DECIMAL,
+    description_vector VECTOR<FLOAT, 1024>,
+    created_at TIMESTAMP
+);
+----
+
+The `VECTOR<FLOAT, dimension>` type stores floating-point vectors. Ensure the dimension matches your VoyageAI output dimension.
+
+==== Create SAI Vector Index
+
+[source,cql]
+----
+CREATE CUSTOM INDEX IF NOT EXISTS products_vector_idx
+ON products(description_vector)
+USING 'StorageAttachedIndex'
+WITH OPTIONS = {
+    'similarity_function': 'COSINE'
+};
+----
+
+Similarity function options:
+
+* `COSINE`: Cosine similarity (recommended for normalized embeddings)
+* `DOT_PRODUCT`: Dot product similarity
+* `EUCLIDEAN`: Euclidean distance
+
+=== Step 4: Insert Data with Embeddings
+
+[source,python]
+----
+from cassandra.cluster import Cluster
+from datetime import datetime
+import uuid
+
+# Connect to Cassandra
+cluster = Cluster(['127.0.0.1'])
+session = cluster.connect('vector_search_demo')
+
+# Prepare data
+product = {
+    "name": "Wireless Headphones",
+    "description": "Premium headphones with noise cancellation and 30-hour battery",
+    "category": "Electronics",
+    "price": 199.99
+}
+
+# Generate embedding
+embedding_result = vo.embed(
+    texts=[product["description"]],
+    model="voyage-3.5-lite",
+    input_type="document",
+    output_dimension=1024
+)
+embedding = embedding_result.embeddings[0]
+
+# Insert into Cassandra
+query = """
+INSERT INTO products (
+    product_id, name, description, category, price,
+    description_vector, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
+session.execute(
+    query,
+    (
+        uuid.uuid4(),
+        product["name"],
+        product["description"],
+        product["category"],
+        product["price"],
+        embedding,
+        datetime.utcnow()
+    )
+)
+----
+
+=== Step 5: Perform Vector Similarity Search
+
+==== Basic ANN Query
+
+[source,python]
+----
+# Generate query embedding
+query_text = "noise cancelling headphones for music"
+query_result = vo.embed(
+    texts=[query_text],
+    model="voyage-3.5-lite",
+    input_type="query",  # Use "query" for search queries
+    output_dimension=1024
+)
+query_vector = query_result.embeddings[0]
+
+# Search for similar products
+query = """
+SELECT
+    product_id,
+    name,
+    description,
+    price,
+    similarity_cosine(description_vector, ?) AS similarity
+FROM products
+ORDER BY description_vector ANN OF ?
+LIMIT 5
+"""
+
+rows = session.execute(query, (query_vector, query_vector))
+
+for row in rows:
+    print(f"{row.name} - Similarity: {row.similarity:.4f}")
+----
+
+==== Understanding the Query Syntax
+
+* `ORDER BY description_vector ANN OF [vector]`: Performs Approximate Nearest Neighbor search
+* `similarity_cosine(description_vector, ?)`: Computes cosine similarity score
+* `LIMIT 5`: Returns top 5 most similar results
+
+== Complete Working Example
+
+See the complete examples in the Cassandra documentation:
+
+* `examples/PYTHON/voyageai-cassandra-example.py`: Comprehensive integration with:
+** Example A: Basic semantic search
+** Example B: Token-aware batching for large datasets
+** Example C: Two-stage retrieval with reranking
+** Example D: Hybrid search (vector + keyword + rerank)
+* `examples/PYTHON/voyageai-multimodal-example.py`: Multimodal embeddings (text + images)
+* `examples/PYTHON/voyageai-contextual-example.py`: Contextual embeddings for RAG pipelines
+
+== Best Practices
+
+=== Embedding Generation
+
+. **Use Appropriate input_type**
++
+Set `input_type="document"` when embedding content to be stored, and `input_type="query"` when embedding search queries. This optimizes retrieval performance.
+
+. **Choose the Right Model**
++
+[cols="1,2,1,1"]
+|===
+|Model |Use Case |Dimension |Performance
+
+|voyage-3.5-lite
+|Fast, cost-effective text searches
+|1024 (default)
+|Best cost/performance
+
+|voyage-3.5
+|Balanced quality and speed for text
+|1024 (default)
+|High quality
+
+|voyage-multimodal-3
+|Text + Image embeddings (cross-modal)
+|1024 (fixed)
+|Multimodal search
+
+|voyage-context-3
+|Contextual chunk embeddings for RAG
+|1024 (default)
+|Best for long documents
+|===
+
+. **Use Token-Aware Batching**
++
+Always use token-aware batching instead of simple count-based batching to prevent API errors:
++
+[source,python]
+----
+# Good: Token-aware batching
+processor = TokenAwareBatchProcessor(client, model)
+embeddings = processor.embed_with_token_batching(documents)
+
+# Bad: Count-based batching (can exceed token limits)
+for i in range(0, len(documents), 100):
+    batch = documents[i:i+100]  # May exceed token limit!
+    embeddings = client.embed(texts=batch, model=model)
+----
++
+See the complete implementation in `examples/PYTHON/voyageai-cassandra-example.py` (Example B: Token-Aware Batching)
+
+. **Handle Rate Limits**
++
+Implement exponential backoff and retry logic for API calls:
++
+[source,python]
+----
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def generate_embeddings_with_retry(texts, model):
+    return vo.embed(texts=texts, model=model)
+----
+
+=== Vector Storage and Indexing
+
+. **Match Dimensions Exactly**
++
+Ensure your `VECTOR<FLOAT, dimension>` definition matches the VoyageAI output dimension exactly.
+
+. **Choose Appropriate Similarity Function**
++
+* Use `COSINE` for VoyageAI embeddings (they are normalized)
+* Use `DOT_PRODUCT` if you're using normalized vectors and want faster computation
+* Use `EUCLIDEAN` only if specifically required by your use case
+
+. **Index After Bulk Loads**
++
+For large initial data loads, consider creating the index after inserting data to improve performance.
+
+=== Query Optimization
+
+. **Limit Result Sets**
++
+Always use `LIMIT` in ANN queries to control result set size and query performance.
+
+. **Cache Query Embeddings**
++
+If the same queries are used frequently, cache their embeddings to avoid redundant API calls.
+
+. **Combine with Filters**
++
+Use additional WHERE clauses for hybrid search:
++
+[source,cql]
+----
+SELECT name, similarity_cosine(description_vector, ?) AS similarity
+FROM products
+WHERE category = 'Electronics'
+ORDER BY description_vector ANN OF ?
+LIMIT 10
+----
+
+=== Production Deployment
+
+. **Secure API Keys**
++
+* Use environment variables or secrets management systems
+* Rotate keys periodically
+* Never commit keys to version control
+
+. **Monitor API Usage**
++
+Track VoyageAI token consumption and costs using their dashboard.
+
+. **Implement Error Handling**
++
+Handle network failures, rate limits, and API errors gracefully:
++
+[source,python]
+----
+try:
+    result = vo.embed(texts=texts, model=MODEL)
+except voyageai.error.RateLimitError:
+    # Implement backoff
+    time.sleep(60)
+    result = vo.embed(texts=texts, model=MODEL)
+except voyageai.error.APIError as e:
+    # Log error and handle gracefully
+    logger.error(f"VoyageAI API error: {e}")
+----
+
+. **Scale Cassandra Appropriately**
++
+* Use appropriate replication factor for your availability needs
+* Monitor node health and query performance
+* Consider using separate data centers for different use cases
+
+== Performance Considerations
+
+=== Embedding Generation Performance
+
+* VoyageAI API latency: ~100-500ms depending on batch size
+* Recommended batch size: 32-128 texts for optimal throughput
+* Concurrent requests: Use connection pooling for parallel processing
+
+=== Cassandra Query Performance
+
+* ANN query latency: 10-100ms depending on dataset size
+* Index memory usage: ~4 bytes × dimension × row count
+* Recommended maximum vectors per node: 10-100 million
+
+=== Optimization Tips
+
+. **Dimension Reduction**
++
+Consider using lower dimensions (512 or 256) if 1024 is unnecessary:
++
+[source,python]
+----
+result = vo.embed(texts=texts, model="voyage-3.5-lite", output_dimension=512)
+----
+
+. **Parallel Processing**
++
+Generate embeddings in parallel using thread pools:
++
+[source,python]
+----
+from concurrent.futures import ThreadPoolExecutor
+
+def embed_batch(batch):
+    return vo.embed(texts=batch, model=MODEL)
+
+with ThreadPoolExecutor(max_workers=4) as executor:
+    futures = [executor.submit(embed_batch, batch) for batch in batches]
+    results = [f.result() for f in futures]
+----
+
+. **Connection Pooling**
++
+Configure Cassandra driver connection pooling:
++
+[source,python]
+----
+from cassandra.cluster import Cluster
+from cassandra.policies import DCAwareRoundRobinPolicy
+
+cluster = Cluster(
+    contact_points=['127.0.0.1'],
+    load_balancing_policy=DCAwareRoundRobinPolicy(local_dc='datacenter1'),
+    protocol_version=5
+)
+----
+
+== Troubleshooting
+
+=== Common Issues and Solutions
+
+==== Issue: "Dimension mismatch" error
+
+*Problem*: Vector dimension doesn't match table definition.
+
+*Solution*: Ensure VoyageAI `output_dimension` matches your `VECTOR<FLOAT, N>` definition:
+
+[source,python]
+----
+# Match these values
+DIMENSION = 1024
+result = vo.embed(texts=texts, output_dimension=DIMENSION)
+
+# CQL table definition
+# description_vector VECTOR<FLOAT, 1024>
+----
+
+==== Issue: VoyageAI rate limit errors
+
+*Problem*: Exceeding API rate limits.
+
+*Solution*: Implement exponential backoff and reduce request frequency:
+
+[source,python]
+----
+import time
+
+def generate_with_backoff(texts, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return vo.embed(texts=texts, model=MODEL)
+        except voyageai.error.RateLimitError:
+            if attempt == max_retries - 1:
+                raise
+            wait_time = 2 ** attempt
+            time.sleep(wait_time)
+----
+
+==== Issue: Slow query performance
+
+*Problem*: Vector searches taking too long.
+
+*Solutions*:
+
+* Verify SAI index exists: `DESCRIBE INDEX products_vector_idx`
+* Reduce `LIMIT` value in queries
+* Consider using lower dimension embeddings
+* Ensure adequate Cassandra cluster resources
+
+==== Issue: API key not found
+
+*Problem*: `VOYAGE_API_KEY` environment variable not set.
+
+*Solution*:
+
+[source,bash]
+----
+# Set environment variable
+export VOYAGE_API_KEY='your-api-key-here'
+
+# Or set in Python before import
+import os
+os.environ['VOYAGE_API_KEY'] = 'your-api-key-here'
+----
+
+==== Issue: Connection timeout to Cassandra
+
+*Problem*: Cannot connect to Cassandra cluster.
+
+*Solutions*:
+
+* Verify Cassandra is running: `nodetool status`
+* Check firewall rules allow port 9042
+* Verify contact points are correct
+* Check authentication credentials if enabled
+
+== Advanced Use Cases
+
+=== Multimodal Embeddings with voyage-multimodal-3
+
+VoyageAI's `voyage-multimodal-3` model enables embedding both text and images in the same 1024-dimensional vector space, enabling powerful cross-modal search capabilities.
+
+==== Model Capabilities
+
+* **Unified Vector Space**: Text and images share the same embedding space
+* **Cross-Modal Search**: Text queries can find images, image queries can find text
+* **Interleaved Content**: Support for documents with mixed text and images
+* **Context Length**: 32,000 tokens
+* **Image Constraints**: Max 16 million pixels, max 20MB per image
+* **Pixel Pricing**: Every 560 pixels counts as one token
+
+==== Python API Usage
+
+[source,python]
+----
+import voyageai
+from PIL import Image
+
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
+
+# Embed text
+text_result = vo.multimodal_embed(
+    inputs=[["Apache Cassandra is a distributed database"]],
+    model="voyage-multimodal-3",
+    input_type="document"
+)
+text_embedding = text_result.embeddings[0]  # 1024-dim vector
+
+# Embed image
+image = Image.open("diagram.jpg")
+image_result = vo.multimodal_embed(
+    inputs=[[image]],
+    model="voyage-multimodal-3",
+    input_type="document"
+)
+image_embedding = image_result.embeddings[0]  # 1024-dim vector
+
+# Embed image with caption (interleaved)
+captioned_result = vo.multimodal_embed(
+    inputs=[["Database architecture diagram", image]],
+    model="voyage-multimodal-3",
+    input_type="document"
+)
+combined_embedding = captioned_result.embeddings[0]
+----
+
+==== Image Input Formats
+
+VoyageAI supports two primary image input methods:
+
+1. **PIL Image Objects** (Recommended for local images)
++
+[source,python]
+----
+from PIL import Image
+image = Image.open("photo.jpg")
+inputs = [[image]]
+----
+
+2. **Loading from URLs**
++
+[source,python]
+----
+import requests
+from PIL import Image
+from io import BytesIO
+
+response = requests.get("https://example.com/image.jpg")
+image = Image.open(BytesIO(response.content))
+inputs = [[image]]
+----
+
+==== Cassandra Schema for Multimodal Search
+
+[source,cql]
+----
+CREATE TABLE media_library (
+    item_id UUID PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    content_type TEXT,           -- 'image', 'article', 'video', etc.
+    has_visual BOOLEAN,
+    embedding VECTOR<FLOAT, 1024>,  -- Single vector for both text & images
+    image_url TEXT,
+    tags SET<TEXT>,
+    created_at TIMESTAMP
+);
+
+-- Single index handles both text and image searches
+CREATE CUSTOM INDEX media_embedding_idx
+ON media_library(embedding)
+USING 'StorageAttachedIndex'
+WITH OPTIONS = {'similarity_function': 'COSINE'};
+
+-- Index for filtering by content type
+CREATE CUSTOM INDEX media_content_type_idx
+ON media_library(content_type)
+USING 'StorageAttachedIndex';
+----
+
+==== Cross-Modal Search Queries
+
+**Text Query Finding Images:**
+
+[source,python]
+----
+# User searches with text
+query_text = "sunset over ocean"
+query_vector = vo.multimodal_embed(
+    inputs=[[query_text]],
+    model="voyage-multimodal-3",
+    input_type="query"
+).embeddings[0]
+
+# Find similar images
+query = """
+SELECT title, image_url, similarity_cosine(embedding, ?) AS similarity
+FROM media_library
+WHERE content_type = 'image'
+ORDER BY embedding ANN OF ?
+LIMIT 10
+"""
+results = session.execute(query, (query_vector, query_vector))
+----
+
+**Image Query Finding Text:**
+
+[source,python]
+----
+# User provides an image
+query_image = Image.open("reference_image.jpg")
+query_vector = vo.multimodal_embed(
+    inputs=[[query_image]],
+    model="voyage-multimodal-3",
+    input_type="query"
+).embeddings[0]
+
+# Find similar text descriptions
+query = """
+SELECT title, description, similarity_cosine(embedding, ?) AS similarity
+FROM media_library
+WHERE content_type = 'article'
+ORDER BY embedding ANN OF ?
+LIMIT 10
+"""
+results = session.execute(query, (query_vector, query_vector))
+----
+
+==== Production Use Cases
+
+* **E-commerce Product Search**: Text queries return product images
+* **Media Asset Management**: Find photos by description
+* **Document Search**: Locate diagrams and figures in technical docs
+* **Visual Q&A**: Answer questions about image content
+* **Content Moderation**: Find similar images across modalities
+
+==== Best Practices for Multimodal Search
+
+. **Image Preparation**
++
+* Resize large images to reduce token consumption
+* Optimize image quality vs. file size
+* Monitor pixel-based pricing
++
+[source,python]
+----
+from PIL import Image
+
+def prepare_image(image_path, max_pixels=1_000_000):
+    img = Image.open(image_path)
+    pixels = img.width * img.height
+
+    if pixels > max_pixels:
+        # Resize to fit within pixel budget
+        scale = (max_pixels / pixels) ** 0.5
+        new_size = (int(img.width * scale), int(img.height * scale))
+        img = img.resize(new_size, Image.LANCZOS)
+
+    return img
+----
+
+. **Combine Text and Images**
++
+For best cross-modal alignment, embed images with their captions:
++
+[source,python]
+----
+# Better alignment for search
+inputs = [[product_description, product_image]]
+result = vo.multimodal_embed(inputs, model="voyage-multimodal-3")
+----
+
+. **Unified Storage**
++
+Use a single vector column for both text and images since they share the same embedding space.
+
+. **Content-Type Filtering**
++
+Use WHERE clauses to filter results by modality when needed.
+
+For complete examples, see: `examples/PYTHON/voyageai-multimodal-example.py`
+
+=== Contextual Embeddings with voyage-context-3
+
+VoyageAI's `voyage-context-3` model generates contextual chunk embeddings that encode both local chunk details and global document context, significantly improving retrieval accuracy for RAG applications.
+
+==== Model Capabilities
+
+* **Global Context Encoding**: Each chunk embedding contains document-level context
+* **Improved Disambiguation**: Better handling of chunks that need surrounding context
+* **RAG Optimization**: Designed as drop-in replacement for existing pipelines
+* **Flexible Dimensions**: 256, 512, 1024 (default), 2048
+* **Batch Limits**: Max 1,000 inputs, 120K total tokens, 16K total chunks
+
+==== Python API Usage
+
+[source,python]
+----
+import voyageai
+
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
+
+# Document with multiple chunks
+document_chunks = [
+    "Apache Cassandra is a distributed NoSQL database.",
+    "It uses a ring architecture for data distribution.",
+    "Replication is configurable per keyspace.",
+    "The peer-to-peer design eliminates single points of failure."
+]
+
+# Generate contextual embeddings
+# All chunks share context from the same document
+result = vo.contextualized_embed(
+    inputs=[document_chunks],  # List of lists - one doc with chunks
+    model="voyage-context-3",
+    input_type="document",
+    output_dimension=1024
+)
+
+# Extract embeddings
+contextual_embeddings = result.results[0].embeddings
+# Each embedding encodes its chunk + global document context
+----
+
+==== Comparison: Contextual vs Standard Embeddings
+
+**Standard Embeddings (Baseline):**
+
+[source,python]
+----
+# Each chunk embedded independently (no context sharing)
+result = vo.embed(
+    texts=document_chunks,
+    model="voyage-3.5",
+    input_type="document"
+)
+standard_embeddings = result.embeddings
+----
+
+**Contextual Embeddings (Improved):**
+
+[source,python]
+----
+# Chunks embedded with shared document context
+result = vo.contextualized_embed(
+    inputs=[document_chunks],  # Note: List of lists
+    model="voyage-context-3",
+    input_type="document"
+)
+contextual_embeddings = result.results[0].embeddings
+----
+
+==== Cassandra Schema for Contextual RAG
+
+[source,cql]
+----
+CREATE TABLE document_chunks (
+    chunk_id UUID PRIMARY KEY,
+    doc_id TEXT,
+    doc_title TEXT,
+    chunk_text TEXT,
+    chunk_index INT,
+    embedding VECTOR<FLOAT, 1024>,
+    created_at TIMESTAMP
+);
+
+CREATE CUSTOM INDEX chunks_embedding_idx
+ON document_chunks(embedding)
+USING 'StorageAttachedIndex'
+WITH OPTIONS = {'similarity_function': 'COSINE'};
+
+-- Index for retrieving all chunks from same document
+CREATE CUSTOM INDEX chunks_doc_id_idx
+ON document_chunks(doc_id)
+USING 'StorageAttachedIndex';
+----
+
+==== RAG Pipeline Integration
+
+[source,python]
+----
+# 1. Document ingestion with contextual embeddings
+def ingest_document(doc_id, doc_title, full_text):
+    # Chunk the document
+    chunks = chunk_document(full_text, chunk_size=400)
+
+    # Generate contextual embeddings for all chunks
+    result = vo.contextualized_embed(
+        inputs=[chunks],
+        model="voyage-context-3",
+        input_type="document"
+    )
+
+    # Store chunks with embeddings
+    for i, (chunk_text, embedding) in enumerate(zip(chunks, result.results[0].embeddings)):
+        session.execute(
+            insert_query,
+            (uuid.uuid4(), doc_id, doc_title, chunk_text, i, embedding, datetime.utcnow())
+        )
+
+# 2. Query with contextual embedding
+def search_documents(query_text, limit=5):
+    # Embed query with context
+    query_result = vo.contextualized_embed(
+        inputs=[[query_text]],
+        model="voyage-context-3",
+        input_type="query"
+    )
+    query_vector = query_result.results[0].embeddings[0]
+
+    # Search for relevant chunks
+    query = """
+    SELECT doc_title, chunk_text, chunk_index,
+           similarity_cosine(embedding, ?) AS similarity
+    FROM document_chunks
+    ORDER BY embedding ANN OF ?
+    LIMIT ?
+    """
+    return session.execute(query, (query_vector, query_vector, limit))
+----
+
+==== When to Use Contextual Embeddings
+
+Use `voyage-context-3` when:
+
+* **Long Documents**: Books, research papers, technical documentation
+* **Ambiguous Chunks**: Content that needs surrounding context
+* **Improved Precision**: When standard embeddings lack context
+* **RAG Applications**: Question-answering over document collections
+
+Continue using standard `voyage-3.5` when:
+
+* **Independent Items**: Product descriptions, social media posts
+* **Short Content**: Tweets, titles, standalone sentences
+* **Real-time Constraints**: When latency is critical
+
+==== Best Practices for Contextual Embeddings
+
+. **Chunk Grouping**
++
+Pass all chunks from the same document together:
++
+[source,python]
+----
+# Correct: All chunks from doc1 together, all from doc2 together
+inputs = [
+    ["doc1_chunk1", "doc1_chunk2", "doc1_chunk3"],  # Document 1
+    ["doc2_chunk1", "doc2_chunk2", "doc2_chunk3"]   # Document 2
+]
+----
+
+. **Maintain Chunk Order**
++
+Keep chunks in sequential order for optimal context encoding.
+
+. **Avoid Overlapping Chunks**
++
+Unlike standard chunking, don't create overlapping chunks with contextual embeddings.
+
+. **Optimal Chunk Size**
++
+* Recommended: 200-500 tokens per chunk
+* Balance between granularity and context
+* Respect total token limits (120K per batch)
+
+. **Query Embedding**
++
+Use the same model for queries:
++
+[source,python]
+----
+# Query with context model
+query_vector = vo.contextualized_embed(
+    inputs=[[query_text]],
+    model="voyage-context-3",
+    input_type="query"
+).results[0].embeddings[0]
+----
+
+For complete examples, see: `examples/PYTHON/voyageai-contextual-example.py`
+
+=== Reranking with VoyageAI (Two-Stage Retrieval)
+
+VoyageAI's reranking models (`rerank-2.5`, `rerank-2.5-lite`) enable sophisticated two-stage retrieval that significantly improves search accuracy. This approach combines the speed of Cassandra's vector search with the precision of cross-attention reranking.
+
+==== What is Reranking?
+
+Reranking is the process of re-scoring and re-ordering initial search results using a more sophisticated model. While vector similarity search (cosine similarity) is fast and scales well, it has limitations:
+
+* **Semantic Similarity ≠ Relevance**: Embeddings capture general similarity, not query-specific relevance
+* **Single-Vector Compression**: Each document compressed to one vector loses nuance
+* **No Cross-Attention**: Vector search doesn't directly compare query and document tokens
+
+Reranking addresses these limitations by analyzing the full text of both query and candidates using transformer-based cross-encoders, providing much more accurate relevance scoring.
+
+==== Two-Stage Retrieval Architecture
+
+[source,text]
+----
+User Query
+    ↓
+[Stage 1: Cassandra Vector Search]
+  Fast ANN retrieval → 100 candidates (10-50ms)
+    ↓
+[Stage 2: VoyageAI Reranking]
+  Precise relevance scoring → Top 10 results (100-300ms)
+    ↓
+Final Results (Total: 150-350ms)
+----
+
+**Why Two Stages?**
+
+* **Stage 1 (Speed)**: Cassandra quickly narrows millions of documents to ~100 candidates
+* **Stage 2 (Accuracy)**: VoyageAI reranker precisely scores only the candidates
+* **Best of Both**: Fast retrieval + accurate ranking = production-ready search
+
+==== VoyageAI Rerank Models Comparison
+
+[cols="1,2,2"]
+|===
+|Model |rerank-2.5 |rerank-2.5-lite
+
+|**Accuracy**
+|Highest
+|High
+
+|**Speed**
+|Medium (~150ms/100docs)
+|Fast (~100ms/100docs)
+
+|**Use Case**
+|Production accuracy-critical applications
+|High-throughput, latency-sensitive applications
+
+|**Cost**
+|Higher
+|Lower
+
+|**Context Length**
+|8K tokens per document
+|8K tokens per document
+
+|**Max Documents**
+|1000 per request
+|1000 per request
+|===
+
+**When to Use Each Model:**
+
+* **rerank-2.5**: User-facing search, FAQ, documentation, e-commerce where top results must be highly accurate
+* **rerank-2.5-lite**: Real-time applications, high query volume, cost-sensitive scenarios
+
+==== Python API Usage
+
+[source,python]
+----
+import os
+import voyageai
+from cassandra.cluster import Cluster
+
+# Initialize clients
+vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
+cluster = Cluster(['127.0.0.1'])
+session = cluster.connect('my_keyspace')
+
+def two_stage_search(query: str, vector_candidates: int = 100, final_results: int = 10):
+    """Perform two-stage retrieval: vector search + reranking."""
+
+    # Stage 1: Generate query embedding
+    query_embedding = vo.embed(
+        texts=[query],
+        model="voyage-3.5-lite",
+        input_type="query",
+        output_dimension=1024
+    ).embeddings[0]
+
+    # Stage 1: Cassandra vector search (retrieve candidates)
+    vector_query = """
+    SELECT
+        doc_id, title, content,
+        similarity_cosine(embedding, ?) as similarity_score
+    FROM documents
+    ORDER BY embedding ANN OF ?
+    LIMIT ?
+    """
+
+    rows = session.execute(
+        vector_query,
+        (query_embedding, query_embedding, vector_candidates)
+    )
+
+    # Convert to list for reranking
+    candidates = [
+        {
+            "doc_id": str(row.doc_id),
+            "title": row.title,
+            "content": row.content,
+            "vector_similarity": float(row.similarity_score)
+        }
+        for row in rows
+    ]
+
+    if not candidates:
+        return []
+
+    # Stage 2: Rerank with VoyageAI
+    rerank_result = vo.rerank(
+        query=query,
+        documents=[c["content"] for c in candidates],
+        model="rerank-2.5",
+        top_k=final_results,
+        return_documents=True,
+        truncation=True  # Handle long documents
+    )
+
+    # Combine reranking scores with original metadata
+    final_results = []
+    for item in rerank_result.results:
+        original = candidates[item.index]
+        final_results.append({
+            "doc_id": original["doc_id"],
+            "title": original["title"],
+            "content": original["content"],
+            "relevance_score": item.relevance_score,  # 0-1 scale
+            "vector_similarity": original["vector_similarity"],
+            "rank_improvement": item.index  # Original position
+        })
+
+    return final_results
+
+# Usage
+results = two_stage_search(
+    query="How do I reset my password?",
+    vector_candidates=100,
+    final_results=10
+)
+
+for i, result in enumerate(results, 1):
+    print(f"{i}. {result['title']}")
+    print(f"   Relevance: {result['relevance_score']:.4f}")
+    print(f"   Improved from position #{result['rank_improvement'] + 1}")
+----
+
+==== Reranking API Parameters
+
+[source,python]
+----
+result = vo.rerank(
+    query="user search query",           # Required: Query text
+    documents=["doc1", "doc2", ...],     # Required: List of document texts
+    model="rerank-2.5",                  # Required: rerank-2.5 or rerank-2.5-lite
+    top_k=10,                            # Optional: Return only top K (default: all)
+    return_documents=True,               # Optional: Include doc text in response
+    truncation=True                      # Optional: Auto-truncate long docs
+)
+
+# Access results
+for item in result.results:
+    print(f"Index: {item.index}")              # Original position in input
+    print(f"Score: {item.relevance_score}")    # Relevance score (0-1)
+    print(f"Document: {item.document}")        # Text (if return_documents=True)
+----
+
+==== Performance Characteristics
+
+**Optimal Configuration:**
+
+[cols="1,2,3"]
+|===
+|Parameter |Recommended Value |Rationale
+
+|vector_candidates
+|50-100
+|Good recall without excessive latency
+
+|final_results
+|5-10
+|Typical pagination size
+
+|model
+|rerank-2.5
+|Best accuracy for most use cases
+|===
+
+**Performance Benchmarks:**
+
+[source,text]
+----
+Vector Search Only (baseline):
+  Time: 20-50ms
+  NDCG@10: 0.65-0.75
+
+Two-Stage Retrieval (with reranking):
+  Stage 1: 20-50ms (vector search)
+  Stage 2: 100-300ms (reranking 100 docs)
+  Total: 150-350ms
+  NDCG@10: 0.80-0.90
+
+Improvement: +15-25% accuracy for +150-300ms latency
+----
+
+==== When to Use Reranking
+
+**Use Two-Stage Retrieval When:**
+
+* Top 3-5 results must be highly accurate (user looks here first)
+* User-facing search applications (FAQ, documentation, support)
+* E-commerce product search with complex queries
+* Question answering systems
+* Queries with multiple concepts or constraints
+
+**Use Vector Search Only When:**
+
+* Real-time requirements (< 50ms latency critical)
+* Simple semantic similarity (nearest neighbors)
+* Large result sets (showing 50+ items where ranking matters less)
+* Cost-sensitive applications (high query volume)
+* Exploratory search or recommendations
+
+==== Best Practices for Reranking
+
+. **Preserve Document Metadata**
++
+When reranking, maintain all original metadata from vector search:
++
+[source,python]
+----
+# Good: Preserve all metadata
+candidates = [
+    {
+        "id": row.doc_id,
+        "title": row.title,
+        "content": row.content,
+        "category": row.category,
+        "created_at": row.created_at,
+        "vector_score": row.similarity
+    }
+    for row in cassandra_results
+]
+
+# Pass only content to reranker
+documents = [c["content"] for c in candidates]
+rerank_result = vo.rerank(query=query, documents=documents)
+
+# Merge back with metadata
+final = [
+    {**candidates[item.index], "relevance_score": item.relevance_score}
+    for item in rerank_result.results
+]
+----
+
+. **Optimize Candidate Count**
++
+Balance between recall and latency:
++
+[source,python]
+----
+# Too few candidates (< 20): May miss relevant documents
+# Optimal (50-100): Good recall, reasonable latency
+# Too many (> 200): Diminishing returns, increased cost
+
+# Recommended starting point
+results = two_stage_search(query, vector_candidates=100)
+----
+
+. **Cache Frequently Searched Queries**
++
+Reduce API costs by caching popular queries:
++
+[source,python]
+----
+from functools import lru_cache
+import hashlib
+
+@lru_cache(maxsize=1000)
+def cached_two_stage_search(query: str):
+    """Cache complete search results."""
+    return two_stage_search(query)
+----
+
+. **Monitor Performance Metrics**
++
+Track key metrics to optimize your configuration:
++
+[source,python]
+----
+import time
+
+def monitored_search(query: str):
+    """Search with performance monitoring."""
+    metrics = {}
+
+    # Stage 1
+    start = time.time()
+    candidates = cassandra_vector_search(query)
+    metrics['vector_search_ms'] = (time.time() - start) * 1000
+
+    # Stage 2
+    start = time.time()
+    reranked = vo.rerank(query=query, documents=candidates)
+    metrics['rerank_ms'] = (time.time() - start) * 1000
+
+    metrics['total_ms'] = metrics['vector_search_ms'] + metrics['rerank_ms']
+
+    # Log metrics
+    print(f"Performance: {metrics}")
+
+    return reranked
+----
+
+. **Handle Long Documents**
++
+VoyageAI rerankers support up to 8K tokens per document:
++
+[source,python]
+----
+# Enable automatic truncation
+result = vo.rerank(
+    query=query,
+    documents=long_documents,
+    model="rerank-2.5",
+    truncation=True  # Automatically truncates to 8K tokens
+)
+
+# Or manually truncate
+def truncate_doc(text: str, max_tokens: int = 7000) -> str:
+    """Truncate to approximate token limit."""
+    # Rough approximation: 1 token ≈ 0.75 words
+    max_words = int(max_tokens * 0.75)
+    words = text.split()
+    return ' '.join(words[:max_words]) if len(words) > max_words else text
+
+documents = [truncate_doc(doc) for doc in long_documents]
+----
+
+==== Complete Working Examples
+
+See the following examples for production-ready implementations:
+
+* **Two-Stage Retrieval with Reranking**: `examples/PYTHON/voyageai-cassandra-example.py` (Example C)
+** Complete two-stage retrieval workflow
+** Performance comparison (baseline vs. reranked)
+** Ranking improvement analysis
+** FAQ search use case
+
+* **Hybrid Search + Reranking**: `examples/PYTHON/voyageai-cassandra-example.py` (Example D)
+** Vector search + keyword filtering + reranking
+** Result merging and deduplication
+** E-commerce product search use case
+
+* **Comprehensive Guide**: `examples/PYTHON/RERANKING_GUIDE.md`
+** Detailed reranking fundamentals
+** Performance tuning guidelines
+** Troubleshooting common issues
+
+==== Cost Considerations
+
+Reranking adds minimal cost compared to embedding generation:
+
+* **Embedding**: ~$0.13 per 1M tokens (voyage-3.5-lite)
+* **Reranking**: ~$0.05 per 1M tokens (rerank-2.5)
+
+**Example Cost Analysis:**
+
+[source,text]
+----
+Scenario: 10,000 queries/day, 100 candidates each, top 10 results
+
+Vector Search (Stage 1):
+  - Embedding queries: 10K queries × 20 tokens avg = 200K tokens/day
+  - Cost: ~$0.026/day
+
+Reranking (Stage 2):
+  - Documents: 10K queries × 100 docs × 200 tokens avg = 200M tokens/day
+  - Cost: ~$10/day
+
+Total: ~$10/day for 10K queries with reranking
+----
+
+**Cost Optimization Strategies:**
+
+* Cache popular queries (reduce repeat API calls)
+* Use `rerank-2.5-lite` for non-critical queries
+* Reduce candidates from 100 to 50 for simple queries
+* Only rerank for logged-in or premium users
+
+=== Hybrid Search
+
+Combine vector similarity with traditional filters:
+
+[source,cql]
+----
+SELECT name, price, similarity_cosine(description_vector, ?) AS similarity
+FROM products
+WHERE category = 'Electronics'
+  AND price < 500.00
+ORDER BY description_vector ANN OF ?
+LIMIT 10
+----
+
+=== Real-Time Indexing
+
+Implement streaming pipelines for real-time embedding generation and indexing:
+
+[source,python]
+----
+from kafka import KafkaConsumer
+
+consumer = KafkaConsumer('product-updates')
+
+for message in consumer:
+    product = json.loads(message.value)
+    embedding = vo.embed(texts=[product['description']], model=MODEL)
+    # Insert into Cassandra
+    session.execute(insert_query, (product_id, ..., embedding.embeddings[0]))
+----
+
+=== Semantic Caching
+
+Cache similar queries to reduce API calls:
+
+[source,python]
+----
+import hashlib
+
+query_cache = {}
+
+def get_cached_embedding(text, threshold=0.95):
+    text_hash = hashlib.md5(text.encode()).hexdigest()
+
+    # Check cache
+    if text_hash in query_cache:
+        return query_cache[text_hash]
+
+    # Generate new embedding
+    embedding = vo.embed(texts=[text], model=MODEL).embeddings[0]
+    query_cache[text_hash] = embedding
+    return embedding
+----
+
+== Cost Optimization
+
+=== VoyageAI Pricing Considerations
+
+* Costs are based on token consumption
+* Different models have different pricing tiers
+* Batch processing reduces overhead
+* Cache embeddings for frequently searched content
+
+=== Cassandra Storage Costs
+
+Vector storage requirements:
+
+* 1M vectors × 1024 dimensions × 4 bytes = ~4 GB raw vector data
+* Add 50-100% overhead for indexing and replication
+* Use appropriate compaction strategies
+
+== Additional Resources
+
+* https://docs.voyageai.com/[VoyageAI Documentation]
+* https://cassandra.apache.org/doc/latest/cassandra/developing/cql/indexing/sai/sai-overview.html[Cassandra SAI Documentation]
+* https://github.com/voyage-ai/voyageai-python[VoyageAI Python SDK GitHub]
+* https://github.com/datastax/python-driver[Cassandra Python Driver GitHub]
+
+== Example Applications
+
+=== Semantic Product Search
+
+Build e-commerce search that understands user intent:
+
+* Embed product descriptions and reviews
+* Generate query embeddings from user searches
+* Return semantically relevant products
+* Combine with price/category filters
+
+=== Document Retrieval System
+
+Implement semantic document search:
+
+* Embed document chunks with VoyageAI
+* Store in Cassandra with metadata
+* Query using natural language questions
+* Retrieve most relevant document sections
+
+=== Content Recommendation Engine
+
+Create personalized recommendations:
+
+* Embed user preferences and content items
+* Find similar content based on user history
+* Update embeddings as content evolves
+* Scale to millions of users and items
+
+== Conclusion
+
+Integrating VoyageAI with Apache Cassandra provides a powerful, scalable solution for semantic search applications. The BYOE model gives you flexibility to use best-in-class embeddings while leveraging Cassandra's proven distributed architecture.
+
+VoyageAI offers multiple model families optimized for different use cases:
+
+* **Text Embeddings** (`voyage-3.5`, `voyage-3.5-lite`): Standard semantic search with improved performance
+* **Multimodal Embeddings** (`voyage-multimodal-3`): Cross-modal search with text and images
+* **Contextual Embeddings** (`voyage-context-3`): RAG applications with document context
+* **Reranking Models** (`rerank-2.5`, `rerank-2.5-lite`): Two-stage retrieval for improved accuracy
+
+For complete working examples, refer to:
+
+**Main Examples:**
+
+* **Comprehensive VoyageAI Integration**: `/doc/modules/cassandra/examples/PYTHON/voyageai-cassandra-example.py`
+** Example A: Basic semantic search
+** Example B: Token-aware batching (500 products)
+** Example C: Two-stage retrieval with reranking
+** Example D: Hybrid search (vector + keyword + rerank)
+* **Multimodal Search**: `/doc/modules/cassandra/examples/PYTHON/voyageai-multimodal-example.py`
+* **Contextual RAG**: `/doc/modules/cassandra/examples/PYTHON/voyageai-contextual-example.py`
+
+**Additional Resources:**
+* **Reranking Guide**: `/doc/modules/cassandra/examples/PYTHON/RERANKING_GUIDE.md`
+
+For questions and support, consult the Apache Cassandra community and VoyageAI documentation.
