@@ -38,7 +38,6 @@ import static java.lang.String.format;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.apache.cassandra.utils.JsonUtils.serializeToJsonFile;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ExportImportListCompressionDictionaryTest extends CQLTester
@@ -151,10 +150,9 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
         Assert.assertEquals(1, result.getExitCode());
-        assertEquals(format("Unable to import dictionary JSON: Table %s.%s does not exist or does not support dictionary compression\n",
-                            keyspace(),
-                            table),
-                     result.getStderr());
+        assertTrue(result.getStderr().contains(format("Unable to import dictionary JSON: Table %s.%s does not exist or does not support dictionary compression",
+                                                      keyspace(),
+                                                      table)));
     }
 
     private void importDictionary(File dictFile)

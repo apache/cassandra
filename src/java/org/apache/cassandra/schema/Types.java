@@ -660,7 +660,7 @@ public final class Types implements Iterable<UserType>
                 }
             }
 
-            return sizeof(nonEmptyCount) + dataSize;
+            return sizeofUnsignedVInt(nonEmptyCount) + dataSize;
         }
     }
 }
