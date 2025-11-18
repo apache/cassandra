@@ -1,0 +1,90 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.concurrent;
+
+import org.apache.cassandra.metrics.ThreadLocalMetrics;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
+
+public class CassandraThread extends FastThreadLocalThread
+{
+    private ThreadLocalMetrics threadLocalMetrics;
+    private ExecutorLocals executorLocals;
+
+    public CassandraThread(ThreadGroup group, Runnable target, String name)
+    {
+        super(group, target, name);
+    }
+
+    public CassandraThread()
+    {
+        super();
+    }
+
+    public CassandraThread(Runnable target)
+    {
+        super(target);
+    }
+
+    public ThreadLocalMetrics getThreadLocalMetrics()
+    {
+        ThreadLocalMetrics current = threadLocalMetrics;
+        if (current != null)
+            return current;
+
+        threadLocalMetrics = ThreadLocalMetrics.create();
+        return threadLocalMetrics;
+    }
+
+    public ExecutorLocals getExecutorLocals()
+    {
+        ExecutorLocals current = executorLocals;
+        if (current != null)
+            return current;
+
+        executorLocals = ExecutorLocals.none();
+        return executorLocals;
+    }
+
+    public void setExecutorLocals(ExecutorLocals executorLocals)
+    {
+        this.executorLocals = executorLocals;
+    }
+
+    public ExecutorLocals replaceExecutorLocals(ExecutorLocals newExecutorLocals)
+    {
+        ExecutorLocals current = executorLocals;
+        executorLocals = newExecutorLocals;
+        return current != null ? current : ExecutorLocals.none();
+    }
+
+    // final to avoid skipping of the cleanup logic in child classes
+    final public void run()
+    {
+        try
+        {
+            super.run();
+        }
+        finally
+        {
+            if (threadLocalMetrics != null)
+                threadLocalMetrics.release();
+        }
+    }
+}

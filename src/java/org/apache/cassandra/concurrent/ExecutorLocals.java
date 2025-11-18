@@ -48,8 +48,8 @@ public class ExecutorLocals implements WithResources, Closeable
         @SuppressWarnings("resource")
         protected static void set(TraceState traceState, ClientWarn.State clientWarnState, boolean eligibleForArtificialLatency)
         {
-            if (traceState == null && clientWarnState == null && !eligibleForArtificialLatency) locals.set(none);
-            else locals.set(new ExecutorLocals(traceState, clientWarnState, eligibleForArtificialLatency));
+            if (traceState == null && clientWarnState == null && !eligibleForArtificialLatency) setLocal(none);
+            else setLocal(new ExecutorLocals(traceState, clientWarnState, eligibleForArtificialLatency));
         }
     }
 
@@ -64,12 +64,46 @@ public class ExecutorLocals implements WithResources, Closeable
         this.eligibleForArtificialLatency = eligibleForArtificialLatency;
     }
 
+    private static void setLocal(ExecutorLocals executorLocals)
+    {
+        Thread currentThread = Thread.currentThread();
+        if (currentThread instanceof CassandraThread)
+            ((CassandraThread) currentThread).setExecutorLocals(executorLocals);
+        else
+            locals.set(executorLocals);
+    }
+
+    private ExecutorLocals replace()
+    {
+        Thread currentThread = Thread.currentThread();
+        if (currentThread instanceof CassandraThread)
+        {
+            return ((CassandraThread) currentThread).replaceExecutorLocals(this);
+        }
+        else
+        {
+            ExecutorLocals old = locals.get();
+            if (old != this)
+                locals.set(this);
+            return old;
+        }
+    }
+
     /**
      * @return an ExecutorLocals object which has the current trace state and client warn state.
      */
     public static ExecutorLocals current()
     {
-        return locals.get();
+        Thread currentThread = Thread.currentThread();
+        if (currentThread instanceof CassandraThread)
+            return ((CassandraThread) currentThread).getExecutorLocals();
+        else
+            return locals.get();
+    }
+
+    public static ExecutorLocals none()
+    {
+        return none;
     }
 
     /**
@@ -84,13 +118,13 @@ public class ExecutorLocals implements WithResources, Closeable
 
     public static ExecutorLocals create(TraceState traceState)
     {
-        ExecutorLocals current = locals.get();
+        ExecutorLocals current = current();
         return current.traceState == traceState ? current : new ExecutorLocals(traceState, current.clientWarnState, current.eligibleForArtificialLatency);
     }
 
     public static void clear()
     {
-        locals.set(none);
+        setLocal(none);
     }
 
     /**
@@ -98,15 +132,11 @@ public class ExecutorLocals implements WithResources, Closeable
      */
     public ExecutorLocals get()
     {
-        // TODO (desired): add compareAndSet to save one thread local round trip
-        ExecutorLocals old = current();
-        if (old != this)
-            locals.set(this);
-        return old;
+        return replace();
     }
 
     public void close()
     {
-        locals.set(this);
+        setLocal(this);
     }
 }

@@ -16,25 +16,19 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.test.microbench;
+package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.ThreadPoolExecutor;
+import io.netty.util.concurrent.DefaultThreadFactory;
 
-import org.apache.cassandra.concurrent.CassandraThreadFactory;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
-
-/**
- * Created to test perf of FastThreadLocal
- *
- * Used in MutationBench via:
- * jvmArgsAppend = {"-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"}
- */
-public class FastThreadExecutor extends ThreadPoolExecutor
+public class CassandraThreadFactory extends DefaultThreadFactory
 {
-    public FastThreadExecutor(int size, String name)
+    public CassandraThreadFactory(String poolName, boolean daemon)
     {
-        super(size, size, 10, SECONDS, newBlockingQueue(), new CassandraThreadFactory(name, true));
+        super(poolName, daemon);
+    }
+
+    protected Thread newThread(Runnable r, String name)
+    {
+        return new CassandraThread(this.threadGroup, r, name);
     }
 }

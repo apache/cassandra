@@ -95,6 +95,7 @@
                 <jvmarg line="${java-jvmargs}"/>
                 <jvmarg line="${_std-test-jvmargs}"/>
                 <jvmarg line="${test.jvm.args}"/>
+                <jvmarg line="-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints"/>
 
                 <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
                 <!-- note! this is used for both the JMH runner and VMH fork -->
