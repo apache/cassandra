@@ -209,7 +209,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     {
         public static volatile DiskUsageState state = DiskUsageState.SPACIOUS;
 
-        private static void install(ClassLoader cl, int node)
+        static void install(ClassLoader cl, int node)
         {
             new ByteBuddy().rebase(DiskUsageMonitor.class)
                            .method(named("getState"))
