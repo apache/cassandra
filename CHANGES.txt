@@ -1,4 +1,5 @@
 5.1
+ * DiskUsageBroadcaster does not update usageInfo on node replacement (CASSANDRA-21033)
  * Reject PrepareJoin if tokens are already assigned (CASSANDRA-21006)
  * Don't update registration status if node state for decommissioned peer is found with the same address (CASSANDRA-21005)
  * Avoid NPE when meta keyspace placements are empty before CMS is initialized (CASSANDRA-21004)
