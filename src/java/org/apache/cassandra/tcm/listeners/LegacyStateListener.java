@@ -77,6 +77,7 @@ public class LegacyStateListener implements ChangeListener.Async
 
         for (InetAddressAndPort remove : removedAddr)
         {
+            GossipHelper.removeFromGossip(remove);
             GossipHelper.evictFromMembership(remove);
             PeersTable.removeFromSystemPeersTables(remove);
         }
