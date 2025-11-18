@@ -27,8 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
-
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SET_SEP_THREAD_NAME;
@@ -60,7 +58,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         this.pool = pool;
         this.workerId = workerId;
         this.workerIdThreadSuffix = '-' + workerId.toString();
-        thread = new FastThreadLocalThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
+        thread = new CassandraThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
         thread.start();
