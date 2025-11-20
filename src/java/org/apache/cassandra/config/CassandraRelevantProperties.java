@@ -434,6 +434,7 @@ public enum CassandraRelevantProperties
     PAXOS_LOG_TTL_LINEARIZABILITY_VIOLATIONS("cassandra.paxos.log_ttl_linearizability_violations", "true"),
     PAXOS_MODERN_RELEASE("cassandra.paxos.modern_release", "4.1"),
     PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE("cassandra.paxos_repair_allow_multiple_pending_unsafe"),
+    PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_BY_KEYSPACE("cassandra.paxos_repair_on_topology_change_by_keyspace", "false"),
     PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRIES("cassandra.paxos_repair_on_topology_change_retries", "10"),
     PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", "10"),
     PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS("cassandra.paxos_repair_retry_timeout_millis", "60000"),
