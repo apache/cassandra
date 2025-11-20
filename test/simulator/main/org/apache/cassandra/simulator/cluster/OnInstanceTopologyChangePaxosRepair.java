@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.simulator.cluster;
 
+import java.util.concurrent.ExecutionException;
+
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -63,7 +65,15 @@ class OnInstanceTopologyChangePaxosRepair extends ClusterAction
     {
         return () -> {
             Condition condition = newOneTimeCondition();
-            Future<?> future = StorageService.instance.startRepairPaxosForTopologyChange(reason);
+            Future<?> future;
+            try
+            {
+                future = StorageService.instance.startRepairPaxosForTopologyChange(reason);
+            }
+            catch (ExecutionException | InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
             future.addListener(condition::signal); // add listener so we don't use Futures.addAllAsList
             condition.awaitThrowUncheckedOnInterrupt();
         };

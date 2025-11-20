@@ -248,6 +248,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_BY_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRIES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
@@ -3226,9 +3227,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @VisibleForTesting
-    public Future<?> startRepairPaxosForTopologyChange(String reason)
+    public Future<?> startRepairPaxosForTopologyChange(String reason) throws ExecutionException, InterruptedException
     {
         logger.info("repairing paxos for {}", reason);
+        boolean scheduleByKeyspace = PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_BY_KEYSPACE.getBoolean();
 
         List<Future<?>> futures = new ArrayList<>();
 
@@ -3242,7 +3244,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 continue;
 
             Collection<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
-            futures.add(ActiveRepairService.instance().repairPaxosForTopologyChange(ksName, ranges, reason));
+            if (scheduleByKeyspace)
+                // blocking wait here if scheduling by keyspace to avoid overwhelming the messages with many repairs at once
+                ActiveRepairService.instance().repairPaxosForTopologyChange(ksName, ranges, reason).get();
+            else
+                futures.add(ActiveRepairService.instance().repairPaxosForTopologyChange(ksName, ranges, reason));
         }
 
         return FutureCombiner.allOf(futures);
