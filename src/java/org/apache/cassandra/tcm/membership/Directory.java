@@ -73,6 +73,7 @@ public class Directory implements MetadataValue<Directory>
     private final BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC;
     public final NodeVersion clusterMinVersion;
     public final NodeVersion clusterMaxVersion;
+    public final Version commonSerializationVersion;
 
     public Directory()
     {
@@ -115,6 +116,7 @@ public class Directory implements MetadataValue<Directory>
         Pair<NodeVersion, NodeVersion> minMaxVer = minMaxVersions(states, versions);
         clusterMinVersion = minMaxVer.left;
         clusterMaxVersion = minMaxVer.right;
+        commonSerializationVersion = minCommonSerializationVersion(states, versions);
     }
 
     @Override
@@ -131,6 +133,9 @@ public class Directory implements MetadataValue<Directory>
                ", hostIds=" + hostIds +
                ", endpointsByDC=" + endpointsByDC +
                ", racksByDC=" + racksByDC +
+               ", clusterMinVersion=" + clusterMinVersion +
+               ", clusterMaxVersion=" + clusterMaxVersion +
+               ", commonSerializationVersion=" + commonSerializationVersion +
                '}';
     }
 
@@ -776,6 +781,21 @@ public class Directory implements MetadataValue<Directory>
         if (minVersion == null)
             return Pair.create(CURRENT, CURRENT);
         return Pair.create(minVersion, maxVersion);
+    }
+
+    public static Version minCommonSerializationVersion(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
+    {
+        int commonVersion = Integer.MAX_VALUE;
+        for (Map.Entry<NodeId, NodeState> entry : states.entrySet())
+        {
+            if (entry.getValue() != NodeState.LEFT)
+            {
+                NodeVersion ver = versions.get(entry.getKey());
+                if (ver.serializationVersion > Version.OLD.asInt() && ver.serializationVersion < commonVersion)
+                    commonVersion = ver.serializationVersion;
+            }
+        }
+        return commonVersion == Integer.MAX_VALUE ? NodeVersion.CURRENT_METADATA_VERSION : Version.fromInt(commonVersion);
     }
 
     @Override

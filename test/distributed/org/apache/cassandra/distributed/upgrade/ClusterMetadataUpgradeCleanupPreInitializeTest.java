@@ -22,11 +22,16 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.tcm.Transformation;
 
-public class ClusterMetadataUpgradeIgnoreHostTest extends UpgradeTestBase
+import static org.junit.Assert.assertTrue;
+
+
+public class ClusterMetadataUpgradeCleanupPreInitializeTest extends UpgradeTestBase
 {
+
     @Test
-    public void upgradeIgnoreHostsTest() throws Throwable
+    public void cleanupPreInitializeTest() throws Throwable
     {
         new TestCase()
         .nodes(3)
@@ -39,12 +44,35 @@ public class ClusterMetadataUpgradeIgnoreHostTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
-            // todo; isolate node 3 - actually shutting it down makes us throw exceptions when test finishes
-            cluster.filters().allVerbs().to(3).drop();
-            cluster.filters().allVerbs().from(3).drop();
-            cluster.get(1).nodetoolResult("cms", "initialize").asserts().failure(); // node3 unreachable
-            cluster.get(1).nodetoolResult("cms", "initialize", "--ignore", "127.0.0.1").asserts().failure(); // can't ignore localhost
-            cluster.get(1).nodetoolResult("cms", "initialize", "--ignore", "127.0.0.3").asserts().success();
+            cluster.get(1).executeInternal("INSERT INTO system.local_metadata_log (epoch, kind) VALUES (1, 0)");
+            cluster.get(1).flush("system");
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+            cluster.get(1).logs().watchFor("Cleaning up orphaned PreInitialize at epoch 1");
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+            boolean seenPreInit = false;
+            boolean seenInit = false;
+            boolean seenSnapshot = false;
+            for (Object [] row : cluster.get(1).executeInternal("SELECT epoch, kind FROM system.local_metadata_log"))
+            {
+                switch (Transformation.Kind.fromId((Integer)row[1]))
+                {
+                    case PRE_INITIALIZE_CMS:
+                        seenPreInit = true;
+                        break;
+                    case INITIALIZE_CMS:
+                        seenInit = true;
+                        break;
+                    case TRIGGER_SNAPSHOT:
+                        seenSnapshot = true;
+                        break;
+                }
+            }
+            assertTrue(seenPreInit);
+            assertTrue(seenInit);
+            assertTrue(seenSnapshot);
         }).run();
     }
 }

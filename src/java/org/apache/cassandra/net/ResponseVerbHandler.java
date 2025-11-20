@@ -28,6 +28,7 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -92,6 +93,9 @@ class ResponseVerbHandler implements IVerbHandler
     private void maybeFetchLogs(Message<?> message)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
+        if (!message.epoch().isAfter(Epoch.FIRST))
+            return;
+
         if (!message.epoch().isAfter(metadata.epoch))
             return;
 

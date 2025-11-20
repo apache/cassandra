@@ -20,6 +20,9 @@ package org.apache.cassandra.tcm.membership;
 
 import org.junit.Test;
 
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.CassandraVersion;
+
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -109,6 +112,80 @@ public class DirectoryTest
         dir = dir.withoutRackAndDC(node);
         assertTrue(dir.allDatacenterEndpoints().isEmpty());
         assertTrue(dir.allDatacenterRacks().isEmpty());
+    }
+
+    @Test
+    public void commonSerializationVersionTest()
+    {
+        int cnt = 1;
+        Location DC1_R1 = new Location("datacenter1", "rack1");
+        Directory dir = new Directory();
+        assertTrue(dir.isEmpty());
+        assertEquals(NodeVersion.CURRENT_METADATA_VERSION, dir.commonSerializationVersion);
+
+        dir = dir.with(addresses(cnt++), DC1_R1, NodeVersion.CURRENT);
+        assertEquals(NodeVersion.CURRENT.serializationVersion, dir.commonSerializationVersion.asInt());
+
+        dir = dir.with(addresses(cnt++), DC1_R1, withSerializationVersion(Version.V4));
+        assertEquals(Version.V4, dir.commonSerializationVersion);
+
+        dir = dir.with(addresses(cnt++), DC1_R1, withSerializationVersion(Version.V3));
+        assertEquals(Version.V3, dir.commonSerializationVersion);
+
+        dir = dir.with(addresses(cnt++), DC1_R1, withSerializationVersion(Version.V2));
+        assertEquals(Version.V2, dir.commonSerializationVersion);
+
+        dir = dir.with(addresses(cnt++), DC1_R1, withSerializationVersion(Version.V1));
+        assertEquals(Version.V1, dir.commonSerializationVersion);
+
+        // int v
+        dir = dir.with(addresses(cnt++), DC1_R1, withSerializationVersion(Version.V0));
+        assertEquals(Version.V0, dir.commonSerializationVersion);
+
+        // Adding another, higher version doesn't affect the floor
+        dir = dir.with(addresses(cnt++), DC1_R1, NodeVersion.CURRENT);
+        assertEquals(Version.V0, dir.commonSerializationVersion);
+
+        // Version.OLD for pre-CEP-21 nodes doesn't affect the floor
+        dir = dir.with(addresses(cnt), DC1_R1, withSerializationVersion(Version.OLD));
+        assertEquals(Version.V0, dir.commonSerializationVersion);
+
+        // remove all peers except the first, common version should revert to CURRENT
+        while (cnt > 1)
+            dir = dir.without(dir.lastModified().nextEpoch(), new NodeId(cnt--));
+
+        assertEquals(NodeVersion.CURRENT.serializationVersion, dir.commonSerializationVersion.asInt());
+    }
+
+    @Test
+    public void commonSerializationVersionLEFTNodesTest()
+    {
+        int cnt = 0;
+        Location DC1_R1 = new Location("datacenter1", "rack1");
+        Directory dir = new Directory();
+        assertTrue(dir.isEmpty());
+
+        dir = dir.with(addresses(cnt++), DC1_R1, NodeVersion.CURRENT);
+        dir = dir.with(addresses(cnt++), DC1_R1, NodeVersion.CURRENT);
+        dir = dir.with(addresses(cnt++), DC1_R1, NodeVersion.CURRENT);
+        NodeAddresses leavingEndpoint = addresses(cnt++);
+        dir = dir.with(leavingEndpoint, DC1_R1, withSerializationVersion(Version.V4));
+        assertEquals(Version.V4, dir.commonSerializationVersion);
+
+        NodeId leavingNode = dir.peerId(leavingEndpoint.broadcastAddress);
+        dir = dir.withNodeState(leavingNode, NodeState.LEFT);
+        assertEquals(NodeVersion.CURRENT_METADATA_VERSION, dir.commonSerializationVersion);
+    }
+
+
+    private static NodeAddresses addresses(int i)
+    {
+        return new NodeAddresses(endpoint(i));
+    }
+
+    private static NodeVersion withSerializationVersion(Version version)
+    {
+        return new NodeVersion(CassandraVersion.NULL_VERSION, version);
     }
 
     private void assertInvalidLocationUpdate(Directory dir, NodeId nodeId, Location loc, String message)
