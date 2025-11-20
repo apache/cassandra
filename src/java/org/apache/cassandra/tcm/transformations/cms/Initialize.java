@@ -61,6 +61,12 @@ public class Initialize extends ForceSnapshot
         super(baseState);
     }
 
+    @Override
+    public boolean allowDuringUpgrades()
+    {
+        return true;
+    }
+
     public Kind kind()
     {
         return Kind.INITIALIZE_CMS;

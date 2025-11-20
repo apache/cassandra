@@ -21,12 +21,14 @@ package org.apache.cassandra.gms;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 
 public class GossipVerbHandler<T> implements IVerbHandler<T>
 {
     public void doVerb(Message<T> message)
     {
         Gossiper.instance.setLastProcessedMessageAt(message.creationTimeMillis());
-        ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
+        if (message.epoch().isAfter(Epoch.FIRST))
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
     }
 }

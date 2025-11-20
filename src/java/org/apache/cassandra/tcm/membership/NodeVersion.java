@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.membership;
 import java.io.IOException;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -39,6 +40,8 @@ public class NodeVersion implements Comparable<NodeVersion>
     private static final CassandraVersion SINCE_VERSION = CassandraVersion.CASSANDRA_5_1;
 
     public final CassandraVersion cassandraVersion;
+
+    // this must be kept as an int, otherwise we can't deserialize future NodeVersions
     public final int serializationVersion;
 
     public NodeVersion(CassandraVersion cassandraVersion, Version serializationVersion)
@@ -113,10 +116,9 @@ public class NodeVersion implements Comparable<NodeVersion>
         @Override
         public void serialize(NodeVersion t, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeUTF(t.cassandraVersion.toString());
             if (t.serializationVersion == Version.UNKNOWN.asInt())
                 throw new IllegalStateException("Should not serialize UNKNOWN version");
-            out.writeUnsignedVInt32(t.serializationVersion);
+            serializeHelper(out, t.cassandraVersion.toString(), t.serializationVersion);
         }
 
         @Override
@@ -133,5 +135,16 @@ public class NodeVersion implements Comparable<NodeVersion>
             return sizeof(t.cassandraVersion.toString()) +
                    sizeofUnsignedVInt(t.serializationVersion);
         }
+        /**
+         * Used to be able to generate a NodeVersion with a future serialization version, for test!
+         */
+        @VisibleForTesting
+        static void serializeHelper(DataOutputPlus out, String cassandraVersion, int serializationVersion) throws IOException
+        {
+            out.writeUTF(cassandraVersion);
+            out.writeUnsignedVInt32(serializationVersion);
+        }
     }
+
+
 }
