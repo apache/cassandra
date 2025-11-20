@@ -1004,7 +1004,7 @@ public class ClusterMetadata
 
     public boolean metadataSerializationUpgradeInProgress()
     {
-        return !directory.clusterMaxVersion.serializationVersion().equals(directory.clusterMinVersion.serializationVersion());
+        return !directory.clusterMaxVersion.serializationVersion().equals(directory.commonSerializationVersion);
     }
 
     public static class Serializer implements MetadataSerializer<ClusterMetadata>

@@ -1,4 +1,5 @@
 5.1
+ * Improve CMS initialization (CASSANDRA-21036)
  * Introducing comments and security labels for schema elements (CASSANDRA-20943)
  * Extend nodetool tablestats for dictionary memory usage (CASSANDRA-20940)
  * Introduce separate GCInspector thresholds for concurrent GC events (CASSANDRA-20980)

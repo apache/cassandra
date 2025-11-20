@@ -89,25 +89,24 @@ public class Election
         Set<InetAddressAndPort> sendTo = new HashSet<>(candidates);
         sendTo.removeAll(ignoredEndpoints);
         sendTo.remove(FBUtilities.getBroadcastAddressAndPort());
-
+        CMSInitializationRequest initializationRequest = new CMSInitializationRequest(FBUtilities.getBroadcastAddressAndPort(), UUID.randomUUID(), metadata);
+        if (!updateInitiator(null, initializationRequest.initiator))
+            throw new IllegalStateException("Migration already initiated by " + initiator.get());
         try
         {
-            initiate(sendTo, metadata, verifyAllPeersMetadata);
+            initiate(initializationRequest, sendTo, metadata, verifyAllPeersMetadata);
             finish(sendTo);
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
-            abort(sendTo);
+            logger.error("Got error nominating self", e);
+            abort(initializationRequest.initiator, sendTo);
             throw e;
         }
     }
 
-    private void initiate(Set<InetAddressAndPort> sendTo, ClusterMetadata metadata, boolean verifyAllPeersMetadata)
+    private void initiate(CMSInitializationRequest initializationRequest, Set<InetAddressAndPort> sendTo, ClusterMetadata metadata, boolean verifyAllPeersMetadata)
     {
-        CMSInitializationRequest initializationRequest = new CMSInitializationRequest(FBUtilities.getBroadcastAddressAndPort(), UUID.randomUUID(), metadata);
-        if (!updateInitiator(null, initializationRequest.initiator))
-            throw new IllegalStateException("Migration already initiated by " + initiator.get());
-
         logger.info("No previous migration detected, initiating");
         Collection<Pair<InetAddressAndPort, CMSInitializationResponse>> metadatas = MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_INIT_MIG_REQ, initializationRequest);
         if (metadatas.size() != sendTo.size())
@@ -149,9 +148,11 @@ public class Election
         }
     }
 
-    private void abort(Set<InetAddressAndPort> sendTo)
+    private void abort(CMSInitializationRequest.Initiator init, Set<InetAddressAndPort> sendTo)
     {
-        CMSInitializationRequest.Initiator init = initiator.getAndSet(null);
+        logger.info("Aborting migration");
+        CMSInitializationRequest.Initiator previous = initiator.getAndSet(null);
+        logger.info("Reset local initiator state (was {}), sending abort message to peers", previous);
         for (InetAddressAndPort ep : sendTo)
             messaging.send(Message.out(Verb.TCM_ABORT_MIG, init), ep);
     }

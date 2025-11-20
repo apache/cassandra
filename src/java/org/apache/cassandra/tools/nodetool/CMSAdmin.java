@@ -34,6 +34,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tcm.CMSOperations.CMS_ID;
 import static org.apache.cassandra.tcm.CMSOperations.COMMITS_PAUSED;
 import static org.apache.cassandra.tcm.CMSOperations.EPOCH;
 import static org.apache.cassandra.tcm.CMSOperations.IS_MEMBER;
@@ -73,6 +74,7 @@ public class CMSAdmin extends AbstractCommand
         {
             Map<String, String> info = probe.getCMSOperationsProxy().describeCMS();
             output.out.printf("Cluster Metadata Service:%n");
+            output.out.printf("CMS Identifier: %s%n", info.get(CMS_ID));
             output.out.printf("Members: %s%n", info.get(MEMBERS));
             output.out.printf("Needs reconfiguration: %s%n", info.get(NEEDS_RECONFIGURATION));
             output.out.printf("Is Member: %s%n", info.get(IS_MEMBER));
