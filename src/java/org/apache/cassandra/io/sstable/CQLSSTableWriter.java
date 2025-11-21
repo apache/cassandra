@@ -84,6 +84,7 @@ import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -857,7 +858,21 @@ public class CQLSSTableWriter implements Closeable
 
         private void commitKeyspaceMetadata(KeyspaceMetadata keyspaceMetadata)
         {
-            SchemaTransformation schemaTransformation = metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(keyspaceMetadata);
+            SchemaTransformation schemaTransformation = new SchemaTransformation()
+            {
+                @Override
+                public Keyspaces apply(ClusterMetadata metadata)
+                {
+                    return metadata.schema.getKeyspaces().withAddedOrUpdated(keyspaceMetadata);
+                }
+
+                @Override
+                public boolean compatibleWith(ClusterMetadata metadata)
+                {
+                    return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+                }
+            };
+
             ClusterMetadataService.instance().commit(new AlterSchema(schemaTransformation));
         }
 

@@ -27,6 +27,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
@@ -52,6 +53,12 @@ public final class CommentOnKeyspaceStatement extends SchemaDescriptionStatement
     public CommentOnKeyspaceStatement(String keyspaceName, String comment)
     {
         super(keyspaceName, comment, DescriptionType.COMMENT);
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V8);
     }
 
     @Override

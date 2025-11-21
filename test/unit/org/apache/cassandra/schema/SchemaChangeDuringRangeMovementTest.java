@@ -147,14 +147,15 @@ public class SchemaChangeDuringRangeMovementTest extends CQLTester
         execute(String.format("CREATE KEYSPACE %s " +
                               "WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':9}", RF9_KS4));
 
-        SchemaTransformation dropAllowed = (metadata_) -> metadata_.schema.getKeyspaces().without(RF9_KS4).without(RF9_KS3);
+        SchemaTransformation dropAllowed = SchemaTestUtil.toTransformation(metadata2 -> metadata2.schema.getKeyspaces().without(RF9_KS4).without(RF9_KS3));
+
         metadata = ClusterMetadataService.instance().commit(new AlterSchema(dropAllowed));
         assertFalse(metadata.schema.getKeyspaces().containsKeyspace(RF9_KS4));
         assertFalse(metadata.schema.getKeyspaces().containsKeyspace(RF9_KS3));
 
         try
         {
-            SchemaTransformation dropRejected = (metadata_) -> metadata_.schema.getKeyspaces().without(RF9_KS2).without(RF9_KS1);
+            SchemaTransformation dropRejected = SchemaTestUtil.toTransformation(metadata1 -> metadata1.schema.getKeyspaces().without(RF9_KS2).without(RF9_KS1));
             ClusterMetadataService.instance().commit(new AlterSchema(dropRejected));
             fail("Expected exception");
         }

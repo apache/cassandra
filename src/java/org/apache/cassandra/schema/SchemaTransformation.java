@@ -46,6 +46,33 @@ public interface SchemaTransformation
      */
     Keyspaces apply(ClusterMetadata metadata);
 
+    /**
+     * Should return true if the implementing schema transformation is compatible with the given cluster metadata.
+     * Specifically, it should use the Directory to ensure that all current members are capable of both deserializing
+     * and enacting the transformation. If this returns false, the {@link org.apache.cassandra.tcm.log.Entry} containing
+     * the schema transformation will be blocked from being committed to the metadata log.
+     *
+     * For example, if an entirely new schema transformation is introduced, a new metadata serialization version
+     * (see {@link Version}) must be added and the implementation of {@code compatibleWith} in that schema
+     * transformation must return true only if the {@code commonSerializationVersion} of
+     * {@link ClusterMetadata#directory} is at least equal to the new {@code Version}.
+     *
+     * Similar constraints apply if a new feature is added to an existing transformation. Depending on the specifics of
+     * the feature implementation, a new serialization {@link Version} may not be required but the transformation should
+     * be able to signal that a minimum Cassandra version is required before the transformation can be successfully
+     * performed.
+     * An illustraton of this scenario could be adding a new compression implementation in a minor release. No
+     * serialization changes are required as compression params are represented by a simple {@code Map<String,String>}
+     * but if a table is created or altered to use a new compression class during the minor upgrade, the unupgraded
+     * nodes may not be able to enact the transformation, requiring them to complete the upgrade synchronously. To
+     * mitigate this, the {@code compatibleWith} implementation in
+     * {@link org.apache.cassandra.cql3.statements.schema.CreateTableStatement} and
+     * {@link org.apache.cassandra.cql3.statements.schema.AlterTableStatement} would inspect the
+     * {@link org.apache.cassandra.utils.CassandraVersion} of {@code clusterMinVersion} provided by
+     * {@link ClusterMetadata#directory} to ensure all members are sufficiently capable.
+     */
+    boolean compatibleWith(ClusterMetadata metadata);
+
     default String cql()
     {
         return "null";
