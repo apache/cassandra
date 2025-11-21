@@ -106,6 +106,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitionerName;
 import static org.apache.cassandra.gms.Gossiper.GossipedWith.CMS;
 import static org.apache.cassandra.gms.Gossiper.GossipedWith.SEED;
 import static org.apache.cassandra.gms.VersionedValue.BOOTSTRAPPING_STATUS;
+import static org.apache.cassandra.gms.VersionedValue.HIBERNATE;
 import static org.apache.cassandra.gms.VersionedValue.unsafeMakeVersionedValue;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
@@ -876,11 +877,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     public boolean isGossipOnlyMember(InetAddressAndPort endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
-        {
+        // gossip status only used for checking transient state HIBERNATE
+        if (epState == null || Gossiper.getGossipStatus(epState).equals(HIBERNATE))
             return false;
-        }
-        return !isDeadState(epState) && !ClusterMetadata.current().directory.allJoinedEndpoints().contains(endpoint);
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return false;
+        return NodeState.isPreJoin(metadata.directory.states.get(nodeId));
     }
 
     @VisibleForTesting
