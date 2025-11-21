@@ -80,7 +80,7 @@ public abstract class TimeFcts
         @Override
         public ByteBuffer execute(Arguments arguments)
         {
-            return type.now();
+            return type.now(arguments.context());
         }
 
         @Override

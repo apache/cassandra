@@ -35,9 +35,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 import static accord.impl.CommandChange.anyFieldChanged;
 import static accord.impl.CommandChange.describeFlags;
@@ -140,7 +140,7 @@ public class CommandChangeWriter implements Journal.Writer
                     CommandSerializers.writes.serialize(command.writes(), out, userVersion);
                     break;
                 case RESULT:
-                    ResultSerializers.result.serialize(command.result(), out);
+                    TxnDataResult.persistable.serialize(command.result(), out);
                     break;
                 case CLEANUP:
                     Cleanup cleanup;

@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.TypeSizes;
@@ -137,6 +138,14 @@ final class ListSelector extends Selector
         super(Kind.LIST_SELECTOR);
         this.type = (ListType<?>) type;
         this.elements = elements;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Selector selector : elements)
+            selector.prepare(context);
     }
 
     @Override

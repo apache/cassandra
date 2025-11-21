@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
@@ -77,10 +78,10 @@ public interface Term
      * Bind the values in this term to the values contained in the {@code options}.
      * This is obviously a no-op if the term is Terminal.
      *
-     * @param options the values to bind markers to.
+     * @param context the values to bind markers to.
      * @return the {@code Terminal} resulting of binding the values contained in the {@code options}.
      */
-    Terminal bind(QueryOptions options);
+    Terminal bind(FunctionContext context);
 
     /**
      * A shorter for {@code bind(options).get()}.
@@ -88,13 +89,13 @@ public interface Term
      * object between the bind and the get (note that we still want to be able
      * to separate bind and get for collections).
      */
-    ByteBuffer bindAndGet(QueryOptions options);
+    ByteBuffer bindAndGet(FunctionContext context);
 
     /**
      * return true if an optimized bindAndGetByteArray() method is implemented and can be used for this type of Term
      * to retrieve a value as byte[] instead of default ByteBuffer provided by bindAndGet()
      */
-    default boolean isByteArrayGetSupported(QueryOptions options)
+    default boolean isByteArrayGetSupported(FunctionContext context)
     {
         return false;
     }
@@ -102,7 +103,7 @@ public interface Term
     /**
      * an allocation-optimized version of bindAndGet() method
      */
-    default byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+    default byte[] bindAndGetByteArray(FunctionContext context) throws InvalidRequestException
     {
         throw new IllegalStateException("bindAndGetByteArray() method is not implemented, " +
                                         "isByteArrayGetSupported() must be always checked before invoking this method");
@@ -113,7 +114,7 @@ public interface Term
      * We expose it mainly because for constants it can avoid allocating a temporary
      * object between the bind and the getElements.
      */
-    List<ByteBuffer> bindAndGetElements(QueryOptions options);
+    List<ByteBuffer> bindAndGetElements(FunctionContext context);
 
     /**
      * Whether that term contains at least one bind marker.
@@ -250,7 +251,7 @@ public interface Term
         public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner) {}
 
         @Override
-        public Terminal bind(QueryOptions options) { return this; }
+        public Terminal bind(FunctionContext context) { return this; }
 
         @Override
         public void addFunctionsTo(List<Function> functions)
@@ -291,13 +292,13 @@ public interface Term
         }
 
         @Override
-        public ByteBuffer bindAndGet(QueryOptions options)
+        public ByteBuffer bindAndGet(FunctionContext context)
         {
             return get();
         }
 
         @Override
-        public List<ByteBuffer> bindAndGetElements(QueryOptions options)
+        public List<ByteBuffer> bindAndGetElements(FunctionContext context)
         {
             return getElements();
         }
@@ -318,16 +319,16 @@ public interface Term
     abstract class NonTerminal implements Term
     {
         @Override
-        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
+        public ByteBuffer bindAndGet(FunctionContext context) throws InvalidRequestException
         {
-            Terminal t = bind(options);
+            Terminal t = bind(context);
             return t == null ? null : t.get();
         }
 
         @Override
-        public List<ByteBuffer> bindAndGetElements(QueryOptions options)
+        public List<ByteBuffer> bindAndGetElements(FunctionContext context)
         {
-            Terminal t = bind(options);
+            Terminal t = bind(context);
             return t == null ? Collections.emptyList() : t.getElements();
         }
     }

@@ -200,7 +200,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             @Override
             public void run()
             {
-                Thread self = Thread.currentThread();
                 int count = 0;
                 Task task = null;
                 while (true)

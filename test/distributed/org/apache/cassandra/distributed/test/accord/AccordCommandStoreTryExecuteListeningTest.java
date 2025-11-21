@@ -64,7 +64,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -179,7 +179,7 @@ public class AccordCommandStoreTryExecuteListeningTest extends TestBaseImpl
             waitingOnBits.setRange(0, txnIds.length);
             waitingOn = new Command.WaitingOn(RoutingKeys.EMPTY, deps.rangeDeps, new ImmutableBitSet(waitingOnBits), new ImmutableBitSet(txnIds.length));
         }
-        return Command.Executed.executed(txnId, saveStatus, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, null, ResultSerializers.APPLIED);
+        return Command.Executed.executed(txnId, saveStatus, Status.Durability.NotDurable, StoreParticipants.execute(commandStore.unsafeGetRangesForEpoch(), route, txnId, txnId.epoch()), Ballot.ZERO, txnId, txn.intersecting(route, true), deps.intersecting(route), Ballot.ZERO, waitingOn, null, TxnDataResult.PERSISTABLE);
     }
 
     private static PartitionKey keyN(int n, Node node)

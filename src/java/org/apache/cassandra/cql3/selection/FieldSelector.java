@@ -24,6 +24,7 @@ import java.util.List;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -157,6 +158,13 @@ final class FieldSelector extends Selector
         this.type = type;
         this.field = field;
         this.selected = selected;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        selected.prepare(context);
     }
 
     @Override

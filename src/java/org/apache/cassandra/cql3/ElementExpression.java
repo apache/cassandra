@@ -158,12 +158,12 @@ public final class ElementExpression
     /**
      * Returns the ByteBuffer representation of the key or index.
      *
-     * @param options the query options
+     * @param context the query options
      * @return the ByteBuffer representation of the key or index.
      */
-    public ByteBuffer bindAndGet(QueryOptions options)
+    public ByteBuffer bindAndGet(FunctionContext context)
     {
-        return keyOrIndex.bindAndGet(options);
+        return keyOrIndex.bindAndGet(context);
     }
 
     public String toCQLString()

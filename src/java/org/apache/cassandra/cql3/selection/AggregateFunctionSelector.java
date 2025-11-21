@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.AggregateFunction;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -32,15 +33,23 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         @Override
         protected Selector newFunctionSelector(ProtocolVersion version, Function function, List<Selector> argSelectors)
         {
-            return new AggregateFunctionSelector(version, function, argSelectors);
+            return new AggregateFunctionSelector(function, argSelectors);
         }
     };
 
+    private FunctionContext context;
     private final AggregateFunction.Aggregate aggregate;
 
     public boolean isAggregate()
     {
         return true;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        this.context = context;
     }
 
     public void addInput(InputRow input)
@@ -60,7 +69,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
-        return aggregate.compute(protocolVersion);
+        return aggregate.compute(context);
     }
 
     public void reset()
@@ -68,9 +77,9 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         aggregate.reset();
     }
 
-    AggregateFunctionSelector(ProtocolVersion version, Function fun, List<Selector> argSelectors) throws InvalidRequestException
+    AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
     {
-        super(Kind.AGGREGATE_FUNCTION_SELECTOR, version, (AggregateFunction) fun, argSelectors);
+        super(Kind.AGGREGATE_FUNCTION_SELECTOR, (AggregateFunction) fun, argSelectors);
 
         this.aggregate = this.fun.newAggregate();
     }

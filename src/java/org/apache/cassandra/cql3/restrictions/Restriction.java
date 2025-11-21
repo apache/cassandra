@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -109,12 +109,12 @@ public interface Restriction
     /**
      * Adds to the specified row filter the expressions corresponding to this <code>Restriction</code>.
      *
-     * @param filter the row filter to add expressions to
+     * @param filter        the row filter to add expressions to
      * @param indexRegistry the index registry
-     * @param options the query options
+     * @param context        the query options
      */
     void addToRowFilter(RowFilter filter,
                         IndexRegistry indexRegistry,
-                        QueryOptions options,
+                        FunctionContext context,
                         IndexHints indexHints);
 }

@@ -26,6 +26,7 @@ import java.util.TreeSet;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.db.TypeSizes;
@@ -139,6 +140,14 @@ final class SetSelector extends Selector
         super(Kind.SET_SELECTOR);
         this.type = (SetType<?>) type;
         this.elements = elements;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Selector selector : elements)
+            selector.prepare(context);
     }
 
     @Override

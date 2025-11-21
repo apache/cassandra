@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -139,7 +139,7 @@ public final class Vectors
                 values.add(t);
             }
             MultiElements.DelayedValue value = new MultiElements.DelayedValue(type, values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(FunctionContext.NONE) : value;
         }
 
         @Override

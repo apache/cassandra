@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.functions.masking;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
@@ -29,7 +30,6 @@ import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} that replaces the specified column value by a certain replacement value.
@@ -48,9 +48,9 @@ public class ReplaceMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(FunctionContext context)
     {
-        return FunctionArguments.newNoopInstance(version, 2);
+        return FunctionArguments.newNoopInstance(context, 2);
     }
 
     @Override

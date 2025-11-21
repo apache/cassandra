@@ -87,9 +87,9 @@ import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.tools.FieldUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -123,9 +123,9 @@ public class AccordJournalBurnTest extends BurnTestBase
         FieldUtil.transferFields(new DepsSerializers.Impl(BurnTestKeySerializers.range),
                                  DepsSerializers.class);
 
-        FieldUtil.setInstanceUnsafe(ResultSerializers.class,
+        FieldUtil.setInstanceUnsafe(TxnDataResult.class,
                                     BurnTestKeySerializers.result,
-                                    "result");
+                                    "persistable");
 
         FieldUtil.setInstanceUnsafe(TopologySerializers.class,
                                     new TopologySerializers.ShardSerializer(BurnTestKeySerializers.range),

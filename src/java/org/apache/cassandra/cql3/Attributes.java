@@ -82,12 +82,12 @@ public class Attributes
         return timeToLive != null;
     }
 
-    public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
+    public long getTimestamp(long now, FunctionContext context) throws InvalidRequestException
     {
         if (timestamp == null)
             return now;
 
-        ByteBuffer tval = timestamp.bindAndGet(options);
+        ByteBuffer tval = timestamp.bindAndGet(context);
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of timestamp");
 
@@ -106,7 +106,7 @@ public class Attributes
         return LongType.instance.compose(tval);
     }
 
-    public int getTimeToLive(QueryOptions options, TableMetadata metadata) throws InvalidRequestException
+    public int getTimeToLive(FunctionContext context, TableMetadata metadata) throws InvalidRequestException
     {
         if (timeToLive == null)
         {
@@ -114,7 +114,7 @@ public class Attributes
             return metadata.params.defaultTimeToLive;
         }
 
-        ByteBuffer tval = timeToLive.bindAndGet(options);
+        ByteBuffer tval = timeToLive.bindAndGet(context);
         if (tval == null)
             return 0;
 

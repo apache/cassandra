@@ -65,9 +65,9 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -318,7 +318,7 @@ public class AccordObjectSizes
                 builder.waitingOn(WaitingOn.empty(Domain.Key));
 
             if (saveStatus.known.is(Known.Outcome.Apply))
-                builder.result(ResultSerializers.APPLIED);
+                builder.result(TxnDataResult.PERSISTABLE);
 
             return builder.build(saveStatus);
         }
@@ -400,6 +400,7 @@ public class AccordObjectSizes
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
         size += sizeNullable(command.acceptedOrCommitted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
+        // no need to measure command.results(), as should always be a sentinel value
         size += sizeNullable(command.waitingOn(), AccordObjectSizes::waitingOn);
         return size;
     }

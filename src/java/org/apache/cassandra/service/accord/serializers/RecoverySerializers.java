@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static accord.messages.BeginRecovery.RecoverReply.Kind.Ok;
@@ -154,7 +155,7 @@ public class RecoverySerializers
 
             Result result = null;
             if (status == Status.PreApplied || status == Status.Applied || status == Status.Truncated)
-                result = ResultSerializers.APPLIED;
+                result = TxnDataResult.PERSISTABLE;
 
             return deserializeOk(id,
                                  status,

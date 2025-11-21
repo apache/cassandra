@@ -24,6 +24,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Range;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.selection.SimpleSelector.SimpleSelectorFactory;
 import org.apache.cassandra.cql3.terms.Term;
@@ -61,6 +62,13 @@ abstract class ElementsSelector extends Selector
         super(kind);
         this.selected = selected;
         this.type = getCollectionType(selected);
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        selected.prepare(context);
     }
 
     private static boolean isUnset(ByteBuffer bb)

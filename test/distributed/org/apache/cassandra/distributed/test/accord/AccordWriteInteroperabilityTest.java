@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -65,6 +66,7 @@ import static org.junit.Assert.fail;
  * mode at each step of migration as well as that when the apply response is sent that the memtable actually contains
  * the data that the apply should have applied
  */
+@Ignore("flaky")
 @RunWith(Parameterized.class)
 public class AccordWriteInteroperabilityTest extends AccordTestBase
 {

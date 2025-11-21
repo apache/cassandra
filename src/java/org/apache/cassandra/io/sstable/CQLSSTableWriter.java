@@ -46,7 +46,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.RowUpdateBuilder.RegularRowUpdateBuilder;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -285,13 +286,13 @@ public class CQLSSTableWriter implements Closeable
         long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
-        UpdateParameters params = new UpdateParameters(modificationStatement.metadata,
-                                                       ClientState.forInternalCalls(),
-                                                       options,
-                                                       modificationStatement.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
-                                                       options.getNowInSec((int) TimeUnit.MILLISECONDS.toSeconds(now)),
-                                                       modificationStatement.getTimeToLive(options),
-                                                       Collections.emptyMap());
+        RowUpdateBuilder builder = new RegularRowUpdateBuilder(modificationStatement.metadata,
+                                                               ClientState.forInternalCalls(),
+                                                               options,
+                                                               modificationStatement.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
+                                                               options.getNowInSec((int) TimeUnit.MILLISECONDS.toSeconds(now)),
+                                                               modificationStatement.getTimeToLive(options),
+                                                               null);
 
         try
         {
@@ -302,7 +303,7 @@ public class CQLSSTableWriter implements Closeable
                 for (ByteBuffer key : keys)
                 {
                     for (Slice slice : slices)
-                        modificationStatement.addUpdateForKey(writer.getUpdateFor(key), slice, params);
+                        modificationStatement.addUpdateForKey(writer.getUpdateFor(key), slice, builder);
                 }
             }
             else
@@ -312,7 +313,7 @@ public class CQLSSTableWriter implements Closeable
                 for (ByteBuffer key : keys)
                 {
                     for (Clustering clustering : clusterings)
-                        modificationStatement.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
+                        modificationStatement.addUpdateForKey(writer.getUpdateFor(key), clustering, builder);
                 }
             }
             return this;

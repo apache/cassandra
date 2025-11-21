@@ -28,8 +28,8 @@ import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.cql3.StatementSource;
-import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
@@ -69,7 +69,7 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, RowUpdateBuilder params)
     throws InvalidRequestException
     {
         TableMetadata metadata = metadata();
@@ -125,7 +125,7 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, RowUpdateBuilder params)
     {
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();

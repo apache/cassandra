@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -177,6 +178,13 @@ final class WritetimeOrTTLSelector extends Selector
         this.columnIndex = idx;
         this.kind = kind;
         this.isMultiCell = isMultiCell;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        selected.prepare(context);
     }
 
     @Override

@@ -120,6 +120,11 @@ public interface Clock
             return instance.currentTimeMicros();
         }
 
+        public static Instant currentTime()
+        {
+            return instance.currentTime();
+        }
+
         /**
          * Semantically equivalent to {@link FBUtilities#nowInSeconds()}
          */
@@ -150,14 +155,19 @@ public interface Clock
         @Override
         public long currentTimeMicros()
         {
-            Instant now = Instant.now(); // checkstyle: permit this invocation
+            Instant now = currentTime();
             long seconds = now.getEpochSecond();
             long nanos = now.getNano();
             Invariants.require(seconds >= 0);
             long micros = Math.multiplyExact(seconds, 1000_000);
             micros = Math.addExact(micros, nanos/1000);
             return micros;
+        }
 
+        @Override
+        public Instant currentTime()
+        {
+            return Instant.now(); // checkstyle: permit this invocation
         }
     }
 
@@ -174,6 +184,11 @@ public interface Clock
     public default long currentTimeMicros()
     {
         return currentTimeMillis() * 1000L;
+    }
+
+    public default Instant currentTime()
+    {
+        return Instant.ofEpochMilli(currentTimeMillis());
     }
 
     public default long nowInSeconds()

@@ -26,13 +26,13 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Native CQL functions for collections (sets, list and maps).
@@ -179,9 +179,9 @@ public class CollectionFcts
         return new NativeScalarFunction(name, Int32Type.instance, inputType)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(context, 1);
             }
 
             @Override
@@ -359,9 +359,9 @@ public class CollectionFcts
         }
 
         @Override
-        public Arguments newArguments(ProtocolVersion version)
+        public Arguments newArguments(FunctionContext context)
         {
-            return FunctionArguments.newNoopInstance(version, 1);
+            return FunctionArguments.newNoopInstance(context, 1);
         }
 
         @Override
@@ -370,7 +370,7 @@ public class CollectionFcts
             if (arguments.containsNulls())
                 return null;
 
-            Arguments args = aggregateFunction.newArguments(arguments.getProtocolVersion());
+            Arguments args = aggregateFunction.newArguments(arguments.context());
             AggregateFunction.Aggregate aggregate = aggregateFunction.newAggregate();
 
             inputType.forEach(arguments.get(0), element -> {
@@ -378,7 +378,7 @@ public class CollectionFcts
                 aggregate.addInput(args);
             });
 
-            return aggregate.compute(arguments.getProtocolVersion());
+            return aggregate.compute(arguments.context());
         }
     }
 }

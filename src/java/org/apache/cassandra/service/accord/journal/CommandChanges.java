@@ -41,9 +41,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 import static accord.api.Journal.Load.ALL;
 import static accord.impl.CommandChange.Field.CLEANUP;
@@ -205,7 +205,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                     break;
                 case RESULT:
                     Invariants.require(result != null, "%s", this);
-                    ResultSerializers.result.serialize(result, out);
+                    TxnDataResult.persistable.serialize(result, out);
                     break;
             }
         }
@@ -309,7 +309,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                     cleanup = newCleanup;
                 break;
             case RESULT:
-                result = ResultSerializers.result.deserialize(in);
+                result = TxnDataResult.persistable.deserialize(in);
                 break;
         }
     }
@@ -355,8 +355,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                 CommandSerializers.writes.skip(in, userVersion);
                 break;
             case RESULT:
-                // TODO (expected): skip
-                ResultSerializers.result.skip(in);
+                TxnDataResult.persistable.skip(in);
                 break;
         }
     }

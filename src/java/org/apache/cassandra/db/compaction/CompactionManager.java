@@ -162,7 +162,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     public final AtomicInteger currentlyBackgroundUpgrading = new AtomicInteger(0);
 
     public static final int NO_GC = Integer.MIN_VALUE;
-    public static final int GC_ALL = Integer.MAX_VALUE;
 
     static
     {
@@ -395,7 +394,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 }
 
                 CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
-                tasks = strategy.getNextBackgroundTasks(getDefaultGcBefore(cfs, FBUtilities.nowInSeconds()));
+                tasks = strategy.getNextBackgroundTasks(cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
                 if (tasks == null || tasks.isEmpty())
                 {
                     if (DatabaseDescriptor.automaticSSTableUpgrade())
@@ -885,10 +884,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 logger.debug("Garbage collecting {}", txn.originals());
-                CompactionTask task = new CompactionTask(cfStore, txn, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()))
+                CompactionTask task = new CompactionTask(cfStore, txn, cfStore.getDefaultGcBefore(FBUtilities.nowInSeconds()))
                 {
                     @Override
-                    protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+                    protected CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
                     {
                         return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
                     }
@@ -1153,12 +1152,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     public void performMaximal(final ColumnFamilyStore cfStore, boolean splitOutput, int permittedParallelism)
     {
-        FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput, permittedParallelism));
+        FBUtilities.waitOnFutures(submitMaximal(cfStore, cfStore.getDefaultGcBefore(FBUtilities.nowInSeconds()), splitOutput, permittedParallelism));
     }
 
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, boolean splitOutput, int permittedParallelism)
     {
-        return submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput, permittedParallelism);
+        return submitMaximal(cfStore, cfStore.getDefaultGcBefore(FBUtilities.nowInSeconds()), splitOutput, permittedParallelism);
     }
 
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, int permittedParallelism)
@@ -1218,7 +1217,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 logger.debug("No sstables found for the provided token range");
                 return CompactionTasks.empty();
             }
-            return cfStore.getCompactionStrategyManager().getUserDefinedTasks(sstables, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()));
+            return cfStore.getCompactionStrategyManager().getUserDefinedTasks(sstables, cfStore.getDefaultGcBefore(FBUtilities.nowInSeconds()));
         };
 
         try (CompactionTasks tasks = cfStore.runWithCompactionsDisabled(taskCreator,
@@ -1354,7 +1353,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         List<Future<?>> futures = new ArrayList<>(descriptors.size());
         long nowInSec = FBUtilities.nowInSeconds();
         for (ColumnFamilyStore cfs : descriptors.keySet())
-            futures.add(submitUserDefined(cfs, descriptors.get(cfs), getDefaultGcBefore(cfs, nowInSec)));
+            futures.add(submitUserDefined(cfs, descriptors.get(cfs), cfs.getDefaultGcBefore(nowInSec)));
         FBUtilities.waitOnFutures(futures);
     }
 
@@ -1645,7 +1644,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         long nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
-             CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
+             CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.getDefaultGcBefore(nowInSec));
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, nextTimeUUID(), active, null))
         {
@@ -1992,7 +1991,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
              SSTableRewriter unrepairedWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, false, groupMaxDataAge);
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
-             CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));
+             CompactionController controller = new CompactionController(cfs, sstableAsSet, cfs.getDefaultGcBefore(nowInSec));
              CompactionIterator ci = getAntiCompactionIterator(scanners.scanners, controller, nowInSec, nextTimeUUID(), active, isCancelled))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, (int)(SSTableReader.getApproximateKeyCount(sstableAsSet)));
@@ -2176,13 +2175,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         {
             active.finishCompaction(activeCompactionInfo);
         }
-    }
-
-    public static long getDefaultGcBefore(ColumnFamilyStore cfs, long nowInSec)
-    {
-        // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
-        // add any GcGrace however since 2ndary indexes are local to a node.
-        return cfs.isIndex() ? nowInSec : cfs.gcBefore(nowInSec);
     }
 
     public Future<Long> submitViewBuilder(final ViewBuilderTask task)

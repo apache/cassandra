@@ -35,6 +35,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.CommandStores;
+import accord.local.CommandStores.StoreFinder;
+import accord.local.Node;
+import accord.primitives.Ranges;
+import accord.utils.Invariants;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -55,7 +61,11 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.SnapshotType;
@@ -63,6 +73,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
+import static org.apache.cassandra.db.compaction.CompactionManager.NO_GC;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -71,20 +83,20 @@ public class CompactionTask extends AbstractCompactionTask
     private static final int MEGABYTE = 1024 * 1024;
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 
-    protected final long gcBefore;
+    protected final long gcBeforeSeconds;
     protected final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
     private ActiveCompactionsTracker activeCompactions;
 
-    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBefore)
+    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBeforeSeconds)
     {
-        this(cfs, txn, gcBefore, false);
+        this(cfs, txn, gcBeforeSeconds, false);
     }
 
-    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBefore, boolean keepOriginals)
+    public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBeforeSeconds, boolean keepOriginals)
     {
         super(cfs, txn);
-        this.gcBefore = gcBefore;
+        this.gcBeforeSeconds = gcBeforeSeconds;
         this.keepOriginals = keepOriginals;
     }
 
@@ -546,7 +558,33 @@ public class CompactionTask extends AbstractCompactionTask
         return 0;
     }
 
-    protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    protected final CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    {
+        long gcBeforeSeconds = this.gcBeforeSeconds;
+        TableMetadata metadata = cfs.metadata();
+        if (metadata.isAccordEnabled())
+        {
+            Invariants.expect(gcBeforeSeconds <= 0);
+            TokenRange[] rs = new TokenRange[toCompact.size()];
+            int i = 0;
+            for (SSTableReader reader : toCompact)
+                rs[i++] = TokenRange.create(TokenKey.before(metadata.id, reader.getFirst().getToken()), TokenKey.after(metadata.id, reader.getLast().getToken()));
+            Ranges ranges = Ranges.of(rs);
+            Node node = AccordService.unsafeInstance().node();
+            // TODO (expected): we shouldn't need to limit to universalBefore, but this is a safety margin esp. against bugs with repairing tombstones or incomplete information in CommandStore;
+            //  we should impose stronger guarantees on incoming streams (that they don't contain tombstones), and validate our CommandStore-derived bounds
+            gcBeforeSeconds = node.durableBefore().foldlWithDefault(ranges, (e, v) -> e == null ? NO_GC : Math.min(e.universal.hlc(), v), null, Long.MAX_VALUE);
+            CommandStores.StoreSelector selector = StoreFinder.selector(ranges, Long.MIN_VALUE, Long.MAX_VALUE);
+            gcBeforeSeconds = node.commandStores().mapReduceUnsafe(selector, commandStore -> commandStore.unsafeGetRedundantBefore().foldl(ranges, (bs, v) -> bs.maxBound(LOCALLY_APPLIED).hlc(), Long.MAX_VALUE), Math::min, gcBeforeSeconds);
+            if (gcBeforeSeconds == Long.MAX_VALUE)
+                gcBeforeSeconds = NO_GC;
+            else
+                gcBeforeSeconds = TimeUnit.MICROSECONDS.toSeconds(gcBeforeSeconds);
+        }
+        return getCompactionController(toCompact, gcBeforeSeconds);
+    }
+
+    protected CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
     {
         return new CompactionController(cfs, toCompact, gcBefore);
     }

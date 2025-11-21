@@ -48,6 +48,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.service.accord.serializers.CommandSerializers.known;
@@ -230,7 +231,7 @@ public class CheckStatusSerializers
 
                     PersistableResult result = null;
                     if (maxKnowledgeStatus.known.outcome().isOrWasApply())
-                        result = ResultSerializers.APPLIED;
+                        result = TxnDataResult.PERSISTABLE;
 
                     return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,
                                     isCoordinating, durability, route, homeKey, invalidIf, partialTxn, committedDeps, writes, result);

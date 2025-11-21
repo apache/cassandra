@@ -25,8 +25,8 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.IndexHints;
@@ -332,31 +332,31 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     @Override
-    public List<ClusteringElements> values(QueryOptions options)
+    public List<ClusteringElements> values(FunctionContext context)
     {
-        List<ClusteringElements> values = restrictions.get(0).values(options);
+        List<ClusteringElements> values = restrictions.get(0).values(context);
         for (int i = 1, m = restrictions.size(); i < m; i++)
         {
-            values.retainAll(restrictions.get(i).values(options));
+            values.retainAll(restrictions.get(i).values(context));
         }
         return values;
     }
 
     @Override
-    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options, IPartitioner partitioner)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, FunctionContext context, IPartitioner partitioner)
     {
         for (int i = 0, m = restrictions.size(); i < m; i++)
         {
-            restrictions.get(i).restrict(rangeSet, options, partitioner);
+            restrictions.get(i).restrict(rangeSet, context, partitioner);
         }
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options, IndexHints indexHints)
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, FunctionContext context, IndexHints indexHints)
     {
         for (int i = 0, m = restrictions.size(); i < m; i++)
         {
-            restrictions.get(i).addToRowFilter(filter, indexRegistry, options, indexHints);
+            restrictions.get(i).addToRowFilter(filter, indexRegistry, context, indexHints);
         }
     }
 }

@@ -43,7 +43,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
+import org.apache.cassandra.cql3.RowUpdateBuilder.RegularRowUpdateBuilder;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateIndexStatement;
@@ -173,13 +174,13 @@ public class HarrySSTableWriter implements Closeable
         long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
-        UpdateParameters params = new UpdateParameters(modificationStatement.metadata,
-                                                       ClientState.forInternalCalls(),
-                                                       options,
-                                                       modificationStatement.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
-                                                       options.getNowInSec((int) TimeUnit.MILLISECONDS.toSeconds(now)),
-                                                       modificationStatement.getTimeToLive(options),
-                                                       Collections.emptyMap());
+        RowUpdateBuilder params = new RegularRowUpdateBuilder(modificationStatement.metadata,
+                                                              ClientState.forInternalCalls(),
+                                                              options,
+                                                              modificationStatement.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
+                                                              options.getNowInSec((int) TimeUnit.MILLISECONDS.toSeconds(now)),
+                                                              modificationStatement.getTimeToLive(options),
+                                                              Collections.emptyMap());
 
         try
         {

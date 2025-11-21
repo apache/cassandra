@@ -220,7 +220,7 @@ public final class SignalLock implements Lock
                 long cur = state;
                 if (hasLockWork(cur) && isLockAvailable(cur, thread, null))
                 {
-                    if (tryTakeLockInAwaitLoop(cur, thread, self, hasPaused)) return true;
+                    if (tryTakeLockInAwaitLoop(cur, thread, 0L, self, hasPaused)) return true;
                     else continue;
                 }
                 else if (tryAcquireAsyncInAwaitLoop(cur, thread, 0L, hasPaused, burstSignalOnAcquire))
@@ -234,7 +234,7 @@ public final class SignalLock implements Lock
 
                 hasPaused = pause(thread, hasPaused);
                 int waitingEnabledThreadCount = waitingEnabledThreadCount(cur);
-                int multiplier = 1 + waitingEnabledThreadCount == 0 ? 0 : ThreadLocalRandom.current().nextInt(2 * waitingEnabledThreadCount(cur));
+                int multiplier = 1 + (waitingEnabledThreadCount == 0 ? 0 : ThreadLocalRandom.current().nextInt(2 * waitingEnabledThreadCount(cur)));
                 LockSupport.parkNanos(spinIntervalNanos * multiplier);
             }
         }
@@ -254,7 +254,7 @@ public final class SignalLock implements Lock
                 }
                 else if (hasLockWork(cur) && isLockAvailable(cur, thread, null))
                 {
-                    if (tryTakeLockInAwaitLoop(cur, thread, self, hasPaused)) return true;
+                    if (tryTakeLockInAwaitLoop(cur, thread, threadBit, self, hasPaused)) return true;
                     else continue;
                 }
                 else if (tryAcquireAsyncInAwaitLoop(cur, thread, threadBit, hasPaused, burstSignalOnAcquire))
@@ -271,9 +271,9 @@ public final class SignalLock implements Lock
         }
     }
 
-    private boolean tryTakeLockInAwaitLoop(long cur, int thread, Thread self, boolean hasPaused)
+    private boolean tryTakeLockInAwaitLoop(long cur, int thread, long threadBitIfWaiting, Thread self, boolean hasPaused)
     {
-        long upd = setLockThread(clearLockThread(cur), thread, LOCK_OWNED) ^ threadBit(thread);
+        long upd = setLockThread(clearLockThread(cur), thread, LOCK_OWNED) ^ threadBitIfWaiting;
         if (!stateUpdater.compareAndSet(this, cur, upd))
             return false;
 

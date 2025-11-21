@@ -35,10 +35,4 @@ public class RetryWithNewProtocolResult implements TxnResult
     {
         return Kind.retry_new_protocol;
     }
-
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        return 0;
-    }
 }
