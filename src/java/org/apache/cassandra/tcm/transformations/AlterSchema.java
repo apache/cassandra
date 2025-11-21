@@ -98,6 +98,11 @@ public class AlterSchema implements Transformation
         return Kind.SCHEMA_CHANGE;
     }
 
+    public boolean eligibleToCommit(ClusterMetadata metadata)
+    {
+        return schemaTransformation.compatibleWith(metadata);
+    }
+
     @Override
     public final Result execute(ClusterMetadata prev)
     {

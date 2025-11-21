@@ -109,6 +109,12 @@ public class CustomTransformation implements Transformation
         return Kind.CUSTOM;
     }
 
+    @Override
+    public boolean eligibleToCommit(ClusterMetadata metadata)
+    {
+        return child.eligibleToCommit(metadata);
+    }
+
     public Result execute(ClusterMetadata prev)
     {
         return child.execute(prev);

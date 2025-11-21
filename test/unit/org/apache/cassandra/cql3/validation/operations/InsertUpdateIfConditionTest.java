@@ -30,7 +30,6 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.gms.Gossiper;
@@ -63,7 +62,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.setBoolean(true);
         Gossiper.instance.start(0);
     }
 
