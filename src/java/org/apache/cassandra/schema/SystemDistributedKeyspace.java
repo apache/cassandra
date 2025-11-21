@@ -447,7 +447,7 @@ public final class SystemDistributedKeyspace
     {
         String query = "INSERT INTO %s.%s (keyspace_name, view_name, succeeded_base_table_ranges, backfill_finished) VALUES (?, ?, {}, false) IF NOT EXISTS";
         QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
-                               ConsistencyLevel.ONE,
+                               ConsistencyLevel.QUORUM,
                                keyspaceName,
                                viewName);
     }
@@ -463,7 +463,7 @@ public final class SystemDistributedKeyspace
         try
         {
             results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
-                                            ConsistencyLevel.ONE,
+                                            ConsistencyLevel.QUORUM,
                                             keyspaceName,
                                             viewName);
         }
@@ -499,7 +499,7 @@ public final class SystemDistributedKeyspace
         
         String query = "UPDATE %s.%s SET succeeded_base_table_ranges = succeeded_base_table_ranges + ? WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
-                               ConsistencyLevel.ONE,
+                               ConsistencyLevel.QUORUM,
                                rangeBytes,
                                keyspaceName,
                                viewName);
@@ -524,7 +524,7 @@ public final class SystemDistributedKeyspace
     {
         String query = "UPDATE %s.%s SET backfill_finished = ? WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
-                               ConsistencyLevel.ONE,
+                               ConsistencyLevel.QUORUM,
                                finished,
                                keyspaceName,
                                viewName);
@@ -541,7 +541,7 @@ public final class SystemDistributedKeyspace
         try
         {
             results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, MV_BACKFILL_STATUS),
-                                            ConsistencyLevel.ONE,
+                                            ConsistencyLevel.QUORUM,
                                             keyspaceName,
                                             viewName);
         }

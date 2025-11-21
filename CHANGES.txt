@@ -1,4 +1,5 @@
 Unreleased
+ * [SO-58916] Flaky test fix for org.apache.cassandra.distributed.test.MVBackfillHappyPathTest
 4.1.10.2
  * [SO-57837] Add feature to ignore pending node from node replacement during write consistency level calculation
  * [SO-55354] Ingest INSERT/DELETE Queries
