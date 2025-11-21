@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.cql3.ColumnsExpression;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Relation;
@@ -248,44 +249,44 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     @Override
-    public List<ClusteringElements> values(QueryOptions options)
+    public List<ClusteringElements> values(FunctionContext context)
     {
         assert operator == Operator.EQ ||
                operator == Operator.IN ||
                operator == Operator.ANN : String.format("Unexpected operator: %s", operator);
-        return bindAndGetClusteringElements(options);
+        return bindAndGetClusteringElements(context);
     }
 
     @Override
-    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options, IPartitioner partitioner)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, FunctionContext context, IPartitioner partitioner)
     {
         assert operator.isSlice() || operator == Operator.EQ;
-        operator.restrict(rangeSet, bindAndGetClusteringElements(options), partitioner);
+        operator.restrict(rangeSet, bindAndGetClusteringElements(context), partitioner);
     }
 
-    private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)
+    private List<ClusteringElements> bindAndGetClusteringElements(FunctionContext context)
     {
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
             case TOKEN:
-                return bindAndGetSingleTermClusteringElements(options);
+                return bindAndGetSingleTermClusteringElements(context);
             case MULTI_COLUMN:
-                return bindAndGetMultiTermClusteringElements(options);
+                return bindAndGetMultiTermClusteringElements(context);
             default:
                 throw new UnsupportedOperationException();
         }
     }
 
-    private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
+    private List<ClusteringElements> bindAndGetSingleTermClusteringElements(FunctionContext context)
     {
-        if (values.isSingleTerm(options))
+        if (values.isSingleTerm(context))
         {
-            ByteBuffer value = bindAndGetSingle(options);
+            ByteBuffer value = bindAndGetSingle(context);
             return Collections.singletonList(ClusteringElements.of(columnsExpression.columnSpecification(), value, isOnToken()));
         }
 
-        List<ByteBuffer> values = bindAndGet(options);
+        List<ByteBuffer> values = bindAndGet(context);
         if (values.isEmpty())
             return Collections.emptyList();
 
@@ -301,9 +302,9 @@ public final class SimpleRestriction implements SingleRestriction
         return elements;
     }
 
-    private List<ClusteringElements> bindAndGetMultiTermClusteringElements(QueryOptions options)
+    private List<ClusteringElements> bindAndGetMultiTermClusteringElements(FunctionContext context)
     {
-        List<List<ByteBuffer>> values = bindAndGetElements(options);
+        List<List<ByteBuffer>> values = bindAndGetElements(context);
         if (values.isEmpty())
             return Collections.emptyList();
 
@@ -313,24 +314,24 @@ public final class SimpleRestriction implements SingleRestriction
         return elements;
     }
 
-    private List<ByteBuffer> bindAndGet(QueryOptions options)
+    private List<ByteBuffer> bindAndGet(FunctionContext context)
     {
-        List<ByteBuffer> buffers = values.bindAndGet(options);
+        List<ByteBuffer> buffers = values.bindAndGet(context);
         validate(buffers);
         buffers.forEach(this::validate);
         return buffers;
     }
 
-    private ByteBuffer bindAndGetSingle(QueryOptions options)
+    private ByteBuffer bindAndGetSingle(FunctionContext context)
     {
-        ByteBuffer buffer = values.bindAndGetSingleTermValue(options);
+        ByteBuffer buffer = values.bindAndGetSingleTermValue(context);
         validate(buffer);
         return buffer;
     }
 
-    private List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+    private List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
     {
-        List<List<ByteBuffer>> elementsList = values.bindAndGetElements(options);
+        List<List<ByteBuffer>> elementsList = values.bindAndGetElements(context);
         validate(elementsList);
         elementsList.forEach(this::validateElements);
         return elementsList;
@@ -371,7 +372,7 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options, IndexHints indexHints)
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, FunctionContext context, IndexHints indexHints)
     {
         if (isOnToken())
             throw new UnsupportedOperationException();
@@ -380,7 +381,7 @@ public final class SimpleRestriction implements SingleRestriction
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
-                List<ByteBuffer> buffers = bindAndGet(options);
+                List<ByteBuffer> buffers = bindAndGet(context);
                 if (operator.kind() != Operator.Kind.BINARY)
                 {
                     if (operator == Operator.IN && !column.type.isCounter())
@@ -406,7 +407,7 @@ public final class SimpleRestriction implements SingleRestriction
 
                 if (isEQ())
                 {
-                    List<ByteBuffer> elements = bindAndGetElements(options).get(0);
+                    List<ByteBuffer> elements = bindAndGetElements(context).get(0);
 
                     for (int i = 0, m = columns().size(); i < m; i++)
                     {
@@ -420,7 +421,7 @@ public final class SimpleRestriction implements SingleRestriction
                     // c IN (x, y, z) and we can perform filtering
                     if (columns().size() == 1)
                     {
-                        List<ByteBuffer> values = bindAndGetElements(options).stream()
+                        List<ByteBuffer> values = bindAndGetElements(context).stream()
                                                                              .map(elements -> elements.get(0))
                                                                              .collect(Collectors.toList());
 
@@ -451,12 +452,12 @@ public final class SimpleRestriction implements SingleRestriction
                         }
                     }
 
-                    ByteBuffer key = columnsExpression.element(options);
+                    ByteBuffer key = columnsExpression.element(context);
                     if (key == null)
                         throw invalidRequest("Invalid null map key for column %s", column.name.toCQLString());
                     if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         throw invalidRequest("Invalid unset map key for column %s", column.name.toCQLString());
-                    List<ByteBuffer> values = bindAndGet(options);
+                    List<ByteBuffer> values = bindAndGet(context);
                     filter.addMapEquality(column, key, operator, values.get(0));
                 }
                 break;

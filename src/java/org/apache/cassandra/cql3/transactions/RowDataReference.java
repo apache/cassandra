@@ -27,7 +27,7 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
@@ -84,7 +84,7 @@ public class RowDataReference extends Term.NonTerminal
     }
 
     @Override
-    public Terminal bind(QueryOptions options) throws InvalidRequestException
+    public Terminal bind(FunctionContext context) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
@@ -174,20 +174,20 @@ public class RowDataReference extends Term.NonTerminal
         return UserTypes.fieldSpecOf(column, field);
     }
 
-    private CellPath bindCellPath(QueryOptions options)
+    private CellPath bindCellPath()
     {
         if (fieldPath != null)
             return fieldPath;
 
-        return elementPath != null ? CellPath.create(elementPath.bindAndGet(options)) : null;
+        return elementPath != null ? CellPath.create(elementPath.bindAndGet(FunctionContext.NONE)) : null;
     }
 
-    public TxnReference toTxnReference(QueryOptions options)
+    public TxnReference toTxnReference()
     {
         Preconditions.checkState(elementPath == null || column.isComplex() || column.type.isFrozenCollection());
         Preconditions.checkState(fieldPath == null || column.isComplex() || column.type.isUDT());
 
-        return TxnReference.columnOrRow(txnDataName, table, column, bindCellPath(options));
+        return TxnReference.columnOrRow(txnDataName, table, column, bindCellPath());
     }
 
     public ColumnIdentifier getFullyQualifiedName()

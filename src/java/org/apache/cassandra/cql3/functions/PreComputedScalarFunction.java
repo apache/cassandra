@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -27,7 +28,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 /**
  * Function used internally to hold the pre-computed result of another function.
  * <p>
- * See {@link ScalarFunction#partialApplication(ProtocolVersion, List)} for why this is used.
+ * See {@link ScalarFunction#partialApplication(ProtocolVersion, FunctionContext, List)} for why this is used.
  * <p>
  * Note : the function is cautious in keeping the protocol version used for the pre-computed value and to
  * fallback to recomputation if the version we get when {@link #execute} is called. I don't think it's truly necessary
@@ -74,7 +75,7 @@ class PreComputedScalarFunction extends NativeScalarFunction implements PartialS
         if (nothing.getProtocolVersion() == valueVersion)
             return value;
 
-        Arguments args = function.newArguments(nothing.getProtocolVersion());
+        Arguments args = function.newArguments(nothing.getProtocolVersion(), nothing.context());
         for (int i = 0, m = arguments.size() ; i < m; i++)
         {
             args.set(i, arguments.get(i));;
@@ -83,7 +84,7 @@ class PreComputedScalarFunction extends NativeScalarFunction implements PartialS
         return function.execute(args);
     }
 
-    public ScalarFunction partialApplication(ProtocolVersion protocolVersion, List<ByteBuffer> nothing) throws InvalidRequestException
+    public ScalarFunction partialApplication(ProtocolVersion protocolVersion, FunctionContext context, List<ByteBuffer> nothing) throws InvalidRequestException
     {
         return this;
     }

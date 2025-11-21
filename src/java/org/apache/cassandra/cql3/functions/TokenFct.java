@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -41,11 +42,11 @@ public class TokenFct extends NativeScalarFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
         ArgumentDeserializer[] deserializers = new ArgumentDeserializer[argTypes.size()];
         Arrays.fill(deserializers, ArgumentDeserializer.NOOP_DESERIALIZER);
-        return new FunctionArguments(version, deserializers);
+        return new FunctionArguments(version, context, deserializers);
     }
 
     private static AbstractType<?>[] getKeyTypes(TableMetadata metadata)

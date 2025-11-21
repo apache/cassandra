@@ -86,7 +86,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.topology.FetchTopologies;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -292,7 +292,7 @@ public class AccordGenerators
             {
                 if (txnId.is(Write))
                     builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
-                builder.result(new TxnData());
+                builder.result(new TxnDataResult(executeAt.uniqueHlc()));
             }
             return builder.build(saveStatus);
         }

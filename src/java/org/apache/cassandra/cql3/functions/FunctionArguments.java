@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -30,10 +31,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public final class FunctionArguments implements Arguments
 {
-    /**
-     * An empty {@link FunctionArguments} for the current protocol.
-     */
-    private static final FunctionArguments EMPTY = new FunctionArguments(ProtocolVersion.CURRENT);
+    public static final ArgumentDeserializer[] NO_DESERIALIZERS = new ArgumentDeserializer[0];
 
     /**
      * The deserializer used to deserialize the columns.
@@ -44,6 +42,8 @@ public final class FunctionArguments implements Arguments
      * The protocol version.
      */
     private final ProtocolVersion version;
+
+    private final FunctionContext context;
 
     /**
      * The deserialized arguments.
@@ -57,25 +57,31 @@ public final class FunctionArguments implements Arguments
      * @param argTypes the argument types
      * @return a new {@link FunctionArguments} for the specified types.
      */
-    public static FunctionArguments newInstanceForUdf(ProtocolVersion version, List<UDFDataType> argTypes)
+    public static Arguments newInstanceForUdf(ProtocolVersion version, FunctionContext context, List<UDFDataType> argTypes)
     {
         int size = argTypes.size();
 
         if (size == 0)
-            return emptyInstance(version);
+            return context.noArguments(version);
 
         ArgumentDeserializer[] deserializers = new ArgumentDeserializer[size];
 
         for (int i = 0; i < size; i++)
             deserializers[i] = argTypes.get(i).getArgumentDeserializer();
 
-        return new FunctionArguments(version, deserializers);
+        return new FunctionArguments(version, context, deserializers);
     }
 
     @Override
     public ProtocolVersion getProtocolVersion()
     {
         return version;
+    }
+
+    @Override
+    public FunctionContext context()
+    {
+        return context;
     }
 
     /**
@@ -85,26 +91,12 @@ public final class FunctionArguments implements Arguments
      * @param numberOfArguments the number of argument
      * @return a new {@link FunctionArguments} for the specified types.
      */
-    public static FunctionArguments newNoopInstance(ProtocolVersion version, int numberOfArguments)
+    public static FunctionArguments newNoopInstance(ProtocolVersion version, FunctionContext context, int numberOfArguments)
     {
         ArgumentDeserializer[] deserializers = new ArgumentDeserializer[numberOfArguments];
         Arrays.fill(deserializers, ArgumentDeserializer.NOOP_DESERIALIZER);
 
-        return new FunctionArguments(version, deserializers);
-    }
-
-    /**
-     * Creates an empty {@link FunctionArguments}.
-     *
-     * @param version the protocol version
-     * @return an empty {@link FunctionArguments}
-     */
-    public static FunctionArguments emptyInstance(ProtocolVersion version)
-    {
-        if (version == ProtocolVersion.CURRENT)
-            return EMPTY;
-
-        return new FunctionArguments(version);
+        return new FunctionArguments(version, context, deserializers);
     }
 
     /**
@@ -115,24 +107,25 @@ public final class FunctionArguments implements Arguments
      * @param argTypes the argument types
      * @return a new {@link FunctionArguments} for the specified types.
      */
-    public static FunctionArguments newInstanceForNativeFunction(ProtocolVersion version, List<AbstractType<?>> argTypes)
+    public static Arguments newInstanceForNativeFunction(ProtocolVersion version, FunctionContext context, List<AbstractType<?>> argTypes)
     {
         int size = argTypes.size();
 
         if (size == 0)
-            return emptyInstance(version);
+            return context.noArguments(version);
 
         ArgumentDeserializer[] deserializers = new ArgumentDeserializer[size];
 
         for (int i = 0; i < size; i++)
             deserializers[i] = argTypes.get(i).getArgumentDeserializer();
 
-        return new FunctionArguments(version, deserializers);
+        return new FunctionArguments(version, context, deserializers);
     }
 
-    public FunctionArguments(ProtocolVersion version, ArgumentDeserializer... deserializers)
+    public FunctionArguments(ProtocolVersion version, FunctionContext context, ArgumentDeserializer... deserializers)
     {
         this.version = version;
+        this.context = context;
         this.deserializers = deserializers;
         this.arguments = new Object[deserializers.length];
     }

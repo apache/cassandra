@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -388,9 +389,9 @@ public final class CastFcts
         }
 
         @Override
-        public Arguments newArguments(ProtocolVersion version)
+        public Arguments newArguments(ProtocolVersion version, FunctionContext context)
         {
-            return new FunctionArguments(version, (protocolVersion, buffer) -> {
+            return new FunctionArguments(version, context, (protocolVersion, buffer) -> {
                 AbstractType<?> argType = argTypes.get(0);
                 if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
                     return null;

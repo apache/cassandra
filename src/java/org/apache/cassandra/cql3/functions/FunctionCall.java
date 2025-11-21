@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.statements.RequestValidations;
@@ -68,19 +69,19 @@ public class FunctionCall extends Term.NonTerminal
     }
 
     @Override
-    public Term.Terminal bind(QueryOptions options) throws InvalidRequestException
+    public Term.Terminal bind(FunctionContext context) throws InvalidRequestException
     {
-        return makeTerminal(fun, bindAndGet(options));
+        return makeTerminal(fun, bindAndGet(context));
     }
 
     @Override
-    public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
+    public ByteBuffer bindAndGet(FunctionContext context) throws InvalidRequestException
     {
-        Arguments arguments = fun.newArguments(options.getProtocolVersion());
+        Arguments arguments = fun.newArguments(context.options().getProtocolVersion(), context);
         for (int i = 0, m = terms.size(); i < m; i++)
         {
             Term t = terms.get(i);
-            ByteBuffer argument = t.bindAndGet(options);
+            ByteBuffer argument = t.bindAndGet(context);
             RequestValidations.checkBindValueSet(argument, "Invalid unset value for argument in call to function %s", fun.name().name);
             arguments.set(i, argument);
         }

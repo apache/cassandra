@@ -30,7 +30,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -252,16 +252,16 @@ public final class Maps
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value == UNSET_VALUE)
                 return;
 
             // delete + put
             if (column.type.isMultiCell())
-                params.setComplexDeletionTimeForOverwrite(column);
-            Putter.doPut(value, column, params);
+                builder.setComplexDeletionTimeForOverwrite(column);
+            Putter.doPut(value, column, builder);
         }
     }
 
@@ -282,11 +282,11 @@ public final class Maps
             k.collectMarkerSpecification(boundNames, owner);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
-            ByteBuffer key = k.bindAndGet(params.options);
-            ByteBuffer value = t.bindAndGet(params.options);
+            ByteBuffer key = k.bindAndGet(builder);
+            ByteBuffer value = t.bindAndGet(builder);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
             if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
@@ -296,11 +296,11 @@ public final class Maps
 
             if (value == null)
             {
-                params.addTombstone(column, path);
+                builder.addTombstone(column, path);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
-                params.addCell(column, path, value);
+                builder.addCell(column, path, value);
             }
         }
     }
@@ -312,15 +312,15 @@ public final class Maps
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen map";
-            Term.Terminal value = t.bind(params.options);
+            Term.Terminal value = t.bind(builder);
             if (value != UNSET_VALUE)
-                doPut(value, column, params);
+                doPut(value, column, builder);
         }
 
-        static void doPut(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
+        static void doPut(Term.Terminal value, ColumnMetadata column, RowUpdateBuilder builder) throws InvalidRequestException
         {
             MapType<?, ?> type = (MapType<?, ?>) column.type;
 
@@ -328,7 +328,7 @@ public final class Maps
             {
                 // for frozen maps, we're overwriting the whole cell
                 if (!type.isMultiCell())
-                    params.addTombstone(column);
+                    builder.addTombstone(column);
 
                 return;
             }
@@ -343,22 +343,22 @@ public final class Maps
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, builder.clientState);
 
                 int dataSize = 0;
                 Iterator<ByteBuffer> iter = elements.iterator();
                 while(iter.hasNext())
                 {
-                    Cell<?> cell = params.addCell(column, CellPath.create(iter.next()), iter.next());
+                    Cell<?> cell = builder.addCell(column, CellPath.create(iter.next()), iter.next());
                     dataSize += cell.dataSize();
                 }
-                Guardrails.collectionMapSize.guard(dataSize, column.name.toString(), false, params.clientState);
+                Guardrails.collectionMapSize.guard(dataSize, column.name.toString(), false, builder.clientState);
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
-                Cell<?> cell = params.addCell(column, value.get());
-                Guardrails.collectionMapSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, builder.clientState);
+                Cell<?> cell = builder.addCell(column, value.get());
+                Guardrails.collectionMapSize.guard(cell.dataSize(), column.name.toString(), false, builder.clientState);
             }
         }
     }
@@ -370,16 +370,16 @@ public final class Maps
             super(column, k);
         }
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single key in a frozen map";
-            Term.Terminal key = t.bind(params.options);
+            Term.Terminal key = t.bind(builder);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
             if (key == Constants.UNSET_VALUE)
                 throw new InvalidRequestException("Invalid unset map key");
 
-            params.addTombstone(column, CellPath.create(key.get()));
+            builder.addTombstone(column, CellPath.create(key.get()));
         }
     }
 }

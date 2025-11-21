@@ -25,7 +25,7 @@ import java.util.List;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -60,9 +60,9 @@ public final class InMarker extends Terms.NonTerminals
     }
 
     @Override
-    public Terminals bind(QueryOptions options)
+    public Terminals bind(FunctionContext context)
     {
-        ByteBuffer values = options.getValues().get(bindIndex);
+        ByteBuffer values = context.options().getValues().get(bindIndex);
         if (values == null)
             return null;
 
@@ -95,16 +95,16 @@ public final class InMarker extends Terms.NonTerminals
     }
 
     @Override
-    public List<ByteBuffer> bindAndGet(QueryOptions options)
+    public List<ByteBuffer> bindAndGet(FunctionContext context)
     {
-        Terminals terminals = bind(options);
+        Terminals terminals = bind(context);
         return terminals == null ? null : terminals.get();
     }
 
     @Override
-    public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+    public List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
     {
-        Terminals terminals = bind(options);
+        Terminals terminals = bind(context);
         return terminals == null ? null : terminals.getElements();
     }
 

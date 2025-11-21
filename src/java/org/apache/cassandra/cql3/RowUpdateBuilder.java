@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
@@ -43,20 +44,32 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.utils.TimeUUID;
 
-/**
- * Groups the parameters of an update query, and make building updates easier.
- */
-public class UpdateParameters
+public abstract class RowUpdateBuilder implements FunctionContext
 {
-    public final TableMetadata metadata;
-    public final ClientState clientState;
-    public final QueryOptions options;
+    public static class RegularRowUpdateBuilder extends RowUpdateBuilder implements RealTimeFunctionContext
+    {
+        public RegularRowUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+        {
+            super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
+        }
+    }
 
-    private final long nowInSec;
-    protected final long timestamp;
-    private final int ttl;
+    public static class NoTimeRowUpdateBuilder extends RowUpdateBuilder implements NoTimeFunctionContext
+    {
+        public NoTimeRowUpdateBuilder(TableMetadata metadata, ClientState clientState, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
+        {
+            super(metadata, clientState, options, timestamp, nowInSec, ttl, prefetchedRows);
+        }
+    }
+
+    public final TableMetadata metadata;
+    private final QueryOptions options;
+    public final ClientState clientState;
+
+    public final long nowInSec;
+    public final long timestamp;
+    public final int ttl;
 
     private DeletionTime deletionTime;
 
@@ -66,7 +79,7 @@ public class UpdateParameters
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
-    public UpdateParameters(TableMetadata metadata,
+    protected RowUpdateBuilder(TableMetadata metadata,
                             ClientState clientState,
                             QueryOptions options,
                             long timestamp,
@@ -75,19 +88,24 @@ public class UpdateParameters
                             Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
     {
         this.metadata = metadata;
-        this.clientState = clientState;
         this.options = options;
-
+        this.clientState = clientState;
         this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
 
+        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
         this.prefetchedRows = prefetchedRows;
-
         // We use MIN_VALUE internally to mean the absence of of timestamp (in Selection, in sstable stats, ...), so exclude
         // it to avoid potential confusion.
         if (timestamp == Long.MIN_VALUE)
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
+    }
+
+    @Override
+    public QueryOptions options()
+    {
+        return options;
     }
 
     public <V> void newRow(Clustering<V> clustering) throws InvalidRequestException
@@ -208,7 +226,7 @@ public class UpdateParameters
         newRow(row.clustering());
         addRowDeletion(row.deletion());
         addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
-        row.iterator().forEachRemaining(cd -> {
+        row.forEach(cd -> {
             if (cd instanceof Cell<?>)
             {
                 builder.addCell((Cell<?>) cd);
@@ -297,11 +315,6 @@ public class UpdateParameters
         return new RangeTombstone(slice, deletionTime());
     }
 
-    public byte[] nextTimeUUIDAsBytes()
-    {
-        return TimeUUID.Generator.nextTimeUUIDAsBytes();
-    }
-
     /**
      * Returns the prefetched row with the already performed modifications.
      * <p>If no modification have yet been performed this method will return the fetched row or {@code null} if
@@ -332,4 +345,5 @@ public class UpdateParameters
         return Rows.merge(prefetchedRow, pendingMutations)
                    .purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
     }
+
 }

@@ -27,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.NativeFunctions;
@@ -337,9 +338,9 @@ public class CQLVectorTest extends CQLTester.InMemory
             }
 
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(ProtocolVersion version, FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(version, context, 1);
             }
         });
 
@@ -371,9 +372,9 @@ public class CQLVectorTest extends CQLTester.InMemory
             }
 
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(ProtocolVersion version, FunctionContext context)
             {
-                return new FunctionArguments(version,
+                return new FunctionArguments(version, context,
                                              (v, b) -> type.composeAsFloat(b),
                                              (v, b) -> type.composeAsFloat(b));
             }

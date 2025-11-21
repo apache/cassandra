@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
@@ -106,9 +107,9 @@ public class PartialMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return new FunctionArguments(version,
+        return new FunctionArguments(version, context,
                                      inputType.getArgumentDeserializer(),
                                      Int32Type.instance.getArgumentDeserializer(),
                                      Int32Type.instance.getArgumentDeserializer(),

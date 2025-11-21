@@ -21,7 +21,7 @@ import java.util.List;
 
 import com.google.common.collect.RangeSet;
 
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.Index;
 
@@ -93,19 +93,19 @@ public interface SingleRestriction extends Restriction
     /**
      * Returns the values selected by this restriction (or by the intersection of merged restrictions) if the operator is an {@code EQ} or an {@code IN}.
      *
-     * @param options the query options
+     * @param context the query options
      * @return the values selected by this restriction (or by the intersection of merged restrictions) if the operator is an {@code EQ} or an {@code IN}.
      * @throws UnsupportedOperationException if the operator is not an {@code EQ} or an {@code IN}.
      */
-    List<ClusteringElements> values(QueryOptions options);
+    List<ClusteringElements> values(FunctionContext context);
 
     /**
      * Removes the ranges of values not selected by this restriction from the specified {@code RangeSet} if the operator is an operator selecting ranges of data.
      *
-     * @param rangeSet the range set to add to
-     * @param options the query options
+     * @param rangeSet    the range set to add to
+     * @param context      the query options
      * @param partitioner the partitioner, used to identify MIN_TOKEN when using token restrictions
      * @throws UnsupportedOperationException if the operator is not an operator selecting ranges of data.
      */
-    void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options, IPartitioner partitioner);
+    void restrict(RangeSet<ClusteringElements> rangeSet, FunctionContext context, IPartitioner partitioner);
 }

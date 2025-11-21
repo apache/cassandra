@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -48,10 +48,10 @@ class RestrictionSetWrapper implements Restrictions
 
     public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
-                               QueryOptions options,
+                               FunctionContext context,
                                IndexHints indexHints)
     {
-        restrictions.addToRowFilter(filter, indexRegistry, options, indexHints);
+        restrictions.addToRowFilter(filter, indexRegistry, context, indexHints);
     }
 
     public List<ColumnMetadata> columns()

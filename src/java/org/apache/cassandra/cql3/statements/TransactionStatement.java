@@ -51,6 +51,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
@@ -80,8 +81,8 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -607,15 +608,19 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (txnResult.kind() == retry_new_protocol)
             throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
         TxnValidationRejection.maybeThrow(txnResult);
-
-        TxnData data = (TxnData)txnResult;
+        TxnDataResult data = (TxnDataResult)txnResult;
 
         if (returningSelect != null)
         {
             @SuppressWarnings("unchecked")
             SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
             Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
-            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
+            long atMicros = data.atMicros;
+            FunctionContext context = new FunctionContext.MicrosFunctionContext(atMicros)
+            {
+                @Override public QueryOptions options() { return options; }
+            };
+            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, context, selectors, false);
             if (selectQuery.queries.size() == 1)
             {
                 TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING));
@@ -625,13 +630,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             }
             else
             {
-                long nowInSec = FBUtilities.nowInSeconds();
                 for (int i = 0; i < selectQuery.queries.size(); i++)
                 {
                     TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING, i));
                     boolean reversed = selectQuery.queries.get(i).isReversed();
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
+                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, atMicros / 1000_000);
                 }
             }
             return new ResultMessage.Rows(result.build());
@@ -649,13 +653,13 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 columns.add(reference.column());
             }
 
-            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), false);
+            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, FunctionContext.NONE, Selection.noopSelector(), false);
             result.newRow(options.getProtocolVersion(), null, null, columns);
 
             for (int i = 0; i < returningReferences.size(); i++)
             {
                 RowDataReference reference = returningReferences.get(i);
-                TxnReference txnReference = reference.toTxnReference(options);
+                TxnReference txnReference = reference.toTxnReference();
                 ByteBuffer buffer = txnReference.asColumn().toByteBuffer(data, resultType.get(i));
                 result.add(buffer);
             }

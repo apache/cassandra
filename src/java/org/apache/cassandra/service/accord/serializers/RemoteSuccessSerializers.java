@@ -26,6 +26,7 @@ import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 
 public class RemoteSuccessSerializers
 {
@@ -43,7 +44,7 @@ public class RemoteSuccessSerializers
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
             TxnData data = TxnData.serializer.deserialize(in, version);
-            return new RemoteSuccess(txnId, data);
+            return new RemoteSuccess(txnId, (TxnResult)data);
         }
 
         @Override

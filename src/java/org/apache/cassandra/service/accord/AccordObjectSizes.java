@@ -22,7 +22,6 @@ import java.util.UUID;
 import java.util.function.ToLongFunction;
 
 import accord.api.Key;
-import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandBuilder;
@@ -64,13 +63,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -293,13 +289,6 @@ public class AccordObjectSizes
         return size;
     }
 
-    public static long results(Result result)
-    {
-        if (result == ResultSerializers.APPLIED)
-            return 0;
-        return ((TxnResult) result).estimatedSizeOnHeap();
-    }
-
     private static class CommandEmptySizes
     {
         private final static PartitionKey EMPTY_KEY = new PartitionKey(EMPTY_ID, new BufferDecoratedKey(new Murmur3Partitioner.LongToken(1), ByteBufferUtil.EMPTY_BYTE_BUFFER));
@@ -322,10 +311,7 @@ public class AccordObjectSizes
                 builder.partialTxn(new PartialTxn.InMemory(Kind.Read, keys, TxnRead.empty(Domain.Key), null, null, TableMetadatasAndKeys.none(Domain.Key)));
 
             if (executes)
-            {
                 builder.waitingOn(WaitingOn.empty(Domain.Key));
-                builder.result(new TxnData());
-            }
 
             return builder.build(saveStatus);
         }
@@ -407,7 +393,7 @@ public class AccordObjectSizes
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
         size += sizeNullable(command.acceptedOrCommitted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
-        size += sizeNullable(command.result(), AccordObjectSizes::results);
+        // no need to ,measure command.results(), as should always be a sentinel value
         size += sizeNullable(command.waitingOn(), AccordObjectSizes::waitingOn);
         return size;
     }

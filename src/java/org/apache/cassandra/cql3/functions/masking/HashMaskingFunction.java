@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
@@ -71,9 +72,9 @@ public class HashMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return new FunctionArguments(version,
+        return new FunctionArguments(version, context,
                                      ArgumentDeserializer.NOOP_DESERIALIZER, // the value to be masked
                                      (v, b) -> messageDigest(b)); // the algorithm, if any
     }

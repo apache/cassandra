@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.ColumnTimestamps.TimestampsType;
@@ -561,6 +562,8 @@ public abstract class Selector
     {
         return false;
     }
+
+    public void prepare(FunctionContext context) {}
 
     /**
      * Checks that this selector is valid for GROUP BY clause.

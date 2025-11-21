@@ -556,7 +556,7 @@ public class QueryProcessor implements QueryHandler
                                                                                       .map(m -> MessagingService.instance().<ReadCommand, ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
-            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), options, select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
                 for (Message<ReadResponse> m : list)

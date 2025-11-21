@@ -116,7 +116,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -211,7 +211,7 @@ public class CommandsForKeySerializerTest
             {
                 if (txnId.is(Kind.Write))
                     builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
-                builder.result(new TxnData());
+                builder.result(new TxnDataResult(executeAt.uniqueHlc()));
             }
             return builder;
         }

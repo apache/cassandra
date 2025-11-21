@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.functions.masking;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
@@ -48,9 +49,9 @@ public class NullMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return FunctionArguments.newNoopInstance(version, 1);
+        return FunctionArguments.newNoopInstance(version, context, 1);
     }
 
     @Override

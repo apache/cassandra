@@ -466,7 +466,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
         // needs to return two different values for the same when.
         // we can generate at most 10k UUIDs per ms.
-        private static long nextUnixMicros()
+        public static long nextUnixMicros()
         {
             long newLastMicros;
             while (true)

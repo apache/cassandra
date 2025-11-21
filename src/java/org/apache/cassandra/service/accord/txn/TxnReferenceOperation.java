@@ -30,7 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.cql3.terms.Maps;
@@ -269,7 +269,7 @@ public class TxnReferenceOperation
         return receiver;
     }
 
-    public void apply(TxnData data, DecoratedKey key, UpdateParameters up)
+    public void apply(TxnData data, DecoratedKey key, RowUpdateBuilder up)
     {
         Operation operation = toOperation(data);
         operation.execute(key, up);

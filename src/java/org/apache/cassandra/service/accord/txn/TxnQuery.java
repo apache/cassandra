@@ -78,7 +78,10 @@ public abstract class TxnQuery implements Query
         @Override
         public Result doCompute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            return data != null ? (TxnData) data : new TxnData();
+            TxnDataResult result = new TxnDataResult(executeAt.uniqueHlc());
+            if (data != null)
+                result.putAll((TxnData)data);
+            return result;
         }
     };
 
@@ -97,7 +100,7 @@ public abstract class TxnQuery implements Query
         @Override
         public Result doCompute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            return new TxnData();
+            return new TxnDataResult(executeAt.uniqueHlc());
         }
     };
 
@@ -122,19 +125,26 @@ public abstract class TxnQuery implements Query
             AccordUpdate accordUpdate = (AccordUpdate)update;
             TxnData txnData = (TxnData)data;
             boolean conditionCheck = accordUpdate.checkAnyConditionMatch(data);
-            // If the condition applied an empty result indicates success
-            if (conditionCheck)
-                return new TxnData();
-            else if (txnData.isEmpty())
+            TxnDataResult result = new TxnDataResult(executeAt.uniqueHlc());
+
+            if (!conditionCheck)
             {
-                TxnRead txnKeyRead = (TxnRead)read;
-                SinglePartitionReadCommand command = (SinglePartitionReadCommand) txnKeyRead.deserialize(0);
-                // For CAS must return a non-empty result to indicate error even if there was no partition found
-                return TxnData.of(txnDataName(CAS_READ), new TxnDataKeyValue(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed())));
+                if (txnData.isEmpty())
+                {
+                    TxnRead txnKeyRead = (TxnRead) read;
+                    SinglePartitionReadCommand command = (SinglePartitionReadCommand) txnKeyRead.deserialize(0);
+                    // For CAS must return a non-empty result to indicate error even if there was no partition found
+                    result.put(txnDataName(CAS_READ), new TxnDataKeyValue(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed())));
+                }
+                else
+                {
+                    // If it failed to apply the partition contents are returned and it indicates failure
+                    result.putAll(((TxnData) data));
+                }
             }
-            else
-                // If it failed to apply the partition contents are returned and it indicates failure
-                return ((TxnData)data);
+            // (else): If the condition applied, an empty result indicates success
+
+            return result;
         }
     };
 
@@ -161,7 +171,7 @@ public abstract class TxnQuery implements Query
 
             // Skip the migration checks in the base class for empty transactions, we don't
             // want/need the RetryWithNewProtocolResult
-            return new TxnData();
+            return new TxnDataResult(executeAt.uniqueHlc());
         }
 
         @Override
@@ -182,10 +192,11 @@ public abstract class TxnQuery implements Query
         @Override
         public Result doCompute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            return data != null ? concat((TxnData) data, read) : new TxnData();
+            long timestamp = executeAt.uniqueHlc();
+            return data != null ? concat(timestamp, (TxnData) data, read) : new TxnDataResult(timestamp);
         }
 
-        private Result concat(TxnData data, Read read)
+        private Result concat(long timestamp, TxnData data, Read read)
         {
             TxnRead txnRead = (TxnRead) read;
             PartitionRangeReadCommand command = (PartitionRangeReadCommand) txnRead.deserialize(0);
@@ -197,7 +208,7 @@ public abstract class TxnQuery implements Query
                                                                                          0,
                                                                                          command.selectsFullPartition(),
                                                                                          command.metadata().enforceStrictLiveness());
-            return new TxnRangeReadResult(sourceWithLimits);
+            return new TxnRangeReadResult(timestamp, sourceWithLimits);
         }
     };
 

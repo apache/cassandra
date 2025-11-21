@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -28,7 +29,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 /**
  * An internal function used to hold the partial application of another function to only some of its parameters.
  *
- * @see ScalarFunction#partialApplication(ProtocolVersion, List)
+ * @see ScalarFunction#partialApplication(ProtocolVersion, FunctionContext, List)
  */
 final class PartiallyAppliedScalarFunction extends NativeScalarFunction implements PartialScalarFunction
 {
@@ -63,9 +64,9 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return new PartialFunctionArguments(version, function, partialParameters, argTypes.size());
+        return new PartialFunctionArguments(version, context, function, partialParameters, argTypes.size());
     }
 
     @Override
@@ -126,9 +127,9 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
          */
         private final int[] mapping;
 
-        public PartialFunctionArguments(ProtocolVersion version, ScalarFunction function, List<ByteBuffer> partialArguments, int unresolvedCount)
+        public PartialFunctionArguments(ProtocolVersion version, FunctionContext context, ScalarFunction function, List<ByteBuffer> partialArguments, int unresolvedCount)
         {
-            arguments = function.newArguments(version);
+            arguments = function.newArguments(version, context);
             mapping = new int[unresolvedCount];
             int mappingIndex = 0;
             for (int i = 0, m = partialArguments.size(); i < m; i++)
@@ -149,6 +150,12 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
         public ProtocolVersion getProtocolVersion()
         {
             return arguments.getProtocolVersion();
+        }
+
+        @Override
+        public FunctionContext context()
+        {
+            return arguments.context();
         }
 
         @Override

@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.utils.Invariants.expect;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
@@ -49,7 +50,7 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
  * Fairly generic holder for result values for Accord txns as well as data exchange during Accord txn execution
  * when read results are returned to the coordinator to compute query results and writes.
  */
-public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResult, Data
+public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements Data
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
@@ -114,7 +115,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
 
     public TxnData() {}
 
-    private TxnData(int size)
+    TxnData(int size)
     {
         super(size, 0.65f);
     }
@@ -130,7 +131,12 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
     {
         requireArgument(size >= 0, "size can't be negative");
         size = Math.max(4, size);
-        return new TxnData(size < 1073741824 ? (int)((float)size / 0.75F + 1.0F) : Integer.MAX_VALUE);
+        return new TxnData(capacityForExpectedSize(size));
+    }
+
+    public static int capacityForExpectedSize(int size)
+    {
+        return size < 1073741824 ? (int)((float)size / 0.65F + 1.0F) : Integer.MAX_VALUE;
     }
 
     @Override
@@ -235,15 +241,6 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
         return true;
     }
 
-    @Override
-    public long estimatedSizeOnHeap()
-    {
-        long size = EMPTY_SIZE + ObjectSizes.sizeOfReferenceArray(capacity()) + (capacity() * TypeSizes.INT_SIZE);
-        for (TxnDataValue value : values())
-            size += value.estimatedSizeOnHeap();
-        return size;
-    }
-
     public static TxnData emptyPartition(int name, SinglePartitionReadCommand command)
     {
         TxnData result = new TxnData();
@@ -252,13 +249,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
         return result;
     }
 
-    @Override
-    public Kind kind()
-    {
-        return txn_data;
-    }
-
-    private static final IVersionedSerializer<Integer> INT32_SERIALIZER = IVersionedSerializer.fromSerializer(Int32Serializer.serializer);
+    static final IVersionedSerializer<Integer> INT32_SERIALIZER = IVersionedSerializer.fromSerializer(Int32Serializer.serializer);
     public static final IVersionedSerializer<TxnData> serializer = new IVersionedSerializer<TxnData>()
     {
         @Override

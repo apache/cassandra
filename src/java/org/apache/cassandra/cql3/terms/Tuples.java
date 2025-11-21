@@ -25,7 +25,7 @@ import java.util.stream.StreamSupport;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -88,7 +88,7 @@ public final class Tuples
             }
 
             MultiElements.DelayedValue value = new MultiElements.DelayedValue(tupleType, values);
-            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
+            return allTerminal ? value.bind(FunctionContext.NONE) : value;
         }
 
         public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
