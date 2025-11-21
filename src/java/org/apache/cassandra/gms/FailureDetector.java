@@ -43,6 +43,7 @@ import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 import javax.management.openmbean.TabularType;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -416,6 +417,17 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();
     }
+
+    /**
+     * Only for testing. In production code, ArrivalWindow instances call getMaxInterval() during
+     * intitialization and use the value to set the private final field MAX_INTERVAL_IN_NANO
+     * @return the value that would be used for to populate any new ArrivalWindow instance
+     */
+    @VisibleForTesting
+    static long calculateMaxInterval()
+    {
+        return ArrivalWindow.getMaxInterval();
+    }
 }
 
 /*
@@ -485,9 +497,10 @@ class ArrivalWindow
         arrivalIntervals = new ArrayBackedBoundedStats(size);
     }
 
-    private static long getMaxInterval()
+    @VisibleForTesting
+    static long getMaxInterval()
     {
-        long newValue = FD_MAX_INTERVAL_MS.getLong(FailureDetector.INITIAL_VALUE_NANOS);
+        long newValue = FD_MAX_INTERVAL_MS.getLong(TimeUnit.NANOSECONDS.toMillis(FailureDetector.INITIAL_VALUE_NANOS));
         if (newValue != FailureDetector.INITIAL_VALUE_NANOS)
             logger.info("Overriding {} from {}ms to {}ms", FD_MAX_INTERVAL_MS.getKey(), FailureDetector.INITIAL_VALUE_NANOS, newValue);
         return TimeUnit.NANOSECONDS.convert(newValue, TimeUnit.MILLISECONDS);
