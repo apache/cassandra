@@ -113,6 +113,7 @@ public class ClusterMetadataService
         if (newInstance.metadata().myNodeId() != null)
             RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
+        DatabaseDescriptor.applyLocator();
     }
 
     @VisibleForTesting
