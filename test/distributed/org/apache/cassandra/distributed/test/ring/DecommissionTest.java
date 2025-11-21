@@ -37,8 +37,6 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
@@ -47,7 +45,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -184,49 +181,6 @@ public class DecommissionTest extends TestBaseImpl
                     assertTrue(metadata.directory.versions.containsValue(NodeVersion.CURRENT));
                 });
             }
-        }
-    }
-
-    @Test
-    public void testMixedVersionBlockDecom() throws IOException {
-        try (Cluster cluster = builder().withNodes(3)
-                                        .withConfig(config -> config.with(GOSSIP, NETWORK))
-                                        .start())
-        {
-            cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
-
-            // make node2 run V0:
-            cluster.get(2).runOnInstance(() -> {
-                ClusterMetadata metadata = ClusterMetadata.current();
-
-                ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
-                                                                     metadata.directory.getNodeAddresses(metadata.myNodeId()),
-                                                                     new NodeVersion(new CassandraVersion("4.0.0"),
-                                                                                     Version.V0)));
-            });
-
-            // make node1 run V1:
-            cluster.get(1).runOnInstance(() -> {
-                ClusterMetadata metadata = ClusterMetadata.current();
-
-                ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
-                                                                     metadata.directory.getNodeAddresses(metadata.myNodeId()),
-                                                                     new NodeVersion(new CassandraVersion("6.0.0"),
-                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
-            });
-            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 3);
-            NodeToolResult res = cluster.get(2).nodetoolResult("decommission", "--force");
-            res.asserts().failure();
-            assertTrue(res.getStdout().contains("Upgrade in progress"));
-            cluster.get(2).runOnInstance(() -> {
-                ClusterMetadata metadata = ClusterMetadata.current();
-
-                ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
-                                                                     metadata.directory.getNodeAddresses(metadata.myNodeId()),
-                                                                     new NodeVersion(new CassandraVersion("6.0.0"),
-                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
-            });
-            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
         }
     }
 

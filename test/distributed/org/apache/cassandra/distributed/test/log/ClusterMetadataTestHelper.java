@@ -54,8 +54,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.MemtableParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
@@ -100,6 +100,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.schema.SchemaTestUtil.submit;
 import static org.junit.Assert.assertEquals;
 
 public class ClusterMetadataTestHelper
@@ -235,7 +236,7 @@ public class ClusterMetadataTestHelper
         }
         else
         {
-            Schema.instance.submit(cms -> {
+            submit(cms -> {
                 var km = cms.schema.getKeyspaceMetadata(ks);
                 var update = km.withSwapped(km.tables.withSwapped(km.tables.getNullable(table).unbuild()
                                                                      .memtable(memtable)
@@ -310,9 +311,14 @@ public class ClusterMetadataTestHelper
 
     public static NodeId register(InetAddressAndPort endpoint, String dc, String rack)
     {
+        return register(endpoint, dc, rack, NodeVersion.CURRENT);
+    }
+
+    public static NodeId register(InetAddressAndPort endpoint, String dc, String rack, NodeVersion version)
+    {
         try
         {
-            NodeId id = commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            NodeId id = commit(new Register(addr(endpoint), new Location(dc, rack), version)).directory.peerId(endpoint);
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 RegistrationStatus.instance.onRegistration();
             return id;
@@ -891,11 +897,12 @@ public class ClusterMetadataTestHelper
             metadata = ClusterMetadataService.instance().commit(next);
         }
     }
+
     public static void addOrUpdateKeyspace(KeyspaceMetadata keyspace)
     {
         try
         {
-            SchemaTransformation transformation = (cm) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
+            SchemaTransformation transformation = SchemaTestUtil.toTransformation(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(keyspace));
             commit(new AlterSchema(transformation));
         }
         catch (Exception e)

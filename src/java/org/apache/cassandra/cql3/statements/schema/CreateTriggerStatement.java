@@ -29,6 +29,7 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -64,6 +65,12 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
             thrown.initCause(e);
             throw thrown;
         }
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
     }
 
     @Override
