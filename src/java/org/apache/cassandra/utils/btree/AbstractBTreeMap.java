@@ -146,7 +146,6 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
     public void clear() { throw new UnsupportedOperationException(); }
     public Map.Entry<K, V> pollFirstEntry() { throw new UnsupportedOperationException(); }
     public Map.Entry<K, V> pollLastEntry() { throw new UnsupportedOperationException(); }
-
     protected static class KeyComparator<K, V> implements Comparator<Map.Entry<K, V>>
     {
         protected final Comparator<K> keyComparator;

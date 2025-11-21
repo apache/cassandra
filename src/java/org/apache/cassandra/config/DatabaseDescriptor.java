@@ -1692,9 +1692,7 @@ public class DatabaseDescriptor
         // responsible for querying the cloud metadata service to get the public IP used for
         // broadcast_address and we only want to instantiate the snitch here.
         addressConfig.configureAddresses();
-        initializationLocator = new Locator(RegistrationStatus.instance,
-                                            FBUtilities.getBroadcastAddressAndPort(),
-                                            initialLocationProvider);
+        applyLocator();
         nodeProximity = conf.dynamic_snitch ? new DynamicEndpointSnitch(proximity) : proximity;
         localAddressReconnector = addressConfig.preferLocalConnections()
                                   ? new ReconnectableSnitchHelper(initializationLocator, true)
@@ -1707,6 +1705,14 @@ public class DatabaseDescriptor
     public static void applyFailureDetector()
     {
         newFailureDetector = () -> createFailureDetector(conf.failure_detector);
+    }
+
+    @VisibleForTesting
+    public static void applyLocator()
+    {
+        initializationLocator = new Locator(RegistrationStatus.instance,
+                                            FBUtilities.getBroadcastAddressAndPort(),
+                                            initialLocationProvider);
     }
 
     // definitely not safe for tools + clients - implicitly instantiates schema
