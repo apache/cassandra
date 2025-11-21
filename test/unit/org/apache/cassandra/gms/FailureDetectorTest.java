@@ -23,11 +23,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
@@ -38,6 +40,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_LOCAL_PAUSE_IN_MS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class FailureDetectorTest
@@ -86,5 +89,37 @@ public class FailureDetectorTest
         // confirm the FD's history for leftHost didn't get wiped by status jump to LEFT
         FailureDetector.instance.interpret(leftHost);
         assertFalse("Left endpoint not convicted", FailureDetector.instance.isAlive(leftHost));
+    }
+
+    @Test
+    public void testMaxIntervalCalculation()
+    {
+        // Default value for ArrivalWindow.MAX_INTERVAL_IN_NANO, which is supplied by
+        // ArrivalWindow::getMaxInterval should be 2000000000ns/2 seconds.
+        Long initialPropertyValue = CassandraRelevantProperties.FD_MAX_INTERVAL_MS.isPresent()
+                                    ? CassandraRelevantProperties.FD_MAX_INTERVAL_MS.getLong()
+                                    : null;
+        try
+        {
+            // verify that max interval isn't being set directly using system property
+            CassandraRelevantProperties.FD_MAX_INTERVAL_MS.reset();
+            assertFalse(CassandraRelevantProperties.FD_MAX_INTERVAL_MS.isPresent());
+            // in which case, max interval should default to INITIAL_VALUE_NANOS
+            assertEquals(FailureDetector.INITIAL_VALUE_NANOS, FailureDetector.calculateMaxInterval());
+
+            // max interval can be overridden, but it's value should be supplied in millis
+            long overrideMillis = TimeUnit.NANOSECONDS.toMillis(FailureDetector.INITIAL_VALUE_NANOS * 2);
+            CassandraRelevantProperties.FD_MAX_INTERVAL_MS.setLong(overrideMillis);
+            // max interval is a nanos value, so convert the override to get the expected value
+            long expectedNanos = TimeUnit.NANOSECONDS.convert(overrideMillis, TimeUnit.MILLISECONDS);
+            assertEquals(expectedNanos, FailureDetector.calculateMaxInterval());
+        }
+        finally
+        {
+            if (initialPropertyValue == null)
+                CassandraRelevantProperties.FD_MAX_INTERVAL_MS.reset();
+            else
+                CassandraRelevantProperties.FD_MAX_INTERVAL_MS.setLong(initialPropertyValue);
+        }
     }
 }
