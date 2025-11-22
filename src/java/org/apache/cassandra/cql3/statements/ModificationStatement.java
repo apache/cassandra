@@ -158,6 +158,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final Operations operations;
 
+    private final boolean isReadRequired;
+
     private final RegularAndStaticColumns updatedColumns;
 
     protected final Conditions conditions;
@@ -262,6 +264,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
         this.functions = findAllFunctions();
+        this.isReadRequired = operations.requiresRead();
     }
 
     @Override
@@ -536,7 +539,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         // * Deleting list element by value
         // * Performing addition on a StringType (i.e. concatenation, only supported for CAS operations)
         // * Performing addition on a NumberType, again only supported for CAS operations.
-        return operations.requiresRead();
+        return isReadRequired;
     }
 
     private Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys,
