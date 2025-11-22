@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair.consistent;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,11 +45,14 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -221,6 +225,18 @@ public class LocalSessionTest extends AbstractRepairTest
         protected boolean sessionHasData(LocalSession session)
         {
             return sessionHasData;
+        }
+
+        @Override
+        protected TableMetadata getTableMetadata(TableId tableId)
+        {
+            return cfm;
+        }
+
+        @Override
+        protected List<Range<Token>> getLocalRanges(String keyspace)
+        {
+            return Arrays.asList(RANGE1, RANGE2, RANGE3);
         }
     }
 

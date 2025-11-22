@@ -408,6 +408,21 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return result;
     }
 
+    public static <T extends RingPosition<T>> List<Range<T>> intersect(Collection<Range<T>> ranges1, Collection<Range<T>> ranges2)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        // note: O(n^2), simple but not very efficient
+        for (Range<T> range1 : ranges1)
+        {
+            for (Range<T> range2 : ranges2)
+            {
+                result.addAll(range1.intersectionWith(range2));
+            }
+        }
+        return normalize(result);
+    }
+
+
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])
