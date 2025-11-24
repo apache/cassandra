@@ -576,8 +576,8 @@ public class AlterTest extends CQLTester
         {
             createTable("create table %s (k int, c int, v " + typePair[0] + ", PRIMARY KEY (k, c))");
             execute("alter table %s drop v");
-            assertInvalidMessage("Cannot re-add previously dropped column 'v' of type "
-                                 + typePair[1] + ", incompatible with previous type " + typePair[0],
+            assertInvalidMessage("Cannot add a column 'v' of type "
+                                 + typePair[1] + ", incompatible with previously dropped column 'v' of type " + typePair[0],
                                  "alter table %s add v " + typePair[1]);
         }
     }
