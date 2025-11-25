@@ -20,7 +20,6 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -135,8 +134,7 @@ public class PrepareJoin implements Transformation
         if (!ALLOWED_STATES.contains(prev.directory.peerState(nodeId)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
                                                        nodeId, prev.directory.peerState(nodeId)));
-        List<Token> existingTokens = prev.tokenMap.tokens();
-        Set<Token> alreadyAssigned = tokens.stream().filter(existingTokens::contains).collect(Collectors.toSet());
+        Set<Token> alreadyAssigned = prev.tokenMap.tokens().stream().filter(tokens::contains).collect(Collectors.toSet());
         if (!alreadyAssigned.isEmpty())
         {
             String assignedString = alreadyAssigned.stream()

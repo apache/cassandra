@@ -151,27 +151,41 @@ public class PrepareLeaveTest
     public static PlacementProvider dummyPlacementProvider = new PlacementProvider()
     {
         @Override
-        public DataPlacements calculatePlacements(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces) { return null; }
-
-        @Override
-        public PlacementTransitionPlan planForJoin(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces) { return null;}
-
-        @Override
-        public PlacementTransitionPlan planForMove(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces)
+        public DataPlacements calculatePlacements(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces)
         {
             return null;
         }
 
         @Override
+        public PlacementTransitionPlan planForJoin(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces)
+        {
+            return noop();
+        }
+
+        @Override
+        public PlacementTransitionPlan planForMove(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces)
+        {
+            return noop();
+        }
+
+        @Override
         public PlacementTransitionPlan planForDecommission(ClusterMetadata metadata, NodeId nodeId, Keyspaces keyspaces)
+        {
+            return noop();
+        }
+
+        @Override
+        public PlacementTransitionPlan planForReplacement(ClusterMetadata metadata, NodeId replaced, NodeId replacement, Keyspaces keyspaces)
+        {
+            return noop();
+        }
+
+        private PlacementTransitionPlan noop()
         {
             return new PlacementTransitionPlan(PlacementDeltas.empty(),
                                                PlacementDeltas.empty(),
                                                PlacementDeltas.empty(),
                                                PlacementDeltas.empty());
         }
-
-        @Override
-        public PlacementTransitionPlan planForReplacement(ClusterMetadata metadata, NodeId replaced, NodeId replacement, Keyspaces keyspaces) { return null; }
     };
 }
