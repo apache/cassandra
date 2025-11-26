@@ -161,13 +161,17 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath);
+        return durableWrites == p.durableWrites
+               && replication.equals(p.replication)
+               && fastPath.equals(p.fastPath)
+               && comment.equals(p.comment)
+               && securityLabel.equals(p.securityLabel);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(durableWrites, replication, fastPath);
+        return Objects.hashCode(durableWrites, replication, fastPath, comment, securityLabel);
     }
 
     @Override
