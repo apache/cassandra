@@ -1,4 +1,5 @@
 Unreleased
+ * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)
  * [SO-58916] Flaky test fix for org.apache.cassandra.distributed.test.MVBackfillHappyPathTest
 4.1.10.2
  * [SO-57837] Add feature to ignore pending node from node replacement during write consistency level calculation
@@ -641,7 +642,6 @@ Merged from 3.0:
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
  * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
  * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
-
 
 4.0.9
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
