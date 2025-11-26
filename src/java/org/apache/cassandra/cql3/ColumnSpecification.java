@@ -28,28 +28,17 @@ import java.util.Iterator;
 
 public class ColumnSpecification
 {
-    protected static final String EMPTY_COMMENT = "";
-    protected static final String EMPTY_SECURITY_LABEL = "";
     public final String ksName;
     public final String cfName;
     public final ColumnIdentifier name;
     public final AbstractType<?> type;
-    public final String comment;
-    public final String securityLabel;
 
     public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type)
-    {
-        this(ksName, cfName, name, type, EMPTY_COMMENT, EMPTY_SECURITY_LABEL);
-    }
-
-    public ColumnSpecification(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type, String comment, String securityLabel)
     {
         this.ksName = ksName;
         this.cfName = cfName;
         this.name = name;
         this.type = type;
-        this.comment = comment == null ? EMPTY_COMMENT : comment;
-        this.securityLabel = securityLabel == null ? EMPTY_SECURITY_LABEL : securityLabel;
     }
 
     /**
@@ -60,7 +49,7 @@ public class ColumnSpecification
      */
     public ColumnSpecification withAlias(ColumnIdentifier alias)
     {
-        return new ColumnSpecification(ksName, cfName, alias, type, comment, securityLabel);
+        return new ColumnSpecification(ksName, cfName, alias, type);
     }
 
     public boolean isReversedType()
@@ -111,8 +100,6 @@ public class ColumnSpecification
         return MoreObjects.toStringHelper(this)
                           .add("name", name)
                           .add("type", type)
-                          .add("comment", comment)
-                          .add("securityLabel", securityLabel)
                           .toString();
     }
 }
