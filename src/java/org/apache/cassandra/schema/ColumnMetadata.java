@@ -458,7 +458,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                && ksName.equals(other.ksName)
                && cfName.equals(other.cfName)
                && Objects.equals(mask, other.mask)
-               && Objects.equals(columnConstraints, other.columnConstraints);
+               && Objects.equals(columnConstraints, other.columnConstraints)
+               && comment.equals(other.comment)
+               && securityLabel.equals(other.securityLabel);
     }
 
     Optional<Difference> compare(ColumnMetadata other)
@@ -490,6 +492,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             result = 31 * result + position;
             result = 31 * result + (mask == null ? 0 : mask.hashCode());
             result = 31 * result + (columnConstraints == null ? 0 : columnConstraints.hashCode());
+            result = 31 * result + (comment == null ? 0 : comment.hashCode());
+            result = 31 * result + (securityLabel == null ? 0 : securityLabel.hashCode());
             hash = result;
         }
         return result;
@@ -508,6 +512,10 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           .add("type", type)
                           .add("kind", kind)
                           .add("position", position)
+                          .add("mask", mask)
+                          .add("columnConstraints", columnConstraints)
+                          .add("comment", comment)
+                          .add("securityLabel", securityLabel)
                           .toString();
     }
 

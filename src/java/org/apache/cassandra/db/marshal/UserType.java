@@ -366,7 +366,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell);
+        return Objects.hashCode(keyspace, name, fieldNames, types, isMultiCell, comment, securityLabel, fieldComments, fieldSecurityLabels);
     }
 
     @Override
@@ -413,11 +413,18 @@ public class UserType extends TupleType implements SchemaElement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && keyspace.equals(other.keyspace)
-            && isMultiCell == other.isMultiCell;
+            && isMultiCell == other.isMultiCell
+            && comment.equals(other.comment)
+            && securityLabel.equals(other.securityLabel)
+            && fieldComments.equals(other.fieldComments)
+            && fieldSecurityLabels.equals(other.fieldSecurityLabels);
     }
 
     public boolean equalsWithOutKs(UserType other)
     {
+        // Doesn't consider consider comments or security labels at either the
+        // type or field level as this method is used to check compatibility of
+        // UserTypes in different keyspaces for validation in CopyTableStatement
         return name.equals(other.name)
             && fieldNames.equals(other.fieldNames)
             && types.equals(other.types)
