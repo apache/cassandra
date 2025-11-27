@@ -171,8 +171,8 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             // It could also race with the table stopping/starting being managed by Accord.
             // The caller can retry if the table indeed exists and is managed by Accord.
             Set<TableId> txnDroppedTables = txnDroppedTables(keysOrRanges);
-            Tracing.trace("Accord returned topology mismatch: " + coordinationFailed.getMessage());
-            logger.debug("Accord returned topology mismatch", coordinationFailed);
+            Tracing.trace("Accord returned topology mismatch: " + fail.getMessage());
+            logger.debug("Accord returned topology mismatch", fail);
             bookkeeping.markTopologyMismatch();
             // Throw IRE in case the caller fails to check if the table still exists
             if (!txnDroppedTables.isEmpty())
