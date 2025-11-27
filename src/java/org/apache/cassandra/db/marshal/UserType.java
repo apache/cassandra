@@ -422,7 +422,7 @@ public class UserType extends TupleType implements SchemaElement
 
     public boolean equalsWithOutKs(UserType other)
     {
-        // Doesn't consider consider comments or security labels at either the
+        // Doesn't consider comments or security labels at either the
         // type or field level as this method is used to check compatibility of
         // UserTypes in different keyspaces for validation in CopyTableStatement
         return name.equals(other.name)
