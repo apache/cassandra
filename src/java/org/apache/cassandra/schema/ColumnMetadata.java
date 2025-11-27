@@ -76,6 +76,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public static final int NO_POSITION = -1;
     public static final int NO_UNIQUE_ID = Integer.MIN_VALUE;
+    public static final String EMPTY_COMMENT = "";
+    public static final String EMPTY_SECURITY_LABEL = "";
 
     public enum ClusteringOrder
     {
@@ -117,6 +119,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      */
     private final int position;
     public final int uniqueId;
+
+    public final String comment;
+    public final String securityLabel;
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Object> asymmetricCellPathComparator;
@@ -266,7 +271,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           String comment,
                           String securityLabel)
     {
-        super(ksName, cfName, name, type, comment, securityLabel);
+        super(ksName, cfName, name, type);
         this.uniqueId = uniqueId;
         assert name != null && type != null && kind != null;
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
@@ -286,6 +291,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.mask = mask;
         this.columnConstraints = columnConstraints;
         this.columnConstraints.setColumnName(name);
+        this.comment = comment;
+        this.securityLabel = securityLabel;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
