@@ -38,6 +38,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Catchup;
 import accord.topology.ActiveEpochs;
 import accord.topology.EpochReady;
@@ -131,6 +132,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
+import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -475,67 +477,75 @@ public class AccordService implements IAccordService, Shutdownable
         AccordSpec spec = DatabaseDescriptor.getAccord();
         if (!spec.catchup_on_start)
         {
-            logger.info("Not catching up with peers");
+            logger.info("Catchup disabled; continuing to startup");
             return;
         }
 
         BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
         if (bootstrapState == COMPLETED)
         {
-            long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
-            int attempts = 1;
-            while (true)
+            node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).setMode(CATCH_UP));
+            try
             {
-                logger.info("Catching up with quorum...");
-                long start = nanoTime();
-                long failAt = start + maxLatencyNanos;
-                Future<Void> f = toFuture(Catchup.catchup(node));
-                if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
+                long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
+                int attempts = 1;
+                while (true)
                 {
-                    if (spec.catchup_on_start_exit_on_failure)
+                    logger.info("Catchup with quorum...");
+                    long start = nanoTime();
+                    long failAt = start + maxLatencyNanos;
+                    Future<Void> f = toFuture(Catchup.catchup(node));
+                    if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
                     {
-                        logger.error("Catch up exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
-                        throw new RuntimeException("Could not catch up with peers");
-                    }
-                    logger.error("Catch up exceeded maximum latency of {}ns; starting up", maxLatencyNanos);
-                    break;
-                }
-
-                Throwable failed = f.cause();
-                if (failed != null)
-                {
-                    if (spec.catchup_on_start_exit_on_failure)
-                        throw new RuntimeException("Could not catch up with peers", failed);
-
-                    logger.error("Could not catch up with peers; continuing to startup");
-                    break;
-                }
-
-                long end = nanoTime();
-                double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
-                logger.info("Finished catching up with all quorums. {}s elapsed.", String.format("%.2f", seconds));
-
-                if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
-                    break;
-
-                if (++attempts > spec.catchup_on_start_max_attempts)
-                {
-                    if (spec.catchup_on_start_exit_on_failure)
-                    {
-                        logger.error("Catch up was slow, aborting after {} attempts and shutting down", attempts);
-                        throw new RuntimeException("Could not catch up with peers");
+                        if (spec.catchup_on_start_exit_on_failure)
+                        {
+                            logger.error("Catchup exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
+                            throw new RuntimeException("Could not catchup with peers");
+                        }
+                        logger.error("Catchup exceeded maximum latency of {}ns; continuing to startup", maxLatencyNanos);
+                        break;
                     }
 
-                    logger.info("Catch up was slow; continuing to startup after {} attempts.", attempts - 1);
-                    break;
-                }
+                    Throwable failed = f.cause();
+                    if (failed != null)
+                    {
+                        if (spec.catchup_on_start_exit_on_failure)
+                            throw new RuntimeException("Could not catchup with peers", failed);
 
-                logger.info("Catch up was slow, so we may behind again; retrying");
+                        logger.error("Could not catchup with peers; continuing to startup");
+                        break;
+                    }
+
+                    long end = nanoTime();
+                    double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
+                    logger.info("Finished catchup with all quorums. {}s elapsed.", String.format("%.2f", seconds));
+
+                    if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
+                        break;
+
+                    if (++attempts > spec.catchup_on_start_max_attempts)
+                    {
+                        if (spec.catchup_on_start_exit_on_failure)
+                        {
+                            logger.error("Catchup was slow, aborting after {} attempts and shutting down", attempts);
+                            throw new RuntimeException("Could not catchup with peers");
+                        }
+
+                        logger.info("Catchup was slow; continuing to startup after {} attempts.", attempts - 1);
+                        break;
+                    }
+
+                    logger.info("Catchup was slow, so we may behind again; retrying");
+                }
+            }
+            finally
+            {
+                node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).unsetMode(CATCH_UP));
             }
         }
         else
         {
-            logger.info("Not catching up with quorum, as bootstrap state is {}", bootstrapState);
+            logger.info("No catchup, as bootstrap state is {}", bootstrapState);
         }
     }
 

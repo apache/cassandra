@@ -365,7 +365,43 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             }
         }
     }
-    
+
+    public void readLast(K key, Reader reader)
+    {
+        readLast(key, new RecordConsumerAdapter<>(reader));
+    }
+
+    public void readLast(K key, RecordConsumer<K> reader)
+    {
+        try (TableKeyIterator table = readAllFromTable(key))
+        {
+            boolean hasTableData = table.advance();
+            long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+
+            class JournalReader implements RecordConsumer<K>
+            {
+                boolean read;
+                @Override
+                public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
+                {
+                    if (segment > minSegment)
+                    {
+                        reader.accept(segment, position, key, buffer, userVersion);
+                        read = true;
+                    }
+                }
+            }
+
+            // First, read all journal entries newer than anything flushed into sstables
+            JournalReader journalReader = new JournalReader();
+            journal.readLast(key, journalReader);
+
+            // Then, read SSTables, if we haven't found a record already
+            if (hasTableData && !journalReader.read)
+                reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+        }
+    }
+
     // TODO (expected): why are recordColumn and versionColumn instance fields, so that this cannot be a static class?
     class TableKeyIterator implements Closeable, RecordConsumer<K>
     {

@@ -102,6 +102,17 @@ class Segments<K, V>
         return this.segments.values();
     }
 
+    public int count(Predicate<? super Segment<K, V>> predicate)
+    {
+        int count = 0;
+        for (Segment<K, V> segment : segments.values())
+        {
+            if (predicate.test(segment))
+                ++count;
+        }
+        return count;
+    }
+
     /**
      * Returns segments in timestamp order. Will allocate and sort the segment collection.
      */

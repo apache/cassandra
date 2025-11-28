@@ -96,7 +96,13 @@ public class DebugBlockedTxns
             int c = Integer.compare(this.commandStoreId, that.commandStoreId);
             if (c == 0) c = Integer.compare(this.depth, that.depth);
             if (c == 0) c = this.txnId.compareTo(that.txnId);
+            if (c == 0) c = this.blockedViaKeyString().compareTo(that.blockedViaKeyString());
             return c;
+        }
+
+        private String blockedViaKeyString()
+        {
+            return blockedViaKey == null ? "" : blockedViaKey.toString();
         }
     }
 
