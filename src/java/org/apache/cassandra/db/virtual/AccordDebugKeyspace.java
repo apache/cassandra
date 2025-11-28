@@ -146,6 +146,7 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.LocalizeString;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
@@ -169,6 +170,7 @@ import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.ASC;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.SORTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.UNSORTED;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
+import static org.apache.cassandra.service.accord.AccordService.toFuture;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 // TODO (expected): split into separate classes in own package
@@ -713,7 +715,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         AccordService.getBlocking(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
+                             throw new InternalTimeoutException();
                      });
         }
 
@@ -1601,7 +1605,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "Accord per-CommandStore Transaction State",
                         "CREATE TABLE %s (\n" +
                         "  command_store_id int,\n" +
-                        "  txn_id text,\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
                         "  save_status text,\n" +
                         "  route text,\n" +
                         "  durability text,\n" +
@@ -1792,7 +1796,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 case TRY_EXECUTE:
                     run(txnId, commandStoreId, safeStore -> {
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-                        Commands.maybeExecute(safeStore, safeCommand, safeCommand.current(), true, true, NotifyWaitingOnPlus.adapter(null, true, true));
+                        Commands.maybeExecute(safeStore, safeCommand, safeCommand.current(), true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
                     break;
@@ -2089,7 +2093,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
                         "  save_status text,\n" +
                         "  execute_at text,\n" +
-                        "  PRIMARY KEY (txn_id, command_store_id, depth, blocked_by_key, blocked_by_txn_id)" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
                         ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
         }
 
@@ -2111,7 +2115,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
                         String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
                         String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
-                        rows.add(txn.commandStoreId, txn.depth, keyStr, txnIdStr)
+                        rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
                             .eagerCollect(columns -> {
                                 columns.add("save_status", txn.saveStatus, TO_STRING)
                                        .add("execute_at", txn.executeAt, TO_STRING);
@@ -2160,8 +2164,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  quorum_fast_privileged_deps int,\n" +
                         "  quorum_fast_privileged_nodeps int,\n" +
                         "  token_end 'TokenUtf8Type',\n" +
-                        "  PRIMARY KEY (table_id, token_start, epoch_start)" +
-                        ')', UTF8Type.instance), FAIL, ASC);
+                        "  PRIMARY KEY (table_id, token_start, epoch_start))" +
+                        "  WITH CLUSTERING ORDER BY (token_start ASC, epoch_start DESC);"
+                        , UTF8Type.instance), FAIL, ASC);
         }
 
         @Override

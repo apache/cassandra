@@ -259,8 +259,7 @@ public class AccordCache implements CacheSize
                 {
                     //noinspection LockAcquiredButNotSafelyReleased
                     lock.lock();
-                    node.tryApplyShrink(cur, upd);
-                    queue.addLast(node);
+                    node.tryApplyShrink(cur, upd, queue);
                 }
             }
         }

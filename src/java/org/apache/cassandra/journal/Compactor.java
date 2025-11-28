@@ -18,9 +18,9 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -40,6 +41,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     private final SegmentCompactor<K, V> segmentCompactor;
     private final ScheduledExecutorPlus executor;
     private Future<?> scheduled;
+    public final WaitQueue compacted = WaitQueue.newWaitQueue();
 
     Compactor(Journal<K, V> journal, SegmentCompactor<K, V> segmentCompactor)
     {
@@ -73,10 +75,17 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     @Override
     public void run()
     {
-        Set<StaticSegment<K, V>> toCompact = new HashSet<>();
+        List<StaticSegment<K, V>> toCompact = new ArrayList<>();
         journal.segments().selectStatic(toCompact);
         if (toCompact.isEmpty())
             return;
+
+        int limit = journal.params.compactMaxSegments();
+        if (toCompact.size() > limit)
+        {
+            toCompact.sort(StaticSegment::compareTo);
+            toCompact.subList(limit, toCompact.size()).clear();
+        }
 
         try
         {
@@ -88,6 +97,8 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
             journal.replaceCompactedSegments(toCompact, newSegments);
             for (StaticSegment<K, V> segment : toCompact)
                 segment.discard(journal);
+
+            compacted.signalAll();
         }
         catch (IOException e)
         {

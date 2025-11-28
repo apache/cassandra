@@ -222,6 +222,27 @@ public class Journal<K, V> implements Shutdownable
                               "Unexpected journal state after initialization", state);
         flusher.start();
         compactor.start();
+
+        final int maxSegments = 100;
+        if (segments.get().count(Segment::isStatic) > maxSegments)
+        {
+            while (true)
+            {
+                WaitQueue.Signal signal = compactor.compacted.register();
+                int count = segments.get().count(Segment::isStatic);
+                if (count <= maxSegments)
+                {
+                    signal.cancel();
+                    logger.info("Only {} static segments; continuing with startup", count);
+                    break;
+                }
+                else
+                {
+                    logger.info("Too many ({}) static segments; waiting until some compacted before starting up", count);
+                    signal.awaitThrowUncheckedOnInterrupt();
+                }
+            }
+        }
     }
 
     @VisibleForTesting

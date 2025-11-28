@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.utils.ArrayBuffers.BufferList;
+import accord.utils.IntrusiveLinkedList;
 import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.Invariants;
 import accord.utils.async.Cancellable;
@@ -595,10 +596,14 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         return ((FailedToSave)state).cause;
     }
 
-    void tryApplyShrink(Object cur, Object upd)
+    void tryApplyShrink(Object cur, Object upd, IntrusiveLinkedList<AccordCacheEntry<?,?>> queue)
     {
+        if (references() > 0 || !isUnqueued())
+            return;
+
         if (isLoaded() && unwrap() == cur && upd != cur && upd != null)
             applyShrink(owner.parent(), cur, upd);
+        queue.addLast(this);
     }
 
     private void applyShrink(AccordCache.Type<K, V, ?> parent, Object cur, Object upd)
