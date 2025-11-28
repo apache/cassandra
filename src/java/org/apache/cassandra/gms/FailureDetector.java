@@ -445,6 +445,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             super("Unknown endpoint: " + ep);
         }
+    }
 
     /**
      * Only for testing. In production code, ArrivalWindow instances call getMaxInterval() during
