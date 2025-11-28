@@ -92,7 +92,7 @@ public class MemtableCleanerThread<P extends MemtablePool> implements Interrupti
             final int tasks = numPendingTasks.decrementAndGet();
 
             // if the cleaning job was scheduled (res == true) or had an error, trigger again after decrementing the tasks
-            if ((res || err != null) && pool.needsCleaning())
+            if (((res != null && res) || err != null) && pool.needsCleaning())
                 wait.signal();
 
             if (err != null)

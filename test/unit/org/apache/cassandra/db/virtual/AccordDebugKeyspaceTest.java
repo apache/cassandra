@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -193,6 +194,12 @@ public class AccordDebugKeyspaceTest extends CQLTester
     private static final String QUERY_PATTERN_TRACE =
         String.format("SELECT * FROM %s.%s WHERE id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_PATTERN_TRACE);
 
+    private static final String QUERY_SHARD_EPOCHS =
+        String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.SHARD_EPOCHS);
+
+    private static final String QUERY_LISTENERS_DEPS =
+        String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.LISTENERS_DEPS);
+
     @BeforeClass
     public static void setUpClass()
     {
@@ -213,6 +220,11 @@ public class AccordDebugKeyspaceTest extends CQLTester
         AccordService.localStartup(ClusterMetadata.current().myNodeId());
         AccordService.distributedStartup();
         requireNetwork();
+    }
+
+    @After
+    public void afterTest() throws Throwable
+    {
     }
 
     @Test
@@ -492,7 +504,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
             getBlocking(accord.node().coordinate(id, txn));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                                              row(id.toString(), anyInt(), 0, "", "", any(), "Applied")));
+                                              row(id.toString(), 0, anyInt(), "", "", any(), "Applied")));
             assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
             assertRows(execute(QUERY_TXN_REMOTE, nodeId, id.toString()), row(id.toString(), "Applied"));
             assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
@@ -577,14 +589,14 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(id.toString(), 0, anyInt(), "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, id.toString()),
-                       row(nodeId, id.toString(), anyInt(), 0, "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(nodeId, id.toString(), 0, anyInt(), "", "", any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
-                       row(id.toString(), anyInt(), 0, "", "", any(), SaveStatus.ReadyToExecute.name()));
+                       row(id.toString(), 0, anyInt(), "", "", any(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, id.toString()),
-                       row(nodeId, id.toString(), anyInt(), 0, "", "", any(), SaveStatus.ReadyToExecute.name()));
+                       row(nodeId, id.toString(), 0, anyInt(), "", "", any(), SaveStatus.ReadyToExecute.name()));
         }
         finally
         {
@@ -619,14 +631,14 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), anyInt(), 0, "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(first.toString(), 0, anyInt(), "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, first.toString()),
-                       row(nodeId, first.toString(), anyInt(), 0, "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
+                       row(nodeId, first.toString(), 0, anyInt(), "", any(), any(), anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
             filter.apply.awaitThrowUncheckedOnInterrupt();
             assertRows(execute(QUERY_TXN_BLOCKED_BY, first.toString()),
-                       row(first.toString(), anyInt(), 0, "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+                       row(first.toString(), 0, anyInt(), "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, first.toString()),
-                       row(nodeId, first.toString(), anyInt(), 0, "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+                       row(nodeId, first.toString(), 0, anyInt(), "", any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
 
             filter.reset();
 
@@ -643,15 +655,15 @@ public class AccordDebugKeyspaceTest extends CQLTester
                                               return rs.size() == 2;
                                           });
             assertRows(execute(QUERY_TXN_BLOCKED_BY, second.toString()),
-                       row(second.toString(), anyInt(), 0, "", "", anyNonNull(), SaveStatus.Stable.name()),
-                       row(second.toString(), anyInt(), 1, any(), first.toString(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+                       row(second.toString(), 0, anyInt(), "", "", anyNonNull(), SaveStatus.Stable.name()),
+                       row(second.toString(), 1, anyInt(), first.toString(), any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY + " AND depth < 1", second.toString()),
-                       row(second.toString(), anyInt(), 0, any(), "", anyNonNull(), SaveStatus.Stable.name()));
+                       row(second.toString(), 0, anyInt(), "", any(), anyNonNull(), SaveStatus.Stable.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE, nodeId, second.toString()),
-                       row(nodeId, second.toString(), anyInt(), 0, "", "", anyNonNull(), SaveStatus.Stable.name()),
-                       row(nodeId, second.toString(), anyInt(), 1, any(), first.toString(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+                       row(nodeId, second.toString(), 0, anyInt(), "", "", anyNonNull(), SaveStatus.Stable.name()),
+                       row(nodeId, second.toString(), 1, anyInt(), first.toString(), any(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
             assertRows(execute(QUERY_TXN_BLOCKED_BY_REMOTE + " AND depth < 1", nodeId, second.toString()),
-                       row(nodeId, second.toString(), anyInt(), 0, any(), "", anyNonNull(), SaveStatus.Stable.name()));
+                       row(nodeId, second.toString(), 0, anyInt(), "", any(), anyNonNull(), SaveStatus.Stable.name()));
         }
         finally
         {
@@ -725,6 +737,15 @@ public class AccordDebugKeyspaceTest extends CQLTester
             filter.reset();
             MessagingService.instance().outboundSink.remove(filter);
         }
+    }
+
+    @Test
+    public void testShardEpochsTable()
+    {
+        String table1 = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+        String table2 = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+        UntypedResultSet rs = execute(QUERY_SHARD_EPOCHS);
+        Assert.assertTrue(rs.size() > 1);
     }
 
     private static AccordService accord()

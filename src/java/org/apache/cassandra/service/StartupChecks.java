@@ -725,6 +725,12 @@ public class StartupChecks
             for (TableMetadata cfm : Schema.instance.getTablesAndViews(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 ColumnFamilyStore.scrubDataDirectories(cfm);
 
+            if (DatabaseDescriptor.getAccordTransactionsEnabled())
+            {
+                for (TableMetadata cfm : Schema.instance.getTablesAndViews(SchemaConstants.ACCORD_KEYSPACE_NAME))
+                    ColumnFamilyStore.scrubDataDirectories(cfm);
+            }
+
             try
             {
                 SystemKeyspace.checkHealth();

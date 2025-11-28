@@ -32,6 +32,11 @@ public interface Params
     int segmentSize();
 
     /**
+     * @return maximum number of static segments to compact at once to sstable
+     */
+    int compactMaxSegments();
+
+    /**
      * @return this journal's {@link FailurePolicy}
      */
     FailurePolicy failurePolicy();

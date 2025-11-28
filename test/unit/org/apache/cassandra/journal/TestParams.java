@@ -32,6 +32,12 @@ public class TestParams implements Params
     }
 
     @Override
+    public int compactMaxSegments()
+    {
+        return 16;
+    }
+
+    @Override
     public FailurePolicy failurePolicy()
     {
         return FailurePolicy.STOP;
