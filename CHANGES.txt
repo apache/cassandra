@@ -1,4 +1,5 @@
 5.1
+ * DiskUsageBroadcaster does not update usageInfo on node replacement (CASSANDRA-21033)
  * Reject PrepareJoin if tokens are already assigned (CASSANDRA-21006)
  * Don't update registration status if node state for decommissioned peer is found with the same address (CASSANDRA-21005)
  * Avoid NPE when meta keyspace placements are empty before CMS is initialized (CASSANDRA-21004)
@@ -254,6 +255,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Correctly calculate default for FailureDetector max interval (CASSANDRA-21025)
  * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)
  * Fix range queries on early-open BTI files (CASSANDRA-20976)
