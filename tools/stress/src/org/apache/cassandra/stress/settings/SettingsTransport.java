@@ -89,7 +89,7 @@ public class SettingsTransport implements Serializable
         final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", null, "SSL: algorithm", false);
         final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*",
-                                                      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                                                      "",
                                                       "SSL: comma delimited list of encryption suites to use", false);
 
         @Override
