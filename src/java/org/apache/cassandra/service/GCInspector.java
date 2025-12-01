@@ -57,28 +57,34 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     /*
      * The field from java.nio.Bits that tracks the total number of allocated
-     * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
+     * bytes of direct memory requested via ByteBuffer.allocateDirect that have not been GCed.
      */
     final static Field BITS_TOTAL_CAPACITY_JAVA_8;
     final static Field BITS_TOTAL_CAPACITY_JAVA_11;
 
     static
     {
-        Field totalTempFieldJava8 = null;
-        Field totalTempFieldJava11 = null;
+        Class<?> bitsClass = null;
+
         try
         {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            totalTempFieldJava8 = getField(bitsClass, "totalCapacity");
-            totalTempFieldJava11 = getField(bitsClass, "TOTAL_CAPACITY");
+            bitsClass = Class.forName("java.nio.Bits");
         }
         catch (Throwable t)
         {
-            logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
+            logger.debug("Error returning class of java.nio.Bits", t);
         }
-        BITS_TOTAL_CAPACITY_JAVA_8 = totalTempFieldJava8;
-        BITS_TOTAL_CAPACITY_JAVA_11 = totalTempFieldJava11;
+
+        if (bitsClass != null)
+        {
+            BITS_TOTAL_CAPACITY_JAVA_8 = getField(bitsClass, "totalCapacity");
+            BITS_TOTAL_CAPACITY_JAVA_11 = getField(bitsClass, "TOTAL_CAPACITY");
+        }
+        else
+        {
+            BITS_TOTAL_CAPACITY_JAVA_8 = null;
+            BITS_TOTAL_CAPACITY_JAVA_11 = null;
+        }
     }
 
     static final class State
@@ -344,7 +350,11 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     }
 
     /**
-     * This method works well with JDK 8/11
+     * Retrieves the value of a Field, handling both regular long fields and AtomicLong fields.
+     *
+     * @param field the Field to retrieve the value from
+     * @param isAtomicLong true if the field is an AtomicLong, false if it's a regular long
+     * @return the field value, or -1 if retrieval fails or field is null.
      */
     private static long getFieldValue(Field field, boolean isAtomicLong)
     {
