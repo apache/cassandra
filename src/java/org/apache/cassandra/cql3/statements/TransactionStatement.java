@@ -97,7 +97,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static accord.primitives.Txn.Kind.Read;
@@ -621,12 +620,13 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 @Override public QueryOptions options() { return options; }
             };
             ResultSetBuilder result = new ResultSetBuilder(resultMetadata, context, selectors, false);
+            long atSeconds = atMicros / 1000_000;
             if (selectQuery.queries.size() == 1)
             {
                 TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING));
                 boolean reversed = selectQuery.queries.get(0).isReversed();
                 if (partition != null)
-                    returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
+                    returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, atSeconds);
             }
             else
             {
@@ -635,7 +635,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     TxnDataKeyValue partition = (TxnDataKeyValue)data.get(txnDataName(RETURNING, i));
                     boolean reversed = selectQuery.queries.get(i).isReversed();
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, atMicros / 1000_000);
+                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, atSeconds);
                 }
             }
             return new ResultMessage.Rows(result.build());

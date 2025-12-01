@@ -123,6 +123,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final boolean isIncremental;
     public final boolean allReplicas;
     public final PreviewKind previewKind;
+    // TODO (expected): introduce forceRepairData and ignore repairData for Accord tables
     public final boolean repairData;
     public final boolean repairPaxos;
     public final boolean repairAccord;

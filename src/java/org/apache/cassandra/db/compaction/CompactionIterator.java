@@ -194,7 +194,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static IAccordService accord(AbstractCompactionController controller)
     {
         IAccordService accord = AccordService.tryGetUnsafe();
-        Invariants.require(accord != null || (!isAccordJournal(controller.cfs) && !isAccordCommandsForKey(controller.cfs)));
+        Invariants.require(accord != null || !isAccordSystemTable(controller.cfs.metadata()));
         return accord;
     }
 
@@ -255,19 +255,28 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private Transformation<UnfilteredRowIterator> purger(ColumnFamilyStore cfs, Supplier<AccordCompactionInfos> compactionInfos, Supplier<Version> version)
     {
-        if (isPaxos(cfs) && paxosStatePurging() != legacy)
+        TableMetadata metadata = cfs.metadata.get();
+
+        if (isPaxos(metadata) && paxosStatePurging() != legacy)
             return new PaxosPurger();
 
         // Topologies uses regular deletion so it can use a regular Purger
-        if (!requiresAccordSpecificPurger(cfs))
-            return new Purger(controller, nowInSec);
+        if (isAccordSystemTable(metadata))
+        {
+            if (isAccordJournal(metadata))
+                return new AccordJournalPurger(compactionInfos.get(), version.get(), cfs);
+            if (isAccordCommandsForKey(metadata))
+                return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, compactionInfos);
 
-        if (isAccordJournal(cfs))
-            return new AccordJournalPurger(compactionInfos.get(), version.get(), cfs);
-        if (isAccordCommandsForKey(cfs))
-            return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, compactionInfos);
+            // at time of writing there are no other accord system tables,
+            // but unless otherwise stated additional tables should be treated as normal
+        }
 
-        throw new IllegalArgumentException("Unhandled accord table: " + cfs.keyspace.getName() + '.' + cfs.name);
+        long nowInSec = this.nowInSec;
+        if (metadata.isAccordEnabled() || metadata.migratingFromAccord())
+            nowInSec = controller.gcBefore;
+
+        return new Purger(controller, nowInSec);
     }
 
     public TableMetadata metadata()
@@ -900,7 +909,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 switch (key.type)
                 {
                     case COMMAND_DIFF:
-                        compactor = new AccordCommandRowCompactor(infos, userVersion, nowInSec);
+                        compactor = new AccordCommandRowCompactor(infos, userVersion);
                         break;
                     case TOPOLOGY_UPDATE:
                         compactor = new TopologyCompactor(userVersion, infos.minEpoch);
@@ -1105,20 +1114,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final AccordCompactionInfos infos;
         final Version userVersion;
         final ColumnData userVersionCell;
-        final long nowInSec;
 
         final CommandChanges mainBuilder = new CommandChanges();
         final List<AccordCommandRowEntry> entries = new ArrayList<>();
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;
 
-        AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion, long nowInSec)
+        AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion)
         {
             super((CommandChangeSerializer) JournalKey.Type.COMMAND_DIFF.serializer);
             this.infos = infos;
             this.userVersion = userVersion;
             this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));
-            this.nowInSec = nowInSec;
         }
 
         @Override
@@ -1251,30 +1258,23 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    private static boolean isPaxos(ColumnFamilyStore cfs)
+    private static boolean isPaxos(TableMetadata metadata)
     {
-        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        return metadata.name.equals(SystemKeyspace.PAXOS) && metadata.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
-    private static boolean requiresAccordSpecificPurger(ColumnFamilyStore cfs)
+    private static boolean isAccordSystemTable(TableMetadata metadata)
     {
-        return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) &&
-               (cfs.getTableName().contains(AccordKeyspace.JOURNAL) ||
-                AccordKeyspace.COMMANDS_FOR_KEY.equals(cfs.getTableName()));
+        return metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordTable(ColumnFamilyStore cfs, String name)
+    private static boolean isAccordJournal(TableMetadata metadata)
     {
-        return cfs.name.equals(name) && cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+        return metadata.name.startsWith(AccordKeyspace.JOURNAL) && metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordJournal(ColumnFamilyStore cfs)
+    private static boolean isAccordCommandsForKey(TableMetadata metadata)
     {
-        return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) && cfs.name.startsWith(AccordKeyspace.JOURNAL);
-    }
-
-    private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)
-    {
-        return isAccordTable(cfs, AccordKeyspace.COMMANDS_FOR_KEY);
+        return metadata.name.equals(AccordKeyspace.COMMANDS_FOR_KEY) && metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 }

@@ -99,13 +99,6 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
     }
 
-    public static long getDefaultGcBefore(ColumnFamilyStore cfs, long nowInSec)
-    {
-        // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
-        // add any GcGrace however since 2ndary indexes are local to a node.
-        return cfs.isIndex() ? nowInSec : cfs.gcBefore(nowInSec);
-    }
-
     private static class ValidationCompactionIterator extends CompactionIterator
     {
         public ValidationCompactionIterator(List<ISSTableScanner> scanners, ValidationCompactionController controller, long nowInSec, ActiveCompactionsTracker activeCompactions, TopPartitionTracker.Collector topPartitionCollector)
@@ -219,7 +212,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
                     cfs.getKeyspaceName(),
                     cfs.getTableName());
 
-        long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : getDefaultGcBefore(cfs, nowInSec);
+        long gcBefore = dontPurgeTombstones ? Long.MIN_VALUE : cfs.getDefaultGcBefore(nowInSec);
         controller = new ValidationCompactionController(cfs, gcBefore);
         scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, CompactionManager.instance.active, topPartitionCollector);
