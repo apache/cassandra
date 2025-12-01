@@ -58,12 +58,14 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * A read command that selects a (part of a) range of partitions.
  */
 public class PartitionRangeReadCommand extends ReadCommand implements PartitionRangeReadQuery
 {
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
     protected final Slices requestedSlices;
@@ -433,6 +435,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             }
 
             final int finalSelectedSSTables = selectedSSTablesCnt;
+
+            if (finalSelectedSSTables > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
+            {
+                noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), finalSelectedSSTables);
+            }
 
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())

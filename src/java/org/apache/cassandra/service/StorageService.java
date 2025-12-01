@@ -4709,6 +4709,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setInvalidateKeycacheOnSSTableDeletion(invalidate);
     }
 
+    public int getSSTablesPerReadLogThreshold()
+    {
+        return DatabaseDescriptor.getSSTablesPerReadLogThreshold();
+    }
+
+    public void setSSTablesPerReadLogThreshold(int threshold)
+    {
+        DatabaseDescriptor.setSSTablesPerReadLogThreshold(threshold);
+        logger.info("updated sstables_per_read_log_threshold to {}", threshold);
+    }
+
     public int getTombstoneWarnThreshold()
     {
         return DatabaseDescriptor.getTombstoneWarnThreshold();

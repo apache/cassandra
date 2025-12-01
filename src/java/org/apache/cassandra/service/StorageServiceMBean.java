@@ -1027,6 +1027,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Returns the cluster partitioner */
     public String getPartitionerName();
 
+    /** Returns the threshold for logging queries that read more than threshold amount of SSTables */
+    public int getSSTablesPerReadLogThreshold();
+    /** Sets the threshold for logging queries that read more than threshold amount of SSTables */
+    public void setSSTablesPerReadLogThreshold(int threshold);
+
     /** Returns the threshold for warning of queries with many tombstones */
     public int getTombstoneWarnThreshold();
     /** Sets the threshold for warning queries with many tombstones */

@@ -3215,6 +3215,16 @@ public class DatabaseDescriptor
         return conf.max_mutation_size.toBytes();
     }
 
+    public static int getSSTablesPerReadLogThreshold()
+    {
+        return conf.sstables_per_read_log_threshold;
+    }
+
+    public static void setSSTablesPerReadLogThreshold(int threshold)
+    {
+        conf.sstables_per_read_log_threshold = threshold;
+    }
+
     public static int getTombstoneWarnThreshold()
     {
         return conf.tombstone_warn_threshold;
