@@ -577,6 +577,42 @@ public class GrantAndRevokeTest extends CQLTester
         executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
+    @Test
+    public void testCheckPermissionsAfterAuthorize() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet("CREATE KEYSPACE check_permissions WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE check_permissions.t1 (k int PRIMARY KEY)");
+        executeNet("INSERT INTO check_permissions.t1 (k) VALUES (1)");
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+
+        final String idm_user = "idm_user";
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", idm_user, idm_user));
+        executeNet("GRANT AUTHORIZE ON check_permissions.t1 TO " + idm_user);
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "SELECT * FROM check_permissions.t1");
+
+        useUser(idm_user, idm_user);
+        assertUnauthorizedQuery("User idm_user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "SELECT * FROM check_permissions.t1");
+        assertUnauthorizedQuery("User idm_user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "GRANT SELECT ON check_permissions.t1 TO " + user);
+
+        useSuperUser();
+        executeNet("GRANT SELECT ON check_permissions.t1 TO " + idm_user);
+
+        useUser(idm_user, idm_user);
+        executeNet("SELECT * FROM check_permissions.t1");
+        executeNet("GRANT SELECT ON check_permissions.t1 TO " + user);
+
+        useUser(user, pass);
+        executeNet("SELECT * FROM check_permissions.t1");
+    }
+
     private void maybeReadSystemTables(boolean superuser) throws Throwable
     {
         if (superuser)
