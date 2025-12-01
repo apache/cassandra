@@ -88,6 +88,7 @@ public class SettingsTransport implements Serializable
                                                                 TRANSPORT_KEYSTORE_PASSWORD_PROPERTY_KEY), false);
         final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", null, "SSL: algorithm", false);
+        // Default is to auto-negotiate
         final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*",
                                                       "",
                                                       "SSL: comma delimited list of encryption suites to use", false);
