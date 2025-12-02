@@ -1208,14 +1208,11 @@ public class ASTGenerators
         TableMetadata metadata = model.factory.metadata;
         MutationGenBuilder builder = new MutationGenBuilder(metadata)
                                      .withTxnSafe()
+                                     .withPartitions(uniquePartitions.size() == 1
+                                                     ? SourceDSL.arbitrary().constant(uniquePartitions.get(0))
+                                                     : Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                      .withColumnExpressions(e -> e.withOperators(Generators.fromGen(boolDistribution.next(rs))))
                                      .withIgnoreIssues(ignoredIssues);
-        if (!uniquePartitions.isEmpty())
-        {
-            builder.withPartitions(uniquePartitions.size() == 1
-                                   ? SourceDSL.arbitrary().constant(uniquePartitions.get(0))
-                                   : Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
-        }
         if (ignoredIssues.contains(KnownIssue.SAI_EMPTY_TYPE))
         {
             model.factory.regularAndStaticColumns.stream()
