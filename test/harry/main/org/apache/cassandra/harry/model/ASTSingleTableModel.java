@@ -322,20 +322,20 @@ public class ASTSingleTableModel
 
     public void update(Mutation mutation)
     {
-        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (!shouldApply(mutation)) return;
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         updateInternal(mutation);
     }
 
     public void updateAndValidate(ByteBuffer[][] actual, Mutation mutation)
     {
-        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (!shouldApply(mutation))
         {
             if (mutation.isCas() && validateCass.validate())
                 validateCasNotApplied(actual, mutation);
             return;
         }
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (mutation.isCas() && validateCass.validate())
             validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
         updateInternal(mutation);

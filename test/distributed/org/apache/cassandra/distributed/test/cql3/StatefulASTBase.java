@@ -618,7 +618,7 @@ public class StatefulASTBase extends TestBaseImpl
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
             @Nullable
-            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(mutation);
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = !model.shouldApply(mutation) ? null : model.shouldReject(mutation);
             if (shouldRaiseThrowable != null)
                 postfix += ", should reject";
             if (mutation.isCas())
