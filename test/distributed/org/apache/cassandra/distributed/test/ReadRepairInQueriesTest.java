@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.junit.Before;
 import org.junit.Test;
-
-import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
@@ -30,12 +27,6 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  */
 public class ReadRepairInQueriesTest extends ReadRepairQueryTester
 {
-
-    @Before
-    public void setup()
-    {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Fix read repair for logged IN queries");
-    }
 
     /**
      * Test queries with an IN restriction on a table without clustering columns.
@@ -61,7 +52,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, null, 100), row(3, 30, 300)))
         .tearDown(1,
                   rows(row(1, null, 100), row(2, 20, 200)),
-                  rows(row(1, null, 100)));
+                  rows(row(1, null, 100)), true);
     }
 
     /**
@@ -88,7 +79,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, 10, null, 1000), row(3, 30, 300, 3000)))
         .tearDown(1,
                   rows(row(1, 10, null, 1000), row(2, 20, 200, 2000)),
-                  rows(row(1, 10, null, 1000)));
+                  rows(row(1, 10, null, 1000)), true);
     }
 
     /**
@@ -115,7 +106,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, null, 100)))
         .tearDown(1,
                   rows(row(2, 20, 200), row(3, 30, 300)),
-                  rows(row(3, 30, 300)));
+                  rows(row(3, 30, 300)), true);
     }
 
     /**
@@ -142,7 +133,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, 10, null, 1000)))
         .tearDown(1,
                   rows(row(2, 20, 200, 2000), row(3, 30, 300, 3000)),
-                  rows(row(3, 30, 300, 3000)));
+                  rows(row(3, 30, 300, 3000)), true);
     }
 
     /**
@@ -170,7 +161,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, 10, null), row(3, 10, 300)))
         .tearDown(2,
                   rows(row(2, 10, 200), row(4, 40, 400), row(3, 10, 300)),
-                  rows(row(3, 10, 300)));
+                  rows(row(3, 10, 300)), true);
     }
 
     /**
@@ -198,7 +189,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, 10, 100, null), row(3, 30, 100, 3000)))
         .tearDown(2,
                   rows(row(2, 20, 100, 2000), row(4, 40, 400, 4000), row(3, 30, 100, 3000)),
-                  rows(row(3, 30, 100, 3000)));
+                  rows(row(3, 30, 100, 3000)), true);
     }
 
     /**
@@ -225,7 +216,7 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, null, 100), row(3, 30, 100)))
         .tearDown(1,
                   rows(row(2, 20, 100), row(3, 30, 100)),
-                  rows(row(3, 30, 100)));
+                  rows(row(3, 30, 100)), true);
     }
 
     /**
@@ -252,6 +243,6 @@ public class ReadRepairInQueriesTest extends ReadRepairQueryTester
                     rows(row(1, 10, null, 1000)))
         .tearDown(2,
                   rows(row(2, 20, 200, 2000), row(3, 30, 300, 3000)),
-                  rows());
+                  replicationType.isTracked() ? rows(row(3, 30, 300, 3000)) : rows(), true);
     }
 }
