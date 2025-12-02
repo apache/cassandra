@@ -489,7 +489,7 @@ public class StatefulASTBase extends TestBaseImpl
             return command(rs, select, null);
         }
 
-        protected boolean allowListElementAccess()
+        protected boolean allowListElementAccessForUpdateSet()
         {
             // this requires a read at the same CL, but the model is global level and not per-node level, so can't handle
             return mutationCl() != ConsistencyLevel.NODE_LOCAL;

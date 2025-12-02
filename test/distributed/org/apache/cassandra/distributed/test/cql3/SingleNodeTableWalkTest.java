@@ -449,7 +449,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
 
-            if (!allowListElementAccess())
+            if (!allowListElementAccessForUpdateSet())
                 mutationGenBuilder.disallowListElementAccessForUpdateSet();
 
             // Run the test with and without bound partitions
