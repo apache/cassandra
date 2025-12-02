@@ -1903,6 +1903,8 @@ public class ASTSingleTableModel
 
     private static EvalResult eval(ReferenceExpression col, @Nullable ByteBuffer current, Expression e)
     {
+        if (col instanceof Reference)
+            throw new IllegalArgumentException("References are not supported yet; foo.bar.baz style eval is not yet handled; given " + col.toCQL());
         if (col instanceof CollectionAccess)
         {
             CollectionAccess access = (CollectionAccess) col;
