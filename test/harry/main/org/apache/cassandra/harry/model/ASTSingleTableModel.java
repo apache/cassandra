@@ -79,10 +79,12 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.apache.cassandra.utils.Pair;
@@ -776,9 +778,10 @@ public class ASTSingleTableModel
         if (mutation.kind == Mutation.Kind.UPDATE)
         {
             Consumer<Throwable> notFound = t ->
-                    Assertions.assertThat(t)
-                            .isInstanceOf(com.datastax.driver.core.exceptions.InvalidQueryException.class)
-                            .hasMessage("Attempted to set an element on a list which is null");
+                                           Assertions.assertThat(t)
+                                                     .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                       InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                     .hasMessage("Attempted to set an element on a list which is null");
             Mutation.Update update = mutation.asUpdate();
             for (var e : update.set.entrySet())
             {
@@ -831,8 +834,9 @@ public class ASTSingleTableModel
                             {
                                 if (checks == null) checks = new HashSet<>();
                                 checks.add(t -> Assertions.assertThat(t)
-                                        .isInstanceOf(com.datastax.driver.core.exceptions.InvalidQueryException.class)
-                                        .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
+                                                          .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                            InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                          .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
                             }
                         }
                     }
