@@ -630,9 +630,10 @@ public class StatefulASTBase extends TestBaseImpl
             else if (mutation.isCas())
             {
                 postfix += ", would apply " + model.shouldApply(mutation);
+            }
+            if (mutation.isCas())
                 // CAS doesn't allow timestamps
                 mutation = mutation.withoutTimestamp();
-            }
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
             Mutation finalMutation = mutation;
