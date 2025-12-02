@@ -780,26 +780,26 @@ public class ASTSingleTableModel
         else if (!txn.mutations.isEmpty()) mutations = txn.mutations;
 
         if (mutations == null) return null;
-        Set<Consumer<Throwable>> expectedFailures = new HashSet<>();
+        Set<Consumer<Throwable>> checks = new HashSet<>();
         for (var m : mutations)
         {
             var failures = shouldReject0(m);
             if (failures != null)
-                expectedFailures.addAll(failures);
+                checks.addAll(failures);
         }
-        return expectedFailures.isEmpty() ? null
-                                          : t -> Assertions.assertThatThrownBy(t)
-                                                           .satisfiesAnyOf(expectedFailures.toArray(Consumer[]::new));
+        return toShouldRejectConsumer(checks);
     }
 
     public Consumer<ThrowableAssert.ThrowingCallable> shouldReject(Mutation mutation)
     {
-        var checks = shouldReject0(mutation);
-        if (checks != null) {
-            return t -> Assertions.assertThatThrownBy(t)
-                    .satisfiesAnyOf(checks.toArray(Consumer[]::new));
-        }
-        return null;
+        return toShouldRejectConsumer(shouldReject0(mutation));
+    }
+
+    private static Consumer<ThrowableAssert.ThrowingCallable> toShouldRejectConsumer(@Nullable Set<Consumer<Throwable>> checks)
+    {
+        return checks == null || checks.isEmpty() ? null
+                                                  : t -> Assertions.assertThatThrownBy(t)
+                                                                   .satisfiesAnyOf(checks.toArray(Consumer[]::new));
     }
 
     private Set<Consumer<Throwable>> shouldReject0(Mutation mutation)
