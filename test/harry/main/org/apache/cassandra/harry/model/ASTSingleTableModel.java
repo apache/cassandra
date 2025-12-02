@@ -1929,7 +1929,6 @@ public class ASTSingleTableModel
         var assignment = (AssignmentOperator) e;
         if (isFancy && current == null)
         {
-//            if (assignment.kind == )
             return assignment.kind == AssignmentOperator.Kind.SUBTRACT
                    // if it doesn't exist, then there is nothing to subtract
                    ? EvalResult.SKIP
