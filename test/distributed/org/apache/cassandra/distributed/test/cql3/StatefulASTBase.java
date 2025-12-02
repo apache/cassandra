@@ -382,7 +382,7 @@ public class StatefulASTBase extends TestBaseImpl
         return state.command(rs, select, "min token range");
     }
 
-    public static abstract class BaseState implements AutoCloseable
+    protected static abstract class BaseState implements AutoCloseable
     {
         protected final RandomSource rs;
         protected final Cluster cluster;
@@ -443,7 +443,6 @@ public class StatefulASTBase extends TestBaseImpl
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
-
             createTable(metadata);
 
             String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
