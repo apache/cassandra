@@ -628,24 +628,19 @@ public class StatefulASTBase extends TestBaseImpl
             if (shouldRaiseThrowable != null)
                 postfix += ", should reject";
             else if (mutation.isCas())
-            {
                 postfix += ", would apply " + model.shouldApply(mutation);
-            }
-            if (mutation.isCas())
-                // CAS doesn't allow timestamps
-                mutation = mutation.withoutTimestamp();
+
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
-            Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
                 if (shouldRaiseThrowable != null)
                 {
-                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation));
+                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation));
                     s.mutation();
                     return;
                 }
-                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
-                s.model.updateAndValidate(result, finalMutation);
+                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation);
+                s.model.updateAndValidate(result, mutation);
                 s.mutation();
             });
         }
