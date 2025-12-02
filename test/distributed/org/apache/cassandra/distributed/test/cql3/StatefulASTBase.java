@@ -489,6 +489,12 @@ public class StatefulASTBase extends TestBaseImpl
             return command(rs, select, null);
         }
 
+        protected boolean allowListElementAccess()
+        {
+            // this requires a read at the same CL, but the model is global level and not per-node level, so can't handle
+            return mutationCl() != ConsistencyLevel.NODE_LOCAL;
+        }
+
         protected boolean allowRepair()
         {
             return false;
@@ -618,10 +624,10 @@ public class StatefulASTBase extends TestBaseImpl
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
             @Nullable
-            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = !model.shouldApply(mutation) ? null : model.shouldReject(mutation);
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(mutation);
             if (shouldRaiseThrowable != null)
                 postfix += ", should reject";
-            if (mutation.isCas())
+            else if (mutation.isCas())
             {
                 postfix += ", would apply " + model.shouldApply(mutation);
                 // CAS doesn't allow timestamps
@@ -652,7 +658,11 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
-            if (model.isConditional(txn))
+            @Nullable
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(txn);
+            if (shouldRaiseThrowable != null)
+                postfix += ", should reject";
+            else if (model.isConditional(txn))
                 postfix += ", would apply " + model.shouldApply(txn);
             if (annotate == null) annotate = postfix;
             else annotate += ", " + postfix;
@@ -660,7 +670,14 @@ public class StatefulASTBase extends TestBaseImpl
             return new Property.SimpleCommand<>(humanReadable(txn, annotate), s -> {
                 boolean hasMutation = txn.ifBlock.isPresent() || !txn.mutations.isEmpty();
                 ConsistencyLevel cl = hasMutation ? s.mutationCl() : s.selectCl();
-                s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
+                if (shouldRaiseThrowable != null)
+                {
+                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, cl, txn));
+                }
+                else
+                {
+                    s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
+                }
                 if (hasMutation)
                     s.mutation();
             });

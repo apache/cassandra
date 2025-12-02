@@ -56,7 +56,6 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -388,8 +387,8 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                                                   .withTxnSafe()
                                                                   .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
-            if (mutationCl() == ConsistencyLevel.NODE_LOCAL)
-                mutationGenBuilder.disallowListElementAccess(); // this requires a read at the same CL, but the model is global level and not per-node level, so can't handle
+            if (!allowListElementAccess())
+                mutationGenBuilder.disallowListElementAccess();
             this.mutationGen = toGen(mutationGenBuilder.build());
         }
 

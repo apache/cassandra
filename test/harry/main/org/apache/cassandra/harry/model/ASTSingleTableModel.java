@@ -772,8 +772,39 @@ public class ASTSingleTableModel
         return process(Who.cas, updatedCondition, lets);
     }
 
+    public Consumer<ThrowableAssert.ThrowingCallable> shouldReject(Txn txn)
+    {
+        if (!shouldApply(txn)) return null;
+        List<Mutation> mutations = null;
+        if (txn.ifBlock.isPresent()) mutations = txn.ifBlock.get().mutations;
+        else if (!txn.mutations.isEmpty()) mutations = txn.mutations;
+
+        if (mutations == null) return null;
+        Set<Consumer<Throwable>> expectedFailures = new HashSet<>();
+        for (var m : mutations)
+        {
+            var failures = shouldReject0(m);
+            if (failures != null)
+                expectedFailures.addAll(failures);
+        }
+        return expectedFailures.isEmpty() ? null
+                                          : t -> Assertions.assertThatThrownBy(t)
+                                                           .satisfiesAnyOf(expectedFailures.toArray(Consumer[]::new));
+    }
+
     public Consumer<ThrowableAssert.ThrowingCallable> shouldReject(Mutation mutation)
     {
+        var checks = shouldReject0(mutation);
+        if (checks != null) {
+            return t -> Assertions.assertThatThrownBy(t)
+                    .satisfiesAnyOf(checks.toArray(Consumer[]::new));
+        }
+        return null;
+    }
+
+    private Set<Consumer<Throwable>> shouldReject0(Mutation mutation)
+    {
+        if (!shouldApply(mutation)) return null;
         Set<Consumer<Throwable>> checks = null;
         if (mutation.kind == Mutation.Kind.UPDATE)
         {
@@ -843,12 +874,7 @@ public class ASTSingleTableModel
                 }
             }
         }
-        if (checks != null) {
-            Set<Consumer<Throwable>> finalChecks = checks;
-            return t -> Assertions.assertThatThrownBy(t)
-                    .satisfiesAnyOf(finalChecks.toArray(Consumer[]::new));
-        }
-        return null;
+        return checks;
     }
 
     public BytesPartitionState.Ref referencePartition(Mutation mutation)
