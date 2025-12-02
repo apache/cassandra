@@ -416,6 +416,8 @@ public class ASTGenerators
         private boolean allowUpdateMultiplePartitionKeys = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
         private EnumSet<KnownIssue> ignoreIssues = IGNORED_ISSUES;
+        private EnumSet<CollectionType.Kind> allowedCollectionElementAccess = EnumSet.allOf(CollectionType.Kind.class);
+        private Gen<Boolean> collectionElementAccess = SourceDSL.booleans().all();
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -432,6 +434,12 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder disallowListElementAccess()
+        {
+            allowedCollectionElementAccess.remove(CollectionType.Kind.LIST);
+            return this;
         }
 
         public MutationGenBuilder withIgnoreIssues(EnumSet<KnownIssue> ignoreIssues)
@@ -988,18 +996,24 @@ public class ASTGenerators
             {
                 for (Symbol c : new ArrayList<>(columnsToGenerate))
                 {
-                    if (c.type().isMultiCell() && c.type().isCollection())
+                    if (c.type().isMultiCell()
+                        && c.type().isCollection()
+                        && !allowedCollectionElementAccess.isEmpty())
                     {
                         CollectionType<?> ct = (CollectionType<?>) c.type();
-                        switch (ct.kind)
+                        if (allowedCollectionElementAccess.contains(ct.kind)
+                            && collectionElementAccess.generate(rnd))
                         {
+                            switch (ct.kind)
+                            {
 //                            case SET:
-                            case LIST:
-                                int offset = (int) rnd.next(Constraint.between(0, 10));
-                                CollectionAccess ref = new CollectionAccess(c, Literal.of(offset), ct.valueComparator());
-                                builder.value(ref, AbstractTypeGenerators.getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
-                                columnsToGenerate.remove(c);
-                                continue;
+                                case LIST:
+                                    int offset = (int) rnd.next(Constraint.between(0, 10));
+                                    CollectionAccess ref = new CollectionAccess(c, Literal.of(offset), ct.valueComparator());
+                                    builder.value(ref, AbstractTypeGenerators.getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
+                                    columnsToGenerate.remove(c);
+                                    continue;
+                            }
                         }
                     }
                     var useOperator = columnExpressions.get(c).useOperator;
