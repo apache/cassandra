@@ -38,7 +38,6 @@ import org.slf4j.Logger;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
-import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import com.datastax.driver.core.Session;
@@ -82,7 +81,6 @@ import org.apache.cassandra.repair.RepairGenerators;
 import org.apache.cassandra.repair.RepairGenerators.PreviewType;
 import org.apache.cassandra.repair.RepairGenerators.RepairType;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -414,10 +412,6 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected BaseState(RandomSource rs, Cluster cluster, TableMetadata metadata)
         {
-            if (allowTxn(metadata) && allowUsingTimestamp())
-                throw new AssertionError("Both allowTxn and allowUsingTimestamp are true; can not support allowTxn=true when allowUsingTimestamp=true");
-            if (allowTxn(metadata) && !metadata.params.transactionalMode.accordIsEnabled)
-                metadata = metadata.unbuild().params(metadata.params.unbuild().transactionalMode(TransactionalMode.full).build()).build();
             this.rs = rs;
             this.cluster = cluster;
             int javaDriverTimeout = Math.toIntExact(TimeUnit.MINUTES.toMillis(1));
@@ -505,21 +499,6 @@ public class StatefulASTBase extends TestBaseImpl
             return true;
         }
 
-        protected final boolean allowTxn()
-        {
-            Invariants.nonNull(metadata, "During object setup please use allowTxn(TableMetadata metadata)");
-            return allowTxn(metadata);
-        }
-
-        /**
-         * Should BEGIN TRANSACTION queries be generated. As of this moment BEGIN TRANSACTION does not support USING TIMESTAMP so it's unsafe for
-         * {@link #allowTxn(TableMetadata)} and {@link #allowUsingTimestamp()} to both be true.
-         */
-        protected boolean allowTxn(TableMetadata metadata)
-        {
-            return metadata.params.transactionalMode.accordIsEnabled && !allowUsingTimestamp();
-        }
-
         protected RepairGenerators.Builder repairArgsBuilder()
         {
             return new RepairGenerators.Builder(i -> Arrays.asList(metadata.keyspace, metadata.name))
@@ -604,13 +583,11 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected ConsistencyLevel selectCl()
         {
-            if (allowTxn()) return ConsistencyLevel.ALL;
             return ConsistencyLevel.LOCAL_QUORUM;
         }
 
         protected ConsistencyLevel mutationCl()
         {
-            if (allowTxn()) return ConsistencyLevel.ALL;
             return ConsistencyLevel.LOCAL_QUORUM;
         }
 
