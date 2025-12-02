@@ -278,7 +278,8 @@ public class UpdateParameters implements AutoCloseable
     public void close()
     {
         if (builder == null) return;
-        buildRow(); // Clear resources
+        builder.reset(); // Clear resources
+        builder = null;
     }
 
     public DeletionTime deletionTime()
