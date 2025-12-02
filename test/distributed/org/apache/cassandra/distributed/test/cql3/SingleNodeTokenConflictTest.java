@@ -388,7 +388,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                                                   .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
             if (!allowListElementAccess())
-                mutationGenBuilder.disallowListElementAccess();
+                mutationGenBuilder.disallowListElementAccessForUpdateSet();
             this.mutationGen = toGen(mutationGenBuilder.build());
         }
 

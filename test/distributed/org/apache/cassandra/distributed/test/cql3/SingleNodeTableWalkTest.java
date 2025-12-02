@@ -56,7 +56,6 @@ import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.InetAddressType;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
@@ -405,8 +404,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                      .withDefaultTypeGen(supportedTypes(rs))
                      .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes(rs))
                      .withPartitioner(Murmur3Partitioner.instance)
-                     .withRegularColumnTypeGen(new TypeGenBuilder().withMaxDepth(1).withTypeKinds(TypeKind.LIST).withPrimitives(Int32Type.instance))
-                     .withStaticColumnTypeGen(new TypeGenBuilder().withMaxDepth(1).withTypeKinds(TypeKind.LIST).withPrimitives(Int32Type.instance))
                      .build())
                .next(rs);
     }
@@ -453,7 +450,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
 
             if (!allowListElementAccess())
-                mutationGenBuilder.disallowListElementAccess();
+                mutationGenBuilder.disallowListElementAccessForUpdateSet();
 
             // Run the test with and without bound partitions
             // When using fixed partitions, each mutation will be for a single partition and will use pk=? syntax

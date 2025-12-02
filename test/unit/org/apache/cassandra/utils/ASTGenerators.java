@@ -394,6 +394,11 @@ public class ASTGenerators
         }
     }
 
+    public interface ValueGen
+    {
+        Value generate(RandomnessSource rnd, Object value, AbstractType<?> type);
+    }
+
     public static class MutationGenBuilder
     {
         public enum DeleteKind { Partition, Row, Column }
@@ -416,8 +421,9 @@ public class ASTGenerators
         private boolean allowUpdateMultiplePartitionKeys = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
         private EnumSet<KnownIssue> ignoreIssues = IGNORED_ISSUES;
-        private EnumSet<CollectionType.Kind> allowedCollectionElementAccess = EnumSet.allOf(CollectionType.Kind.class);
-        private Gen<Boolean> collectionElementAccess = SourceDSL.booleans().all();
+        private EnumSet<CollectionType.Kind> allowedCollectionElementAccessForUpdateSet = EnumSet.of(CollectionType.Kind.LIST, CollectionType.Kind.MAP);
+        private Gen<Boolean> collectionElementAccessForUpdateSet = SourceDSL.booleans().all();
+        private ValueGen valueGen = (rnd, obj, type) -> SourceDSL.booleans().all().generate(rnd) ? new Bind(obj, type) : new Literal(obj, type);
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -436,9 +442,9 @@ public class ASTGenerators
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
         }
 
-        public MutationGenBuilder disallowListElementAccess()
+        public MutationGenBuilder disallowListElementAccessForUpdateSet()
         {
-            allowedCollectionElementAccess.remove(CollectionType.Kind.LIST);
+            allowedCollectionElementAccessForUpdateSet.remove(CollectionType.Kind.LIST);
             return this;
         }
 
@@ -998,22 +1004,29 @@ public class ASTGenerators
                 {
                     if (c.type().isMultiCell()
                         && c.type().isCollection()
-                        && !allowedCollectionElementAccess.isEmpty())
+                        && !allowedCollectionElementAccessForUpdateSet.isEmpty())
                     {
                         CollectionType<?> ct = (CollectionType<?>) c.type();
-                        if (allowedCollectionElementAccess.contains(ct.kind)
-                            && collectionElementAccess.generate(rnd))
+                        if (allowedCollectionElementAccessForUpdateSet.contains(ct.kind)
+                            && collectionElementAccessForUpdateSet.generate(rnd))
                         {
+                            //TODO (coverage): nothing stops the following: c[0] = 42, c[1] = 72, just not impl in generator yet
+                            Value key;
                             switch (ct.kind)
                             {
-//                            case SET:
                                 case LIST:
-                                    int offset = (int) rnd.next(Constraint.between(0, 10));
-                                    CollectionAccess ref = new CollectionAccess(c, Literal.of(offset), ct.valueComparator());
-                                    builder.value(ref, AbstractTypeGenerators.getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
-                                    columnsToGenerate.remove(c);
-                                    continue;
+                                    key = valueGen.generate(rnd, (int) rnd.next(Constraint.between(0, 10)), Int32Type.instance);
+                                    break;
+                                case MAP:
+                                    key = valueGen.generate(rnd, getTypeSupport(ct.nameComparator()).bytesGen().generate(rnd), ct.nameComparator());
+                                    break;
+                                default:
+                                    throw new UnsupportedOperationException(ct.kind.name());
                             }
+                            CollectionAccess ref = new CollectionAccess(c, key, ct.valueComparator());
+                            builder.value(ref, getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
+                            columnsToGenerate.remove(c);
+                            continue;
                         }
                     }
                     var useOperator = columnExpressions.get(c).useOperator;

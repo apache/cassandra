@@ -77,6 +77,7 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -819,55 +820,58 @@ public class ASTSingleTableModel
                 if (e.getKey() instanceof CollectionAccess)
                 {
                     CollectionAccess access = (CollectionAccess) e.getKey();
-                    // if the column doesn't have data reject
-                    for (BytesPartitionState.Ref ref : referencePartitions(mutation))
+                    if (access.column().type().getClass() == ListType.class)
                     {
-                        BytesPartitionState partition = partitions.get(ref);
-                        if (partition == null)
+                        // if the column doesn't have data reject
+                        for (BytesPartitionState.Ref ref : referencePartitions(mutation))
                         {
-                            if (checks == null) checks = new HashSet<>();
-                            checks.add(notFound);
-                            continue;
-                        }
-                        List<BytesPartitionState.Row> rows;
-                        if (factory.staticColumns.contains(access.column()))
-                        {
-                            rows = List.of(partition.staticRow());
-                        }
-                        else
-                        {
-                            rows = cds(mutation).stream().map(partition::get).collect(Collectors.toList());
-                        }
-                        if (rows.isEmpty())
-                        {
-                            if (checks == null) checks = new HashSet<>();
-                            checks.add(notFound);
-                            continue;
-                        }
-                        for (var row : rows)
-                        {
-                            if (row == null)
+                            BytesPartitionState partition = partitions.get(ref);
+                            if (partition == null)
                             {
                                 if (checks == null) checks = new HashSet<>();
                                 checks.add(notFound);
                                 continue;
                             }
-                            if (row.get(access.column()) == null)
+                            List<BytesPartitionState.Row> rows;
+                            if (factory.staticColumns.contains(access.column()))
+                            {
+                                rows = List.of(partition.staticRow());
+                            }
+                            else
+                            {
+                                rows = cds(mutation).stream().map(partition::get).collect(Collectors.toList());
+                            }
+                            if (rows.isEmpty())
                             {
                                 if (checks == null) checks = new HashSet<>();
                                 checks.add(notFound);
                                 continue;
                             }
-                            int offset = Int32Type.instance.compose(access.element.valueEncoded());
-                            ByteBuffer columnValue = row.get(access.column());
-                            var values = ((ListType<?>) access.column().type()).unpack(columnValue);
-                            if (offset < 0 || offset >= values.size())
+                            for (var row : rows)
                             {
-                                if (checks == null) checks = new HashSet<>();
-                                checks.add(t -> Assertions.assertThat(t)
-                                                          .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
-                                                                                            InvalidRequestException.class)) // result from jvm-dtest execute api
-                                                          .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
+                                if (row == null)
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(notFound);
+                                    continue;
+                                }
+                                if (row.get(access.column()) == null)
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(notFound);
+                                    continue;
+                                }
+                                int offset = Int32Type.instance.compose(access.element.valueEncoded());
+                                ByteBuffer columnValue = row.get(access.column());
+                                var values = ((ListType<?>) access.column().type()).unpack(columnValue);
+                                if (offset < 0 || offset >= values.size())
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(t -> Assertions.assertThat(t)
+                                                              .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                                InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                              .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
+                                }
                             }
                         }
                     }
@@ -1912,13 +1916,22 @@ public class ASTSingleTableModel
             switch (ct.kind)
             {
                 case LIST:
+                {
                     int offset = Int32Type.instance.compose(eval(access.element));
                     var values = ct.unpack(current);
                     values.set(offset, eval(e));
                     return EvalResult.accept(ct.pack(values));
+                }
                 case MAP:
+                {
+                    @SuppressWarnings("unchecked") MapType<Object, Object> mt = (MapType<Object, Object>) ct;
+                    Object key = mt.nameComparator().compose(eval(access.element));
+                    Map<Object, Object> values = current == null ? new HashMap<>() : mt.compose(current);
+                    values.put(key, mt.valueComparator().compose(eval(e)));
+                    return EvalResult.accept(mt.decompose(values));
+                }
                 case SET:
-                    throw new UnsupportedOperationException("Map/Set collection access not supported");
+                    throw new UnsupportedOperationException("Set collection access not supported");
             }
         }
         if (!(e instanceof AssignmentOperator)) return EvalResult.accept(eval(e));
