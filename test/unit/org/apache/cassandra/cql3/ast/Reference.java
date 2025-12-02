@@ -136,6 +136,12 @@ public class Reference implements ReferenceExpression
         return toCQL();
     }
 
+    @Override
+    public Symbol column()
+    {
+        return path.get(0).column();
+    }
+
     public static class Builder
     {
         private final List<ReferenceExpression> path;

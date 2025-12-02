@@ -50,6 +50,7 @@ import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CasCondition;
+import org.apache.cassandra.cql3.ast.CollectionAccess;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.Expression;
@@ -64,6 +65,7 @@ import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.ast.TypeHint;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -986,6 +988,20 @@ public class ASTGenerators
             {
                 for (Symbol c : new ArrayList<>(columnsToGenerate))
                 {
+                    if (c.type().isMultiCell() && c.type().isCollection())
+                    {
+                        CollectionType<?> ct = (CollectionType<?>) c.type();
+                        switch (ct.kind)
+                        {
+//                            case SET:
+                            case LIST:
+                                int offset = (int) rnd.next(Constraint.between(0, 10));
+                                CollectionAccess ref = new CollectionAccess(c, Literal.of(offset), ct.valueComparator());
+                                builder.value(ref, AbstractTypeGenerators.getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
+                                columnsToGenerate.remove(c);
+                                continue;
+                        }
+                    }
                     var useOperator = columnExpressions.get(c).useOperator;
                     EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type(), isTransaction);
                     if (!additionOperatorAllowed.isEmpty() && useOperator.generate(rnd))
@@ -1165,11 +1181,14 @@ public class ASTGenerators
         TableMetadata metadata = model.factory.metadata;
         MutationGenBuilder builder = new MutationGenBuilder(metadata)
                                      .withTxnSafe()
-                                     .withPartitions(uniquePartitions.size() == 1
-                                                     ? SourceDSL.arbitrary().constant(uniquePartitions.get(0))
-                                                     : Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                      .withColumnExpressions(e -> e.withOperators(Generators.fromGen(boolDistribution.next(rs))))
                                      .withIgnoreIssues(ignoredIssues);
+        if (!uniquePartitions.isEmpty())
+        {
+            builder.withPartitions(uniquePartitions.size() == 1
+                                   ? SourceDSL.arbitrary().constant(uniquePartitions.get(0))
+                                   : Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
+        }
         if (ignoredIssues.contains(KnownIssue.SAI_EMPTY_TYPE))
         {
             model.factory.regularAndStaticColumns.stream()

@@ -27,15 +27,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
+import org.assertj.core.api.ThrowableAssert;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import com.datastax.driver.core.Session;
@@ -79,6 +82,7 @@ import org.apache.cassandra.repair.RepairGenerators;
 import org.apache.cassandra.repair.RepairGenerators.PreviewType;
 import org.apache.cassandra.repair.RepairGenerators.RepairType;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -104,6 +108,11 @@ public class StatefulASTBase extends TestBaseImpl
      * will be the output (eg. {@code 4 + 4 } is replaced with {@code 8}).
      */
     protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
+
+    /**
+     * Allows for overriding the CQL format logic, default is none (single line), but can create custom ones to help with the history
+     */
+    protected static Supplier<CQLFormatter> CQL_FORMATTER = () -> CQLFormatter.None.instance;
 
     protected static final Gen<Gen<Boolean>> BOOL_DISTRIBUTION = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Conditional.Where.Inequality>> LESS_THAN_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
@@ -196,7 +205,7 @@ public class StatefulASTBase extends TestBaseImpl
     protected static <S extends BaseState> Property.Command<S, Void, ?> compactTable(RandomSource rs, S state)
     {
         return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
-            state.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
+            s2.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.compact();
         });
     }
@@ -375,7 +384,7 @@ public class StatefulASTBase extends TestBaseImpl
         return state.command(rs, select, "min token range");
     }
 
-    protected static abstract class BaseState implements AutoCloseable
+    public static abstract class BaseState implements AutoCloseable
     {
         protected final RandomSource rs;
         protected final Cluster cluster;
@@ -405,6 +414,10 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected BaseState(RandomSource rs, Cluster cluster, TableMetadata metadata)
         {
+            if (allowTxn(metadata) && allowUsingTimestamp())
+                throw new AssertionError("Both allowTxn and allowUsingTimestamp are true; can not support allowTxn=true when allowUsingTimestamp=true");
+            if (allowTxn(metadata) && !metadata.params.transactionalMode.accordIsEnabled)
+                metadata = metadata.unbuild().params(metadata.params.unbuild().transactionalMode(TransactionalMode.full).build()).build();
             this.rs = rs;
             this.cluster = cluster;
             int javaDriverTimeout = Math.toIntExact(TimeUnit.MINUTES.toMillis(1));
@@ -436,6 +449,7 @@ public class StatefulASTBase extends TestBaseImpl
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
+
             createTable(metadata);
 
             String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
@@ -483,6 +497,21 @@ public class StatefulASTBase extends TestBaseImpl
         protected boolean allowUsingTimestamp()
         {
             return true;
+        }
+
+        protected final boolean allowTxn()
+        {
+            Invariants.nonNull(metadata, "During object setup please use allowTxn(TableMetadata metadata)");
+            return allowTxn(metadata);
+        }
+
+        /**
+         * Should BEGIN TRANSACTION queries be generated. As of this moment BEGIN TRANSACTION does not support USING TIMESTAMP so it's unsafe for
+         * {@link #allowTxn(TableMetadata)} and {@link #allowUsingTimestamp()} to both be true.
+         */
+        protected boolean allowTxn(TableMetadata metadata)
+        {
+            return metadata.params.transactionalMode.accordIsEnabled && !allowUsingTimestamp();
         }
 
         protected RepairGenerators.Builder repairArgsBuilder()
@@ -569,11 +598,13 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected ConsistencyLevel selectCl()
         {
+            if (allowTxn()) return ConsistencyLevel.ALL;
             return ConsistencyLevel.LOCAL_QUORUM;
         }
 
         protected ConsistencyLevel mutationCl()
         {
+            if (allowTxn()) return ConsistencyLevel.ALL;
             return ConsistencyLevel.LOCAL_QUORUM;
         }
 
@@ -586,6 +617,10 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
+            @Nullable
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(mutation);
+            if (shouldRaiseThrowable != null)
+                postfix += ", should reject";
             if (mutation.isCas())
             {
                 postfix += ", would apply " + model.shouldApply(mutation);
@@ -596,6 +631,12 @@ public class StatefulASTBase extends TestBaseImpl
             else                  annotate += ", " + postfix;
             Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
+                if (shouldRaiseThrowable != null)
+                {
+                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation));
+                    s.mutation();
+                    return;
+                }
                 var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
                 s.model.updateAndValidate(result, finalMutation);
                 s.mutation();
@@ -706,7 +747,7 @@ public class StatefulASTBase extends TestBaseImpl
         {
             // With UTF-8 some chars can cause printing issues leading to error messages that don't reproduce the original issue.
             // To avoid this problem, always escape the CQL so nothing gets lost
-            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQLFormatter.None.instance));
+            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQL_FORMATTER.get()));
             if (annotate != null)
                 cql += " -- " + annotate;
             return cql;
