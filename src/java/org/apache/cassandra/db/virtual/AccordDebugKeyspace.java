@@ -124,6 +124,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
 import org.apache.cassandra.service.accord.AccordExecutor;
@@ -196,6 +197,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String REDUNDANT_BEFORE   = "redundant_before";
     public static final String REJECT_BEFORE      = "reject_before";
     public static final String TXN                = "txn";
+    public static final String TXN_CACHE          = "txn_cache";
     public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
     public static final String TXN_PATTERN_TRACE  = "txn_pattern_trace";
     public static final String TXN_PATTERN_TRACES = "txn_pattern_traces";
@@ -231,6 +233,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new RejectBeforeTable(),
             new TxnBlockedByTable(),
             new TxnTable(),
+            new TxnCacheTable(),
             new TxnTraceTable(),
             new TxnTracesTable(),
             new TxnPatternTraceTable(),
@@ -1603,11 +1606,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     }
 
     // TODO (desired): don't report null as "null"
-    public static final class TxnTable extends AbstractJournalTable
+    public static abstract class AbstractTxnTable extends AbstractJournalTable
     {
-        private TxnTable()
+        private AbstractTxnTable(String tableName)
         {
-            super(parse(VIRTUAL_ACCORD_DEBUG, TXN,
+            super(parse(VIRTUAL_ACCORD_DEBUG, tableName,
                         "Accord per-CommandStore Transaction State",
                         "CREATE TABLE %s (\n" +
                         "  command_store_id int,\n" +
@@ -1641,13 +1644,15 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             if (commandStore == null)
                 return;
 
-            Command command = commandStore.loadCommand(key.id);
+            Command command = get(commandStore, key.id);
             if (command == null)
                 return;
 
             collector.row(key.commandStoreId, key.id.toString())
                      .lazyCollect(columns -> addColumns(command, columns));
         }
+
+        abstract Command get(AccordCommandStore commandStore, TxnId txnId);
 
         private static void addColumns(Command command, ColumnsCollector columns)
         {
@@ -1667,6 +1672,38 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                    .add("waiting_on", command, Command::waitingOn, TO_STRING)
                    .add("writes", command, Command::writes, TO_STRING)
                    .add("result", command, Command::result, TO_STRING);
+        }
+    }
+
+    public static final class TxnTable extends AbstractTxnTable
+    {
+        private TxnTable()
+        {
+            super(TXN);
+        }
+
+        @Override
+        Command get(AccordCommandStore commandStore, TxnId txnId)
+        {
+            return commandStore.loadCommand(txnId);
+        }
+    }
+
+    public static final class TxnCacheTable extends AbstractTxnTable
+    {
+        private TxnCacheTable()
+        {
+            super(TXN_CACHE);
+        }
+
+        @Override
+        Command get(AccordCommandStore commandStore, TxnId txnId)
+        {
+            try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
+            {
+                AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                return entry == null ? null : entry.getExclusive();
+            }
         }
     }
 
@@ -1804,7 +1841,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                         Command command = safeCommand.current();
                         if (command.saveStatus() == SaveStatus.Applying)
-                            return Commands.applyChain(safeStore, (Command.Executed) command);
+                            return Commands.applyChain(safeStore, command);
                         Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
