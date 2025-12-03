@@ -218,8 +218,16 @@ final class OnDiskIndex<K> extends Index<K>
         if (!mayContainId(id))
             return -1L;
 
-        int keyIndex = binarySearch(id);
-        return keyIndex < 0 ? -1 : recordAtIndex(keyIndex);
+        int someIndex = binarySearch(id);
+        if (someIndex < 0)
+            return -1L;
+
+        // sorted descending, so first key index is last value index
+        int firstKeyIndex = someIndex;
+        while (firstKeyIndex > 0 && id.equals(keyAtIndex(firstKeyIndex - 1)))
+            --firstKeyIndex;
+
+        return recordAtIndex(firstKeyIndex);
     }
 
     @Override

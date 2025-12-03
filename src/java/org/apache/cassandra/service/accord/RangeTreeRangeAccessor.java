@@ -23,6 +23,7 @@ import accord.primitives.Range;
 
 import org.apache.cassandra.utils.RangeTree;
 
+// TODO (expected): move to test package?
 public enum RangeTreeRangeAccessor implements RangeTree.Accessor<RoutingKey, Range>
 {
     instance;

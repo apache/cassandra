@@ -60,6 +60,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
+import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -585,28 +587,33 @@ public class CassandraIndexTest extends CQLTester
 
         // Wait for any background index clearing tasks to complete. Warn: When we used to run tests in parallel there
         // could also be cross test class talk and have other indices pop up here.
+        Object[][] indexRows = getAccord().range_index_mode == journal_sai ? new Object[][] { row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null) }
+                                                                           : new Object[][] { row("system", "PaxosUncommittedIndex", null) };
         Awaitility.await()
                   .atMost(1, TimeUnit.MINUTES)
                   .pollDelay(1, TimeUnit.SECONDS)
-                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null)));
+                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery), indexRows));
 
         String indexName = "build_remove_test_idx";
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
+        Object[][] indexRows2 = new Object[indexRows.length + 1][];
+        System.arraycopy(indexRows, 0, indexRows2, 1, indexRows.length);
+        indexRows2[0] = row(KEYSPACE, indexName, null);
+        assertRows(execute(selectBuiltIndexesQuery), indexRows2);
 
         // rebuild the index and verify the built status table
         getCurrentColumnFamilyStore().rebuildSecondaryIndex(indexName);
         waitForIndexQueryable(indexName);
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
+        assertRows(execute(selectBuiltIndexesQuery), indexRows2);
 
         // check that dropping the index removes it from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
-        assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
+        assertRows(execute(selectBuiltIndexesQuery), indexRows);
     }
 
 

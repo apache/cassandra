@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.debug;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,8 +46,6 @@ import accord.coordinate.Coordination.CoordinationKind;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.primitives.Participants;
-import accord.primitives.Routable;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.SortedListMap;
@@ -59,8 +57,8 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
-import static org.apache.cassandra.service.accord.AccordTracing.BucketMode.LEAKY;
-import static org.apache.cassandra.service.accord.AccordTracing.BucketMode.SAMPLE;
+import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.LEAKY;
+import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.SAMPLE;
 
 public class AccordTracing extends AccordCoordinatorMetrics.Listener
 {
@@ -379,161 +377,6 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
     enum NewOrFailure
     {
         NEW, FAILURE
-    }
-
-    public static class CoordinationKinds extends TinyEnumSet<CoordinationKind>
-    {
-        private static final int ALL_BITS = CoordinationKind.ALL.bitset();
-        public static final CoordinationKinds ALL = new CoordinationKinds(false, ALL_BITS);
-        public static final CoordinationKinds NONE = new CoordinationKinds(false, 0);
-
-        final boolean printAsSubtraction;
-        public CoordinationKinds(boolean printAsSubtraction, int bitset)
-        {
-            super(bitset);
-            this.printAsSubtraction = printAsSubtraction;
-        }
-
-        @Override
-        public String toString()
-        {
-            if (bitset == ALL_BITS)
-                return "*";
-            if (printAsSubtraction)
-                return '-' + toString(ALL_BITS & ~bitset);
-            return toString(bitset, CoordinationKind::forOrdinal);
-        }
-
-        public static CoordinationKinds parse(String input)
-        {
-            input = input.trim();
-            if (input.equals("*"))
-                return ALL;
-            if (input.equals("{}"))
-                return NONE;
-
-            boolean subtraction = false;
-            if (input.length() >= 1 && input.charAt(0) == '-')
-            {
-                subtraction = true;
-                input = input.substring(1);
-            }
-            if (input.length() < 2 || input.charAt(0) != '{' || input.charAt(input.length() - 1) != '}')
-                throw new IllegalArgumentException("Invalid CoordinationKinds specification: " + input);
-
-            int bits = 0;
-            for (String name : input.substring(1, input.length() - 1).split("\\s*,\\s*"))
-                bits |= TinyEnumSet.encode(CoordinationKind.valueOf(name));
-
-            if (subtraction)
-                bits = ALL_BITS & ~bits;
-            return new CoordinationKinds(subtraction, bits);
-        }
-
-        private static String toString(int bitset)
-        {
-            return TinyEnumSet.toString(bitset, CoordinationKind::forOrdinal);
-        }
-    }
-
-    public static class TxnKindsAndDomains
-    {
-        static final int ALL_KINDS = Txn.Kind.All.bitset();
-        static final TxnKindsAndDomains ALL = new TxnKindsAndDomains(false, ALL_KINDS, ALL_KINDS);
-        static final TxnKindsAndDomains NONE = new TxnKindsAndDomains(false, 0, 0);
-
-        final boolean printAsSubtraction;
-        final int keys, ranges;
-        public TxnKindsAndDomains(boolean printAsSubtraction, int keys, int ranges)
-        {
-            this.printAsSubtraction = printAsSubtraction;
-            this.keys = keys;
-            this.ranges = ranges;
-        }
-
-        boolean matches(TxnId txnId)
-        {
-            int bits = txnId.is(Routable.Domain.Key) ? keys : ranges;
-            return TinyEnumSet.contains(bits, txnId.kind());
-        }
-
-        @Override
-        public String toString()
-        {
-            if (keys == ALL_KINDS && ranges == ALL_KINDS)
-                return "*";
-            if (printAsSubtraction)
-                return '-' + toString(ALL_KINDS & ~keys, ALL_KINDS & ~ranges);
-            return '+' + toString(keys, ranges);
-        }
-
-        public static TxnKindsAndDomains parse(String input)
-        {
-            input = input.trim();
-            if (input.equals("*"))
-                return ALL;
-            if (input.equals("{}"))
-                return NONE;
-
-            boolean subtraction = false;
-            if (input.length() >= 1 && input.charAt(0) == '-')
-            {
-                subtraction = true;
-                input = input.substring(1);
-            }
-            if (input.length() < 2 || input.charAt(0) != '{' || input.charAt(input.length() - 1) != '}')
-                throw new IllegalArgumentException("Invalid TxnKindsAndDomain specification: " + input);
-
-            int keys = 0, ranges = 0;
-            for (String element : input.substring(1, input.length() - 1).split("\\s*,\\s*"))
-            {
-                if (element.length() != 2)
-                    throw new IllegalArgumentException("Invalid TxnKindsAndDomain element: " + element);
-
-                int kinds;
-                if (element.charAt(1) == '*') kinds = ALL_KINDS;
-                else
-                {
-                    Txn.Kind kind = Txn.Kind.forShortName(element.charAt(1));
-                    if (kind == null) throw new IllegalArgumentException("Unknown Txn.Kind: " + element.charAt(1));
-                    kinds = TinyEnumSet.encode(kind);
-                }
-
-                switch (element.charAt(0))
-                {
-                    default: throw new IllegalArgumentException("Invalid TxnKindsAndDomain element: " + element);
-                    case '*': keys |= kinds; ranges |= kinds; break;
-                    case 'K': keys |= kinds; break;
-                    case 'R': ranges |= kinds; break;
-                }
-            }
-
-            if (subtraction)
-            {
-                keys = ALL_KINDS & ~keys;
-                ranges = ALL_KINDS & ~ranges;
-            }
-            return new TxnKindsAndDomains(subtraction, keys, ranges);
-        }
-
-        private static String toString(int keys, int ranges)
-        {
-            StringBuilder out = new StringBuilder("{");
-            if (keys != 0)
-            {
-                if (keys == ALL_KINDS) out.append("K*");
-                else TinyEnumSet.append(keys, Txn.Kind::forOrdinal, k -> "K" + k.shortName(), out);
-            }
-
-            if (ranges != 0)
-            {
-                if (keys != 0) out.append(',');
-                if (ranges == ALL_KINDS) out.append("R*");
-                else TinyEnumSet.append(ranges, Txn.Kind::forOrdinal, k -> "R" + k.shortName(), out);
-            }
-            out.append('}');
-            return out.toString();
-        }
     }
 
     public static class TracePattern

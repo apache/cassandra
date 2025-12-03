@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.durability.DurabilityService;
 import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.Property.SimpleCommand;
 
@@ -120,8 +120,7 @@ public class StatefulJournalRestartTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                getBlocking(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
-
+                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 1L, TimeUnit.MINUTES));
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();
             }

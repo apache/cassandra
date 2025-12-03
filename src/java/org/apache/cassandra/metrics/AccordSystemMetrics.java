@@ -59,6 +59,7 @@ public class AccordSystemMetrics implements SystemEventListener
     public static final String MAX_PENDING_EPOCH = "MaxPendingEpoch";
     public static final String ERRORS = "Errors";
     public static final String EPOCH_WAITS = "EpochWaits";
+    public static final String PAUSED_EXECUTOR_LOADING = "PausedExecutorLoading";
     public static final String EPOCH_TIMEOUTS = "EpochTimeouts";
     public static final String PROGRESS_LOG_ACTIVE = "ProgressLogActive";
     public static final String PROGRESS_LOG_SIZE = "ProgressLogSize";
@@ -78,6 +79,7 @@ public class AccordSystemMetrics implements SystemEventListener
     public final Counter errors;
     public final Counter epochWaits;
     public final Counter epochTimeouts;
+    public final Counter pausedExecutorLoading;
     public final Gauge<Long> progressLogActive;
     public final Gauge<Long> durabilityQueueActive;
     public final Gauge<Long> durabilityQueuePending;
@@ -158,6 +160,7 @@ public class AccordSystemMetrics implements SystemEventListener
         errors = Metrics.counter(factory.createMetricName(ERRORS));
         epochTimeouts = Metrics.counter(factory.createMetricName(EPOCH_TIMEOUTS));
         epochWaits = Metrics.counter(factory.createMetricName(EPOCH_WAITS));
+        pausedExecutorLoading = Metrics.counter(factory.createMetricName(PAUSED_EXECUTOR_LOADING));
         durabilityQueueActive = Metrics.gauge(factory.createMetricName(DURABILITY_QUEUE_ACTIVE), fromDurabilityService(durability -> (long)durability.queue().activeCount()));
         durabilityQueuePending = Metrics.gauge(factory.createMetricName(DURABILITY_QUEUE_PENDING), fromDurabilityService(durability -> (long)durability.queue().pendingCount()));
         progressLogActive = Metrics.gauge(factory.createMetricName(PROGRESS_LOG_ACTIVE), fromDurabilityService(durability -> (long)durability.queue().activeCount()));

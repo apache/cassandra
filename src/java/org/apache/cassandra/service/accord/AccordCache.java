@@ -1139,6 +1139,8 @@ public class AccordCache implements CacheSize
     public static class CommandsForKeyAdapter implements Adapter<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
     {
         public static final CommandsForKeyAdapter CFK_ADAPTER = new CommandsForKeyAdapter();
+        private static int SHRINK_WITHOUT_LOCK = -1;
+
         private CommandsForKeyAdapter() {}
 
         @Override
@@ -1176,7 +1178,7 @@ public class AccordCache implements CacheSize
             if (value.isEmpty() || value.isLoadingPruned())
                 return Shrink.EVICT;
 
-            if (value.size() < 64)
+            if (SHRINK_WITHOUT_LOCK <= 0 || value.size() < SHRINK_WITHOUT_LOCK)
                 return Shrink.DONE;
 
             return Shrink.PERFORM_WITHOUT_LOCK;
@@ -1249,7 +1251,10 @@ public class AccordCache implements CacheSize
 
     public static class CommandAdapter implements Adapter<TxnId, Command, AccordSafeCommand>
     {
+        private static int SHRINK_WITHOUT_LOCK = -1;
+
         public static final CommandAdapter COMMAND_ADAPTER = new CommandAdapter();
+
         private CommandAdapter() {}
 
         @Override
@@ -1309,7 +1314,7 @@ public class AccordCache implements CacheSize
                 Invariants.expect(value.saveStatus().compareTo(SaveStatus.ReadyToExecute) < 0);
 
             // TODO (expected): improve heuristics and consider transaction size
-            if (value.partialDeps() == null || value.partialDeps().txnIds().size() < 64)
+            if (SHRINK_WITHOUT_LOCK < 0 || value.partialDeps() == null || value.partialDeps().txnIds().size() < SHRINK_WITHOUT_LOCK)
                 return Shrink.DONE;
 
             return Shrink.PERFORM_WITHOUT_LOCK;
