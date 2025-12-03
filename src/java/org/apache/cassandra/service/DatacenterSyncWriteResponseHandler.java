@@ -74,14 +74,8 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
         for (Replica pending : replicaPlan.pending())
         {
             // Skip replacement pending replicas if feature is enabled
-            if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
-            {
-                TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-                if (tokenMetadata != null && tokenMetadata.isReplacementPendingNode(pending.endpoint()))
-                {
-                    continue;
-                }
-            }
+            if (shouldSkipWaiting(pending.endpoint()))
+                continue;
             responses.get(snitch.getDatacenter(pending)).incrementAndGet();
         }
     }

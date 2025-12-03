@@ -217,7 +217,7 @@ public enum ConsistencyLevel
      */
     private static Endpoints<?> filterOutReplacementPendingReplicas(Endpoints<?> pending, TokenMetadata tokenMetadata)
     {
-        return pending.filter(replica -> !tokenMetadata.isReplacementPendingNode(replica.endpoint()));
+        return pending.filter(replica -> tokenMetadata.getReplacingNode(replica.endpoint()).isEmpty());
     }
 
     /**

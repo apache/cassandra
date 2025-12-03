@@ -447,17 +447,24 @@ public class TokenMetadata
     }
 
     /**
-     * Check if an endpoint is a replacement pending node.
-     * 
-     * A replacement pending node is one that is joining to replace an existing node.
+     * Check if an endpoint is either a node replacing other node or a node being replaced
      *
      * @param endpoint the endpoint to check
-     * @return true if endpoint is a replacement node, false otherwise
+     * @return true if endpoint is in a replacement, false otherwise
      */
-    public boolean isReplacementPendingNode(InetAddressAndPort endpoint)
+    public boolean isReplacementRelatedNode(InetAddressAndPort endpoint)
     {
-        return getReplacingNode(endpoint).isPresent();
+        lock.readLock().lock();
+        try
+        {
+            return replacementToOriginal.containsKey(endpoint) || replacementToOriginal.containsValue(endpoint);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
+
 
     public void removeBootstrapTokens(Collection<Token> tokens)
     {

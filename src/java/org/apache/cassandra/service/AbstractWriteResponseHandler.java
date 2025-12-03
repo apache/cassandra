@@ -399,18 +399,23 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected boolean waitingFor(InetAddressAndPort from)
     {
+        return !shouldSkipWaiting(from);
+    }
+
+    protected boolean shouldSkipWaiting(InetAddressAndPort from)
+    {
         // If feature is enabled, don't wait for replacement pending replicas
         if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
         {
             TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-            if (tokenMetadata != null && tokenMetadata.isReplacementPendingNode(from))
+
+            if (tokenMetadata != null && tokenMetadata.isReplacementRelatedNode(from))
             {
-                // This is a replacement node, don't count its response
-                return false;
+                // This is a replacement node or a node being replaced, don't count its response
+                return true;
             }
         }
-        
-        return true;
+        return false;
     }
 
     /**

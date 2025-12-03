@@ -1,4 +1,5 @@
 Unreleased
+ * [CAAS-111] Code refactor and include the old node being replaced to be ignored
  * [CAAS-479] Add logs and metrics for Counter mutation
  * [CAAS-1] Integrate continuous profiling
  * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)

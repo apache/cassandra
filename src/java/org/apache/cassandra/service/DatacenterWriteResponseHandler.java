@@ -68,15 +68,7 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
         // First check if it's in our local DC
         if (!waitingFor.test(from))
             return false;
-        
-        // Then check if it's a replacement pending node (feature check)
-        if (DatabaseDescriptor.isExcludeReplacementPendingForWrite())
-        {
-            TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-            if (tokenMetadata != null && tokenMetadata.isReplacementPendingNode(from))
-                return false;
-        }
-        
-        return true;
+
+        return super.waitingFor(from);
     }
 }
