@@ -123,7 +123,7 @@ import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.T
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.newTopology;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
-public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
+public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.Supplier, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
@@ -572,7 +572,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void truncateForTesting()
     {
         journal.truncateForTesting();
-        journalTable.safeNotify(RouteInMemoryIndex::truncateForTesting);
+        journalTable.safeNotify(JournalSegmentRangeSearcher::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -844,7 +844,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public RangeSearcher rangeSearcher()
+    public JournalRangeSearcher rangeSearcher()
     {
         return journalTable.rangeSearcher();
     }

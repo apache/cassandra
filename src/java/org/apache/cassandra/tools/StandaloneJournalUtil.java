@@ -165,7 +165,7 @@ public class StandaloneJournalUtil implements Runnable
                         if (kind != null && key.type != JournalKey.Type.valueOf(kind))
                             return;
 
-                        if (txnId != null && !TxnId.fromString(txnId).equals(key.id))
+                        if (txnId != null && !TxnId.parse(txnId).equals(key.id))
                             return;
 
                         try (DataInputBuffer in = new DataInputBuffer(buffer, false))
@@ -222,9 +222,9 @@ public class StandaloneJournalUtil implements Runnable
             if (sstables == null && journalSegments == null)
                 throw new IllegalArgumentException("Either --sstables or --journal-segments must be provided");
 
-            Timestamp txnId = this.txnId != null ? TxnId.fromString(this.txnId) : null;
-            Timestamp sinceTimestamp = this.since != null ? TxnId.fromString(this.since) : null;
-            Timestamp untilTimestamp = this.until != null ? TxnId.fromString(this.until) : null;
+            Timestamp txnId = this.txnId != null ? TxnId.parse(this.txnId) : null;
+            Timestamp sinceTimestamp = this.since != null ? TxnId.parse(this.since) : null;
+            Timestamp untilTimestamp = this.until != null ? TxnId.parse(this.until) : null;
 
             boolean skipAllErrors;
             Set<String> skipExceptionTypes = new HashSet<>();

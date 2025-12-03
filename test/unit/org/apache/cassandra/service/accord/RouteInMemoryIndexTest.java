@@ -133,7 +133,7 @@ public class RouteInMemoryIndexTest
 
     private static class State
     {
-        private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
+        private final JournalSegmentRangeSearcher<?> index = new JournalSegmentRangeSearcher<>();
         private final Model model = new Model();
         private final float unfiltered;
         private final float minDecidedIdNull;
@@ -279,17 +279,17 @@ public class RouteInMemoryIndexTest
             segments.computeIfAbsent(segment, i -> new Segment()).add(range, txnId);
         }
 
-        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public JournalRangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             return search(vrange -> range.compareIntersecting(vrange) == 0, minTxnId, maxTxnId, decidedRX);
         }
 
-        public RangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public JournalRangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             return search(range -> range.contains(key), minTxnId, maxTxnId, decidedRX);
         }
 
-        public RangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public JournalRangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             TreeSet<TxnId> result = new TreeSet<>();
             for (var segment: segments.values())
@@ -302,7 +302,7 @@ public class RouteInMemoryIndexTest
                         result.add(value.txnId);
                 }
             }
-            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));
+            return new JournalRangeSearcher.DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));
         }
 
         void remove(long segment)

@@ -96,7 +96,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
 
-public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
+public class AccordJournalTable<K extends JournalKey, V> implements JournalRangeSearcher.Supplier
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournalTable.class);
 
@@ -113,7 +113,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      * this property holds true.
      */
     @Nullable
-    private final RouteInMemoryIndex<Object> index;
+    private final JournalSegmentRangeSearcher<Object> index;
     private final Version accordJournalVersion;
 
     public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, Version accordJournalVersion)
@@ -126,7 +126,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         this.accordJournalVersion = accordJournalVersion;
 
         this.index = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null
-                     ? new RouteInMemoryIndex<>()
+                     ? new JournalSegmentRangeSearcher<>()
                      : null;
     }
 
@@ -136,7 +136,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         return RouteJournalIndex.allowed(key);
     }
 
-    void safeNotify(Consumer<RouteInMemoryIndex<Object>> fn)
+    void safeNotify(Consumer<JournalSegmentRangeSearcher<Object>> fn)
     {
         if (index == null)
             return;
@@ -157,11 +157,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     }
 
     @Override
-    public RangeSearcher rangeSearcher()
+    public JournalRangeSearcher rangeSearcher()
     {
         if (index == null)
-            return RangeSearcher.NoopRangeSearcher.instance;
-        return new TableRangeSearcher();
+            return JournalRangeSearcher.NoopJournalRangeSearcher.instance;
+        return new JournalTableRangeSearcher();
     }
 
     public void start()
@@ -246,11 +246,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    private class TableRangeSearcher implements RangeSearcher
+    private class JournalTableRangeSearcher implements JournalRangeSearcher
     {
         private final Index tableIndex;
 
-        private TableRangeSearcher()
+        private JournalTableRangeSearcher()
         {
             this.tableIndex = cfs.indexManager.getIndexByName("record");
             if (!cfs.indexManager.isIndexQueryable(tableIndex))

@@ -106,6 +106,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
@@ -131,6 +132,7 @@ public class RouteIndexTest extends CQLTester
         DatabaseDescriptor.setAccordTransactionsEnabled(true);
         // disable journal compaction so the test can control when it happens
         DatabaseDescriptor.getAccord().enable_journal_compaction = false;
+        DatabaseDescriptor.getAccord().range_index_mode = journal_sai;
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
         DatabaseDescriptor.setAutoSnapshot(false);
 

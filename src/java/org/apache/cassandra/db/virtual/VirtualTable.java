@@ -25,6 +25,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 
 /**
@@ -102,4 +103,9 @@ public interface VirtualTable
     }
 
     default Sorted sorted() { return Sorted.UNSORTED; }
+
+    default IndexRegistry indexes()
+    {
+        return IndexRegistry.EMPTY;
+    }
 }

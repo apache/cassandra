@@ -19,19 +19,26 @@ package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableList;
 
 import accord.utils.Invariants;
 
@@ -47,6 +54,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -63,9 +71,13 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.Clock;
@@ -820,4 +832,76 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
         }
         return Clustering.make(clusteringByteBuffers);
     }
+
+    /**
+     * An empty {@code IndexRegistry}
+     */
+    static IndexRegistry indexes(Index... indexes)
+    {
+        final List<Index> list = ImmutableList.copyOf(indexes);
+        return new IndexRegistry()
+        {
+            @Override
+            public void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier)
+            {
+            }
+
+            @Override
+            public void unregisterIndex(Index index, Index.Group.Key groupKey)
+            {
+            }
+
+            @Override
+            public Collection<Index> listIndexes()
+            {
+                return list;
+            }
+
+            @Override
+            public Collection<Index.Group> listIndexGroups()
+            {
+                return Collections.emptySet();
+            }
+
+            @Override
+            public Index getIndex(IndexMetadata indexMetadata)
+            {
+                for (Index index : indexes)
+                {
+                    if (index.getIndexMetadata() == indexMetadata)
+                        return index;
+                }
+                return null;
+            }
+
+            @Override
+            public Index getIndexByName(String indexName)
+            {
+                for (Index index : indexes)
+                {
+                    if (index.getIndexMetadata().name.equals(indexName))
+                        return index;
+                }
+                return null;
+            }
+
+            @Override
+            public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints indexHints)
+            {
+                return Optional.empty();
+            }
+
+            @Override
+            public void validate(PartitionUpdate update, ClientState state)
+            {
+            }
+
+            @Override
+            public boolean supportsMultipleIndexExpressions()
+            {
+                return true;
+            }
+        };
+    }
+
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.debug;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +39,6 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
@@ -49,6 +48,8 @@ import accord.primitives.TxnId;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -94,8 +95,8 @@ public class DebugBlockedTxns
         @Override
         public int compareTo(Txn that)
         {
-            int c = Integer.compare(this.commandStoreId, that.commandStoreId);
-            if (c == 0) c = Integer.compare(this.depth, that.depth);
+            int c = Integer.compare(this.depth, that.depth);
+            if (c == 0) c = Integer.compare(this.commandStoreId, that.commandStoreId);
             if (c == 0) c = this.txnId.compareTo(that.txnId);
             if (c == 0) c = this.blockedViaKeyString().compareTo(that.blockedViaKeyString());
             return c;
@@ -246,9 +247,6 @@ public class DebugBlockedTxns
         }
         else
         {
-            // TODO (required): this type check should not be needed; release accord version that fixes it at origin
-            if (blocking instanceof CommandsForKey.TxnInfo)
-                blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
             boolean recurse = visited.add(blocking);
             queuedTxn.add(visitTxnAsync(commandStore, blocking, rootExecuteAt, key, depth, recurse));
         }

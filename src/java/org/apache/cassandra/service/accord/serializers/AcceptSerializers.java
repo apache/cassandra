@@ -47,12 +47,11 @@ public class AcceptSerializers
     public static class RequestSerializer extends TxnRequestSerializer.WithUnsyncedSerializer<Accept>
     {
         private static final Accept.Kind[] kinds = Accept.Kind.values();
-        private static final int IS_PARTIAL = 1;
 
         @Override
         public void serializeBody(Accept accept, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeByte((accept.kind.ordinal() << 1) | (accept.isPartialAccept ? IS_PARTIAL : 0));
+            out.writeByte((accept.kind.ordinal() << 1) | (accept.acceptFlags & 1) | ((accept.acceptFlags & ~1) << 1));
             CommandSerializers.ballot.serialize(accept.ballot, out);
             ExecuteAtSerializer.serialize(accept.txnId, accept.executeAt, out);
             DepsSerializers.partialDeps.serialize(accept.partialDeps(), out);
@@ -68,7 +67,7 @@ public class AcceptSerializers
                           CommandSerializers.ballot.deserialize(in),
                           ExecuteAtSerializer.deserialize(txnId, in),
                           DepsSerializers.partialDeps.deserialize(in),
-                          (flags & IS_PARTIAL) != 0);
+                          (flags & 1) | ((flags >>> 1) & ~1));
         }
 
         @Override
