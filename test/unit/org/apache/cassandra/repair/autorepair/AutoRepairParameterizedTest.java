@@ -1084,4 +1084,124 @@ public class AutoRepairParameterizedTest extends CQLTester
         assertFalse("Repair should not be in progress after completion",
                     AutoRepair.instance.getRepairState(repairType).isRepairInProgress());
     }
+
+    @Test
+    public void testLongestUnrepairedSecMetricUpdatesWhenAutoRepairDisabled()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not track repair history",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        // Insert a repair history entry with an old finish time
+        long oldRepairTime = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7); // 7 days ago
+        AutoRepairUtils.insertNewRepairHistory(repairType, oldRepairTime, oldRepairTime);
+
+        // Clear the in-memory state to simulate a restart
+        AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
+        repairState.setLongestUnrepairedNode(null);
+
+        // Verify metric is 0 before repair() is called (simulating restart state)
+        assertEquals("Metric should be 0 when longestUnrepairedNode is null",
+                     0, repairState.getLongestUnrepairedSec());
+
+        // Disable auto-repair for this type
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setAutoRepairEnabled(repairType, false);
+
+        // Call repair() - it should still update the metric even though auto-repair is disabled
+        AutoRepair.instance.repair(repairType);
+
+        // Verify that the metric was updated from the database
+        int longestUnrepairedSec = repairState.getLongestUnrepairedSec();
+        assertTrue("Metric should be greater than 0 after repair() call even when auto-repair is disabled",
+                   longestUnrepairedSec > 0);
+
+        // Verify it's approximately 7 days (allowing for some test execution time)
+        int expectedMinSeconds = (int) TimeUnit.DAYS.toSeconds(6); // At least 6 days
+        int expectedMaxSeconds = (int) TimeUnit.DAYS.toSeconds(8); // At most 8 days
+        assertTrue(String.format("Metric should be approximately 7 days old, got %d seconds", longestUnrepairedSec),
+                   longestUnrepairedSec >= expectedMinSeconds && longestUnrepairedSec <= expectedMaxSeconds);
+
+        // Re-enable auto-repair for cleanup
+        config.setAutoRepairEnabled(repairType, true);
+    }
+
+    @Test
+    public void testLongestUnrepairedSecMetricUpdatesWhenAutoRepairEnabled()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not track repair history",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        // Insert a repair history entry with an old finish time
+        long oldRepairTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(48); // 2 days ago
+        AutoRepairUtils.insertNewRepairHistory(repairType, oldRepairTime, oldRepairTime);
+
+        // Clear the in-memory state to simulate a restart
+        AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
+        repairState.setLongestUnrepairedNode(null);
+
+        // Verify metric is 0 before repair() is called
+        assertEquals("Metric should be 0 when longestUnrepairedNode is null",
+                     0, repairState.getLongestUnrepairedSec());
+
+        // Ensure auto-repair is enabled (but set min interval high so repair doesn't actually run)
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setAutoRepairEnabled(repairType, true);
+        config.setRepairMinInterval(repairType, "365d"); // Very high to prevent actual repair
+
+        // Call repair() - it should update the metric even though it won't run repair due to min interval
+        AutoRepair.instance.repair(repairType);
+
+        // Verify that the metric was updated from the database
+        int longestUnrepairedSec = repairState.getLongestUnrepairedSec();
+        assertTrue("Metric should be greater than 0 after repair() call",
+                   longestUnrepairedSec > 0);
+
+        // Verify it's approximately 2 days (allowing for some test execution time)
+        int expectedMinSeconds = (int) TimeUnit.HOURS.toSeconds(47); // At least 47 hours
+        int expectedMaxSeconds = (int) TimeUnit.HOURS.toSeconds(49); // At most 49 hours
+        assertTrue(String.format("Metric should be approximately 48 hours old, got %d seconds", longestUnrepairedSec),
+                   longestUnrepairedSec >= expectedMinSeconds && longestUnrepairedSec <= expectedMaxSeconds);
+    }
+
+    @Test
+    public void testLongestUnrepairedSecMetricPersistsAcrossRestarts()
+    {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not track repair history",
+                          repairType != AutoRepairConfig.RepairType.BOOTSTRAP);
+
+        // Insert a repair history entry
+        long repairTime = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(24); // 1 day ago
+        AutoRepairUtils.insertNewRepairHistory(repairType, repairTime, repairTime);
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setAutoRepairEnabled(repairType, false);
+
+        // Simulate first startup: clear in-memory state
+        AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
+        repairState.setLongestUnrepairedNode(null);
+
+        // First call to repair() after "restart"
+        AutoRepair.instance.repair(repairType);
+        int firstMetricValue = repairState.getLongestUnrepairedSec();
+        assertTrue("First metric value should be greater than 0", firstMetricValue > 0);
+
+        // Simulate another restart: clear in-memory state again
+        repairState.setLongestUnrepairedNode(null);
+        assertEquals("Metric should reset to 0 after clearing in-memory state",
+                     0, repairState.getLongestUnrepairedSec());
+
+        // Second call to repair() after "restart"
+        AutoRepair.instance.repair(repairType);
+        int secondMetricValue = repairState.getLongestUnrepairedSec();
+
+        // Both values should be non-zero
+        assertTrue("Second metric value should be greater than 0", secondMetricValue > 0);
+
+        // Second value should be slightly larger (more time has passed)
+        assertTrue("Second metric value should be >= first value",
+                   secondMetricValue >= firstMetricValue);
+
+        // Re-enable auto-repair for cleanup
+        config.setAutoRepairEnabled(repairType, true);
+    }
 }

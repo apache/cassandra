@@ -170,26 +170,34 @@ public class AutoRepair
     public void repair(AutoRepairConfig.RepairType repairType)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        if (!config.isAutoRepairEnabled(repairType))
-        {
-            logger.debug("Auto-repair is disabled for repair type {}", repairType);
-            return;
-        }
+        
         AutoRepairService.instance.checkCanRun(repairType);
+        
         AutoRepairState repairState = repairStates.get(repairType);
+        
         try
         {
+            // update metrics to ensure longestUnrepairedSec metric stays accurate even when auto-repair is disabled
+            // Table operations are not allowed during bootstrap
+            if (!AutoRepairUtils.isBootstrapRepair())
+            {
+                // refresh the longest unrepaired node
+                repairState.setLongestUnrepairedNode(AutoRepairUtils.getHostWithLongestUnrepairTime(repairType));
+            }
+            
+            // checking if repair should actually run now
+            if (!config.isAutoRepairEnabled(repairType))
+            {
+                logger.debug("Auto-repair is disabled for repair type {}", repairType);
+                return;
+            }
+            
             String localDC = DatabaseDescriptor.getLocalDataCenter();
             if (config.getIgnoreDCs(repairType).contains(localDC))
             {
                 logger.info("Not running repair as this node belongs to datacenter {}", localDC);
                 return;
             }
-
-            // Table operations are not allowed during bootstrap
-            if (!AutoRepairUtils.isBootstrapRepair())
-                // refresh the longest unrepaired node
-                repairState.setLongestUnrepairedNode(AutoRepairUtils.getHostWithLongestUnrepairTime(repairType));
 
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
