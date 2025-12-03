@@ -1137,7 +1137,8 @@ public class ASTGenerators
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
                                                          .withTxnSafe()
-                                                         .disallowUpdateMultiplePartitionKeys()
+                                                         .disallowUpdateMultiplePartitionKeys() //TODO (coverage): this is something Accord should support, so should remove and make sure accord is updated
+                                                         .disallowListElementAccessForUpdateSet() //TODO (coverage): CASSANDRA-20828 found an issue with multi cell list type timestamp handling, so make sure accord doesn't hit this
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());
@@ -1266,7 +1267,8 @@ public class ASTGenerators
         {
             MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes)
                                          .withTxnSafe()
-                                         .disallowUpdateMultiplePartitionKeys();
+                                         .disallowUpdateMultiplePartitionKeys() //TODO (coverage): this is something Accord should support, so should remove and make sure accord is updated
+                                         .disallowListElementAccessForUpdateSet(); //TODO (coverage): CASSANDRA-20828 found an issue with multi cell list type timestamp handling, so make sure accord doesn't hit this
             if (!allowEmpty)
                 builder.disallowEmpty();
             return builder.build();
