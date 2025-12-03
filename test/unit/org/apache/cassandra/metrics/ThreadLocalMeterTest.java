@@ -24,6 +24,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.codahale.metrics.Clock;
@@ -37,6 +38,13 @@ import static org.junit.Assert.assertEquals;
 
 public class ThreadLocalMeterTest
 {
+
+    @Before
+    public void before()
+    {
+        ThreadLocalMeter.disableBackgroundTicking();
+    }
+
     @Test
     public void checkNoMark()
     {

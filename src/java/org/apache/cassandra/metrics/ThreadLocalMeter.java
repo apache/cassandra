@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -92,9 +93,21 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
         maxTicks = m3Ticks;
     }
 
+    private static final ScheduledFuture<?> backgroundTickingJob;
+
+    /**
+     * the method is provided for test purposes only,
+     * to disable background activities and make tests more deterministic
+     */
+    @VisibleForTesting
+    static void disableBackgroundTicking()
+    {
+        backgroundTickingJob.cancel(true);
+    }
+
     static
     {
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(ThreadLocalMeter::tickAll,
+        backgroundTickingJob = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(ThreadLocalMeter::tickAll,
                                                                  BACKGROUND_TICK_INTERVAL_SEC,
                                                                  BACKGROUND_TICK_INTERVAL_SEC,
                                                                  TimeUnit.SECONDS);
