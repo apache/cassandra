@@ -383,12 +383,12 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             pkValues.forEach(bb -> uniquePartitions.add(Map.of(PK, bb)));
 
 
-            ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
-                                                                  .withTxnSafe()
-                                                                  .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
-                                                                  .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
-                                                                  .withIgnoreIssues(IGNORED_ISSUES);
-            this.mutationGen = toGen(mutationGenBuilder.build());
+            this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
+                                     .withTxnSafe()
+                                     .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                     .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
+                                     .withIgnoreIssues(IGNORED_ISSUES)
+                                     .build());
         }
 
         @Override

@@ -98,7 +98,7 @@ public class TestBaseImpl extends DistributedTestBase
     {
         System.setProperty("accord.debug", "true"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
     }
-    
+
     private static final Logger logger = LoggerFactory.getLogger(TestBaseImpl.class);
 
     public static final Object[][] EMPTY_ROWS = new Object[0][];
