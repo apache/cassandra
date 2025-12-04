@@ -2128,3 +2128,21 @@ auto_repair:
 #         # especially in keyspaces with many tables. The splitter avoids batching tables together if they
 #         # exceed other configuration parameters like bytes_per_assignment or partitions_per_assignment.
 #         max_tables_per_assignment: 64
+
+continuous_profiler_config:
+  enabled: false
+  enablement_check_interval: 600000  # 10 minutes
+  pyroscope_proxy:
+    upload_url: "http://127.0.0.1:5436/continuous-profiler/uploadv1"
+    enablement_url: "http://127.0.0.1:5436/continuous-profiler/enablementv1"
+    timeout: 30000  # 30 seconds
+    service_name: "serverless-pyroscope-proxy-handler"
+  profiles:
+    cpu:
+      enablement_fraction: 0.1
+      profile_interval: 60000
+      collection_duration: 60000
+    alloc:
+      enablement_fraction: 0.05
+      profile_interval: 60000
+      collection_duration: 60000

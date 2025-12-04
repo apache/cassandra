@@ -91,6 +91,7 @@ import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.profiling.ContinuousProfilerManager;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
@@ -284,6 +285,8 @@ public class CassandraDaemon
         maybeInitJmx();
 
         maybeInitJFxDebug();
+
+        ContinuousProfilerManager.initialize(DatabaseDescriptor.getContinuousProfilerConfig());
 
         Mx4jTool.maybeLoad();
 
@@ -764,7 +767,8 @@ public class CassandraDaemon
         logger.info("Cassandra shutting down...");
         destroyClientTransports();
         StorageService.instance.setRpcReady(false);
-
+        ContinuousProfilerManager.shutdown();
+        
         if (jmxServer != null)
         {
             try

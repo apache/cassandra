@@ -221,6 +221,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.locator.ReplicaCollection",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
+    "org.apache.cassandra.profiling.ContinuousProfilerConfig",
+    "org.apache.cassandra.profiling.ContinuousProfilerConfig$PyroscopeProxyConfig",
     "org.apache.cassandra.security.ISslContextFactory",
     "org.apache.cassandra.security.SSLFactory",
     "org.apache.cassandra.security.EncryptionContext",

@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.profiling.ContinuousProfilerConfig;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
 import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
@@ -1074,6 +1075,13 @@ public class Config
     // When enabled: only consistency level of natural replicas is required for writes during node replacement
     // For normal bootstrap (non-replacement), pending replicas are still included
     public volatile boolean write_requests_not_wait_on_pending_replacements = false;
+
+    /**
+     * (Uber specific) Configuration options for the continuous profiler integration.
+     * Handled by external continuous profiler components.
+     */
+    public volatile ContinuousProfilerConfig continuous_profiler_config = new ContinuousProfilerConfig();
+
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean group_by_enabled = true;
     public volatile boolean alter_table_compaction_strategy_enabled = true;

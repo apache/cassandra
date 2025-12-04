@@ -58,6 +58,7 @@ import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
+import org.apache.cassandra.profiling.ContinuousProfilerConfig;
 import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.slf4j.Logger;
@@ -2312,6 +2313,11 @@ public class DatabaseDescriptor
     public static void setExcludeReplacementPendingForWrite(boolean value)
     {
         conf.write_requests_not_wait_on_pending_replacements = value;
+    }
+
+    public static ContinuousProfilerConfig getContinuousProfilerConfig()
+    {
+        return conf.continuous_profiler_config;
     }
 
     public static CompactionStrategyMigrationOptions getCompactionStrategyMigrationOptions()
