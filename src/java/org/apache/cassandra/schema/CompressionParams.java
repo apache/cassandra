@@ -23,6 +23,8 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.ServiceLoader;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -40,10 +42,14 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static java.lang.String.format;
 
 public final class CompressionParams
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
@@ -71,6 +77,7 @@ public final class CompressionParams
                                                                        Collections.emptyMap());
 
     private final ICompressor sstableCompressor;
+    private final ICompressor decoratedSstableCompressor;
     private final int chunkLength;
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
@@ -223,6 +230,7 @@ public final class CompressionParams
         this.otherOptions = ImmutableMap.copyOf(otherOptions);
         this.minCompressRatio = minCompressRatio;
         this.maxCompressedLength = maxCompressedLength;
+	this.decoratedSstableCompressor = decorateCompressor(sstableCompressor, otherOptions);
     }
 
     public CompressionParams copy()
@@ -258,6 +266,15 @@ public final class CompressionParams
     public ICompressor getSstableCompressor()
     {
         return sstableCompressor;
+    }
+
+    /**
+     * Provides a decorated SSTable compressor, if a compression service is loaded.
+     * @return a decorated SSTable compressor or {@code getSstableCompressor()}.
+     */
+    public ICompressor getDecoratedSstableCompressor()
+    {
+        return decoratedSstableCompressor;
     }
 
     public ImmutableMap<String, String> getOtherOptions()
@@ -346,6 +363,48 @@ public final class CompressionParams
     public static ICompressor createCompressor(ParameterizedClass compression) throws ConfigurationException
     {
         return createCompressor(parseCompressorClass(compression.class_name), copyOptions(compression.parameters));
+    }
+
+    /**
+     * Creates a decorated compressor, if compression service providers available in the classpath or
+     * returns the base compressor
+     * @param baseCompressor compressor being decorated
+     * @param options compression options of baseCompressor
+     * @return returns a decorated compressor, if service available, otherwise baseCompressor
+     */
+    private static ICompressor decorateCompressor(ICompressor baseCompressor, Map<String, String> options)
+    {
+        if(baseCompressor != null)
+	{
+            try
+	    {
+                Optional<ICompressorFactory> selectedFactory = getServiceProviderFactory(baseCompressor.getClass().getSimpleName());
+	        if (selectedFactory.isPresent())
+	        {
+                    ICompressor pluginCompressor = selectedFactory.get().createCompressor(options);
+		    return new CompressorDecorator(baseCompressor, pluginCompressor);
+	        }
+	    }
+	    catch(IllegalStateException e)
+	    {
+                logger.trace("Failed to access service provider. Will fallback to default!!");
+	    }
+	}
+        return baseCompressor;
+    }
+
+    /**
+     * Provides access to a factory to create plugin compressors, if available
+     * @param compressorName simple name of the compressor class
+     * @return an optional containing ICompressorFactory, if present, an empty optional otherwise
+     */
+    private static Optional<ICompressorFactory> getServiceProviderFactory(String compressorName)
+    {
+         ServiceLoader<ICompressorFactory> loader = ServiceLoader.load(ICompressorFactory.class);
+	 return loader.stream()
+		 .filter(factory -> factory.get().getSupportedCompressorName().equals(compressorName))
+		 .map(ServiceLoader.Provider::get)
+		 .findFirst();
     }
 
     private static Map<String, String> copyOptions(Map<? extends CharSequence, ? extends CharSequence> co)
