@@ -68,7 +68,7 @@ public class ZstdCompressionDictionaryTest
     {
         ZstdCompressionDictionary dictionary2 = new ZstdCompressionDictionary(SAMPLE_DICT_ID, SAMPLE_DICT_DATA);
         ZstdCompressionDictionary differentIdDict = new ZstdCompressionDictionary(
-            new DictId(Kind.ZSTD, 987654321L), SAMPLE_DICT_DATA);
+        new DictId(Kind.ZSTD, 987654321L), SAMPLE_DICT_DATA);
 
         assertThat(dictionary)
         .as("Dictionaries with same ID should be equal")
@@ -82,8 +82,8 @@ public class ZstdCompressionDictionaryTest
         .as("Dictionaries with different IDs should not be equal")
         .isNotEqualTo(differentIdDict);
 
-        dictionary2.close();
-        differentIdDict.close();
+        dictionary2.selfRef().release();
+        differentIdDict.selfRef().release();
     }
 
     @Test
@@ -168,17 +168,48 @@ public class ZstdCompressionDictionaryTest
         dictionary.dictionaryForCompression(3);
         dictionary.dictionaryForDecompression();
 
-        dictionary.close();
+        // Release the self-reference
+        dictionary.selfRef().release();
 
-        assertThatThrownBy(() -> dictionary.dictionaryForCompression(3))
-        .as("Should throw exception when accessing closed dictionary")
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Dictionary has been closed");
+        // After releasing selfRef, tryRef should return null
+        Ref<ZstdCompressionDictionary> ref = dictionary.tryRef();
+        assertThat(ref)
+        .as("tryRef should return null after dictionary is released")
+        .isNull();
+    }
 
-        assertThatThrownBy(() -> dictionary.dictionaryForDecompression())
-        .as("Should throw exception when accessing closed dictionary")
+    @Test
+    public void testDictionaryAccessWithoutReference()
+    {
+        // Create a new dictionary for this test
+        ZstdCompressionDictionary testDict = new ZstdCompressionDictionary(
+            new DictId(Kind.ZSTD, 999999L),
+            SAMPLE_DICT_DATA
+        );
+
+        // Access some dictionaries first to initialize them
+        testDict.dictionaryForCompression(3);
+        testDict.dictionaryForDecompression();
+
+        // Release the self-reference to simulate dictionary cleanup
+        testDict.selfRef().release();
+
+        // Verify tryRef returns null after release
+        assertThat(testDict.tryRef())
+        .as("tryRef should return null after dictionary is released")
+        .isNull();
+
+        // Accessing dictionary methods without a valid reference should throw IllegalStateException
+        // This protects against use-after-free bugs in both development and production
+        assertThatThrownBy(() -> testDict.dictionaryForCompression(3))
+        .as("Should throw exception when accessing released dictionary")
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Dictionary has been closed");
+        .hasMessageContaining("Dictionary has been released");
+
+        assertThatThrownBy(() -> testDict.dictionaryForDecompression())
+        .as("Should throw exception when accessing released dictionary")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Dictionary has been released");
     }
 
     @Test
@@ -229,15 +260,16 @@ public class ZstdCompressionDictionaryTest
     @Test
     public void testReferenceAfterClose()
     {
-        dictionary.close();
+        // Release the self-reference
+        dictionary.selfRef().release();
 
         assertThatThrownBy(() -> dictionary.ref())
-        .as("Should not be able to get reference after close")
+        .as("Should not be able to get reference after release")
         .isInstanceOf(AssertionError.class);
 
         Ref<ZstdCompressionDictionary> tryRef = dictionary.tryRef();
         assertThat(tryRef)
-        .as("tryRef should return null after close")
+        .as("tryRef should return null after release")
         .isNull();
     }
 
@@ -355,8 +387,8 @@ public class ZstdCompressionDictionaryTest
         .isNotNull()
         .isEqualTo(dict2);
 
-        dict1.close();
-        dict2.close();
+        dict1.selfRef().release();
+        dict2.selfRef().release();
     }
 
     @Test

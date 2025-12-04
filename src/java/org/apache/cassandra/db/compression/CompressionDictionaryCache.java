@@ -62,17 +62,17 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                              .removalListener((DictId dictId,
                                                CompressionDictionary dictionary,
                                                RemovalCause cause) -> {
-                                 // Close dictionary when evicted from cache to free native resources
-                                 // SelfRefCounted ensures dictionary won't be actually closed if still referenced by compressors
+                                 // Release the cache's reference to the dictionary when evicted
+                                 // The dictionary will only be truly cleaned up when all references are released
                                  if (dictionary != null)
                                  {
                                      try
                                      {
-                                         dictionary.close();
+                                         dictionary.selfRef().release();
                                      }
                                      catch (Exception e)
                                      {
-                                         logger.warn("Failed to close compression dictionary {}", dictId, e);
+                                         logger.warn("Failed to release compression dictionary {}", dictId, e);
                                      }
                                  }
                              })
