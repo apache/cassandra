@@ -151,6 +151,28 @@ public class AutoRepairOrphanCleanupTest extends TestBaseImpl
         "NOT_MY_TURN"
         ), ConsistencyLevel.QUORUM);
 
+        // Validate that all 4 records (3 live nodes + 1 orphan) are present before starting auto-repair
+        Object[][] initialRows = cluster.coordinator(1).execute(
+        String.format("SELECT host_id FROM %s.%s WHERE repair_type = '%s'",
+                      DISTRIBUTED_KEYSPACE_NAME,
+                      AUTO_REPAIR_HISTORY,
+                      AutoRepairConfig.RepairType.FULL),
+        ConsistencyLevel.QUORUM
+        );
+        assertEquals("Expected 4 records (3 live nodes + 1 orphan) before auto-repair starts", 4, initialRows.length);
+        boolean orphanFound = false;
+        int liveNodesFound = 0;
+        for (Object[] row : initialRows)
+        {
+            UUID hostId = (UUID) row[0];
+            if (hostId.equals(orphanHostId))
+                orphanFound = true;
+            else if (liveHostIds.contains(hostId))
+                liveNodesFound++;
+        }
+        assertEquals("All 3 live nodes should be present", 3, liveNodesFound);
+        assertEquals("Orphan node should be present", true, orphanFound);
+
         // Once the auto_repair_history table is prepared, initialize auto-repair service on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
             try
