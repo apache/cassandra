@@ -120,7 +120,7 @@ public class CompressionDictionaryEventHandlerTest
     {
         if (testDictionary != null)
         {
-            testDictionary.selfRef().close();
+            testDictionary.close();
         }
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();

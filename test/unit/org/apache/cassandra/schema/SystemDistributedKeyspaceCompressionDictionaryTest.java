@@ -102,7 +102,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Retrieved dictionary data should match stored")
         .isEqualTo(testDictionary1.rawDictionary());
 
-        retrieved.selfRef().close();
+        retrieved.close();
     }
 
     @Test
@@ -124,7 +124,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Should retrieve dictionary with higher ID")
         .isEqualTo(testDictionary2.dictId());
 
-        latest.selfRef().close();
+        latest.close();
     }
 
     @Test
@@ -156,8 +156,8 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         .as("Should retrieve correct dictionary by ID")
         .isEqualTo(testDictionary2.dictId());
 
-        dict1.selfRef().close();
-        dict2.selfRef().close();
+        dict1.close();
+        dict2.close();
     }
 
     @Test

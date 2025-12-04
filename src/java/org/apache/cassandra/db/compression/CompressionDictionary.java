@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
@@ -111,6 +112,11 @@ public interface CompressionDictionary
     /**
      * Try to acquire a new reference to this dictionary.
      * Returns null if the dictionary is already released.
+     * <p>
+     * The caller must ensure the returned reference is released when no longer needed,
+     * either by calling {@code ref.release()} or {@code ref.close()} (they are equivalent).
+     * Failing to release the reference will prevent cleanup of native resources and cause
+     * a memory leak.
      *
      * @return a new reference to this dictionary, or null if already released
      */
@@ -123,6 +129,27 @@ public interface CompressionDictionary
      * @return the self-reference
      */
     Ref<? extends CompressionDictionary> selfRef();
+
+    /**
+     * Releases the self-reference of this dictionary.
+     * This is a convenience method equivalent to calling {@code selfRef().close()}.
+     * <p>
+     * This method is idempotent - calling it multiple times is safe and will only
+     * release the self-reference once. Subsequent calls have no effect.
+     * <p>
+     * This method is typically used when creating a dictionary outside the cache
+     * (e.g., in tests or temporary usage) and needing to clean it up. For dictionaries
+     * managed by the cache, the cache's removal listener handles cleanup via
+     * {@code selfRef().release()}.
+     *
+     * @see #selfRef()
+     * @see #tryRef()
+     */
+    @VisibleForTesting
+    default void close()
+    {
+        selfRef().close();
+    }
 
     /**
      * Write compression dictionary to file

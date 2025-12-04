@@ -160,7 +160,7 @@ public class CompressionDictionaryCacheTest
         .as("Should keep original dictionary as current")
         .isSameAs(testDict2);
 
-        sameDictCopy.selfRef().close();
+        sameDictCopy.close();
     }
 
     @Test
