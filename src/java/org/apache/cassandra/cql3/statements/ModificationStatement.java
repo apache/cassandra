@@ -995,30 +995,28 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (slices.isEmpty())
                 return;
 
-            try (UpdateParameters params = makeUpdateParameters(keys,
-                                                                new ClusteringIndexSliceFilter(slices, false),
-                                                                state,
-                                                                options,
-                                                                DataLimits.NONE,
-                                                                local,
-                                                                timestamp,
-                                                                nowInSeconds,
-                                                                requestTime
-            ))
+            UpdateParameters params = makeUpdateParameters(keys,
+                                                           new ClusteringIndexSliceFilter(slices, false),
+                                                           state,
+                                                           options,
+                                                           DataLimits.NONE,
+                                                           local,
+                                                           timestamp,
+                                                           nowInSeconds,
+                                                           requestTime
+            );
+            for (ByteBuffer key : keys)
             {
-                for (ByteBuffer key : keys)
-                {
-                    Validation.validateKey(metadata(), key);
-                    DecoratedKey dk = metadata().partitioner.decorateKey(key);
+                Validation.validateKey(metadata(), key);
+                DecoratedKey dk = metadata().partitioner.decorateKey(key);
 
-                    PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
+                PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
 
-                    if (slices == Slices.ALL) // to avoid Slices iterator allocation for a common case
-                        addUpdateForKey(updateBuilder, Slice.ALL, params);
-                    else
-                        for (Slice slice : slices)
-                            addUpdateForKey(updateBuilder, slice, params);
-                }
+                if (slices == Slices.ALL) // to avoid Slices iterator allocation for a common case
+                    addUpdateForKey(updateBuilder, Slice.ALL, params);
+                else
+                    for (Slice slice : slices)
+                        addUpdateForKey(updateBuilder, slice, params);
             }
         }
         else
@@ -1029,33 +1027,31 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            try (UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime))
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
+
+            for (ByteBuffer key : keys)
             {
-                for (ByteBuffer key : keys)
+                Validation.validateKey(metadata(), key);
+                Validation.checkConstraints(metadata(), key);
+                DecoratedKey dk = metadata().partitioner.decorateKey(key);
+
+                PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
+
+                if (!restrictions.hasClusteringColumnsRestrictions())
                 {
-                    Validation.validateKey(metadata(), key);
-                    Validation.checkConstraints(metadata(), key);
-                    DecoratedKey dk = metadata().partitioner.decorateKey(key);
-
-                    PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
-
-                    if (!restrictions.hasClusteringColumnsRestrictions())
+                    addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
+                }
+                else
+                {
+                    // Clustering keys need to be checked on their own
+                    for (Clustering<?> clustering : clusterings)
                     {
-                        addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
-                    }
-                    else
-                    {
-                        // Clustering keys need to be checked on their own
-                        for (Clustering<?> clustering : clusterings)
-                        {
-                            clustering.validate();
-                            checkClusteringConstraints(clustering);
-                            addUpdateForKey(updateBuilder, clustering, params);
-                        }
+                        clustering.validate();
+                        checkClusteringConstraints(clustering);
+                        addUpdateForKey(updateBuilder, clustering, params);
                     }
                 }
             }
-
         }
     }
 

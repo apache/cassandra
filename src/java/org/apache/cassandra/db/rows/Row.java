@@ -594,12 +594,6 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
          * @return the last row built by this builder.
          */
         public Row build();
-
-        /**
-         * Clear all state, which should make the builder safe to reuse.  {@link #build()} is expected to call this method,
-         * so only need to call when there is an issue building the row.
-         */
-        public void reset();
     }
 
     /**

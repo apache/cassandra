@@ -891,8 +891,7 @@ public class BTreeRow extends AbstractRow
             return clustering;
         }
 
-        @Override
-        public void reset()
+        protected void reset()
         {
             this.clustering = null;
             this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
@@ -939,7 +938,6 @@ public class BTreeRow extends AbstractRow
             hasComplex = true;
         }
 
-        @Override
         public Row build()
         {
             if (!isSorted)

@@ -351,13 +351,11 @@ public class CQL3CasRequest implements CASRequest
         long applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, ClientState state, long timeUuidMsb, long timeUuidNanos)
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-            try (CASUpdateParameters params =
-                 new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
-                                         stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos))
-            {
-                stmt.addUpdateForKey(updateBuilder, clustering, params);
-                return params.timeUuidNanos;
-            }
+            CASUpdateParameters params =
+                new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
+                                     stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
+            stmt.addUpdateForKey(updateBuilder, clustering, params);
+            return params.timeUuidNanos;
         }
     }
 
@@ -382,18 +380,15 @@ public class CQL3CasRequest implements CASRequest
         {
             // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
-
-            try (UpdateParameters params =
-                 new UpdateParameters(metadata,
-                                      state,
-                                      options,
-                                      timestamp,
-                                      nowInSeconds,
-                                      stmt.getTimeToLive(options),
-                                      map))
-            {
-                stmt.addUpdateForKey(updateBuilder, slice, params);
-            }
+            UpdateParameters params =
+                new UpdateParameters(metadata,
+                                     state,
+                                     options,
+                                     timestamp,
+                                     nowInSeconds,
+                                     stmt.getTimeToLive(options),
+                                     map);
+            stmt.addUpdateForKey(updateBuilder, slice, params);
         }
     }
 

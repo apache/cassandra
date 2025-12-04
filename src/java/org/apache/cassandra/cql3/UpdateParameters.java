@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.TimeUUID;
 /**
  * Groups the parameters of an update query, and make building updates easier.
  */
-public class UpdateParameters implements AutoCloseable
+public class UpdateParameters
 {
     public final TableMetadata metadata;
     public final ClientState clientState;
@@ -257,14 +257,6 @@ public class UpdateParameters implements AutoCloseable
         Row built = builder.build();
         builder = null; // Resetting to null just so we quickly bad usage where we forget to call newRow() after that.
         return built;
-    }
-
-    @Override
-    public void close()
-    {
-        if (builder == null) return;
-        builder.reset(); // Clear resources
-        builder = null;
     }
 
     public DeletionTime deletionTime()
