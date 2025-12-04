@@ -232,6 +232,12 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
  */
 public abstract class CQLTester
 {
+
+    static
+    {
+        System.setProperty("accord.debug", "true");
+    }
+
     /**
      * The super user
      */

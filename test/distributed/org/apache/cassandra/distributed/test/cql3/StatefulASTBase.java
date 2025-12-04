@@ -95,6 +95,11 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator
 
 public class StatefulASTBase extends TestBaseImpl
 {
+    static
+    {
+        System.setProperty("accord.debug", "true");
+    }
+
     protected static final EnumSet<KnownIssue> IGNORED_ISSUES = KnownIssue.ignoreAll();
     /**
      * mutations and selects will use operators (eg. {@code 4 + 4}, the + operator), and this will be reflected in the history output.
