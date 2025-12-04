@@ -255,7 +255,7 @@ public class CreateIndexDDL implements Element
 
     public static class CollectionReference implements ReferenceExpression
     {
-        public enum Kind { FULL, KEYS, ENTRIES;}
+        public enum Kind { FULL, KEYS, ENTRIES }
         public final Kind kind;
 
         public final ReferenceExpression column;
