@@ -133,7 +133,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
                                        compressedLength, compressionDictionary);
     }
 
-    // do not call this constructor directly, unless used in testing
+    // Do not call this constructor from outside this class file, except in tests.
+    // Within this class, use the static open() method or the Writer.open() method instead.
     @VisibleForTesting
     public CompressionMetadata(File chunksIndexFile,
                                CompressionParams parameters,
@@ -143,7 +144,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
                                long compressedFileLength,
                                CompressionDictionary compressionDictionary)
     {
-        super(chunkOffsets);
+        // Build array with chunkOffsets and a wrapper that releases dictionary ref
+        super(buildCloseableArray(chunkOffsets, compressionDictionary));
         this.chunksIndexFile = chunksIndexFile;
         this.parameters = parameters;
         this.dataLength = dataLength;
@@ -153,6 +155,37 @@ public class CompressionMetadata extends WrappedSharedCloseable
         this.compressionDictionary = compressionDictionary;
     }
 
+    private static AutoCloseable[] buildCloseableArray(Memory chunkOffsets, CompressionDictionary dictionary)
+    {
+        if (dictionary == null)
+            return new AutoCloseable[] { chunkOffsets };
+
+        Ref<? extends CompressionDictionary> dictRef = dictionary.tryRef();
+        if (dictRef == null)
+        {
+            // Close chunkOffsets before throwing to prevent resource leak.
+            // The CompressionMetadata constructor will not complete if we throw here,
+            // so we must clean up resources that were passed in.
+            chunkOffsets.close();
+            throw new IllegalStateException("Failed to acquire reference to compression dictionary");
+        }
+
+        return new AutoCloseable[] { chunkOffsets, dictRef::release };
+    }
+
+    /**
+     * Copy constructor for creating shared copies via sharedCopy().
+     * <br>
+     * This uses the WrappedSharedCloseable pattern where all copies share the same
+     * underlying resources (chunkOffsets Memory and dictionary reference). The super()
+     * call increments the shared reference count, and resources are only released when
+     * the last copy is closed.
+     * <br>
+     * Reference counting behavior:
+     * - Original CompressionMetadata acquires 1 dictionary reference (in buildCloseableArray)
+     * - All copies share that reference (via super(copy) incrementing shared ref count)
+     * - When last copy closes, WrappedSharedCloseable.Tidy releases the reference once
+     */
     private CompressionMetadata(CompressionMetadata copy)
     {
         super(copy);
@@ -163,11 +196,11 @@ public class CompressionMetadata extends WrappedSharedCloseable
         this.chunkOffsets = copy.chunkOffsets;
         this.chunkOffsetsSize = copy.chunkOffsetsSize;
         this.compressionDictionary = copy.compressionDictionary;
+        this.resolvedCompressor = copy.resolvedCompressor;
     }
 
     public ICompressor compressor()
     {
-        // classic double-checked locking to call resolveCompressor method just once per CompressionMetadata object
         ICompressor result = resolvedCompressor;
         if (result != null)
             return result;
@@ -228,6 +261,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
     {
         super.addTo(identities);
         identities.add(chunkOffsets);
+        // Note: compressionDictionary ref is managed by WrappedSharedCloseable,
+        // so it's already tracked through the parent's identity collection
     }
 
     @Override
@@ -408,15 +443,37 @@ public class CompressionMetadata extends WrappedSharedCloseable
         // provided by user when setDescriptor
         private long dataLength, chunkCount;
         @Nullable
-        private CompressionDictionary compressionDictionary;
+        private final CompressionDictionary compressionDictionary;
+        @Nullable // Reference to keep dictionary alive during write
+        private Ref<? extends CompressionDictionary> compressionDictionaryRef;
 
         private Writer(CompressionParams parameters, File file, CompressionDictionary compressionDictionary)
         {
             this.parameters = parameters;
             this.file = file;
             this.compressionDictionary = compressionDictionary;
+            // Take a reference to ensure dictionary stays alive during SSTable write
+            if (compressionDictionary != null)
+            {
+                this.compressionDictionaryRef = compressionDictionary.tryRef();
+                if (compressionDictionaryRef == null)
+                {
+                    // Clean up offsets SafeMemory allocated in field initializer before throwing
+                    // to prevent resource leak. The offsets field is initialized before constructor
+                    // body runs, so it must be explicitly cleaned up if construction fails.
+                    offsets.close();
+                    throw new IllegalStateException("Failed to acquire reference to compression dictionary " + compressionDictionary.dictId());
+                }
+            }
         }
 
+        /**
+         * Creates a new Writer for compression metadata.
+         *
+         * Note on resource management: If this method throws an exception, all resources
+         * are properly cleaned up. The Writer constructor ensures that if dictionary
+         * reference acquisition fails, the offsets SafeMemory is released.
+         */
         public static Writer open(CompressionParams parameters,
                                   File file,
                                   CompressionDictionary compressionDictionary)
@@ -569,12 +626,24 @@ public class CompressionMetadata extends WrappedSharedCloseable
         @Override
         protected Throwable doCommit(Throwable accumulate)
         {
+            // Release the dictionary reference after successful write
+            if (compressionDictionaryRef != null)
+            {
+                compressionDictionaryRef.release();
+                compressionDictionaryRef = null;
+            }
             return accumulate;
         }
 
         @Override
         protected Throwable doAbort(Throwable accumulate)
         {
+            // Release the dictionary reference
+            if (compressionDictionaryRef != null)
+            {
+                compressionDictionaryRef.release();
+                compressionDictionaryRef = null;
+            }
             return accumulate;
         }
     }

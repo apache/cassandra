@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
@@ -32,8 +33,41 @@ import com.google.common.hash.Hashing;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
+import org.apache.cassandra.utils.concurrent.Ref;
 
-public interface CompressionDictionary extends AutoCloseable
+/**
+ * Interface for compression dictionaries with reference-counted lifecycle management.
+ *
+ * <h2>Reference Counting Model</h2>
+ * Compression dictionaries hold native resources that must be explicitly managed. This interface
+ * uses {@link Ref} for safe lifecycle management across multiple concurrent users.
+ *
+ * <h3>Ownership and Usage in Cassandra</h3>
+ * <ul>
+ *   <li><b>CompressionDictionaryManager</b>: Holds the primary reference ({@link #selfRef()}) for cached dictionaries</li>
+ *   <li><b>CompressionMetadata.Writer</b>: Acquires a reference during SSTable write, held for the writer's lifetime</li>
+ *   <li><b>CompressionMetadata</b>: Acquires a reference when created (via {@link #tryRef()}), held for the SSTable reader's lifetime.
+ *       All copies created via sharedCopy() share this single reference through WrappedSharedCloseable</li>
+ * </ul>
+ *
+ * <h3>Correctness Guarantee</h3>
+ * The reference counting prevents premature cleanup of native resources:
+ * <ol>
+ *   <li>CompressionMetadata acquires a reference when an SSTable is opened</li>
+ *   <li>Native resources remain valid as long as any reference exists (refcount &gt; 0)</li>
+ *   <li>Even if the cache evicts the dictionary, the SSTable's reference keeps resources alive</li>
+ *   <li>Cleanup runs exactly once when the last reference is released (refcount goes 0 → -1)</li>
+ *   <li>After cleanup, {@link #tryRef()} returns null, preventing new references to released resources</li>
+ * </ol>
+ *
+ * This ensures dictionaries cannot be freed while SSTables are using them for compression/decompression,
+ * even when the cache evicts the dictionary concurrently.
+ *
+ * @see Ref for reference counting implementation
+ * @see CompressionDictionaryManager for cache management
+ * @see org.apache.cassandra.io.compress.CompressionMetadata for SSTable usage
+ */
+public interface CompressionDictionary
 {
     /**
      * Get the dictionary id
@@ -73,6 +107,48 @@ public interface CompressionDictionary extends AutoCloseable
     default Kind kind()
     {
         return dictId().kind;
+    }
+
+    /**
+     * Try to acquire a new reference to this dictionary.
+     * Returns null if the dictionary is already released.
+     * <p>
+     * The caller must ensure the returned reference is released when no longer needed,
+     * either by calling {@code ref.release()} or {@code ref.close()} (they are equivalent).
+     * Failing to release the reference will prevent cleanup of native resources and cause
+     * a memory leak.
+     *
+     * @return a new reference to this dictionary, or null if already released
+     */
+    Ref<? extends CompressionDictionary> tryRef();
+
+    /**
+     * Get the self-reference of this dictionary.
+     * This is used to release the primary reference held by the cache.
+     *
+     * @return the self-reference
+     */
+    Ref<? extends CompressionDictionary> selfRef();
+
+    /**
+     * Releases the self-reference of this dictionary.
+     * This is a convenience method equivalent to calling {@code selfRef().close()}.
+     * <p>
+     * This method is idempotent - calling it multiple times is safe and will only
+     * release the self-reference once. Subsequent calls have no effect.
+     * <p>
+     * This method is typically used when creating a dictionary outside the cache
+     * (e.g., in tests or temporary usage) and needing to clean it up. For dictionaries
+     * managed by the cache, the cache's removal listener handles cleanup via
+     * {@code selfRef().release()}.
+     *
+     * @see #selfRef()
+     * @see #tryRef()
+     */
+    @VisibleForTesting
+    default void close()
+    {
+        selfRef().close();
     }
 
     /**
@@ -192,7 +268,7 @@ public interface CompressionDictionary extends AutoCloseable
             if (dict.length != storedLength)
             {
                 throw new IllegalStateException(String.format("Dictionary length mismatch for %s dict id %d. Expected: %d, actual: %d",
-                                                               kindStr, dictId, storedLength, dict.length));
+                                                              kindStr, dictId, storedLength, dict.length));
             }
 
             // Validate checksum
@@ -200,7 +276,7 @@ public interface CompressionDictionary extends AutoCloseable
             if (calculatedChecksum != storedChecksum)
             {
                 throw new IllegalStateException(String.format("Dictionary checksum mismatch for %s dict id %d. Expected: %d, actual: %d",
-                                                               kindStr, dictId, storedChecksum, calculatedChecksum));
+                                                              kindStr, dictId, storedChecksum, calculatedChecksum));
             }
 
             return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"), storedChecksum);

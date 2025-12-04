@@ -421,13 +421,13 @@ public class CompressionDictionaryCacheTest
         }
     }
 
-    private static void closeQuietly(AutoCloseable resource)
+    private static void closeQuietly(ZstdCompressionDictionary resource)
     {
         if (resource != null)
         {
             try
             {
-                resource.close();
+                resource.selfRef().release();
             }
             catch (Exception e)
             {
