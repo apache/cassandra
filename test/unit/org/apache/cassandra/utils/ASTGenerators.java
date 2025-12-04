@@ -444,7 +444,13 @@ public class ASTGenerators
 
         public MutationGenBuilder disallowListElementAccessForUpdateSet()
         {
-            allowedCollectionElementAccessForUpdateSet.remove(CollectionType.Kind.LIST);
+            return withListElementAccessForUpdateSet(false);
+        }
+
+        public MutationGenBuilder withListElementAccessForUpdateSet(boolean allow)
+        {
+            if (allow) allowedCollectionElementAccessForUpdateSet.add(CollectionType.Kind.LIST);
+            else       allowedCollectionElementAccessForUpdateSet.remove(CollectionType.Kind.LIST);
             return this;
         }
 
