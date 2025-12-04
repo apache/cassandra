@@ -566,8 +566,12 @@ public class AutoRepairUtilsTest extends CQLTester
         
         // 2. Then, a vote to delete arrives after the row has already been deleted
         AutoRepairUtils.addHostIdToDeleteHosts(repairType, votingNode, nodeToDelete);
+
+        // 3. This should not happen under normal circumstances but let's also simulate another node trying to clear
+        // the delete hosts list for the deleted node
+        AutoRepairUtils.clearDeleteHosts(repairType, nodeToDelete);
         
-        // Verify that the row is still deleted despite the out-of-order vote
+        // Verify that the row is still deleted despite the out-of-order operations
         UntypedResultSet afterRace = QueryProcessor.executeInternal(String.format(
         "SELECT * FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
