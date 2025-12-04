@@ -18,8 +18,6 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +34,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
+import org.apache.cassandra.io.compress.CompressorRegistry;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
@@ -47,6 +47,7 @@ import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+
 
 import static java.lang.String.format;
 
@@ -63,6 +64,7 @@ public final class CompressionParams
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
+    private static final CompressorRegistry registry = CompressorRegistry.instance;
     public static final CompressionParams DEFAULT = !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
                                                     ? noCompression()
                                                     : new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
@@ -207,6 +209,7 @@ public final class CompressionParams
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
+
     static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
     {
         return (int) Math.ceil(Math.min(chunkLength / minCompressRatio, Integer.MAX_VALUE));
@@ -320,47 +323,21 @@ public final class CompressionParams
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
         }
-
         try
         {
-            Method method = compressorClass.getMethod("create", Map.class);
-            ICompressor compressor = (ICompressor)method.invoke(null, compressionOptions);
-            // Check for unknown options
-            for (String provided : compressionOptions.keySet())
-                if (!compressor.supportedOptions().contains(provided))
-                    throw new ConfigurationException("Unknown compression options " + provided);
-            return compressor;
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new ConfigurationException("create method not found", e);
-        }
-        catch (SecurityException e)
-        {
-            throw new ConfigurationException("Access forbiden", e);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new ConfigurationException("Cannot access method create in " + compressorClass.getName(), e);
-        }
-        catch (InvocationTargetException e)
-        {
-            if (e.getTargetException() instanceof ConfigurationException)
-                throw (ConfigurationException) e.getTargetException();
+            // Get the compressor provider for the specified compressor class and use it to create the compressor instance.
+            AbstractCompressionProvider provider = registry.getProvider(compressorClass.getSimpleName());
+            ICompressor serviceProviderCompressor = provider.createCompressor(compressorClass, compressionOptions);
 
-            Throwable cause = e.getCause() == null
-                            ? e
-                            : e.getCause();
-
-            throw new ConfigurationException(format("%s.create() threw an error: %s %s",
-                                                    compressorClass.getSimpleName(),
-                                                    cause.getClass().getName(),
-                                                    cause.getMessage()),
-                                             e);
+            // Associate the compressor class name with the provider classname in the registry
+            // This information is needed when we save compression metadata, when deserializing compression parameters etc.
+            // This is the only place where we know the mapping, so we need to do it here.
+            registry.mapProviderInstanceToCompressor(serviceProviderCompressor.getClass().getSimpleName(), compressorClass.getName());
+            return serviceProviderCompressor;
         }
-        catch (ExceptionInInitializerError e)
+        catch (Exception e)
         {
-            throw new ConfigurationException("Cannot initialize class " + compressorClass.getName());
+            throw e;
         }
     }
 
@@ -509,7 +486,8 @@ public final class CompressionParams
             return Collections.singletonMap(ENABLED, "false");
 
         Map<String, String> options = new HashMap<>(otherOptions);
-        options.put(CLASS, sstableCompressor.getClass().getName());
+        // Use the one saved in the registry, we don't want to save the name of the service provider compressor here!
+        options.put(CLASS, registry.getCompressorTypeFullName(sstableCompressor.getClass().getSimpleName()));
         options.put(CHUNK_LENGTH_IN_KB, chunkLengthInKB());
         if (minCompressRatio != DEFAULT_MIN_COMPRESS_RATIO)
             options.put(MIN_COMPRESS_RATIO, String.valueOf(minCompressRatio));
@@ -555,7 +533,7 @@ public final class CompressionParams
         public void serialize(CompressionParams parameters, DataOutputPlus out, int version) throws IOException
         {
             assert version >= MessagingService.VERSION_40;
-            out.writeUTF(parameters.sstableCompressor.getClass().getSimpleName());
+            out.writeUTF(registry.getCompressorTypeSimpleName(parameters.sstableCompressor.getClass().getSimpleName()));
             out.writeInt(parameters.otherOptions.size());
             for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
             {

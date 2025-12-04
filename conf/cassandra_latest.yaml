@@ -2742,3 +2742,21 @@ compression_dictionary_cache_size: 10
 # Expired dictionaries will be removed from memory but can be reloaded if needed.
 # Min unit: s
 compression_dictionary_cache_expire: 24h
+
+# Enables configuring plugin compression providers.
+# When enabled, Cassandra will attempt to load the provider with the specified class_name,
+# if jar file is available in the classpath.
+# Parameters:
+#   - fallback_to_default_provider: If "true", falls back to DefaultCompressionProvider
+#     when the plugin fails to load. If "false", throws an exception on failure.
+# If this section is commented out, Cassandra uses DefaultCompressionProvider
+# with built-in compressor implementation.
+#compression_provider_options:
+#  LZ4Compressor:
+#    class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
+#    parameters:
+#      fallback_to_default_provider: "true"
+#  ZstdCompressor:
+#    class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
+#    parameters:
+
