@@ -235,7 +235,7 @@ public abstract class CQLTester
 
     static
     {
-        System.setProperty("accord.debug", "true");
+        System.setProperty("accord.debug", "true"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
     }
 
     /**
