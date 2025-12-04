@@ -87,7 +87,7 @@ public class ZstdDictionaryTrainerTest
         CompressionDictionary dict = callbackResult.get();
         if (dict != null)
         {
-            dict.close();
+            dict.selfRef().close();
             callbackResult.set(null);
         }
     }

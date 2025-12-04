@@ -114,7 +114,7 @@ public abstract class ZstdDictionaryCompressorBenchBase
     {
         if (dictionary != null)
         {
-            dictionary.close();
+            dictionary.selfRef().close();
             dictionary = null;
         }
         ZstdDictionaryCompressor.invalidateCache();

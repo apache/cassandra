@@ -93,11 +93,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
         return instancePerDict.get(dictionary, dict -> {
             // Get a reference to the dictionary when creating new compressor
-            Ref<ZstdCompressionDictionary> ref = dict != null ? dict.tryRef() : null;
-            if (ref == null && dict != null)
+            Ref<ZstdCompressionDictionary> ref = dict.tryRef();
+            if (ref == null)
             {
-                // Dictionary is being closed, cannot create compressor
-                throw new IllegalStateException("Dictionary is being closed");
+                throw new IllegalStateException("Dictionary is released");
             }
             return new ZstdDictionaryCompressor(level, dictionary, ref);
         });
@@ -212,5 +211,6 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     public static void invalidateCache()
     {
         instancePerDict.invalidateAll();
+        instancePerDict.cleanUp();
     }
 }

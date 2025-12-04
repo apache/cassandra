@@ -69,7 +69,7 @@ public class ZstdDictionaryCompressorTest
     {
         if (testDictionary != null)
         {
-            testDictionary.close();
+            testDictionary.selfRef().close();
         }
     }
 
@@ -281,7 +281,7 @@ public class ZstdDictionaryCompressorTest
     {
         ZstdDictionaryCompressor.invalidateCache();
         ZstdCompressionDictionary closedDict = createTestDictionary();
-        closedDict.close();
+        closedDict.selfRef().close();
 
         // This should throw IllegalStateException
         assertThatThrownBy(() -> ZstdDictionaryCompressor.create(closedDict))
