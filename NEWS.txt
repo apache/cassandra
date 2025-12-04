@@ -80,6 +80,10 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
 
+    - CEP-49 - it is possible to implement custom compression providers, e.g.
+      integrating with a specialized hardware which makes de/compression faster.
+      See CASSANDRA-20975 for more information.
+
 Upgrading
 ---------
 

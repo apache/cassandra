@@ -97,6 +97,7 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CompressorRegistry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -375,6 +376,8 @@ public class DatabaseDescriptor
 
         applySSTableFormats();
 
+        applyCompressorProviders();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -439,6 +442,7 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+        applyCompressorProviders();
     }
 
     private static void assertNotDaemonInitialized()
@@ -552,6 +556,8 @@ public class DatabaseDescriptor
 
         applySSTableFormats();
 
+        applyCompressorProviders();
+
         applyCryptoProvider();
 
         applySimpleConfig();
@@ -579,6 +585,11 @@ public class DatabaseDescriptor
         applyAccord();
 
         applyStartupChecks();
+    }
+
+    public static void applyCompressorProviders()
+    {
+        CompressorRegistry.instance.registerProviders(conf.compressor_providers);
     }
 
     private static void applySimpleConfig()
@@ -2029,6 +2040,11 @@ public class DatabaseDescriptor
     public static void setCryptoProvider(AbstractCryptoProvider cryptoProvider)
     {
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
+
+    public static Map<String, ParameterizedClass> getCompressionProviders()
+    {
+        return conf.compressor_providers;
     }
 
     /**

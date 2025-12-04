@@ -89,6 +89,7 @@ public class Config
     public ParameterizedClass crypto_provider;
     public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;
+    public Map<String, ParameterizedClass> compressor_providers = new HashMap<>();
 
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");

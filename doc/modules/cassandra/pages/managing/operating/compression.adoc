@@ -416,6 +416,53 @@ Importing a dictionary to a table from a file should happen only against one nod
 dictionary will be eventually stored in `system_distributed.compression_dictionaries` table and reused
 cluster-wide. When imports happen from multiple nodes, the highest-version dictionary will be used.
 
+== Plugin compression providers
+
+Pluggable compression providers allow replacing the built-in compressor implementation
+with a custom one — for example, to delegate compression to a hardware-accelerated library.
+
+Providers are configured in `cassandra.yaml` under the `compressor_providers` map.
+Each key identifies a built-in compressor by its simple class name (e.g. `LZ4Compressor`) its FQCN, or
+its registered abbreviation (e.g. `lz4`). Only built-in compressors can be overridden; new compressor types cannot be introduced this way.
+
+Example:
+[source,yaml]
+----
+compressor_providers:
+  LZ4Compressor:
+    class_name: com.example.MyLZ4Provider
+    parameters:
+      fail_on_missing_provider: "true"
+  org.apache.cassandra.io.compress.ZstdCompressor:
+    class_name: com.example.MyZstdProvider
+----
+
+Each provider entry requires:
+
+* `class_name`: Fully qualified class name of an `AbstractCompressionProvider` subclass.
+* `parameters` (optional): A string map passed to the provider's `init()` method.
+  The reserved key `fail_on_missing_provider` (default `"false"`) controls fallback behaviour:
+     - If `"false"`: when initialization, health checks, or compressor creation fails,
+       falls back to `DefaultCompressionProvider`
+     - If `"true"`: throws an exception instead of falling back
+
+If `compressor_providers` is omitted entirely, `DefaultCompressionProvider` is used
+for all compressor types, which is the same behaviour as previous Cassandra releases.
+
+==== Implementing a custom provider
+
+A custom provider must extend `AbstractCompressionProvider`, implement the following methods and add the jar
+to the classpath, before node startup:
+
+* `boolean isHealthy()` — returns `true` if the provider is ready.
+* `ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options)` — factory
+  that returns a compressor instance configured with the given options.
+
+The `ICompressor` returned by `createCompressor()` must override `serializedAs()` to return
+the exact built-in compressor class it is substituting (e.g. `LZ4Compressor.class`). This
+ensures the SSTable metadata records the canonical name, which is required for
+compatibility across nodes and restarts.
+
 == Advanced Use
 
 Advanced users can provide their own compression class by implementing

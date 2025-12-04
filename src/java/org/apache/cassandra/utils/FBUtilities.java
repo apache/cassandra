@@ -86,6 +86,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -730,6 +731,26 @@ public class FBUtilities
                 throw (ConfigurationException) e;
             else
                 throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
+        }
+    }
+
+    public static AbstractCompressionProvider newCompressionProvider(String className) throws ConfigurationException
+    {
+        try
+        {
+            if (!className.contains("."))
+                className = "org.apache.cassandra.io.compress." + className;
+
+            Class<?> compressionProviderClass = FBUtilities.classForName(className, "compression service provider");
+            return (AbstractCompressionProvider) compressionProviderClass.getConstructor().newInstance();
+        }
+        catch (ConfigurationException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException(String.format("Unable to create an instance of the compression service provider for %s", className), e);
         }
     }
 

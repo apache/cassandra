@@ -21,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.nio.ByteBuffer;
 import java.nio.file.FileStore;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -30,12 +31,14 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -67,6 +70,9 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
+import org.apache.cassandra.io.compress.CompressorRegistry;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
@@ -131,6 +137,7 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkLegacyAuthTables,
                                                                       checkKernelParamsForAsyncProfiler,
+                                                                      checkCustomCompressionProviders,
                                                                       new DataResurrectionCheck());
 
     public List<StartupCheck> getChecks()
@@ -343,6 +350,157 @@ public class StartupChecks
             {
                 logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
             }
+        }
+    };
+
+    public static final StartupCheck checkCustomCompressionProviders = new StartupCheck()
+    {
+        @Override
+        public String name()
+        {
+            return "custom_compression_providers";
+        }
+
+        @Override
+        public void execute(StartupChecksConfiguration configuration) throws StartupException
+        {
+            if (configuration.isDisabled(name()))
+                return;
+
+            // Resolving the custom providers forces classloading (and native-lib init) of each
+            // configured compressor; a missing class or failed native init is a configuration error.
+            Map<Class<?>, AbstractCompressionProvider> providers = getCustomProviders();
+
+            if (providers.isEmpty())
+                return;
+
+            long seed = (new Random()).nextLong();
+            Random random = new Random(seed);
+            byte[] payload = smokeTestPayload(random);
+
+            logger.info("Running compression smoke test for {} custom provider(s) with seed {}. " +
+                        "To reproduce a failure, regenerate the 4 KiB payload with new java.util.Random({}).",
+                        providers.size(), seed, seed);
+
+            List<String> failedProviders = new ArrayList<>();
+            for (Map.Entry<Class<?>, AbstractCompressionProvider> entry : providers.entrySet())
+            {
+                Class<?> compressorClass = entry.getKey();
+                AbstractCompressionProvider provider = entry.getValue();
+
+                ICompressor custom;
+
+                try
+                {
+                    custom = provider.createCompressor(compressorClass, Collections.emptyMap());
+                }
+                catch (Throwable t)
+                {
+                    throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                               String.format("Unable to instantiate a compressor for class %s " +
+                                                             "for the purposes of a startup check from provider %s.",
+                                                             compressorClass.getName(),
+                                                             provider.getClass().getName()));
+                }
+
+                if (custom.serializedAs() != compressorClass)
+                {
+                    throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                               String.format("Provider %s returned a compressor whose serializedAs() is %s, " +
+                                                             "but it must be %s (the built-in it substitutes for).",
+                                                             provider.getClass().getName(),
+                                                             custom.serializedAs(),
+                                                             compressorClass.getName()));
+                }
+
+                ICompressor builtin = CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, Collections.emptyMap());
+
+                try
+                {
+                    // Round trip both ways so the custom and built-in compressors are proven to share
+                    // an on-disk-compatible format (peers/restarts without the plugin read the data).
+                    assertCompatibleRoundTrip(custom, builtin, payload);
+                    assertCompatibleRoundTrip(builtin, custom, payload);
+
+                    logger.info("Compression smoke test passed for custom provider {} ({}).",
+                                provider.getClass().getName(), compressorClass.getSimpleName());
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Compression smoke test failed for custom provider {} ({}); reproduce with seed {}.",
+                                 provider.getClass().getName(), compressorClass.getSimpleName(), seed, t);
+                    failedProviders.add(provider.getClass().getName() + " -> " + compressorClass.getSimpleName());
+                }
+            }
+
+            if (!failedProviders.isEmpty())
+            {
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
+                                           String.format("The following custom compression providers failed smoke test: %s. " +
+                                                         "Providers substitute for a built-in compressor, so non byte-compatible output " +
+                                                         "is silent data corruption when read without the provider. Reproduce with the seed %s.",
+                                                         Joiner.on(", ").join(failedProviders),
+                                                         seed));
+            }
+        }
+
+        private Map<Class<?>, AbstractCompressionProvider> getCustomProviders() throws StartupException
+        {
+            Map<Class<?>, AbstractCompressionProvider> providers;
+            try
+            {
+                providers = CompressorRegistry.instance.getCustomProviders();
+            }
+            catch (Throwable t)
+            {
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                           "Failed to load configured custom compression providers; " +
+                                           "check compressor_providers in cassandra.yaml", t);
+            }
+            return providers;
+        }
+        // Compresses payload with `compressor`, decompresses with `decompressor`, and verifies the
+        // result matches - proving the two share an on-disk-compatible format. Throws on mismatch.
+        private void assertCompatibleRoundTrip(ICompressor compressor, ICompressor decompressor, byte[] payload) throws IOException
+        {
+            ByteBuffer input = compressor.preferredBufferType().allocate(payload.length);
+            int compressedLength = compressor.initialCompressedBufferLength(payload.length);
+            ByteBuffer compressed = compressor.preferredBufferType().allocate(compressedLength);
+            input.put(payload);
+            input.flip();
+            compressor.compress(input, compressed);
+            compressed.flip();
+
+            // Within a compress/uncompress call the in/out buffers must share a type, but the compressor
+            // and decompressor may prefer different ones; only re-stage the compressed bytes in that case.
+            if (compressor.preferredBufferType() != decompressor.preferredBufferType())
+            {
+                ByteBuffer staged = decompressor.preferredBufferType().allocate(compressed.remaining());
+                staged.put(compressed);
+                staged.flip();
+                compressed = staged;
+            }
+
+            ByteBuffer output = decompressor.preferredBufferType().allocate(payload.length);
+            decompressor.uncompress(compressed, output);
+            output.flip();
+
+            if (!output.equals(ByteBuffer.wrap(payload)))
+            {
+                throw new IOException(String.format("Round-trip mismatch: compressed with %s, decompressed with %s",
+                                                    compressor.getClass().getName(), decompressor.getClass().getName()));
+            }
+        }
+        private byte[] smokeTestPayload(Random random)
+        {
+            // 4 KiB payload: the first half zeros (highly compressible, exercises the real compression
+            // path), the second half high-entropy bytes (incompressible, exercises the compressor's
+            // worst-case output sizing via initialCompressedBufferLength).
+            byte[] testPayload = new byte[4 * 1024];
+            byte[] randomHalf = new byte[testPayload.length / 2];
+            random.nextBytes(randomHalf);
+            System.arraycopy(randomHalf, 0, testPayload, testPayload.length / 2, randomHalf.length);
+            return testPayload;
         }
     };
 
