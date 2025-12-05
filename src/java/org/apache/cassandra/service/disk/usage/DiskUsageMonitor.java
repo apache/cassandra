@@ -59,6 +59,7 @@ public class DiskUsageMonitor
     private final Supplier<Multimap<FileStore, Directories.DataDirectory>> dataDirectoriesSupplier;
 
     private volatile DiskUsageState localState = DiskUsageState.NOT_AVAILABLE;
+    private volatile boolean enabled;
 
     @VisibleForTesting
     public DiskUsageMonitor()
@@ -79,12 +80,25 @@ public class DiskUsageMonitor
     {
         // start the scheduler regardless guardrail is enabled, so we can enable it later without a restart
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
-
-            if (!Guardrails.localDataDiskUsage.enabled(null))
-                return;
-
-            updateLocalState(getDiskUsage(), notifier);
+            boolean currentEnabled = Guardrails.localDataDiskUsage.enabled(null);
+            boolean oldEnabled = enabled;
+            enabled = currentEnabled;
+            boolean isDisabled = !currentEnabled && oldEnabled;
+            if (isDisabled)
+            {
+                onDiskUsageGuardrailDisabled(notifier);
+            }
+            if (currentEnabled)
+            {
+                updateLocalState(getDiskUsage(), notifier);
+            }
         }, 0, CassandraRelevantProperties.DISK_USAGE_MONITOR_INTERVAL_MS.getLong(), TimeUnit.MILLISECONDS);
+    }
+
+    private void onDiskUsageGuardrailDisabled(Consumer<DiskUsageState> notifier)
+    {
+        localState = DiskUsageState.NOT_AVAILABLE;
+        notifier.accept(DiskUsageState.NOT_AVAILABLE);
     }
 
     @VisibleForTesting
