@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.utils.caching;
 
+import accord.utils.Invariants;
 import io.netty.util.concurrent.FastThreadLocal;
 
 public class TinyThreadLocalPool<V> extends FastThreadLocal<TinyThreadLocalPool.TinyPool<V>>
 {
+    private static final boolean DEBUG = Invariants.debug();
     protected TinyPool<V> initialValue()
     {
         return new TinyPool<>();
@@ -46,10 +48,23 @@ public class TinyThreadLocalPool<V> extends FastThreadLocal<TinyThreadLocalPool.
         }
         private void offerSafe(V value)
         {
+            if (DEBUG)
+                checkOfferSafe(value);
             if (val1 == null) val1 = value;
             else if (val2 == null) val2 = value;
             else if (val3 == null) val3 = value;
         }
+
+        private void checkOfferSafe(V value)
+        {
+            if (val1 == value)
+                throw new IllegalStateException("Double offer");
+            if (val2 == value)
+                throw new IllegalStateException("Double offer");
+            if (val3 == value)
+                throw new IllegalStateException("Double offer");
+        }
+
         public V poll()
         {
             Object result;

@@ -62,9 +62,6 @@ public class UpdateParameters
     // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
 
-    private Row.Builder staticBuilder;
-    private Row.Builder regularBuilder;
-
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
@@ -108,20 +105,8 @@ public class UpdateParameters
                     throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
             }
         }
-
-        if (clustering == Clustering.STATIC_CLUSTERING)
-        {
-            if (staticBuilder == null)
-                staticBuilder = BTreeRow.pooledUnsortedBuilder();
-            builder = staticBuilder;
-        }
-        else
-        {
-            if (regularBuilder == null)
-                regularBuilder = BTreeRow.pooledUnsortedBuilder();
-            builder = regularBuilder;
-        }
-
+        assert builder == null : "newRow called without building the previous row";
+        builder = BTreeRow.pooledUnsortedBuilder();
         builder.newRow(clustering);
     }
 

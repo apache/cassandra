@@ -1,4 +1,5 @@
 5.1
+ * When updating a multi cell collection element, if the update is rejected then the shared Row.Builder is not freed causing all future mutations to be rejected (CASSANDRA-21055)
  * Schema annotations escape validation on CREATE and ALTER DDL statements (CASSANDRA-21046)
  * Calculate once and cache the result of ModificationStatement#requiresRead as a perf optimization (CASSANDRA-21040)
  * Update system schema tables with new distributed keyspace on upgrade (CASSANDRA-20872)

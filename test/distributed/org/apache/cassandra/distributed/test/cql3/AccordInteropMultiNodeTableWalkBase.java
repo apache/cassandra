@@ -118,6 +118,13 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
         }
 
         @Override
+        protected boolean allowListElementAccessForUpdateSet()
+        {
+            // See CASSANDRA-20828
+            return false;
+        }
+
+        @Override
         protected boolean allowUsingTimestamp()
         {
             return allowUsingTimestamp;

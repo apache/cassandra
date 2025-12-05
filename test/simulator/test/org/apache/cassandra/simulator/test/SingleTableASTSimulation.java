@@ -242,7 +242,9 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
                                                                        .uniqueBestEffort()
                                                                        .ofSize(rs.nextInt(1, 20))
                                                                        .next(rs);
-            Gen<Action> mutationGen = toGen(ASTGenerators.mutationBuilder(rs, model, uniquePartitions, i -> null).build())
+            Gen<Action> mutationGen = toGen(ASTGenerators.mutationBuilder(rs, model, uniquePartitions, i -> null)
+                                                         .disallowListElementAccessForUpdateSet() //TODO (coverage): CASSANDRA-20828 found an issue with multi cell list type timestamp handling, so make sure accord doesn't hit this
+                                                         .build())
                                       .map(mutation -> query(mutation));
 
             Gen<Action> selectPartitionGen = Gens.pick(uniquePartitions)
