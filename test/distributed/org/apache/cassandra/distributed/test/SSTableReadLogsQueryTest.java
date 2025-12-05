@@ -41,14 +41,14 @@ public class SSTableReadLogsQueryTest extends TestBaseImpl
                 Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").disableAutoCompaction();
             });
 
-            for (int i = 0; i <= 50; i++)
+            for (int i = 0; i <= 100; i++)
             {
                 cluster.get(1).executeInternal("UPDATE " + KEYSPACE + ".tbl SET v = v + 1 WHERE pk = 2");
                 cluster.get(1).flush(withKeyspace("%s"));
             }
 
             cluster.get(1).runOnInstance(() -> {
-                assertEquals(51, Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").getTracker().getView().liveSSTables().size());
+                assertEquals(101, Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").getTracker().getView().liveSSTables().size());
             });
 
             String query = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 2";
@@ -105,14 +105,14 @@ public class SSTableReadLogsQueryTest extends TestBaseImpl
                 Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").disableAutoCompaction();
             });
 
-            for (int i = 0; i <= 50; i++)
+            for (int i = 0; i <= 100; i++)
             {
                 cluster.get(1).executeInternal(String.format("INSERT INTO " + KEYSPACE + ".tbl (pk, v) VALUES (%s, %s)", i, i));
                 cluster.get(1).flush(withKeyspace("%s"));
             }
 
             cluster.get(1).runOnInstance(() -> {
-                assertEquals(51, Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").getTracker().getView().liveSSTables().size());
+                assertEquals(101, Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").getTracker().getView().liveSSTables().size());
             });
 
             String query = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk >= 0 AND pk < 51 ALLOW FILTERING";

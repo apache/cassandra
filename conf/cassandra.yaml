@@ -1992,7 +1992,7 @@ transparent_data_encryption_options:
 
 # Log the query if it reads more than
 # sstables_per_read_log_threshold SSTables
-sstables_per_read_log_threshold: 50
+sstables_per_read_log_threshold: 100
 
 # When executing a scan, within or across a partition, we need to keep the
 # tombstones seen in memory so we can return them to the coordinator, which
