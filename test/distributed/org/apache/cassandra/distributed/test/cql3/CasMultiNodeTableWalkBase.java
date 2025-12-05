@@ -76,6 +76,13 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
         }
 
         @Override
+        protected boolean allowUsingTimestamp()
+        {
+            // Paxos doesn't allow USING TIMESTAMP
+            return false;
+        }
+
+        @Override
         protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)
         {
             mutationGenBuilder.withCasGen(i -> true)

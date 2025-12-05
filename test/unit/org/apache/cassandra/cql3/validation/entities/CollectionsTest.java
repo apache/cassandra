@@ -2107,4 +2107,20 @@ public class CollectionsTest extends CQLTester
         assertRows(execute("SELECT c['t3'..] FROM %s"), row(set("t3", "t4")));
         assertRows(execute("SELECT c[..'t5'] FROM %s"), row(set("t1", "t2", "t3", "t4")));
     }
+
+    /**
+     * {@link org.apache.cassandra.db.rows.Row.Builder} is cached, and there was logic to reuse the same builder cross
+     * rows, even if the builder was returned to the pool! This is "fine" in the happy path, but if the second row fails
+     * for any reason, then the builder is in a partial state and also referenced by the pool!
+     */
+    @Test
+    public void CASSANDRA_21055()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, l list<int>, PRIMARY KEY (pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, l) VALUES (1, 1, [10, 20, 30])");
+        assertInvalidMessage("Attempted to set an element on a list which is null",
+                             "UPDATE %s SET l[0] = 0 WHERE pk=1 AND ck IN (1, 2)");
+        execute("INSERT INTO %s (pk, ck, l) VALUES (1, 2, [40, 50, 60])");
+    }
 }

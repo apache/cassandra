@@ -151,11 +151,22 @@ public class Symbol implements ReferenceExpression, Comparable<Symbol>
         return toCQL().compareTo(o.toCQL());
     }
 
+    @Override
+    public Symbol column()
+    {
+        return this;
+    }
+
     public static class UnquotedSymbol extends Symbol
     {
         public UnquotedSymbol(String symbol, AbstractType<?> type)
         {
             super(symbol, type);
+        }
+
+        public static UnquotedSymbol unknownType(String name)
+        {
+            return new UnquotedSymbol(name, BytesType.instance);
         }
 
         @Override

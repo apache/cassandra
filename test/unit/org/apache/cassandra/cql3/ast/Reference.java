@@ -30,6 +30,9 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 
+/**
+ * Represents {@code foo.bar.baz} syntax.  Mainly used for UDT field access ({@code col_udt.foo}) and Accord LET access ({@code row1.foo}).
+ */
 public class Reference implements ReferenceExpression
 {
     public final List<ReferenceExpression> path;
@@ -134,6 +137,12 @@ public class Reference implements ReferenceExpression
     public String toString()
     {
         return toCQL();
+    }
+
+    @Override
+    public Symbol column()
+    {
+        return path.get(0).column();
     }
 
     public static class Builder

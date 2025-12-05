@@ -447,6 +447,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
                                                                   .withTxnSafe()
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
+                                                                  .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
 
             // Run the test with and without bound partitions
