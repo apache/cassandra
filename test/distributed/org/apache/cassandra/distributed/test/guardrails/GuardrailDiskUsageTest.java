@@ -48,6 +48,7 @@ import org.apache.cassandra.service.disk.usage.DiskUsageState;
 import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.distributed.util.AssertionUtils.loopAssert;
 
 /**
  * Tests the guardrails for disk usage, {@link Guardrails#localDataDiskUsage} and {@link Guardrails#replicaDiskUsage}.
@@ -200,6 +201,73 @@ public class GuardrailDiskUsageTest extends GuardrailTester
             ResultSet rs = driverSession.execute(insert, i);
             Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
         }
+    }
+
+    @Test
+    public void testDiskUsageNodetoolDisableWhenDiskIsFullShouldEnableWrites()
+    {
+        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        String insert = format("INSERT INTO %s(k, v) VALUES (?, 0)");
+
+        // With both nodes in SPACIOUS state, we can write without warnings nor failures
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // If the STUFFED node becomes FULL, the writes targeting that node will fail, while the writes targeting
+        // the node that remains SPACIOUS will keep succeeding without warnings
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.FULL);
+        int numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // After disabling the guardrail, we should be able to write again.
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(-1, -1));
+        int stateDissemenationTimeoutSec = 2 * 60; // 2 minutes.
+        loopAssert(stateDissemenationTimeoutSec,  100, () -> {
+            Assertions.assertThat(cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode())).isTrue();
+        });
+
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // Re-enabling the guardrail should again cause writes to fail
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(98, 99));
+        loopAssert(stateDissemenationTimeoutSec,  100, () -> {
+            Assertions.assertThat(cluster.get(1).callOnInstance(DiskUsageBroadcaster.instance::hasStuffedOrFullNode)).isTrue();
+        });
+        numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
     }
 
     /**
