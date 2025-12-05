@@ -133,7 +133,8 @@ public class CompressionMetadata extends WrappedSharedCloseable
                                        compressedLength, compressionDictionary);
     }
 
-    // do not call this constructor directly, unless used in testing
+    // Do not call this constructor from outside this class file, except in tests.
+    // Within this class, use the static open() method or the Writer.open() method instead.
     @VisibleForTesting
     public CompressionMetadata(File chunksIndexFile,
                                CompressionParams parameters,

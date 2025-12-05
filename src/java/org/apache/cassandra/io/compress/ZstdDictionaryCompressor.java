@@ -33,6 +33,7 @@ import com.github.luben.zstd.Zstd;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -66,7 +67,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
     /**
      * Create a ZstdDictionaryCompressor with the given options
-     * Invoked by {@link org.apache.cassandra.schema.CompressionParams#createCompressor} via reflection
+     * Invoked by {@link org.apache.cassandra.schema.CompressionParams#createCompressor(ParameterizedClass)} via reflection
      *
      * @param options compression options
      * @return ZstdDictionaryCompressor
