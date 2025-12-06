@@ -65,7 +65,6 @@ public class DiskUsageMonitor
     public DiskUsageMonitor()
     {
         this.dataDirectoriesSupplier = DiskUsageMonitor::dataDirectoriesGroupedByFileStore;
-        this.enabled = false; // Default to false. Will be set to true on the first call to `start`
     }
 
     @VisibleForTesting
@@ -84,16 +83,10 @@ public class DiskUsageMonitor
             boolean currentEnabledStatus = Guardrails.localDataDiskUsage.enabled(null);
             boolean oldEnabledStatus = enabled;
             enabled = currentEnabledStatus;
-            if (!currentEnabledStatus)
-            {
-                if (currentEnabledStatus != oldEnabledStatus)
-                {
-                    onDiskUsageGuardrailDisabled(notifier);
-                }
-                return;
-            }
-
-            updateLocalState(getDiskUsage(), notifier);
+            if (!currentEnabledStatus && oldEnabledStatus)
+                onDiskUsageGuardrailDisabled(notifier);
+            else
+                updateLocalState(getDiskUsage(), notifier);
         }, 0, CassandraRelevantProperties.DISK_USAGE_MONITOR_INTERVAL_MS.getLong(), TimeUnit.MILLISECONDS);
     }
 
