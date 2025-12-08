@@ -811,11 +811,12 @@ public class ASTSingleTableModel
         Set<Consumer<Throwable>> checks = null;
         if (mutation.kind == Mutation.Kind.UPDATE)
         {
-            Consumer<Throwable> notFound = t ->
-                                           Assertions.assertThat(t)
-                                                     .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
-                                                                                       InvalidRequestException.class)) // result from jvm-dtest execute api
-                                                     .hasMessage("Attempted to set an element on a list which is null");
+            Function<String, Consumer<Throwable>> notFound = msg -> t ->
+                                                                    Assertions.assertThat(t)
+                                                                              .describedAs(msg)
+                                                                              .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                                                InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                                              .hasMessage("Attempted to set an element on a list which is null");
             Mutation.Update update = mutation.asUpdate();
             for (var e : update.set.entrySet())
             {
@@ -831,7 +832,7 @@ public class ASTSingleTableModel
                             if (partition == null)
                             {
                                 if (checks == null) checks = new HashSet<>();
-                                checks.add(notFound);
+                                checks.add(notFound.apply("Partition " + ref + "; does not exist"));
                                 continue;
                             }
                             List<BytesPartitionState.Row> rows;
@@ -846,7 +847,7 @@ public class ASTSingleTableModel
                             if (rows.isEmpty())
                             {
                                 if (checks == null) checks = new HashSet<>();
-                                checks.add(notFound);
+                                checks.add(notFound.apply("Partition " + ref + "; does not have rows"));
                                 continue;
                             }
                             for (var row : rows)
@@ -854,13 +855,13 @@ public class ASTSingleTableModel
                                 if (row == null)
                                 {
                                     if (checks == null) checks = new HashSet<>();
-                                    checks.add(notFound);
+                                    checks.add(notFound.apply("Partition " + ref + " does not have row"));
                                     continue;
                                 }
                                 if (row.get(access.column()) == null)
                                 {
                                     if (checks == null) checks = new HashSet<>();
-                                    checks.add(notFound);
+                                    checks.add(notFound.apply("Row " + row.ref() + " has null column " + access.column()));
                                     continue;
                                 }
                                 int offset = Int32Type.instance.compose(access.element.valueEncoded());
@@ -870,6 +871,7 @@ public class ASTSingleTableModel
                                 {
                                     if (checks == null) checks = new HashSet<>();
                                     checks.add(t -> Assertions.assertThat(t)
+                                                    .describedAs("Row " + row.ref() + " has column " + access.column() + " was accessed outside of bounds")
                                                               .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
                                                                                                 InvalidRequestException.class)) // result from jvm-dtest execute api
                                                               .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
