@@ -437,9 +437,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             final int finalSelectedSSTables = selectedSSTablesCnt;
 
             if (finalSelectedSSTables > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
-            {
                 noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), finalSelectedSSTables);
-            }
 
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())

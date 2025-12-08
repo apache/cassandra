@@ -882,9 +882,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             UnfilteredRowIterator result = withSSTablesIterated(iterators, cfs.metric, metricsCollector);
 
             if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
-           {
                 noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
-            }
 
             return result;
         }
@@ -1095,9 +1093,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         cfs.metric.updateSSTableIterated(metricsCollector.getMergedSSTables());
 
         if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
-        {
             noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
-        }
 
         if (result == null || result.isEmpty())
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);

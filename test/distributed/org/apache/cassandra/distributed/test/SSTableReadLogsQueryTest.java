@@ -24,7 +24,6 @@ import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
 
 public class SSTableReadLogsQueryTest extends TestBaseImpl
 {
@@ -32,7 +31,6 @@ public class SSTableReadLogsQueryTest extends TestBaseImpl
     public void logQueryTest() throws Throwable
     {
         try (Cluster cluster = init(Cluster.build(1)
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY, v counter)");
@@ -62,7 +60,6 @@ public class SSTableReadLogsQueryTest extends TestBaseImpl
     public void setSSTablesPerReadLogThresholdTest() throws Throwable
     {
         try (Cluster cluster = init(Cluster.build(1)
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY, v counter)");
@@ -96,7 +93,6 @@ public class SSTableReadLogsQueryTest extends TestBaseImpl
     public void logRangeReadQueryTest() throws Throwable
     {
         try (Cluster cluster = init(Cluster.build(1)
-                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY, v int)");
