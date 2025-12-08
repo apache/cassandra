@@ -18,11 +18,17 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
+import java.util.Iterator;
+
 import org.junit.Test;
 
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -73,6 +79,49 @@ public class CountersTest extends TestBaseImpl
                 coordinator.execute("UPDATE k.t SET total = total - 4 WHERE k = 1 AND c = ?", cl, i);
                 assertRows(coordinator.execute(select, cl, i), row(-3L));
             }
+        }
+    }
+
+    @Test
+    public void testEmptyContext() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(c -> c.with(GOSSIP, NATIVE_PROTOCOL)
+                                                             .set("repaired_data_tracking_for_partition_reads_enabled", true)
+                                                             .set("repaired_data_tracking_for_range_reads_enabled", true))
+                                           .start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (a ascii, b ascii, c counter, d counter, PRIMARY KEY(a, b))"));
+            cluster.get(1).executeInternal(withKeyspace("UPDATE %s.t SET c = c + 1, d = d + 1 WHERE a = 'a1' AND b = 'b1'"));
+            cluster.get(2).executeInternal(withKeyspace("UPDATE %s.t SET c = c + 2, d = d + 2 WHERE a = 'a1' AND b = 'b1'"));
+            cluster.get(3).executeInternal(withKeyspace("UPDATE %s.t SET c = c + 3, d = d + 3 WHERE a = 'a1' AND b = 'b1'"));
+
+            cluster.forEach(i -> i.flush(KEYSPACE));
+
+            cluster.forEach(i -> i.runOnInstance(() -> {
+                Iterator<SSTableReader> sstables = Keyspace.open(KEYSPACE)
+                                                           .getColumnFamilyStore("t")
+                                                           .getLiveSSTables()
+                                                           .iterator();
+                while (sstables.hasNext())
+                {
+                    SSTableReader sstable = sstables.next();
+                    Descriptor descriptor = sstable.descriptor;
+                    try
+                    {
+                        descriptor.getMetadataSerializer()
+                                  .mutateRepairMetadata(descriptor, System.currentTimeMillis(), null, false);
+                        sstable.reloadSSTableMetadata();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }));
+            cluster.coordinator(1).execute(withKeyspace("select a,d from %s.t where a = 'a1'"), ConsistencyLevel.ALL);
+            cluster.coordinator(2).execute(withKeyspace("select a,d from %s.t where a = 'a1'"), ConsistencyLevel.QUORUM);
+            cluster.coordinator(3).execute(withKeyspace("select a,d from %s.t where a = 'a1'"), ConsistencyLevel.QUORUM);
         }
     }
 }

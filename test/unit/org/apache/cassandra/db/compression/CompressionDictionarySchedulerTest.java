@@ -43,8 +43,6 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     public void setUp()
     {
         cache = new CompressionDictionaryCache();
-        // Disable compaction to make the sstable sampling deterministic; to avoid excluding sstables get compacted away.
-        disableCompaction(KEYSPACE);
     }
 
     @After
@@ -83,6 +81,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        cfs.disableAutoCompaction();
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
         createSSTables();

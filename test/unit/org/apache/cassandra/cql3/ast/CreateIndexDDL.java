@@ -256,14 +256,19 @@ public class CreateIndexDDL implements Element
     public static class CollectionReference implements ReferenceExpression
     {
         public enum Kind { FULL, KEYS, ENTRIES }
-
         public final Kind kind;
-        public final ReferenceExpression column;
 
+        public final ReferenceExpression column;
         public CollectionReference(Kind kind, ReferenceExpression column)
         {
             this.kind = kind;
             this.column = column;
+        }
+
+        @Override
+        public Symbol column()
+        {
+            return column.column();
         }
 
         @Override

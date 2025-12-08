@@ -386,6 +386,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
                                      .withTxnSafe()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                     .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
                                      .withIgnoreIssues(IGNORED_ISSUES)
                                      .build());
         }

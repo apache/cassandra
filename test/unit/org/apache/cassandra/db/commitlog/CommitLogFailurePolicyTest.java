@@ -83,6 +83,7 @@ public class CommitLogFailurePolicyTest
             CommitLog.handleCommitError("Testing die policy", new Throwable());
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
+            Assert.assertTrue(killerForTests.calledShutDownOnLogger());
         }
         finally
         {
@@ -108,6 +109,7 @@ public class CommitLogFailurePolicyTest
             //even though policy is ignore, JVM must die because Daemon has not finished initializing
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertTrue(killerForTests.wasKilledQuietly()); //killed quietly due to startup failure
+            Assert.assertTrue(killerForTests.calledShutDownOnLogger());
         }
         finally
         {

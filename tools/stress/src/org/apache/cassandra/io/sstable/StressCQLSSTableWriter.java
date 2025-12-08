@@ -57,13 +57,17 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
@@ -621,7 +625,20 @@ public class StressCQLSSTableWriter implements Closeable
             String keyspace = schemaStatement.keyspace();
 
             KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1));
-            Schema.instance.submit((metadata) ->  metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+            Schema.instance.submit(new SchemaTransformation()
+            {
+                @Override
+                public Keyspaces apply(ClusterMetadata metadata)
+                {
+                    return metadata.schema.getKeyspaces().withAddedOrUpdated(ksm);
+                }
+
+                @Override
+                public boolean compatibleWith(ClusterMetadata metadata)
+                {
+                    return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+                }
+            });
 
             Types types = createTypes(keyspace, typeStatements);
             Schema.instance.submit(SchemaTransformations.addTypes(types, true));
@@ -640,7 +657,20 @@ public class StressCQLSSTableWriter implements Closeable
                                      .build();
             Tables tables = Tables.of(tableMetadata);
             KeyspaceMetadata updated = ksm.withSwapped(tables);
-            Schema.instance.submit((metadata) ->  metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
+            Schema.instance.submit(new SchemaTransformation()
+                                   {
+                                       @Override
+                                       public Keyspaces apply(ClusterMetadata metadata)
+                                       {
+                                           return metadata.schema.getKeyspaces().withAddedOrUpdated(updated);
+                                       }
+
+                                       @Override
+                                       public boolean compatibleWith(ClusterMetadata metadata)
+                                       {
+                                           return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+                                       }
+                                   });
             Keyspace.setInitialized();
             Directories directories = new Directories(tableMetadata, directoryList.stream().map(f -> new Directories.DataDirectory(new org.apache.cassandra.io.util.File(f.toPath()))).collect(Collectors.toList()));
 

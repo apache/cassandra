@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -118,7 +117,6 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
@@ -1190,13 +1188,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (!paxosRepairEnabled())
         {
             logger.warn("Not running paxos repair for topology change because paxos repair has been disabled");
-            return Arrays.asList(() -> ImmediateFuture.success(null));
+            return Collections.emptyList();
         }
 
         if (ranges.isEmpty())
         {
             logger.warn("Not running paxos repair for topology change because there are no ranges to repair");
-            return Arrays.asList(() -> ImmediateFuture.success(null));
+            return Collections.emptyList();
         }
         ClusterMetadata metadata = ClusterMetadata.current();
         List<TableMetadata> tables = Lists.newArrayList(metadata.schema.getKeyspaces().getNullable(ksName).tables);

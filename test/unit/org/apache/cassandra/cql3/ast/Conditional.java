@@ -326,8 +326,8 @@ public interface Conditional extends Expression
 
     interface EqBuilder<T extends EqBuilder<T>>
     {
-        T value(Symbol symbol, Expression e);
-        default T value(Symbol symbol, Object value)
+        T value(ReferenceExpression symbol, Expression e);
+        default T value(ReferenceExpression symbol, Object value)
         {
             return value(symbol, new Bind(value, symbol.type()));
         }
@@ -413,7 +413,7 @@ public interface Conditional extends Expression
         T is(ReferenceExpression ref, Is.Kind kind);
 
         @Override
-        default T value(Symbol symbol, Expression e)
+        default T value(ReferenceExpression symbol, Expression e)
         {
             return where(symbol, Where.Inequality.EQUAL, e);
         }

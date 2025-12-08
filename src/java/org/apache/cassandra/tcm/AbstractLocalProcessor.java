@@ -23,7 +23,6 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -65,11 +64,11 @@ public abstract class AbstractLocalProcessor implements Processor
             }
 
             Transformation.Result result;
-            if (!CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
-                !transform.allowDuringUpgrades() &&
-                previous.metadataSerializationUpgradeInProgress())
+            if (!transform.eligibleToCommit(previous))
             {
-                result = new Transformation.Rejected(INVALID, "Upgrade in progress, can't commit " + transform);
+                result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transform +
+                                                              " it not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
+                                                              " and min/max serialization versions " + previous.directory.clusterMinVersion + "/" + previous.directory.clusterMaxVersion);
             }
             else
             {

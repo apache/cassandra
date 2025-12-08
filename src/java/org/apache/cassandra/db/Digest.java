@@ -69,6 +69,11 @@ public class Digest
                 // for the purposes of repaired data tracking on the read path, exclude
                 // contexts with legacy shards as these may be irrevocably different on
                 // different replicas
+
+                // see super.updateWithCounterContext + CountersTest.testEmptyContext - counter context can be empty
+                if (accessor.isEmpty(context))
+                    return this;
+
                 if (CounterContext.instance().hasLegacyShards(context, accessor))
                     return this;
 

@@ -433,7 +433,10 @@ public class GossipHelper
         Set<String> hostIds = new HashSet<>();
         for (EndpointState epstate : epstates.values())
         {
-            String hostIdString = epstate.getApplicationState(HOST_ID).value;
+            VersionedValue vv = epstate.getApplicationState(HOST_ID);
+            if (vv == null)
+                continue;
+            String hostIdString = vv.value;
             if (hostIds.contains(hostIdString))
                 return true;
             hostIds.add(hostIdString);

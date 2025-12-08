@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import org.junit.Before;
@@ -28,12 +29,14 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SchemaTest
 {
@@ -61,7 +64,7 @@ public class SchemaTest
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"),
                                   TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm), true);
+        applyAndAssertTableMetadata(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm), true);
     }
 
     @Test
@@ -69,12 +72,12 @@ public class SchemaTest
     {
         // Create an empty keyspace
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         // Add two tables and verify that the resultant table metadata has the correct epoch
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata updated = ksm.withSwapped(tables);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), true);
+        applyAndAssertTableMetadata(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), true);
     }
 
     @Test
@@ -82,12 +85,12 @@ public class SchemaTest
     {
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         // Add a second table and assert that its table metadata has the latest epoch, but that the
         // metadata of the other table stays unmodified
         KeyspaceMetadata updated = ksm.withSwapped(tables.with(TableMetadata.minimal(KS_ONE, "modified1")));
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
+        applyAndAssertTableMetadata(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), false);
     }
 
     @Test
@@ -95,7 +98,7 @@ public class SchemaTest
     {
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         applyAndAssertTableMetadata(cql(KS_ONE, "CREATE TABLE %s.modified (k int PRIMARY KEY)"));
     }
@@ -105,16 +108,16 @@ public class SchemaTest
     {
         KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
         KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
 
         // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
         Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
         Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "modified1"), TableMetadata.minimal(KS_TWO, "modified2"));
         KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces()
-                                                                         .withAddedOrUpdated(updated1)
-                                                                         .withAddedOrUpdated(updated2),
+        applyAndAssertTableMetadata(metadata -> metadata.schema.getKeyspaces()
+                                                               .withAddedOrUpdated(updated1)
+                                                               .withAddedOrUpdated(updated2),
                                     true);
     }
 
@@ -124,14 +127,14 @@ public class SchemaTest
     {
         KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
         KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
 
         // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
         Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified1"), TableMetadata.minimal(KS_ONE, "unmodified2"));
         KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
         Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "unmodified1"), TableMetadata.minimal(KS_TWO, "unmodified2"));
         KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated1).withAddedOrUpdated(updated2));
+        SchemaTestUtil.submit(metadata -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated1).withAddedOrUpdated(updated2));
 
         // Add a third table in one ks and assert that its table metadata has the latest epoch, but that the
         // metadata of the all other tables stays unmodified
@@ -180,15 +183,42 @@ public class SchemaTest
         applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified WITH comment = 'altered'"));
     }
 
-    private void applyAndAssertTableMetadata(SchemaTransformation transformation)
+    @Test
+    public void schemaTransformationRejectionTest()
     {
-        applyAndAssertTableMetadata(transformation, false);
+        try
+        {
+            Schema.instance.submit(new SchemaTransformation()
+            {
+                @Override
+                public Keyspaces apply(ClusterMetadata metadata)
+                {
+                    return null;
+                }
+
+                @Override
+                public boolean compatibleWith(ClusterMetadata metadata)
+                {
+                    return false;
+                }
+            });
+            fail("Unsupported transformation should have failed");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertTrue(e.getMessage().contains("Transformation rejected"));
+        }
     }
 
-    private void applyAndAssertTableMetadata(SchemaTransformation transformation, boolean onlyModified)
+    private void applyAndAssertTableMetadata(SchemaTransformation transformation)
+    {
+        applyAndAssertTableMetadata(transformation::apply, false);
+    }
+
+    private void applyAndAssertTableMetadata(Function<ClusterMetadata, Keyspaces> transformation, boolean onlyModified)
     {
         Epoch before = ClusterMetadata.current().epoch;
-        Schema.instance.submit(transformation);
+        SchemaTestUtil.submit(transformation);
         Epoch after = ClusterMetadata.current().epoch;
         assertTrue(after.isDirectlyAfter(before));
         DistributedSchema schema = ClusterMetadata.current().schema;
@@ -207,11 +237,11 @@ public class SchemaTest
         });
     }
 
-    private static AlterSchemaStatement cql(String keyspace, String cql)
+    private static SchemaTransformation cql(String keyspace, String cql)
     {
         AlterSchemaStatement statement = (AlterSchemaStatement) QueryProcessor.parseStatement(String.format(cql, keyspace))
                                                                               .prepare(ClientState.forInternalCalls());
         statement.setExecutionTimestamp(System.currentTimeMillis() * 1000);
-        return statement;
+        return SchemaTestUtil.toTransformation(statement::apply);
     }
 }

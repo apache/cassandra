@@ -29,6 +29,7 @@ import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
@@ -97,9 +98,7 @@ public class CMSTestBase
                 }
 
             });
-            service.commit(new AlterSchema((cm) -> {
-                return cm.schema.getKeyspaces().with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams())));
-            }));
+            service.commit(new AlterSchema(SchemaTestUtil.toTransformation(metadata -> metadata.schema.getKeyspaces().with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams()))))));
         }
 
         public void close()

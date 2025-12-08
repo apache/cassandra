@@ -30,6 +30,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.sequences.DropAccordTable.TableReference;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareDropAccordTable;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -70,6 +71,11 @@ public final class DropTableStatement extends AlterSchemaStatement
         TableReference ref = TableReference.from(table);
         ClusterMetadataService.instance().commit(new PrepareDropAccordTable(ref));
         return InProgressSequences.finishInProgressSequences(ref);
+    }
+
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
     }
 
     public Keyspaces apply(ClusterMetadata metadata)

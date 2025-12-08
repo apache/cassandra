@@ -32,6 +32,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -53,6 +54,12 @@ public final class DropTypeStatement extends AlterSchemaStatement
         super(keyspaceName);
         this.typeName = typeName;
         this.ifExists = ifExists;
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
     }
 
     // TODO: expand types into tuples in all dropped columns of all tables

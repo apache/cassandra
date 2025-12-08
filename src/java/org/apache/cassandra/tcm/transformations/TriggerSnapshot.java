@@ -49,12 +49,6 @@ public class TriggerSnapshot implements Transformation
     }
 
     @Override
-    public boolean allowDuringUpgrades()
-    {
-        return true;
-    }
-
-    @Override
     public Result execute(ClusterMetadata prev)
     {
         return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);

@@ -28,4 +28,13 @@ public interface ReferenceExpression extends Expression
     {
         return v.visit(this);
     }
+
+    default Symbol asSymbol()
+    {
+        if (!(this instanceof Symbol))
+            throw new IllegalStateException("Unable to convert type " + getClass() + " to Symbol");
+        return (Symbol) this;
+    }
+
+    Symbol column();
 }

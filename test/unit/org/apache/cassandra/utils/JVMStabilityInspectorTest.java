@@ -119,6 +119,48 @@ public class JVMStabilityInspectorTest
     }
 
     @Test
+    public void testCallShutDownOnLoggerOnSpecificErrors() throws Exception
+    {
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+
+        Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+        Config.UserFunctionTimeoutPolicy oldUserFunctionTimeoutPolicy = DatabaseDescriptor.getUserFunctionTimeoutPolicy();
+        DiskErrorsHandlerService.configure();
+        try
+        {
+            DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+
+            DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.die_immediate);
+            killerForTests.reset();
+            JVMStabilityInspector.userFunctionTimeout(new Throwable());
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+        }
+        catch (Exception | Error e)
+        {
+            throw new AssertionError("Failure when daemonSetupCompleted=false", e);
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
+            DatabaseDescriptor.setUserFunctionTimeoutPolicy(oldUserFunctionTimeoutPolicy);
+            StorageService.instance.registerDaemon(null);
+            DiskErrorsHandlerService.set(DiskErrorsHandler.NoOpDiskErrorHandler.NO_OP);
+        }
+    }
+
+    @Test
     public void testOutOfMemoryHandling()
     {
         for (Throwable oom : asList(new OutOfMemoryError(), new Exception(new OutOfMemoryError())))

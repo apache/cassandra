@@ -57,6 +57,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 
 /**
@@ -109,6 +110,12 @@ public final class CopyTableStatement extends AlterSchemaStatement
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.CREATE_TABLE_LIKE, targetKeyspace, targetTableName);
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V5);
     }
 
     @Override
@@ -227,6 +234,9 @@ public final class CopyTableStatement extends AlterSchemaStatement
     public void validate(ClientState state)
     {
         super.validate(state);
+        // validate attributes to avoid silently accepting following statements
+        // create table ... like ... with security_label='xxx';
+        attrs.validate();
 
         // If a memtable configuration is specified, validate it against config
         if (attrs.hasOption(TableParams.Option.MEMTABLE))

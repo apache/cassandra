@@ -31,7 +31,6 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -55,7 +54,6 @@ import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES;
 import static org.junit.Assert.assertEquals;
 
 public class RegisterTest extends TestBaseImpl
@@ -103,8 +101,7 @@ public class RegisterTest extends TestBaseImpl
     public void serializationVersionCeilingTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1)
-                                        .createWithoutStarting();
-             WithProperties prop = new WithProperties().set(TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES, "true"))
+                                        .createWithoutStarting())
         {
             final String firstNodeEndpoint = "127.0.0.10";
             cluster.get(1).startup();

@@ -59,9 +59,7 @@ public final class KeyspaceParams
     {
         DURABLE_WRITES,
         REPLICATION,
-        FAST_PATH,
-        COMMENT,
-        SECURITY_LABEL;
+        FAST_PATH;
 
         @Override
         public String toString()
@@ -181,8 +179,8 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .add(Option.FAST_PATH.toString(), fastPath.toString())
-                          .add(Option.COMMENT.toString(), comment)
-                          .add(Option.SECURITY_LABEL.toString(), securityLabel)
+                          .add("COMMENT", comment)
+                          .add("SECURITY_LABEL", securityLabel)
                           .toString();
     }
 

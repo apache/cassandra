@@ -1,4 +1,13 @@
 5.1
+ * When updating a multi cell collection element, if the update is rejected then the shared Row.Builder is not freed causing all future mutations to be rejected (CASSANDRA-21055)
+ * Schema annotations escape validation on CREATE and ALTER DDL statements (CASSANDRA-21046)
+ * Calculate once and cache the result of ModificationStatement#requiresRead as a perf optimization (CASSANDRA-21040)
+ * Update system schema tables with new distributed keyspace on upgrade (CASSANDRA-20872)
+ * Fix issue when running cms reconfiguration with paxos repair disabled (CASSANDRA-20869)
+ * Added additional parameter to JVM shutdown to allow for logs to be properly shutdown (CASSANDRA-20978)
+ * Improve isGossipOnlyMember and location lookup performance (CASSANDRA-21039)
+ * Refactor the way we check if a transformation is allowed to be committed during upgrades (CASSANDRA-21043)
+ * Improve debug around paused and disabled compaction (CASSANDRA-20131,CASSANDRA-19728)
  * DiskUsageBroadcaster does not update usageInfo on node replacement (CASSANDRA-21033)
  * Reject PrepareJoin if tokens are already assigned (CASSANDRA-21006)
  * Don't update registration status if node state for decommissioned peer is found with the same address (CASSANDRA-21005)
@@ -347,6 +356,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
  * Fix cleanup of old incremental repair sessions in case of owned token range changes or a table deleting (CASSANDRA-20877)
  * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)
  * Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created (CASSANDRA-20570)
