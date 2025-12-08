@@ -215,6 +215,7 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.c
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
@@ -1316,13 +1317,17 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                         {
                             Tracing.trace("Accord returned retry new protocol");
                             logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                             continue;
                         }
+                        if (result.kind() == txn_data)
+                            ((TxnData) result).checkAndThrowValidationException();
+
                         Tracing.trace("Successfully wrote Accord mutations");
                     }
                 }
@@ -1549,9 +1554,12 @@ public class StorageProxy implements StorageProxyMBean
                     // the batch log.
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
+                        if (result.kind() == txn_data)
+                            ((TxnData) result).checkAndThrowValidationException();
                         Tracing.trace("Successfully wrote Accord mutations");
                         cleanup.ackMutation();
                     }

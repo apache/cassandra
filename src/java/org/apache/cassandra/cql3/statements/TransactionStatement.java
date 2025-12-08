@@ -567,6 +567,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (txnResult.kind() == retry_new_protocol)
             throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
         TxnData data = (TxnData)txnResult;
+        data.checkAndThrowValidationException();
 
         if (returningSelect != null)
         {

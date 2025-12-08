@@ -77,6 +77,7 @@ import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
@@ -98,6 +99,7 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithPaging
 import static org.apache.cassandra.hints.HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -451,9 +453,12 @@ public class BatchlogManager implements BatchlogManagerMBean
             {
                 if (accordResult != null)
                 {
-                    TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                    TxnResult result = accordResult.awaitAndGet();
+                    TxnResult.Kind kind = result.kind();
                     if (kind == retry_new_protocol)
                         throw new RetryOnDifferentSystemException();
+                    if (result.kind() == txn_data)
+                        ((TxnData) result).checkAndThrowValidationException();
                 }
             }
             catch (WriteTimeoutException | WriteFailureException | RetryOnDifferentSystemException e )

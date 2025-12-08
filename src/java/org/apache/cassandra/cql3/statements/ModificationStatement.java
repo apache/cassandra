@@ -686,10 +686,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                     continue;
                 }
                 if (result.kind() == txn_data)
-                {
-                    TxnData data = (TxnData) result;
-                    data.checkAndThrowValidationException();
-                }
+                    ((TxnData) result).checkAndThrowValidationException();
                 Tracing.trace("Successfully wrote Accord mutations");
                 return null;
             }

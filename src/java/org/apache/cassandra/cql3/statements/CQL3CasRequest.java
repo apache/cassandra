@@ -575,6 +575,7 @@ public class CQL3CasRequest implements CASRequest
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;
         TxnData txnData = (TxnData)txnResult;
+        txnData.checkAndThrowValidationException();
         TxnDataKeyValue partition = (TxnDataKeyValue)txnData.get(txnDataName(CAS_READ));
         return casResult(partition != null ? partition.rowIterator(false) : null);
     }
