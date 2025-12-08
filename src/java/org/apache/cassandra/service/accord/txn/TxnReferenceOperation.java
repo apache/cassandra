@@ -158,6 +158,7 @@ public class TxnReferenceOperation
     private final ByteBuffer key;
     private final ByteBuffer field;
     private final TxnReferenceValue value;
+    private final AbstractType<?> keyType;
     private final AbstractType<?> valueType;
 
     public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table, ByteBuffer key, ByteBuffer field, TxnReferenceValue value)
@@ -175,20 +176,25 @@ public class TxnReferenceOperation
         {
             // The value for a map subtraction is actually a set (see Operation.Substraction)
             this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
+            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
         }
         else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
         {
-            this.valueType = ((CollectionType<?>) receiverType).valueComparator();
+            CollectionType<?> ct = (CollectionType<?>) receiverType;
+            this.keyType = ct.nameComparator();
+            this.valueType = ct.valueComparator();
         }
         else if (kind == Kind.UserTypeSetterByField)
         {
             UserType userType = (UserType) receiverType;
             CellPath fieldPath = userType.cellPathForField(new FieldIdentifier(field));
             this.valueType = userType.fieldType(fieldPath);
+            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
         }
         else
         {
             this.valueType = receiverType;
+            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
         }
 
         this.value = value;
@@ -240,7 +246,7 @@ public class TxnReferenceOperation
     {
         FieldIdentifier fieldIdentifier = field == null ? null : new FieldIdentifier(field);
         Term valueTerm = toTerm(data, valueType);
-        Term keyorIndexTerm = key == null ? null : toTerm(key, valueType);
+        Term keyorIndexTerm = key == null ? null : toTerm(key, keyType);
         return kind.toOperation(receiver, keyorIndexTerm, fieldIdentifier, valueTerm);
     }
 

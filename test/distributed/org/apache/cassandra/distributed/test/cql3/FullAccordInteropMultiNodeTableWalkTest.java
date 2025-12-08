@@ -39,6 +39,10 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // CQL_FORMATTER = CQLFormatter.PrettyPrint::new;
 
-        builder.withOnlySeed(3448177587462971228L);
+        // Git SHA=7ef111d6e34787c797b7bd219bdec6e9ca080a19
+//        builder.withOnlySeed(3448177587462971228L); // list timestamps used wall clock and not execute_at
+
+        // Git SHA=a13c26ac09f344f627fcb9543417a87748d18221
+//        builder.withOnlySeed(3448567750659495612L); // wrong error type given
     }
 }

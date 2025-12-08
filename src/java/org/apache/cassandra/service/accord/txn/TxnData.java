@@ -30,6 +30,8 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionIterators;
+import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -60,7 +62,8 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
         USER((byte) 0),
         RETURNING((byte) 1),
         AUTO_READ((byte) 2),
-        CAS_READ((byte) 3);
+        CAS_READ((byte) 3),
+        VALIDATION_EXCEPTION((byte) 4);
 
         private final byte value;
 
@@ -81,6 +84,8 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
                     return AUTO_READ;
                 case 3:
                     return CAS_READ;
+                case 4:
+                    return VALIDATION_EXCEPTION;
                 default:
                     throw new IllegalArgumentException("Unknown kind: " + b);
             }
@@ -129,6 +134,22 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
         requireArgument(size >= 0, "size can't be negative");
         size = Math.max(4, size);
         return new TxnData(size < 1073741824 ? (int)((float)size / 0.75F + 1.0F) : Integer.MAX_VALUE);
+    }
+
+    public void putValidationException(ExceptionCode code, String msg)
+    {
+        int key = TxnData.txnDataName(TxnData.TxnDataNameKind.VALIDATION_EXCEPTION);
+        if (containsKey(key))
+            throw new IllegalStateException("Only a single validation exception can exist; given more than 1");
+        put(key, new TxnDataValue.TxnDataValidationExceptionValue(code, msg));
+    }
+
+    public void checkAndThrowValidationException()
+    {
+        int key = TxnData.txnDataName(TxnData.TxnDataNameKind.VALIDATION_EXCEPTION);
+        if (!containsKey(key)) return;
+        TxnDataValue.TxnDataValidationExceptionValue value = (TxnDataValue.TxnDataValidationExceptionValue) get(key);
+        throw new RequestValidationException.UnsafeException(value.code, value.message);
     }
 
     @Override

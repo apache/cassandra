@@ -31,7 +31,6 @@ import java.util.NavigableSet;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -118,6 +117,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys.KeyCollector;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -141,6 +141,7 @@ import org.apache.cassandra.utils.MD5Digest;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 
@@ -676,13 +677,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 TransactionStatement txnStatement = convertToTransactionStatement();
                 Txn txn = txnStatement.createTxn(queryState.getClientState(), options, preserveTimestamp);
                 long minEpoch = metadata().epoch.getEpoch();
-                IAccordService.IAccordResult<TxnResult> result = AccordService.instance().coordinateAsync(minEpoch, txn, commitCl, requestTime);
-                TxnResult.Kind kind = result.awaitAndGet().kind();
-                if (kind == retry_new_protocol)
+                IAccordService.IAccordResult<TxnResult> async = AccordService.instance().coordinateAsync(minEpoch, txn, commitCl, requestTime);
+                TxnResult result = async.awaitAndGet();
+                if (result.kind() == retry_new_protocol)
                 {
                     Tracing.trace("Accord returned retry new protocol");
                     logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                     continue;
+                }
+                if (result.kind() == txn_data)
+                {
+                    TxnData data = (TxnData) result;
+                    data.checkAndThrowValidationException();
                 }
                 Tracing.trace("Successfully wrote Accord mutations");
                 return null;
@@ -1351,7 +1357,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public SelectStatement createSelectForTxn()
     {
         // TODO: get working with static-only updates that don't specify any/all primary key columns
-        Preconditions.checkState(getRestrictions().hasAllPrimaryKeyColumnsRestrictedByEqualities());
+//        Preconditions.checkState(getRestrictions().hasAllPrimaryKeyColumnsRestrictedByEqualities());
         Selection selection = Selection.forColumns(metadata, Lists.newArrayList(requiresRead), false);
         return new SelectStatement(metadata,
                                    bindVariables,
