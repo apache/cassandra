@@ -250,7 +250,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) select.getQuery(options, 0);
 
         if (selectQuery.queries.size() != 1)
-            throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+            throw invalidRequest("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
 
         SinglePartitionReadCommand command = Iterables.getOnlyElement(selectQuery.queries);
         return new TxnNamedRead(namedSelect.name, keyCollector.collect(command.metadata(), command.partitionKey()), command, keyCollector.tables);
