@@ -164,6 +164,15 @@ public final class Operations implements Iterable<Operation>
         return false;
     }
 
+    public boolean requiresTimestamp()
+    {
+        for (Operation operation : this)
+            if (operation.requiresTimestamp())
+                return true;
+
+        return false;
+    }
+
     /**
      * Checks if this <code>Operations</code> is empty.
      * @return <code>true</code> if this <code>Operations</code> is empty, <code>false</code> otherwise.

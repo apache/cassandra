@@ -457,6 +457,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     @Nullable
     public Txn createTxn(ClientState state, QueryOptions options)
     {
+        return createTxn(state, options, PreserveTimestamp.no);
+    }
+
+    @VisibleForTesting
+    public Txn createTxn(ClientState state, QueryOptions options, PreserveTimestamp preserveTimestamps)
+    {
         ClusterMetadata cm = ClusterMetadata.current();
         TableMetadatas.Complete tables = collectTables();
         TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
@@ -485,7 +491,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             }
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
-            AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, PreserveTimestamp.no);
+            AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, preserveTimestamps);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }

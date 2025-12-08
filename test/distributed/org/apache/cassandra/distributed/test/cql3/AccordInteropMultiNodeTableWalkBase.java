@@ -45,7 +45,7 @@ public abstract class AccordInteropMultiNodeTableWalkBase extends MultiNodeTable
     }
 
     @Override
-    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder, Property.CommandsBuilder<State, Void> commandBuilder)
     {
         addUncaughtExceptionsFilter(cluster);
     }

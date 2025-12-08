@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.ast.Symbol;
@@ -41,12 +42,11 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.gen.BijectionCache;
+import org.apache.cassandra.harry.gen.BijectionCache.Value;
 import org.apache.cassandra.harry.gen.Bijections;
 import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
@@ -513,63 +513,20 @@ public class BytesPartitionState
         }
     }
 
-    public static class Factory
+    public static class Factory extends DetailedTableMetadata
     {
-        public final TableMetadata metadata;
-        public final ImmutableUniqueList<Symbol> partitionColumns;
-        public final ImmutableUniqueList<Symbol> clusteringColumns;
-        public final ImmutableUniqueList<Symbol> primaryColumns;
-        public final ImmutableUniqueList<Symbol> staticColumns;
-        public final ImmutableUniqueList<Symbol> regularColumns;
-        public final ImmutableUniqueList<Symbol> selectionOrder, partitionAndStaticColumns, clusteringAndRegularColumns, regularAndStaticColumns;
         public final ClusteringComparator clusteringComparator;
 
 
         // translation layer for harry interop
-        private final BijectionCache<Clustering<ByteBuffer>> partitionCache = new BijectionCache<>(Reject.instance.as());
+        private final BijectionCache<Clustering<ByteBuffer>> partitionCache;
         private final BijectionCache<Clustering<ByteBuffer>> clusteringCache;
-        private final BijectionCache<Value> valueCache = new BijectionCache<>((l, r) -> {
-            if (!l.type.equals(r.type))
-                throw new IllegalArgumentException("Unable to compare different types: " + l.type.asCQL3Type() + " != " + r.type.asCQL3Type());
-            // Cells resolve based off unsigned byte order and not type order
-            return ByteBufferUtil.compareUnsigned(l.value, r.value);
-        });
+        private final BijectionCache<Value> valueCache = BijectionCache.valueCache();
         private final ValueGenerators<Clustering<ByteBuffer>, Clustering<ByteBuffer>> valueGenerators;
 
         public Factory(TableMetadata metadata)
         {
-            this.metadata = metadata;
-            ImmutableUniqueList.Builder<Symbol> symbolListBuilder = ImmutableUniqueList.builder();
-            for (ColumnMetadata pk : metadata.partitionKeyColumns())
-                symbolListBuilder.add(Symbol.from(pk));
-            partitionColumns = symbolListBuilder.buildAndClear();
-            for (ColumnMetadata pk : metadata.clusteringColumns())
-                symbolListBuilder.add(Symbol.from(pk));
-            clusteringColumns = symbolListBuilder.buildAndClear();
-            if (clusteringColumns.isEmpty()) primaryColumns = partitionColumns;
-            else
-            {
-                primaryColumns = symbolListBuilder.addAll(partitionColumns)
-                                                  .addAll(clusteringColumns)
-                                                  .buildAndClear();
-            }
-            metadata.staticColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            staticColumns = symbolListBuilder.buildAndClear();
-            if (staticColumns.isEmpty()) partitionAndStaticColumns = partitionColumns;
-            else
-            {
-                partitionAndStaticColumns = symbolListBuilder.addAll(partitionColumns)
-                                                             .addAll(staticColumns)
-                                                             .buildAndClear();
-            }
-            metadata.regularColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            regularColumns = symbolListBuilder.buildAndClear();
-            clusteringAndRegularColumns = symbolListBuilder.addAll(clusteringColumns)
-                                                           .addAll(regularColumns)
-                                                           .buildAndClear();
-            metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            selectionOrder = symbolListBuilder.buildAndClear();
-            regularAndStaticColumns = symbolListBuilder.addAll(staticColumns).addAll(regularColumns).buildAndClear();
+            super(metadata);
 
             clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
 
@@ -594,13 +551,24 @@ public class BytesPartitionState
                 staticComparators.add(compareValue(s.type()));
             }
 
-            clusteringCache = new BijectionCache<>(clusteringComparator);
+            partitionCache = new BijectionCache<>(toString(partitionColumns), Reject.instance.as());
+            clusteringCache = new BijectionCache<>(toString(clusteringColumns), clusteringComparator);
 
             ValueGenerators.Accessor<Clustering<ByteBuffer>> clusteringAccessor = (offset, clustering) -> clustering.bufferAt(offset);
             valueGenerators = new ValueGenerators<>(partitionCache, clusteringCache, clusteringAccessor,
                                                     regularColumnGens, staticColumnGens,
                                                     pkComparators, ckComparators,
                                                     regularComparators, staticComparators);
+        }
+
+        private static Function<Clustering<ByteBuffer>, String> toString(List<Symbol> columns)
+        {
+            return cd -> {
+                List<String> values = new ArrayList<>(cd.size());
+                for (int i = 0; i < cd.size(); i++)
+                    values.add(columns.get(i).type().asCQL3Type().toCQLLiteral(cd.bufferAt(i)));
+                return values.toString();
+            };
         }
 
         private Comparator<Object> compareValue(AbstractType<?> type)
@@ -651,39 +619,6 @@ public class BytesPartitionState
         private PartitionState partitionState(Clustering<ByteBuffer> key)
         {
             return new PartitionState(partitionCache.deflate(key), valueGenerators);
-        }
-    }
-
-    private static class Value
-    {
-        final AbstractType<?> type;
-        final ByteBuffer value;
-
-        private Value(AbstractType<?> type, ByteBuffer value)
-        {
-            this.type = Objects.requireNonNull(type);
-            this.value = Objects.requireNonNull(value);
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Value value1 = (Value) o;
-            return type.equals(value1.type) && value.equals(value1.value);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(type, value);
-        }
-
-        @Override
-        public String toString()
-        {
-            return type.asCQL3Type().toCQLLiteral(value);
         }
     }
 

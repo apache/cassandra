@@ -39,6 +39,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Txn;
 import accord.utils.Invariants;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.Attributes;
@@ -113,15 +114,23 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys.KeyCollector;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -131,6 +140,8 @@ import org.apache.cassandra.utils.MD5Digest;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 
 /*
@@ -644,23 +655,55 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         validateDiskUsage(options, queryState.getClientState());
         validateTimestamp(queryState, options);
 
-        List<? extends IMutation> mutations =
-            getMutations(queryState.getClientState(),
-                         options,
-                         false,
-                         options.getTimestamp(queryState),
-                         options.getNowInSeconds(queryState),
-                         requestTime
-            );
-        if (!mutations.isEmpty())
+        while (true)
         {
-            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
+            ClusterMetadata current = ClusterMetadata.current();
+            if (shouldWriteThroughAccord(current, queryState.getClientState(), options))
+            {
+                List<ByteBuffer> keys = buildPartitionKeyNames(options, queryState.getClientState());
+                Invariants.require(keys.size() == 1, "Only single partition key expected, but given %s", keys.size());
+                Token token = metadata.partitioner.decorateKey(keys.get(0)).getToken();
+                ConsistencyLevel commitCl = ConsensusMigrationMutationHelper.consistencyLevelForCommit(current, cl, metadata.id(), token);
+                // StorageProxy.mutateWithTriggers has similar logic to loop depending on the migration status,
+                // so this block happens if the write should go through accord and if the answer is to ever
+                // go through normal write path, then this loop won't run again; it will loop in StorageProxy.mutateWithTriggers.
+                // Given this expectaction the preserveTimestamp doesn't have to account for going to the non-accord path.
+                //
+                 //REVIEW (now): in order to properly handle List CellPath we need this logic to run, using the StorageProxy.mutateWithTriggers
+                // allows the cell path to be incorrect in the accord case (we can not migrate it as we can't tell the difference
+                // between a list append and list[0] = 42 (this uses the timestamp of list[0])).
+                PreserveTimestamp preserveTimestamp = attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no;
+                TransactionStatement txnStatement = convertToTransactionStatement();
+                Txn txn = txnStatement.createTxn(queryState.getClientState(), options, preserveTimestamp);
+                long minEpoch = metadata().epoch.getEpoch();
+                IAccordService.IAccordResult<TxnResult> result = AccordService.instance().coordinateAsync(minEpoch, txn, commitCl, requestTime);
+                TxnResult.Kind kind = result.awaitAndGet().kind();
+                if (kind == retry_new_protocol)
+                {
+                    Tracing.trace("Accord returned retry new protocol");
+                    logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
+                    continue;
+                }
+                Tracing.trace("Successfully wrote Accord mutations");
+                return null;
+            }
 
-            if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
-                ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
+            List<? extends IMutation> mutations = getMutations(queryState.getClientState(),
+                                                               options,
+                                                               false,
+                                                               options.getTimestamp(queryState),
+                                                               options.getNowInSeconds(queryState),
+                                                               requestTime);
+            if (!mutations.isEmpty())
+            {
+                StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
+
+                if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
+                    ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
+            }
+
+            return null;
         }
-
-        return null;
     }
 
     private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
@@ -854,6 +897,33 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return null;
     }
 
+    private boolean shouldWriteThroughAccord(ClusterMetadata current, ClientState state, QueryOptions options)
+    {
+        List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
+        if (keys.isEmpty())
+            return false;
+
+        if (keys.size() > 1)
+            // can't handle at the TransactionStatement level, have to handle at the Mutation level...
+            return false;
+
+        Token token = metadata().partitioner.getToken(keys.get(0));
+
+        return tokenShouldBeWrittenThroughAccord(current,
+                                                 metadata().id,
+                                                 token,
+                                                 TransactionalMode::nonSerialWritesThroughAccord,
+                                                 TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
+    }
+
+    private TransactionStatement convertToTransactionStatement()
+    {
+        // Create a simple TransactionStatement with just this update and no reads/conditions
+        List<ModificationStatement> updates = Collections.singletonList(this.forTxn());
+
+        return new TransactionStatement(Collections.emptyList(), null, null, updates, Collections.emptyList(), bindVariables);
+    }
+
     /**
      * Convert statement into a list of mutations to apply on the server
      *
@@ -930,7 +1000,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public ModificationStatement forTxn()
     {
-        if (requiresRead.isEmpty()) return this;
+        if (requiresRead.isEmpty() && !operations.requiresTimestamp()) return this;
         ModificationStatement migrated = txnStmt;
         if (migrated == null)
         {
@@ -1030,28 +1100,29 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
-
-            for (ByteBuffer key : keys)
+            try (UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime))
             {
-                Validation.validateKey(metadata(), key);
-                Validation.checkConstraints(metadata(), key);
-                DecoratedKey dk = metadata().partitioner.decorateKey(key);
-
-                PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
-
-                if (!restrictions.hasClusteringColumnsRestrictions())
+                for (ByteBuffer key : keys)
                 {
-                    addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
-                }
-                else
-                {
-                    // Clustering keys need to be checked on their own
-                    for (Clustering<?> clustering : clusterings)
+                    Validation.validateKey(metadata(), key);
+                    Validation.checkConstraints(metadata(), key);
+                    DecoratedKey dk = metadata().partitioner.decorateKey(key);
+
+                    PartitionUpdate.Builder updateBuilder = collector.getPartitionUpdateBuilder(metadata(), dk, options.getConsistency());
+
+                    if (!restrictions.hasClusteringColumnsRestrictions())
                     {
-                        clustering.validate();
-                        checkClusteringConstraints(clustering);
-                        addUpdateForKey(updateBuilder, clustering, params);
+                        addUpdateForKey(updateBuilder, Clustering.EMPTY, params);
+                    }
+                    else
+                    {
+                        // Clustering keys need to be checked on their own
+                        for (Clustering<?> clustering : clusterings)
+                        {
+                            clustering.validate();
+                            checkClusteringConstraints(clustering);
+                            addUpdateForKey(updateBuilder, clustering, params);
+                        }
                     }
                 }
             }

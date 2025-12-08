@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;
 
@@ -311,8 +310,6 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @see Commit for why we need this.
      */
     public Row updateAllTimestamp(long newTimestamp);
-
-    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime);
 
     /**
      * Returns a copy of this row with the new deletion as row deletion if it is more recent

@@ -18,24 +18,44 @@
 
 package org.apache.cassandra.harry.gen;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.harry.MagicConstants;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class BijectionCache<T> implements Bijections.Bijection<T>
 {
     private final BiMap<T, Long> valueToDescriptor = HashBiMap.create();
+    private final Function<? super T, String> toString;
     private final Comparator<? super T> comparator;
     private long counter = 0;
 
-    public BijectionCache(Comparator<? super T> comparator)
+    public BijectionCache(Function<? super T, String> toString,
+                          Comparator<? super T> comparator)
     {
+        this.toString = toString;
         this.comparator = comparator;
+    }
+
+    public static BijectionCache<Value> valueCache()
+    {
+        return new BijectionCache<>(v -> v.type.toCQLString(v.value), (l, r) -> {
+            if (!l.type.equals(r.type))
+                throw new IllegalArgumentException("Unable to compare different types: " + l.type.asCQL3Type() + " != " + r.type.asCQL3Type());
+            // Cells resolve based off unsigned byte order and not type order
+            return ByteBufferUtil.compareUnsigned(l.value, r.value);
+        });
     }
 
     @Override
@@ -108,13 +128,14 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
     @Override
     public Comparator<Long> descriptorsComparator()
     {
-        return (a, b) -> comparator.compare(inflate(a), inflate(b));
+        return this::compare;
     }
 
     @Override
     public String toString(long pd)
     {
-        throw new UnsupportedOperationException();
+        T value = inflate(pd);
+        return toString.apply(value);
     }
 
     @Override
@@ -129,5 +150,41 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
         T lhs = inflate(l);
         T rhs = inflate(r);
         return comparator.compare(lhs, rhs);
+    }
+
+    public static class Value
+    {
+        public final AbstractType<?> type;
+        @Nullable
+        public final ByteBuffer value;
+
+        public Value(AbstractType<?> type, @Nullable ByteBuffer value)
+        {
+            this.type = Objects.requireNonNull(type);
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Value value1 = (Value) o;
+            return type.equals(value1.type) && Objects.equals(value, value1.value);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(type, value);
+        }
+
+        @Override
+        public String toString()
+        {
+            if (value == null) return "null";
+            if (value == ByteBufferUtil.EMPTY_BYTE_BUFFER) return "<empty>";
+            return type.toCQLString(value);
+        }
     }
 }

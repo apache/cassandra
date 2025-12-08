@@ -325,6 +325,7 @@ public class ASTSingleTableModel
 
     public void update(Mutation mutation)
     {
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (!shouldApply(mutation)) return;
         Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         updateInternal(mutation);
@@ -332,6 +333,7 @@ public class ASTSingleTableModel
 
     public void updateAndValidate(ByteBuffer[][] actual, Mutation mutation)
     {
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (!shouldApply(mutation))
         {
             if (mutation.isCas() && validateCass.validate())
@@ -1909,6 +1911,7 @@ public class ASTSingleTableModel
     {
         if (col instanceof Reference)
             throw new IllegalArgumentException("References are not supported yet; foo.bar.baz style eval is not yet handled; given " + col.toCQL());
+
         if (col instanceof CollectionAccess)
         {
             CollectionAccess access = (CollectionAccess) col;
@@ -1942,6 +1945,7 @@ public class ASTSingleTableModel
         var assignment = (AssignmentOperator) e;
         if (isFancy && current == null)
         {
+//            if (assignment.kind == )
             return assignment.kind == AssignmentOperator.Kind.SUBTRACT
                    // if it doesn't exist, then there is nothing to subtract
                    ? EvalResult.SKIP

@@ -70,7 +70,7 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
 
     protected class State extends MultiNodeState
     {
-        private State(RandomSource rs, Cluster cluster)
+        protected State(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
         }
