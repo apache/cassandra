@@ -117,12 +117,12 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
             return super.command(rs, mutation, annotate);
         }
 
-        @Override
-        protected boolean allowListElementAccessForUpdateSet()
-        {
-            // See CASSANDRA-20828
-            return false;
-        }
+//        @Override
+//        protected boolean allowListElementAccessForUpdateSet()
+//        {
+//            // See CASSANDRA-20828
+//            return false;
+//        }
 
         @Override
         protected boolean allowUsingTimestamp()
