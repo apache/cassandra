@@ -48,5 +48,9 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
         // Git SHA=14e269b9c5232fdfc5dd7e7d550725ba8dbcef7d
 //        builder.withOnlySeed(3653666668640336886L); // still an issue; trying to find more... list is null but expected to be size 2
 //        builder.withOnlySeed(3448629695620704295L); // update can do multiple partitions but BEGIN TRANSACTION doesn't support
+
+        // Git SHA=1bcc914d7b4d28ce1cad221cf5c745775cbdd8db
+//        builder.withOnlySeed(-4800178716689218479L); // list column should be size 1 but access at 10; but it is null! See org.apache.cassandra.distributed.test.cql3.RepoListReadMissingHistoryTest
+
     }
 }

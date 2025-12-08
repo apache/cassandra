@@ -156,19 +156,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
-    private static class AnnotatedSelect
-    {
-        final Select select;
-        final String annotation;
-
-        private AnnotatedSelect(Select select, String annotation)
-        {
-            this.select = select;
-            this.annotation = annotation;
-        }
-    }
-
-    static AnnotatedSelect selectPartitionOrRow(RandomSource rs, State state)
+    public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
     {
         NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
         BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
@@ -198,13 +186,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
         }
         Select select = builder.build();
-        return new AnnotatedSelect(select, (wholePartition ? "By Partition Key" : "By Primary Key"));
-    }
-
-    public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
-    {
-        var select = selectPartitionOrRow(rs, state);
-        return state.command(rs, select.select, select.annotation);
+        return state.command(rs, select, (wholePartition ? "By Partition Key" : "By Primary Key"));
     }
 
     public Property.Command<State, Void, ?> selectToken(RandomSource rs, State state)
@@ -488,7 +470,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
         private final Gen<LinkedHashMap<Symbol, Object>> partitionKeyValuesGen;
-        private final float txnWithLetFrequency;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -552,8 +533,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
-
-            txnWithLetFrequency = rs.nextFloat();
         }
 
         protected MutationGenBuilder mutationBuilder(List<LinkedHashMap<Symbol, Object>> uniquePartitions)
@@ -590,51 +569,44 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         protected Gen<Txn> txnGen()
         {
             return rs -> {
-                if (rs.decide(txnWithLetFrequency))
+                var pk = partitionKeyValuesGen.next(rs);
+                Mutation mutation = toMutationGen(mutationBuilder(List.of(pk))
+                                                  .disallowUpdateMultiplePartitionKeys())
+                                    .next(rs);
+                Select select = ASTGenerators.select(metadata, pk).withLimit(1);
+                var columns = model.columns(select);
+                Txn.Builder builder = Txn.builder();
+                builder.addLet("r1", select);
+                Reference ref = Reference.of(Symbol.unknownType("r1"));
+
+                builder.addReturn(ASTGenerators.select(metadata, pk));
+
+                Conditional.Builder condition = Conditional.builder();
+                for (var col : columns)
                 {
-                    var pk = partitionKeyValuesGen.next(rs);
-                    Mutation mutation = toMutationGen(mutationBuilder(List.of(pk))
-                                                      .withTxnSafe()
-                                                      .disallowUpdateMultiplePartitionKeys()).next(rs);
-                    Select select = ASTGenerators.select(metadata, pk).withLimit(1);
-                    var columns = model.columns(select);
-                    Txn.Builder builder = Txn.builder();
-                    builder.addLet("r1", select);
-                    Reference ref = Reference.of(Symbol.unknownType("r1"));
-
-                    builder.addReturn(ASTGenerators.select(metadata, pk));
-
-                    Conditional.Builder condition = Conditional.builder();
-                    for (var col : columns)
+                    if (rs.nextBoolean()) continue;
+                    Reference colRef = ref.add(col);
+                    if (rs.nextBoolean())
+                        condition.is(colRef, rs.pick(Conditional.Is.Kind.values()));
+                    if (rs.nextBoolean())
                     {
-                        if (rs.nextBoolean()) continue;
-                        Reference colRef = ref.add(col);
-                        if (rs.nextBoolean())
-                            condition.is(colRef, rs.pick(Conditional.Is.Kind.values()));
+                        Expression lhs = colRef;
+                        Expression rhs = value(rs, Generators.toGen(AbstractTypeGenerators.getTypeSupport(lhs.type()).bytesGen()).next(rs), lhs.type());
                         if (rs.nextBoolean())
                         {
-                            Expression lhs = colRef;
-                            Expression rhs = value(rs, Generators.toGen(AbstractTypeGenerators.getTypeSupport(lhs.type()).bytesGen()).next(rs), lhs.type());
-                            if (rs.nextBoolean())
-                            {
-                                var tmp = lhs;
-                                lhs = rhs;
-                                rhs = tmp;
-                            }
-                            Conditional.Where.Inequality inequality = rs.pick(Conditional.Where.Inequality.values());
-                            condition.where(lhs, inequality, rhs);
+                            var tmp = lhs;
+                            lhs = rhs;
+                            rhs = tmp;
                         }
+                        Conditional.Where.Inequality inequality = rs.pick(Conditional.Where.Inequality.values());
+                        condition.where(lhs, inequality, rhs);
                     }
-                    if (condition.isEmpty())
-                        condition.is("r1", Conditional.Is.Kind.NotNull);
-                    builder.addIf(condition.build(), mutation);
-
-                    return builder.build();
                 }
-                if (model.isEmpty()) return Txn.wrap(mutationGen.next(rs));
-                return rs.nextBoolean()
-                       ? Txn.wrap(mutationGen.next(rs))
-                       : Txn.wrap(selectPartitionOrRow(rs, this).select);
+                if (condition.isEmpty())
+                    condition.is("r1", Conditional.Is.Kind.NotNull);
+                builder.addIf(condition.build(), mutation);
+
+                return builder.build();
             };
         }
 

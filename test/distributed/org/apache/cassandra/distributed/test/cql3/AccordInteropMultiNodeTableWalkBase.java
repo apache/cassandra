@@ -24,6 +24,7 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -91,6 +92,7 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
     {
         private final boolean allowUsingTimestamp;
         private final float wrapMutationAsTxn;
+        private final float wrapSelectAsTxn;
 
         public AccordInteropMultiNodeState(RandomSource rs, Cluster cluster)
         {
@@ -98,6 +100,7 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
             allowUsingTimestamp = rs.nextBoolean();
             // when USING TIMESTAMP is done for the mutation, BEGIN TRANSACTION can't be supported as it doesn't allow that syntax; so need to disable wrapping mutations
             wrapMutationAsTxn = allowUsingTimestamp ? 0F : rs.nextFloat();
+            wrapSelectAsTxn = rs.nextFloat();
         }
 
         @Override
@@ -117,6 +120,14 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
                 && rs.decide(wrapMutationAsTxn))
                 return super.command(rs, Txn.wrap(mutation), annotate);
             return super.command(rs, mutation, annotate);
+        }
+
+        @Override
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select, @Nullable String annotate)
+        {
+            if (rs.decide(wrapSelectAsTxn))
+                return super.command(rs, Txn.wrap(select), annotate);
+            return super.command(rs, select, annotate);
         }
 
 //        @Override
