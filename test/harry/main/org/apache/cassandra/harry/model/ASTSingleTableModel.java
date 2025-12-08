@@ -1174,7 +1174,7 @@ public class ASTSingleTableModel
         return pks.get(0);
     }
 
-    private List<Clustering<ByteBuffer>> pds(Mutation mutation)
+    public List<Clustering<ByteBuffer>> pds(Mutation mutation)
     {
         switch (mutation.kind)
         {

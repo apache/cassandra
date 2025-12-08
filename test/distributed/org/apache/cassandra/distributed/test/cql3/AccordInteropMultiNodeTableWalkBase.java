@@ -112,7 +112,9 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
         @Override
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Mutation mutation, @Nullable String annotate)
         {
-            if (wrapMutationAsTxn != 0 && rs.decide(wrapMutationAsTxn))
+            if (wrapMutationAsTxn != 0
+                && model.pds(mutation).size() == 1 //TODO (user): BEGIN TRANSACTION currently doesn't support mutations which do multiple partitions
+                && rs.decide(wrapMutationAsTxn))
                 return super.command(rs, Txn.wrap(mutation), annotate);
             return super.command(rs, mutation, annotate);
         }

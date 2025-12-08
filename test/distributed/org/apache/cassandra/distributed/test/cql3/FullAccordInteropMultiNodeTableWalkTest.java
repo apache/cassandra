@@ -44,5 +44,9 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
 
         // Git SHA=a13c26ac09f344f627fcb9543417a87748d18221
 //        builder.withOnlySeed(3448567750659495612L); // wrong error type given
+
+        // Git SHA=14e269b9c5232fdfc5dd7e7d550725ba8dbcef7d
+//        builder.withOnlySeed(3653666668640336886L); // still an issue; trying to find more... list is null but expected to be size 2
+//        builder.withOnlySeed(3448629695620704295L); // update can do multiple partitions but BEGIN TRANSACTION doesn't support
     }
 }
