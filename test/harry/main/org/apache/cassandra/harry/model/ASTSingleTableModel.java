@@ -1204,6 +1204,12 @@ public class ASTSingleTableModel
         return pds(mutation.where.simplify());
     }
 
+    public List<Clustering<ByteBuffer>> pds(Select select)
+    {
+        if (select.where.isEmpty()) return List.of();
+        return pds(select.where.get().simplify());
+    }
+
     private List<Clustering<ByteBuffer>> pds(List<Conditional> conditionals)
     {
         return splitOnPartition(conditionals).left;
