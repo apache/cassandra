@@ -52,5 +52,6 @@ public class FullAccordInteropMultiNodeTableWalkTest extends AccordInteropMultiN
         // Git SHA=1bcc914d7b4d28ce1cad221cf5c745775cbdd8db
 //        builder.withOnlySeed(-4800178716689218479L); // list column should be size 1 but access at 10; but it is null! See org.apache.cassandra.distributed.test.cql3.RepoListReadMissingHistoryTest
 
+//        builder.withOnlySeed(3448619085512145374L); // pds(Select) would fail if the select is a scan rather than pk lookup
     }
 }

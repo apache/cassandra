@@ -1080,10 +1080,7 @@ public class ASTSingleTableModel
             }
         }
         if (!columns.equals(pks.keySet()))
-        {
-            var missing = Sets.difference(columns, pks.keySet());
-            throw new AssertionError("Unable to find expected columns " + missing);
-        }
+            return Pair.create(List.of(), other);
 
         List<Clustering<ByteBuffer>> partitionKeys = keys(columns, pks);
         return Pair.create(partitionKeys, other);
