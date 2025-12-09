@@ -66,13 +66,13 @@ public class RepoListReadMissingHistoryTest extends TestBaseImpl
                                  "\t\t    AND transactional_migration_from = 'none'\n" +
                                  "\t\t    AND speculative_retry = '99p';\n");
 
-            cluster.schemaChange("\t\tCREATE INDEX tbl_pk0 ON ks1.tbl(pk0) USING 'SAI';\n");
-            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_pk1 ON ks1.tbl(pk1) USING 'StorageAttachedIndex';\n");
-            cluster.schemaChange("\t\tCREATE INDEX tbl_ck0 ON ks1.tbl(ck0) USING 'SAI';\n");
-            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_s0 ON ks1.tbl(FULL(s0)) USING 'StorageAttachedIndex';\n");
-            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_v1 ON ks1.tbl(FULL(v1)) USING 'StorageAttachedIndex';");
+//            cluster.schemaChange("\t\tCREATE INDEX tbl_pk0 ON ks1.tbl(pk0) USING 'SAI';\n");
+//            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_pk1 ON ks1.tbl(pk1) USING 'StorageAttachedIndex';\n");
+//            cluster.schemaChange("\t\tCREATE INDEX tbl_ck0 ON ks1.tbl(ck0) USING 'SAI';\n");
+//            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_s0 ON ks1.tbl(FULL(s0)) USING 'StorageAttachedIndex';\n");
+//            cluster.schemaChange("\t\tCREATE CUSTOM INDEX tbl_v1 ON ks1.tbl(FULL(v1)) USING 'StorageAttachedIndex';");
 
-            ClusterUtils.waitForCMSToQuiesce(cluster);
+            ClusterUtils.awaitAccordEpochReady(cluster, ClusterUtils.waitForCMSToQuiesce(cluster).getEpoch());
 
             cluster.coordinator(2).execute("BEGIN TRANSACTION INSERT INTO ks1.tbl (pk0, pk1, ck0, v1, s1, v0, s0) VALUES (396322556, 40, -1748133413 - -1024523175, [[665805949], [-783123743, 2047305302], [714248282]], [[103141047]], [[-1283821483, -1019535361], [-106957965, -457242862, 1983685136]], [[-1708678893, -1627160677], [-1342370394], [-2105454556, 1159184135, 2055191601]]); COMMIT TRANSACTION", ConsistencyLevel.ALL);
             cluster.coordinator(1).execute("UPDATE ks1.tbl SET s1[10]=[-310220905], v1=[[875071167, -1953008271]] WHERE  pk0 = 396322556 AND  pk1 = 40 AND  ck0 = 1033194523 - 1803482217", ConsistencyLevel.ALL);
