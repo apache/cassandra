@@ -926,7 +926,7 @@ public abstract class LocalLog implements Closeable
         addListener(new MetadataSnapshotListener());
         addListener(new ClientNotificationListener());
         addListener(new UpgradeMigrationListener());
-        if (DatabaseDescriptor.getAccord().enabled)
+        if (DatabaseDescriptor.getAccordTransactionsEnabled())
             addListener(AccordService.MetadataChangeListener.instance);
     }
 

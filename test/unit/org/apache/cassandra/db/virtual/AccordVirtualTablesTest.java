@@ -124,7 +124,7 @@ public class AccordVirtualTablesTest extends CQLTester
 
         // range is no longer "added" so doesn't show up as synced!
         long e2 = 2;
-        ActiveEpoch a2 = active(topology(e2, T1), EpochReady.done(e2), a1.global());
+        ActiveEpoch a2 = active(topology(e2, T1), EpochReady.done(e2), a1.all());
         tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a2, a1 }, -1));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));

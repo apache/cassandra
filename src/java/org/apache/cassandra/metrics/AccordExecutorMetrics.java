@@ -58,4 +58,8 @@ public class AccordExecutorMetrics
         waitingToRun = Metrics.register(factory.createMetricName("WaitingToRun"), gauges.newGauge(AccordExecutor::unsafeWaitingToRunCount, Long::sum));
         running = Metrics.register(factory.createMetricName("Running"), gauges.newGauge(AccordExecutor::unsafeRunningCount, Long::sum));
     }
+
+    public static void touch()
+    {
+    }
 }

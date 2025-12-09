@@ -518,7 +518,7 @@ public class RouteIndexTest extends CQLTester
         AccordService startAccord()
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            AccordService.MetadataChangeListener.instance.resetForTesting(metadata);
+            AccordService.MetadataChangeListener.instance.unsafeResetForTesting(metadata);
             NodeId tcmNodeId = metadata.myNodeId();
             AccordService.unsafeSetNewAccordService(null);
             AccordService.localStartup(tcmNodeId);

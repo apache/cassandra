@@ -46,6 +46,7 @@ import accord.primitives.Txn;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
+import org.apache.cassandra.metrics.AccordExecutorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
@@ -161,50 +162,78 @@ public class AccordService implements IAccordService, Shutdownable
         // Listener is initialized before Accord is initialized
         public static MetadataChangeListener instance = new MetadataChangeListener();
 
-        private MetadataChangeListener() {}
-
-        private final AtomicReference<ChangeListener> collector = new AtomicReference<>(new PreInitStateCollector());
-
-        @Override
-        public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        interface Sink
         {
-            collector.get().notifyPreCommit(prev, next, fromSnapshot);
-        }
-
-        @Override
-        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
-        {
-            collector.get().notifyPostCommit(prev, next, fromSnapshot);
-        }
-
-        @VisibleForTesting
-        public void resetForTesting(ClusterMetadata metadata)
-        {
-            PreInitStateCollector stateCollector = new PreInitStateCollector();
-            stateCollector.items.add(metadata);
-            collector.set(stateCollector);
+            Sink update(ClusterMetadata next);
         }
 
         /**
          * Collects TCM events from startup util full Accord initialization to avoid races with TCM and creating gaps between
          * epochs restored from journal and reported by TCM.
          **/
-
-        static class PreInitStateCollector implements ChangeListener
+        static final class Collector implements Sink
         {
-            private final List<ClusterMetadata> items = new ArrayList<>(4);
+            static final Collector EMPTY = new Collector(new ClusterMetadata[0]);
+            final ClusterMetadata[] saved;
+
+            Collector(ClusterMetadata[] saved)
+            {
+                this.saved = saved;
+            }
 
             @Override
-            public synchronized void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+            public Sink update(ClusterMetadata next)
             {
-                logger.debug("Saving epoch {} to deliver after startup", next.epoch);
-                items.add(next);
+                ClusterMetadata[] newSaved = Arrays.copyOf(saved, saved.length + 1);
+                newSaved[saved.length] = next;
+                return new Collector(newSaved);
             }
 
-            public synchronized List<ClusterMetadata> getItems()
+            public List<ClusterMetadata> getItems()
             {
-                return new ArrayList<>(items);
+                return Arrays.asList(saved);
             }
+        }
+
+        private final AtomicReference<Sink> sink = new AtomicReference<>(Collector.EMPTY);
+
+        private MetadataChangeListener() {}
+
+        @Override
+        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        {
+            while (true)
+            {
+                Sink curSink = sink.get();
+                Sink nextSink = curSink.update(next);
+                if (nextSink == curSink || sink.compareAndSet(curSink, nextSink))
+                    return;
+            }
+        }
+
+        Collector replaceSinkIfEmpty(Sink newSink)
+        {
+            while (true)
+            {
+                Sink curSink = sink.get();
+                Invariants.require(curSink instanceof Collector);
+                if (curSink == Collector.EMPTY)
+                {
+                    if (sink.compareAndSet(curSink, newSink))
+                        return null;
+                }
+                else
+                {
+                    if (sink.compareAndSet(curSink, Collector.EMPTY))
+                        return (Collector) curSink;
+                }
+            }
+        }
+
+        @VisibleForTesting
+        public void unsafeResetForTesting(ClusterMetadata metadata)
+        {
+            sink.set(Collector.EMPTY.update(metadata));
         }
     }
 
@@ -325,6 +354,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         AccordReplicaMetrics.touch();
         AccordSystemMetrics.touch();
+        AccordExecutorMetrics.touch();
         AccordViolationHandler.setup();
         return as;
     }
@@ -421,6 +451,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             journal.start(node);
             node.load();
+
 
             ClusterMetadata metadata = ClusterMetadata.current();
             endpointMapper.updateMapping(metadata);
@@ -575,24 +606,28 @@ public class AccordService implements IAccordService, Shutdownable
             }
 
             // Subscribe to TCM events, and collect any we may have missed to report now
-            ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
+            MetadataChangeListener.Sink sink = new MetadataChangeListener.Sink()
             {
                 @Override
-                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+                public MetadataChangeListener.Sink update(ClusterMetadata next)
                 {
                     if (state != State.SHUTDOWN)
                         maybeReportMetadata(next);
+                    return this;
                 }
-            });
+            };
 
-            Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
-                               "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
-
-            MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
-            for (ClusterMetadata item : preinit.getItems())
+            while (true)
             {
-                if (item.epoch.getEpoch() > highestKnown)
-                    maybeReportMetadata(item);
+                MetadataChangeListener.Collector collector = MetadataChangeListener.instance.replaceSinkIfEmpty(sink);
+                if (collector == null)
+                    break;
+
+                for (ClusterMetadata item : collector.getItems())
+                {
+                    if (item.epoch.getEpoch() > highestKnown)
+                        maybeReportMetadata(item);
+                }
             }
         }
         catch (InterruptedException e)

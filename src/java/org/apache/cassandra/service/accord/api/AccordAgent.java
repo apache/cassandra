@@ -67,6 +67,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
@@ -197,7 +198,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
 
     public static void handleException(Throwable t)
     {
-        if (t instanceof RequestTimeoutException || t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
+        if (t instanceof RequestTimeoutException)
+            return;
+
+        AccordSystemMetrics.metrics.errors.inc();
+        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
             return;
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }

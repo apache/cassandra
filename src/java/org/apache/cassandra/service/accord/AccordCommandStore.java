@@ -320,7 +320,7 @@ public class AccordCommandStore extends CommandStore
         RedundantBefore.QuickBounds bounds = unsafeGetRedundantBefore().get(key);
         if (bounds == null)
             return cfk; // TODO (required): I don't think this should be possible? but we hit it on some test
-        return cfk.withRedundantBeforeAtLeast(bounds.gcBefore, false);
+        return cfk.withGcBeforeAtLeast(bounds.gcBefore, false);
     }
 
     boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
