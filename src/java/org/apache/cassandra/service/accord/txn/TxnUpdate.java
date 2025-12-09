@@ -45,6 +45,7 @@ import accord.utils.SortedArrays;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -677,7 +678,18 @@ public class TxnUpdate extends AccordUpdate
         ClusterMetadata cm = ClusterMetadata.current();
         checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
 
-        Pair<List<TxnWrite.Update>, SimpleBitSet> pair = processCondition(executeAt, data);
+        Pair<List<TxnWrite.Update>, SimpleBitSet> pair;
+        try
+        {
+            pair = processCondition(executeAt, data);
+        }
+        catch (RequestValidationException e)
+        {
+            // the update isn't allowed
+            ((TxnData) data).putValidationException(e.code(), e.getMessage());
+            pair = null;
+        }
+
         if (pair == null)
             return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(numConditionalBlocks()));
 

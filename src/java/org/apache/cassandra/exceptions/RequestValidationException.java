@@ -28,4 +28,12 @@ public abstract class RequestValidationException extends CassandraException
     {
         super(code, msg, e);
     }
+
+    public static class UnsafeException extends RequestValidationException
+    {
+        public UnsafeException(ExceptionCode code, String msg)
+        {
+            super(code, msg);
+        }
+    }
 }
