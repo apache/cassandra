@@ -50,7 +50,6 @@ import static accord.utils.Property.qt;
 
 public class TxnReferenceOperationTest
 {
-
     private static final String KS = "ks";
     private static final TxnData EMPTY = new TxnData();
 
@@ -127,10 +126,11 @@ public class TxnReferenceOperationTest
                 {
                     if (group == Group.Adder && rs.nextBoolean())
                     {
+                        // this is similar to ListAppend
                         var type = SetType.getInstance(Int32Type.instance, true);
                         table = table(type);
                         receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(Int32Type.instance).bytesGen()).next(rs));
+                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
                         kind = TxnReferenceOperation.Kind.SetAdder;
                     }
                     else

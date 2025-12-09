@@ -187,11 +187,6 @@ public class TxnReferenceOperation
             this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
             this.keyOrIndexType = null;
         }
-        else if (kind == Kind.SetAdder)
-        {
-            this.valueType = ((SetType<?>) receiverType).getElementsType();
-            this.keyOrIndexType = null;
-        }
         else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
         {
             CollectionType<?> ct = (CollectionType<?>) receiverType;
