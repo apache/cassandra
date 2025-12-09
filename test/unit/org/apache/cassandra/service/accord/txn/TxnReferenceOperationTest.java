@@ -64,15 +64,13 @@ public class TxnReferenceOperationTest
     private enum Group
     {
         Setter, SetterByIndex, SetterByKey, SetterByField,
-//        Adder, Subtracter,
+        Adder, Subtracter,
 //        Appender, Discarder, Prepender,
     }
 
     private static Gen<TxnReferenceOperation> gen()
     {
         /*
-            ConstantAdder
-            ConstantSubtracter
             ListAppender        - x += [...]
             ListDiscarder       - DELETE x[?]
             ListPrepender       - x = ? + x
@@ -87,8 +85,19 @@ public class TxnReferenceOperationTest
             @Nullable ByteBuffer key = null;
             @Nullable ByteBuffer field = null;
             TxnReferenceValue value;
-            switch (rs.pick(Group.values()))
+            Group group = rs.pick(Group.values());
+            switch (group)
             {
+                case Adder:
+                case Subtracter:
+                {
+                    var type = Int32Type.instance;
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
+                }
+                break;
                 case Setter:
                 {
                     var type = Generators.toGen(AbstractTypeGenerators.builder()
