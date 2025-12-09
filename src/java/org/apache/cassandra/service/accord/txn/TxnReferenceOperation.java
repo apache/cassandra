@@ -68,21 +68,22 @@ public class TxnReferenceOperation
     private static Map<Class<? extends Operation>, Kind> initOperationKindMap()
     {
         Map<Class<? extends Operation>, Kind> temp = new HashMap<>();
-        temp.put(Sets.Adder.class, Kind.SetAdder);
         temp.put(Constants.Adder.class, Kind.ConstantAdder);
-        temp.put(Lists.Appender.class, Kind.ListAppender);
-        temp.put(Sets.Discarder.class, Kind.SetDiscarder);
-        temp.put(Lists.Discarder.class, Kind.ListDiscarder);
-        temp.put(Lists.Prepender.class, Kind.ListPrepender);
-        temp.put(Maps.Putter.class, Kind.MapPutter);
-        temp.put(Lists.Setter.class, Kind.ListSetter);
-        temp.put(Sets.Setter.class, Kind.SetSetter);
-        temp.put(Maps.Setter.class, Kind.MapSetter);
-        temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(Constants.Setter.class, Kind.ConstantSetter);
         temp.put(Constants.Substracter.class, Kind.ConstantSubtracter);
-        temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
+        temp.put(Lists.Appender.class, Kind.ListAppender);
+        temp.put(Lists.Discarder.class, Kind.ListDiscarder);
+        temp.put(Lists.DiscarderByIndex.class, Kind.ListDiscarderByIndex);
+        temp.put(Lists.Prepender.class, Kind.ListPrepender);
+        temp.put(Lists.Setter.class, Kind.ListSetter);
         temp.put(Lists.SetterByIndex.class, Kind.ListSetterByIndex);
+        temp.put(Maps.Putter.class, Kind.MapPutter);
+        temp.put(Maps.Setter.class, Kind.MapSetter);
+        temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
+        temp.put(Sets.Adder.class, Kind.SetAdder);
+        temp.put(Sets.Discarder.class, Kind.SetDiscarder);
+        temp.put(Sets.Setter.class, Kind.SetSetter);
+        temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(UserTypes.SetterByField.class, Kind.UserTypeSetterByField);
         return temp;
     }

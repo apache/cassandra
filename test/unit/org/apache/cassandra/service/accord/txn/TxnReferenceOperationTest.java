@@ -69,14 +69,11 @@ public class TxnReferenceOperationTest
     {
         Setter, SetterByIndex, SetterByKey, SetterByField,
         Adder, Subtracter,
-        Appender, Putter, Discarder,// Prepender,
+        Appender, Putter, Discarder, Prepender,
     }
 
     private static Gen<TxnReferenceOperation> gen()
     {
-        /*
-            ListPrepender       - x = ? + x
-         */
         return rs -> {
             TxnReferenceOperation.Kind kind;
             ColumnMetadata receiver;
@@ -87,6 +84,16 @@ public class TxnReferenceOperationTest
             Group group = rs.pick(Group.values());
             switch (group)
             {
+                case Prepender:
+                {
+                    kind = TxnReferenceOperation.Kind.ListPrepender;
+                    ListType<?> type = ListType.getInstance(Int32Type.instance, true);
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                }
+                break;
                 case Discarder:
                 {
                     CollectionType<?> type = (CollectionType<?>) Generators.toGen(AbstractTypeGenerators.builder()
@@ -103,7 +110,6 @@ public class TxnReferenceOperationTest
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
                     if (kind == TxnReferenceOperation.Kind.ListDiscarder && rs.nextBoolean())
                     {
-                        // DiscarderByIndex
                         kind = TxnReferenceOperation.Kind.ListDiscarderByIndex;
                         value = new TxnReferenceValue.Constant(Int32Type.instance.decompose(42));
                     }
