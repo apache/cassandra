@@ -51,6 +51,7 @@ public class TxnReferenceOperationTest
 {
 
     private static final String KS = "ks";
+    private static final TxnData EMPTY = new TxnData();
 
     @Test
     public void serde()
@@ -58,6 +59,8 @@ public class TxnReferenceOperationTest
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().withExamples(10_000).forAll(gen()).check(txnOp -> {
             Serializers.testSerde(output, TxnReferenceOperation.serializer, txnOp, TableMetadatas.of(txnOp.table));
+
+            txnOp.toOperation(EMPTY);
         });
     }
 
@@ -74,7 +77,6 @@ public class TxnReferenceOperationTest
             ListAppender        - x += [...]
             ListDiscarder       - DELETE x[?]
             ListPrepender       - x = ? + x
-            SetAdder
             SetDiscarder
             MapPutter
          */
@@ -91,11 +93,22 @@ public class TxnReferenceOperationTest
                 case Adder:
                 case Subtracter:
                 {
-                    var type = Int32Type.instance;
-                    table = table(type);
-                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
-                    kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
+                    if (group == Group.Adder && rs.nextBoolean())
+                    {
+                        var type = SetType.getInstance(Int32Type.instance, true);
+                        table = table(type);
+                        receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(Int32Type.instance).bytesGen()).next(rs));
+                        kind = TxnReferenceOperation.Kind.SetAdder;
+                    }
+                    else
+                    {
+                        var type = Int32Type.instance;
+                        table = table(type);
+                        receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                        kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
+                    }
                 }
                 break;
                 case Setter:

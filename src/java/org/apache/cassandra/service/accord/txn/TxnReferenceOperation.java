@@ -26,6 +26,8 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -161,7 +163,7 @@ public class TxnReferenceOperation
     private final @Nullable ByteBuffer key;
     private final @Nullable ByteBuffer field;
     private final TxnReferenceValue value;
-    private final AbstractType<?> keyType;
+    private final @Nullable AbstractType<?> keyType;
     private final AbstractType<?> valueType;
 
     public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table,
@@ -180,7 +182,12 @@ public class TxnReferenceOperation
         {
             // The value for a map subtraction is actually a set (see Operation.Substraction)
             this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
-            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
+            this.keyType = null;
+        }
+        else if (kind == Kind.SetAdder)
+        {
+            this.valueType = ((SetType<?>) receiverType).getElementsType();
+            this.keyType = null;
         }
         else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
         {
@@ -193,12 +200,12 @@ public class TxnReferenceOperation
             UserType userType = (UserType) receiverType;
             CellPath fieldPath = userType.cellPathForField(new FieldIdentifier(field));
             this.valueType = userType.fieldType(fieldPath);
-            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
+            this.keyType = null;
         }
         else
         {
             this.valueType = receiverType;
-            this.keyType = this.valueType; //TODO (now): doesn't really make sense, but need better test coverage to prove it
+            this.keyType = null;
         }
 
         this.value = value;
@@ -227,7 +234,14 @@ public class TxnReferenceOperation
     @Override
     public String toString()
     {
-        return receiver + " = " + value;
+        return "TxnReferenceOperation{" +
+               "kind=" + kind +
+               ", receiver=" + receiver +
+               ", table=" + table +
+               ", key=" + key +
+               ", field=" + field +
+               ", value=" + value +
+               '}';
     }
 
     public void collect(TableMetadatas.Collector collector)
@@ -247,7 +261,8 @@ public class TxnReferenceOperation
         operation.execute(key, up);
     }
 
-    private Operation toOperation(TxnData data)
+    @VisibleForTesting
+    Operation toOperation(TxnData data)
     {
         FieldIdentifier fieldIdentifier = field == null ? null : new FieldIdentifier(field);
         Term valueTerm = toTerm(data, valueType);
