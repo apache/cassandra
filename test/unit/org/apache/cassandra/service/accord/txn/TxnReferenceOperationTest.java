@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -26,11 +27,13 @@ import org.junit.Test;
 
 import accord.utils.Gen;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.Serializers;
@@ -39,31 +42,44 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Generators;
 
 import static accord.utils.Property.qt;
 
 public class TxnReferenceOperationTest
 {
+
+    private static final String KS = "ks";
+
     @Test
     public void serde()
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
-        qt().withOnlySeed(3448382568143800303L).forAll(gen()).check(txnOp -> {
+        qt().withExamples(10_000).forAll(gen()).check(txnOp -> {
             Serializers.testSerde(output, TxnReferenceOperation.serializer, txnOp, TableMetadatas.of(txnOp.table));
         });
     }
 
     private enum Group
     {
-        Setter,
-//        SetterByIndex, SetterByKey, SetterByField,
+        Setter, SetterByIndex, SetterByKey, SetterByField,
 //        Adder, Subtracter,
 //        Appender, Discarder, Prepender,
     }
 
     private static Gen<TxnReferenceOperation> gen()
     {
+        /*
+            ConstantAdder
+            ConstantSubtracter
+            ListAppender        - x += [...]
+            ListDiscarder       - DELETE x[?]
+            ListPrepender       - x = ? + x
+            SetAdder
+            SetDiscarder
+            MapPutter
+         */
         return rs -> {
             TxnReferenceOperation.Kind kind;
             ColumnMetadata receiver;
@@ -95,52 +111,40 @@ public class TxnReferenceOperationTest
                         kind = TxnReferenceOperation.Kind.ConstantSetter;
                 }
                 break;
-//                case Constant:
-//                {
-//                    /*
-//                    ConstantAdder
-//                    ConstantSetter
-//                    ConstantSubtracter
-//                     */
-//                }
-//                break;
-//                case List:
-//                {
-//                    /*
-//                    ListAppender        - x += [...]
-//                    ListDiscarder       - DELETE x[?]
-//                    ListPrepender       - x = ? + x
-//                    ListSetter          - x = [...]
-//                    ListSetterByIndex   - x[?] = ?
-//                     */
-//                }
-//                break;
-//                case Set:
-//                {
-//                    /*
-//                    SetAdder
-//                    SetDiscarder
-//                    SetSetter
-//                     */
-//                }
-//                break;
-//                case Map:
-//                {
-//                    /*
-//                    MapPutter
-//                    MapSetter
-//                    MapSetterByKey
-//                     */
-//                }
-//                break;
-//                case UserType:
-//                {
-//                    /*
-//                    UserTypeSetter
-//                    UserTypeSetterByField
-//                     */
-//                }
-//                break;
+                case SetterByIndex:
+                {
+                    ListType<String> type = ListType.getInstance(UTF8Type.instance, true);
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type.getElementsType()).bytesGen()).next(rs));
+                    kind = TxnReferenceOperation.Kind.ListSetterByIndex;// x[?] = ?
+                    key = Int32Type.instance.decompose(42);
+                }
+                break;
+                case SetterByKey:
+                {
+                    MapType<Integer, String> type = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type.getValuesType()).bytesGen()).next(rs));
+                    kind = TxnReferenceOperation.Kind.MapSetterByKey;
+                    key = Int32Type.instance.decompose(42);
+                }
+                break;
+                case SetterByField:
+                {
+                    UserType type = new UserType(KS, ByteBufferUtil.bytes("udt"),
+                                                 List.of(FieldIdentifier.forUnquoted("f1")),
+                                                 List.of(UTF8Type.instance),
+                                                 true);
+                    kind = TxnReferenceOperation.Kind.UserTypeSetterByField;
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(UTF8Type.instance).bytesGen()).next(rs));
+                    field = FieldIdentifier.forUnquoted("f1").bytes;
+                }
+                break;
+
                 default:
                     throw new UnsupportedOperationException();
             }
@@ -150,7 +154,7 @@ public class TxnReferenceOperationTest
 
     private static TableMetadata table(AbstractType<?> type)
     {
-        return TableMetadata.builder("ks", "tbl")
+        return TableMetadata.builder(KS, "tbl")
                .partitioner(Murmur3Partitioner.instance)
                .addPartitionKeyColumn("pk", Int32Type.instance)
                .addRegularColumn("col", type)
