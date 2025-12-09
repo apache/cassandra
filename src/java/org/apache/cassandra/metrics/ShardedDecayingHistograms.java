@@ -74,6 +74,12 @@ public class ShardedDecayingHistograms
         {
             return shard.histograms.get(histogramIndex);
         }
+
+        @Override
+        public boolean isCumulative()
+        {
+            return false;
+        }
     }
 
     public static class DecayingHistogramsShard

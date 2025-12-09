@@ -392,7 +392,7 @@ public class EpochSyncTest
                                   .isFalse();
 
                         // validate topology manager
-                        Ranges ranges = tm.active().getKnown(epoch).global().ranges().mergeTouching();
+                        Ranges ranges = tm.active().getKnown(epoch).all().ranges().mergeTouching();
                         Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         Assertions.assertThat(actual)
                                   .describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s", id, epoch, ranges.without(actual))
@@ -404,7 +404,7 @@ public class EpochSyncTest
                             continue;
 
                         Assertions.assertThat(tm.active().hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
-                        Topology topology = tm.active().getKnown(epoch).global();
+                        Topology topology = tm.active().getKnown(epoch).all();
                         Ranges ranges = topology.ranges().mergeTouching();
                         Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         // TopologyManager defines syncComplete for an epoch as (epoch - 1).syncComplete.  This means that an epoch has reached quorum, but will still miss ranges as previous epochs have not

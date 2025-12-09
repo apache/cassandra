@@ -90,7 +90,7 @@ public class AccordCacheMetrics
     public AccordCacheMetrics(String subTypeName)
     {
         DefaultNameFactory factory = new DefaultNameFactory(ACCORD_CACHE, subTypeName);
-        this.objectSize = Metrics.shardedHistogram(factory.createMetricName("EntrySize"));
+        this.objectSize = Metrics.shardedHistogram(factory.createMetricName("EntrySize"), false);
         this.hits = Metrics.gauge(factory.createMetricName("Hits"), hitRate::totalHits);
         this.misses = Metrics.gauge(factory.createMetricName("Misses"), hitRate::totalMisses);
         this.requests = Metrics.gauge(factory.createMetricName("Requests"), hitRate::totalRequests);

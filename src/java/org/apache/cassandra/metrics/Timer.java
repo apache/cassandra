@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Sampling;
+import org.apache.cassandra.metrics.CassandraReservoir.BucketStrategy;
 
 /**
  * An interface which mimics {@link com.codahale.metrics.Timer} API and allows alternative implementations
@@ -69,6 +70,10 @@ public interface Timer extends Metered, Sampling
             stop();
         }
     }
+
+    BucketStrategy bucketStrategy();
+    long[] bucketStarts(int length);
+    boolean isCumulative();
 
     void update(long duration, TimeUnit unit);
 

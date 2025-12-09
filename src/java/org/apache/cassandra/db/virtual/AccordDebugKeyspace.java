@@ -2186,7 +2186,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 Map<TokenKey, List<ShardAndEpochs>> startLookup = null;
                 for (ActiveEpoch epoch : snapshot)
                 {
-                    Topology topology = epoch.global();
+                    Topology topology = epoch.all();
                     for (Shard shard : topology.shards())
                     {
                         Range range = shard.range;
