@@ -229,7 +229,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         // After disabling the guardrail, we should be able to write again.
         cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(-1, -1));
         int stateDissemenationTimeoutSec = 2 * 60; // 2 minutes.
-        Util.spinUntilTrue(
+        Util.spinAssertEquals(true,
             () -> cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
             stateDissemenationTimeoutSec
         );
@@ -242,7 +242,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
 
         // Re-enabling the guardrail should again cause writes to fail
         cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(98, 99));
-        Util.spinUntilTrue(
+        Util.spinAssertEquals(true,
             () -> cluster.get(1).callOnInstance(() -> DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
             stateDissemenationTimeoutSec
         );

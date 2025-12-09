@@ -59,7 +59,7 @@ public class DiskUsageMonitor
     private final Supplier<Multimap<FileStore, Directories.DataDirectory>> dataDirectoriesSupplier;
 
     private volatile DiskUsageState localState = DiskUsageState.NOT_AVAILABLE;
-    private volatile boolean enabled = false;
+    private volatile boolean enabled;
 
     @VisibleForTesting
     public DiskUsageMonitor()
