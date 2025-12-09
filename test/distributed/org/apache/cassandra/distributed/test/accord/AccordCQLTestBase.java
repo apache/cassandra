@@ -47,6 +47,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
+import accord.topology.SelectShards;
 import accord.topology.Topologies;
 import accord.topology.TopologyException;
 import org.apache.cassandra.config.Config.PaxosVariant;
@@ -711,7 +712,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 Unseekables<?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toParticipants();
                 long epoch = AccordService.instance().topology().epoch();
                 Topologies topology;
-                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch); }
+                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch, SelectShards.ALL); }
                 catch (TopologyException e) { throw new RuntimeException(e); }
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);

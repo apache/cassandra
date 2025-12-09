@@ -717,6 +717,9 @@ public class ClusterUtils
 
     public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int... nodes)
     {
+        if (nodes == null || nodes.length == 0)
+            return maxEpoch(cluster);
+
         Epoch max = null;
         for (int id : nodes)
         {
