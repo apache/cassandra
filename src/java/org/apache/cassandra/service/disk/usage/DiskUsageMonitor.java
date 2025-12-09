@@ -80,13 +80,18 @@ public class DiskUsageMonitor
     {
         // start the scheduler regardless guardrail is enabled, so we can enable it later without a restart
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
-            boolean currentEnabledStatus = Guardrails.localDataDiskUsage.enabled(null);
-            boolean oldEnabledStatus = enabled;
-            enabled = currentEnabledStatus;
-            if (!currentEnabledStatus && oldEnabledStatus)
+            boolean currentEnabled = Guardrails.localDataDiskUsage.enabled(null);
+            boolean oldEnabled = enabled;
+            enabled = currentEnabled;
+            boolean isDisabled = !currentEnabled && oldEnabled;
+            if (isDisabled)
+            {
                 onDiskUsageGuardrailDisabled(notifier);
-            else
+            }
+            if (currentEnabled)
+            {
                 updateLocalState(getDiskUsage(), notifier);
+            }
         }, 0, CassandraRelevantProperties.DISK_USAGE_MONITOR_INTERVAL_MS.getLong(), TimeUnit.MILLISECONDS);
     }
 

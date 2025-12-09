@@ -48,7 +48,6 @@ import org.apache.cassandra.service.disk.usage.DiskUsageState;
 import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static org.apache.cassandra.distributed.util.AssertionUtils.loopAssert;
 
 /**
  * Tests the guardrails for disk usage, {@link Guardrails#localDataDiskUsage} and {@link Guardrails#replicaDiskUsage}.
@@ -238,9 +237,10 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         // After disabling the guardrail, we should be able to write again.
         cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(-1, -1));
         int stateDissemenationTimeoutSec = 2 * 60; // 2 minutes.
-        loopAssert(stateDissemenationTimeoutSec,  100, () -> {
-            Assertions.assertThat(cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode())).isTrue();
-        });
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
 
         for (int i = 0; i < NUM_ROWS; i++)
         {
@@ -250,9 +250,10 @@ public class GuardrailDiskUsageTest extends GuardrailTester
 
         // Re-enabling the guardrail should again cause writes to fail
         cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(98, 99));
-        loopAssert(stateDissemenationTimeoutSec,  100, () -> {
-            Assertions.assertThat(cluster.get(1).callOnInstance(DiskUsageBroadcaster.instance::hasStuffedOrFullNode)).isTrue();
-        });
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
         numFailures = 0;
         for (int i = 0; i < NUM_ROWS; i++)
         {
@@ -268,6 +269,14 @@ public class GuardrailDiskUsageTest extends GuardrailTester
             }
         }
         Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // Finally, if both nodes go back to SPACIOUS, all queries will succeed again
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.SPACIOUS);
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
     }
 
     /**
