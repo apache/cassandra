@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -35,6 +37,7 @@ import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -154,14 +157,15 @@ public class TxnReferenceOperation
 
     private final Kind kind;
     private final ColumnMetadata receiver;
-    private final TableMetadata table;
-    private final ByteBuffer key;
-    private final ByteBuffer field;
+    public final TableMetadata table;
+    private final @Nullable ByteBuffer key;
+    private final @Nullable ByteBuffer field;
     private final TxnReferenceValue value;
     private final AbstractType<?> keyType;
     private final AbstractType<?> valueType;
 
-    public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table, ByteBuffer key, ByteBuffer field, TxnReferenceValue value)
+    public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table,
+                                 @Nullable ByteBuffer key, @Nullable ByteBuffer field, TxnReferenceValue value)
     {
         this.kind = kind;
         this.receiver = receiver;
@@ -213,22 +217,23 @@ public class TxnReferenceOperation
                && Objects.equals(value, that.value);
     }
 
-    public void collect(TableMetadatas.Collector collector)
-    {
-        collector.add(table);
-        value.collect(collector);
-    }
-
     @Override
     public int hashCode()
     {
         return Objects.hash(receiver, kind, key, field, value);
     }
 
+
     @Override
     public String toString()
     {
         return receiver + " = " + value;
+    }
+
+    public void collect(TableMetadatas.Collector collector)
+    {
+        collector.add(table);
+        value.collect(collector);
     }
 
     public ColumnMetadata receiver()
@@ -309,9 +314,11 @@ public class TxnReferenceOperation
             size += columnMetadataSerializer.serializedSize(operation.receiver, operation.table);
             size += TxnReferenceValue.serializer.serializedSize(operation.value, tables);
 
+            size += TypeSizes.sizeof(operation.key != null);
             if (operation.key != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.key);
 
+            size += TypeSizes.sizeof(operation.field != null);
             if (operation.field != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.field);
 
