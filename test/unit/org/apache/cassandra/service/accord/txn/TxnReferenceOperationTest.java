@@ -29,6 +29,7 @@ import accord.utils.Gen;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -68,17 +69,13 @@ public class TxnReferenceOperationTest
     {
         Setter, SetterByIndex, SetterByKey, SetterByField,
         Adder, Subtracter,
-//        Appender, Discarder, Prepender,
+        Appender, Putter, Discarder,// Prepender,
     }
 
     private static Gen<TxnReferenceOperation> gen()
     {
         /*
-            ListAppender        - x += [...]
-            ListDiscarder       - DELETE x[?]
             ListPrepender       - x = ? + x
-            SetDiscarder
-            MapPutter
          */
         return rs -> {
             TxnReferenceOperation.Kind kind;
@@ -90,6 +87,35 @@ public class TxnReferenceOperationTest
             Group group = rs.pick(Group.values());
             switch (group)
             {
+                case Discarder:
+                {
+                    CollectionType<?> type = (CollectionType<?>) Generators.toGen(AbstractTypeGenerators.builder()
+                                                                                                        .withMaxDepth(1)
+                                                                                                        .withTypeKinds(AbstractTypeGenerators.TypeKind.LIST,
+                                                                                                                       AbstractTypeGenerators.TypeKind.SET,
+                                                                                                                       AbstractTypeGenerators.TypeKind.MAP)
+                                                                                                        .build())
+                                                                           .next(rs);
+                    kind = type instanceof ListType
+                           ? TxnReferenceOperation.Kind.ListDiscarder
+                           : TxnReferenceOperation.Kind.SetDiscarder;
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    if (kind == TxnReferenceOperation.Kind.ListDiscarder && rs.nextBoolean())
+                    {
+                        // DiscarderByIndex
+                        kind = TxnReferenceOperation.Kind.ListDiscarderByIndex;
+                        value = new TxnReferenceValue.Constant(Int32Type.instance.decompose(42));
+                    }
+                    else
+                    {
+                        CollectionType<?> discardType = type instanceof MapType
+                                                        ? SetType.getInstance(((MapType<?, ?>) type).getKeysType(), true)
+                                                        : type;
+                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(discardType).bytesGen()).next(rs));
+                    }
+                }
+                break;
                 case Adder:
                 case Subtracter:
                 {
@@ -143,6 +169,15 @@ public class TxnReferenceOperationTest
                     key = Int32Type.instance.decompose(42);
                 }
                 break;
+                case Appender:
+                {
+                    ListType<String> type = ListType.getInstance(UTF8Type.instance, true);
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    kind = TxnReferenceOperation.Kind.ListAppender;
+                }
+                break;
                 case SetterByKey:
                 {
                     MapType<Integer, String> type = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
@@ -151,6 +186,15 @@ public class TxnReferenceOperationTest
                     value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type.getValuesType()).bytesGen()).next(rs));
                     kind = TxnReferenceOperation.Kind.MapSetterByKey;
                     key = Int32Type.instance.decompose(42);
+                }
+                break;
+                case Putter: // x += {foo: bar, baz: biz} -- basically Appender but for Map!
+                {
+                    MapType<Integer, String> type = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
+                    table = table(type);
+                    receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
+                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    kind = TxnReferenceOperation.Kind.MapPutter;
                 }
                 break;
                 case SetterByField:

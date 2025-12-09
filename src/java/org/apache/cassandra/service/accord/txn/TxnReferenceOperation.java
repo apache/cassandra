@@ -42,6 +42,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -108,7 +109,8 @@ public class TxnReferenceOperation
         ConstantSubtracter((byte) 13, (column, keyOrIndex, field, value) -> new Constants.Substracter(column, value)),
         MapSetterByKey((byte) 14, (column, keyOrIndex, field, value) -> new Maps.SetterByKey(column, keyOrIndex, value)),
         ListSetterByIndex((byte) 15, (column, keyOrIndex, field, value) -> new Lists.SetterByIndex(column, keyOrIndex, value)),
-        UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value));
+        UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value)),
+        ListDiscarderByIndex((byte) 17, (column, keyOrIndex, field, value) -> new Lists.DiscarderByIndex(column, value));
 
         private final byte id;
         private final ToOperation toOperation;
@@ -194,6 +196,11 @@ public class TxnReferenceOperation
             CollectionType<?> ct = (CollectionType<?>) receiverType;
             this.keyType = ct.nameComparator();
             this.valueType = ct.valueComparator();
+        }
+        else if (kind == Kind.ListDiscarderByIndex)
+        {
+            this.valueType = Int32Type.instance;
+            this.keyType = null;
         }
         else if (kind == Kind.UserTypeSetterByField)
         {
