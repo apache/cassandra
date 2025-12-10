@@ -20,14 +20,21 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
 import accord.utils.Gen;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Maps;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -45,6 +52,9 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Generators;
+import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
+import org.reflections.util.ConfigurationBuilder;
 
 import static accord.utils.Property.qt;
 
@@ -52,6 +62,34 @@ public class TxnReferenceOperationTest
 {
     private static final String KS = "ks";
     private static final TxnData EMPTY = new TxnData();
+
+    @Test
+    public void coverage()
+    {
+        Reflections reflections = new Reflections(new ConfigurationBuilder()
+                                                  .forPackage("org.apache.cassandra")
+                                                  .setScanners(Scanners.SubTypes)
+                                                  .setExpandSuperTypes(true)
+                                                  .setParallel(true));
+        var subTypes = reflections.getSubTypesOf(Operation.class);
+        var knownTypes = TxnReferenceOperation.initOperationKindMap().keySet();
+        // these types do not have a way to define a reference, as they are column level:
+        Set<Class<? extends Operation>> safeToExclude = ImmutableSet.of(Constants.Deleter.class,        // DELETE foo
+                                                                        UserTypes.DeleterByField.class, // DELETE foo.bar
+                                                                        Maps.DiscarderByKey.class,      // DELETE foo["bar"]
+                                                                        Sets.ElementDiscarder.class     // DELETE foo["bar"]
+        );
+
+        StringBuilder sb = null;
+        for (var klass : com.google.common.collect.Sets.difference(subTypes, com.google.common.collect.Sets.union(knownTypes, safeToExclude)))
+        {
+            if (sb == null)
+                sb = new StringBuilder();
+            sb.append(klass.getCanonicalName()).append('\n');
+        }
+        if (sb != null)
+            throw new AssertionError(sb.toString());
+    }
 
     @Test
     public void serde()

@@ -64,8 +64,9 @@ import static org.apache.cassandra.service.accord.AccordSerializers.columnMetada
 public class TxnReferenceOperation
 {
     private static final Map<Class<? extends Operation>, Kind> operationKindMap = initOperationKindMap();
-    
-    private static Map<Class<? extends Operation>, Kind> initOperationKindMap()
+
+    @VisibleForTesting
+    static Map<Class<? extends Operation>, Kind> initOperationKindMap()
     {
         Map<Class<? extends Operation>, Kind> temp = new HashMap<>();
         temp.put(Constants.Adder.class, Kind.ConstantAdder);
