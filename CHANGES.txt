@@ -341,6 +341,7 @@ Merged from 5.0:
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
+ * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
  * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
