@@ -945,6 +945,11 @@ public class Journal<K, V> implements Shutdownable
         return res;
     }
 
+    public List<Segment<K, V>> getAllSegments()
+    {
+        return segments().allSorted(true);
+    }
+
     public ActiveSegment<K, V> currentActiveSegment()
     {
         return currentSegment;

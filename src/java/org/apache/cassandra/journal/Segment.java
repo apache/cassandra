@@ -83,6 +83,19 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         return descriptor.timestamp;
     }
 
+    public long segmentSizeOnDisk()
+    {
+        return file.length();
+    }
+
+    public String filePath()
+    {
+        return file.absolutePath();
+    }
+
+    public abstract int writtenTo();
+    public abstract int fsyncedTo();
+
     public abstract void persistMetadata();
 
     /*

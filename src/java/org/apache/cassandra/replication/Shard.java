@@ -19,8 +19,11 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -401,5 +404,33 @@ public class Shard
     void collectShardReconciledOffsetsToBuilder(ReconciledKeyspaceOffsets.Builder keyspaceBuilder)
     {
         logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
+    }
+
+    public DebugInfo getDebugInfo()
+    {
+        SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logDebugState = new TreeMap<>(Comparator.comparing(CoordinatorLogId::asLong));
+        for (CoordinatorLog log : logs.values())
+        {
+            logDebugState.put(log.getLogId(), log.getDebugState());
+        }
+        return new DebugInfo(keyspace, range, localNodeId, participants, logDebugState);
+    }
+
+    public static class DebugInfo
+    {
+        public final String keyspace;
+        public final Range<Token> range;
+        public final int localNodeId;
+        public final Participants participants;
+        public final SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs;
+
+        private DebugInfo(String keyspace, Range<Token> range, int localNodeId, Participants participants, SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs)
+        {
+            this.keyspace = keyspace;
+            this.range = range;
+            this.localNodeId = localNodeId;
+            this.participants = participants;
+            this.logs = logs;
+        }
     }
 }

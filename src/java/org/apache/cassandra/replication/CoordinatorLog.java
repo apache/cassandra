@@ -547,6 +547,32 @@ public abstract class CoordinatorLog
         }
     }
 
+    public CoordinatorLogId getLogId()
+    {
+        return logId;
+    }
+
+    public DebugInfo getDebugState()
+    {
+        Map<Integer, List<Integer>> witnessed = new Int2ObjectHashMap<>();
+        Map<Integer, List<Integer>> persisted = new Int2ObjectHashMap<>();
+        String reconciledStr;
+
+        lock.readLock().lock();
+        try
+        {
+            witnessedOffsets.convertToPrimitiveMap(witnessed);
+            persistedOffsets.convertToPrimitiveMap(persisted);
+            reconciledStr = reconciledOffsets.toString();
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+
+        return new DebugInfo(witnessed.toString(), reconciledStr, persisted.toString());
+    }
+
     @Override
     public String toString()
     {
@@ -555,6 +581,20 @@ public abstract class CoordinatorLog
                ", localNodeId=" + localNodeId +
                ", participants=" + participants +
                '}';
+    }
+
+    public static class DebugInfo
+    {
+        public final String witnessedOffsets;
+        public final String reconciledOffsets;
+        public final String persistedOffsets;
+
+        private DebugInfo(String witnessedOffsets, String reconciledOffsets, String persistedOffsets)
+        {
+            this.witnessedOffsets = witnessedOffsets;
+            this.reconciledOffsets = reconciledOffsets;
+            this.persistedOffsets = persistedOffsets;
+        }
     }
 
     static class CoordinatorLogPrimary extends CoordinatorLog
