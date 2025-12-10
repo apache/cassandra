@@ -216,7 +216,6 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.c
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
-import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
