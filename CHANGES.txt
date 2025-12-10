@@ -3,6 +3,7 @@
  * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)
 Merged from 4.1:
+ * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
 Merged from 4.0:
  * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
