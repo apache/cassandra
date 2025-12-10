@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.MBeanServer;
@@ -56,27 +57,27 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     /*
      * The field from java.nio.Bits that tracks the total number of allocated
-     * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
+     * bytes of direct memory requested via ByteBuffer.allocateDirect that have not been GCed.
      */
     final static Field BITS_TOTAL_CAPACITY;
 
-    
     static
     {
-        Field temp = null;
+        Class<?> bitsClass = null;
+
         try
         {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            Field f = bitsClass.getDeclaredField("TOTAL_CAPACITY");
-            f.setAccessible(true);
-            temp = f;
+            bitsClass = Class.forName("java.nio.Bits");
         }
         catch (Throwable t)
         {
-            logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
+            logger.debug("Error returning class of java.nio.Bits", t);
         }
-        BITS_TOTAL_CAPACITY = temp;
+
+        if (bitsClass != null)
+            BITS_TOTAL_CAPACITY = getField(bitsClass, "TOTAL_CAPACITY");
+        else
+            BITS_TOTAL_CAPACITY = null;
     }
 
     static final class State
@@ -303,28 +304,56 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     public double[] getAndResetStats()
     {
         State state = getTotalSinceLastCheck();
-        double[] r = new double[7];
+        double[] r = new double[9];
         r[0] = TimeUnit.NANOSECONDS.toMillis(nanoTime() - state.startNanos);
         r[1] = state.maxRealTimeElapsed;
         r[2] = state.totalRealTimeElapsed;
         r[3] = state.sumSquaresRealTimeElapsed;
         r[4] = state.totalBytesReclaimed;
         r[5] = state.count;
-        r[6] = getAllocatedDirectMemory();
+        r[6] = getTotalDirectMemory();
 
         return r;
     }
 
-    private static long getAllocatedDirectMemory()
+    private static long getTotalDirectMemory()
     {
-        if (BITS_TOTAL_CAPACITY == null) return -1;
+        return getFieldValue(BITS_TOTAL_CAPACITY, true);
+    }
+
+    private static Field getField(Class<?> clazz, String fieldName)
+    {
         try
         {
-            return BITS_TOTAL_CAPACITY.getLong(null);
+            Field field = clazz.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field;
         }
         catch (Throwable t)
         {
-            logger.trace("Error accessing field of java.nio.Bits", t);
+            logger.trace("Error accessing field {} of {}", fieldName, clazz.getName(), t);
+            // Return null to indicate failure
+            return null;
+        }
+    }
+
+    /**
+     * Retrieves the value of a Field, handling both regular long fields and AtomicLong fields.
+     *
+     * @param field the Field to retrieve the value from
+     * @param isAtomicLong true if the field is an AtomicLong, false if it's a regular long
+     * @return the field value, or -1 if retrieval fails or field is null.
+     */
+    private static long getFieldValue(Field field, boolean isAtomicLong)
+    {
+        if (field == null) return -1;
+        try
+        {
+            return isAtomicLong ? ((AtomicLong) field.get(null)).get() : field.getLong(null);
+        }
+        catch (Throwable t)
+        {
+            logger.trace("Error accessing field value of {}", field.getName(), t);
             //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
             return -1;
         }
