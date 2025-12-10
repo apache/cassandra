@@ -548,6 +548,9 @@ public class TxnUpdate extends AccordUpdate
     // Memoize computation of condition
     private Boolean anyConditionResult;
 
+    @Nullable
+    private transient volatile Object validationException = this;
+
     public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
@@ -583,6 +586,20 @@ public class TxnUpdate extends AccordUpdate
     public static TxnUpdate empty()
     {
         return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no);
+    }
+
+    @Nullable
+    public RequestValidationException validationException(Timestamp executeAt, Data data)
+    {
+        Object snapshot = validationException;
+        if (snapshot == this)
+        {
+            // need to call apply
+            apply(executeAt, data);
+            snapshot = validationException;
+        }
+        if (snapshot == null) return null;
+        return (RequestValidationException) snapshot;
     }
 
     @Override
@@ -672,9 +689,6 @@ public class TxnUpdate extends AccordUpdate
         return new TxnUpdate(tables, keys, mergedBlocks, cassandraCommitCL, preserveTimestamps);
     }
 
-    @Nullable
-    private transient volatile RequestValidationException validationException = null;
-
     @Override
     public TxnWrite apply(Timestamp executeAt, Data data)
     {
@@ -684,12 +698,13 @@ public class TxnUpdate extends AccordUpdate
         Pair<List<TxnWrite.Update>, SimpleBitSet> pair;
         try
         {
+            validationException = null;
             pair = processCondition(executeAt, data);
         }
         catch (RequestValidationException e)
         {
             // the update isn't allowed
-            this.validationException = e;
+            validationException = e;
             pair = null;
         }
 
