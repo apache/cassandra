@@ -32,8 +32,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.terms.Constants;
-import org.apache.cassandra.cql3.terms.Maps;
-import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -75,9 +73,7 @@ public class TxnReferenceOperationTest
         var knownTypes = TxnReferenceOperation.initOperationKindMap().keySet();
         // these types do not have a way to define a reference, as they are column level:
         Set<Class<? extends Operation>> safeToExclude = ImmutableSet.of(Constants.Deleter.class,        // DELETE foo
-                                                                        UserTypes.DeleterByField.class, // DELETE foo.bar
-                                                                        Maps.DiscarderByKey.class,      // DELETE foo["bar"]
-                                                                        Sets.ElementDiscarder.class     // DELETE foo["bar"]
+                                                                        UserTypes.DeleterByField.class // DELETE foo.bar
         );
 
         StringBuilder sb = null;
@@ -109,6 +105,13 @@ public class TxnReferenceOperationTest
         Appender, Putter, Discarder, Prepender,
     }
 
+    private static Gen<TxnReferenceValue> valueGen(AbstractType<?> type)
+    {
+        return Generators.toGen(AbstractTypeGenerators.getTypeSupport(type)
+                                                      .bytesGen())
+                         .map(TxnReferenceValue.Constant::new);
+    }
+
     private static Gen<TxnReferenceOperation> gen()
     {
         return rs -> {
@@ -125,7 +128,7 @@ public class TxnReferenceOperationTest
                 {
                     kind = TxnReferenceOperation.Kind.ListPrepender;
                     ListType<?> type = ListType.getInstance(Int32Type.instance, true);
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    value = valueGen(type).next(rs);
 
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
@@ -150,12 +153,24 @@ public class TxnReferenceOperationTest
                         kind = TxnReferenceOperation.Kind.ListDiscarderByIndex;
                         value = new TxnReferenceValue.Constant(Int32Type.instance.decompose(42));
                     }
+                    else if (type instanceof MapType && rs.nextBoolean())
+                    {
+                        kind = TxnReferenceOperation.Kind.MapDiscarderByKey;
+                        var keyType = ((MapType<?, ?>) type).getKeysType();
+                        value = valueGen(keyType).next(rs);
+                    }
+                    else if (type instanceof SetType && rs.nextBoolean())
+                    {
+                        kind = TxnReferenceOperation.Kind.SetElementDiscarder;
+                        var elementType = ((SetType<?>) type).getElementsType();
+                        value = valueGen(elementType).next(rs);
+                    }
                     else
                     {
                         CollectionType<?> discardType = type instanceof MapType
                                                         ? SetType.getInstance(((MapType<?, ?>) type).getKeysType(), true)
                                                         : type;
-                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(discardType).bytesGen()).next(rs));
+                        value = valueGen(discardType).next(rs);
                     }
                 }
                 break;
@@ -168,7 +183,7 @@ public class TxnReferenceOperationTest
                         var type = SetType.getInstance(Int32Type.instance, true);
                         table = table(type);
                         receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                        value = valueGen(type).next(rs);
                         kind = TxnReferenceOperation.Kind.SetAdder;
                     }
                     else
@@ -176,7 +191,7 @@ public class TxnReferenceOperationTest
                         var type = Int32Type.instance;
                         table = table(type);
                         receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                        value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                        value = valueGen(type).next(rs);
                         kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
                     }
                 }
@@ -190,7 +205,7 @@ public class TxnReferenceOperationTest
                                .next(rs);
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    value = valueGen(type).next(rs);
                     if (type instanceof ListType)
                         kind = TxnReferenceOperation.Kind.ListSetter;
                     else if (type instanceof SetType)
@@ -208,7 +223,7 @@ public class TxnReferenceOperationTest
                     ListType<String> type = ListType.getInstance(UTF8Type.instance, true);
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type.getElementsType()).bytesGen()).next(rs));
+                    value = valueGen(type.getElementsType()).next(rs);
                     kind = TxnReferenceOperation.Kind.ListSetterByIndex;// x[?] = ?
                     key = Int32Type.instance.decompose(42);
                 }
@@ -218,7 +233,7 @@ public class TxnReferenceOperationTest
                     ListType<String> type = ListType.getInstance(UTF8Type.instance, true);
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    value = valueGen(type).next(rs);
                     kind = TxnReferenceOperation.Kind.ListAppender;
                 }
                 break;
@@ -227,7 +242,7 @@ public class TxnReferenceOperationTest
                     MapType<Integer, String> type = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type.getValuesType()).bytesGen()).next(rs));
+                    value = valueGen(type.getValuesType()).next(rs);
                     kind = TxnReferenceOperation.Kind.MapSetterByKey;
                     key = Int32Type.instance.decompose(42);
                 }
@@ -237,7 +252,7 @@ public class TxnReferenceOperationTest
                     MapType<Integer, String> type = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true);
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs));
+                    value = valueGen(type).next(rs);
                     kind = TxnReferenceOperation.Kind.MapPutter;
                 }
                 break;
@@ -250,7 +265,7 @@ public class TxnReferenceOperationTest
                     kind = TxnReferenceOperation.Kind.UserTypeSetterByField;
                     table = table(type);
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
-                    value = new TxnReferenceValue.Constant(Generators.toGen(AbstractTypeGenerators.getTypeSupport(UTF8Type.instance).bytesGen()).next(rs));
+                    value = valueGen(UTF8Type.instance).next(rs);
                     field = FieldIdentifier.forUnquoted("f1").bytes;
                 }
                 break;

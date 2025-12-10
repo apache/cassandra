@@ -78,11 +78,13 @@ public class TxnReferenceOperation
         temp.put(Lists.Prepender.class, Kind.ListPrepender);
         temp.put(Lists.Setter.class, Kind.ListSetter);
         temp.put(Lists.SetterByIndex.class, Kind.ListSetterByIndex);
+        temp.put(Maps.DiscarderByKey.class, Kind.MapDiscarderByKey);
         temp.put(Maps.Putter.class, Kind.MapPutter);
         temp.put(Maps.Setter.class, Kind.MapSetter);
         temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
         temp.put(Sets.Adder.class, Kind.SetAdder);
         temp.put(Sets.Discarder.class, Kind.SetDiscarder);
+        temp.put(Sets.ElementDiscarder.class, Kind.SetElementDiscarder);
         temp.put(Sets.Setter.class, Kind.SetSetter);
         temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(UserTypes.SetterByField.class, Kind.UserTypeSetterByField);
@@ -112,7 +114,9 @@ public class TxnReferenceOperation
         MapSetterByKey((byte) 14, (column, keyOrIndex, field, value) -> new Maps.SetterByKey(column, keyOrIndex, value)),
         ListSetterByIndex((byte) 15, (column, keyOrIndex, field, value) -> new Lists.SetterByIndex(column, keyOrIndex, value)),
         UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value)),
-        ListDiscarderByIndex((byte) 17, (column, keyOrIndex, field, value) -> new Lists.DiscarderByIndex(column, value));
+        ListDiscarderByIndex((byte) 17, (column, keyOrIndex, field, value) -> new Lists.DiscarderByIndex(column, value)),
+        MapDiscarderByKey((byte) 18, (column, keyOrIndex, field, value) -> new Maps.DiscarderByKey(column, value)),
+        SetElementDiscarder((byte) 19, (column, keyOrIndex, field, value) -> new Sets.ElementDiscarder(column, value));
 
         private final byte id;
         private final ToOperation toOperation;
@@ -187,6 +191,12 @@ public class TxnReferenceOperation
             // The value for a map subtraction is actually a set (see Operation.Substraction)
             this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
             this.keyOrIndexType = null;
+        }
+        else if (kind == Kind.MapDiscarderByKey || kind == Kind.SetElementDiscarder)
+        {
+            CollectionType<?> ct = (CollectionType<?>) receiverType;
+            this.keyOrIndexType = null;
+            this.valueType = ct.nameComparator();
         }
         else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
         {
