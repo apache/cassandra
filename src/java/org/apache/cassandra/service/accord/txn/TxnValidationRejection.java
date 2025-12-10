@@ -15,17 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
 
-public abstract class RequestValidationException extends CassandraException
+package org.apache.cassandra.service.accord.txn;
+
+import java.util.Objects;
+
+import org.apache.cassandra.exceptions.RequestValidationException;
+
+public class TxnValidationRejection implements TxnResult
 {
-    protected RequestValidationException(ExceptionCode code, String msg)
+    //TODO (now, ux): does wrapping the exception make sense?  The user only sees code/msg and we dont log these stack traces
+    public final RequestValidationException validationException;
+
+    public TxnValidationRejection(RequestValidationException validationException)
     {
-        super(code, msg);
+        this.validationException = Objects.requireNonNull(validationException);
     }
 
-    protected RequestValidationException(ExceptionCode code, String msg, Throwable e)
+    @Override
+    public Kind kind()
     {
-        super(code, msg, e);
+        return Kind.validation_rejection;
+    }
+
+    @Override
+    public long estimatedSizeOnHeap()
+    {
+        return 0;
     }
 }

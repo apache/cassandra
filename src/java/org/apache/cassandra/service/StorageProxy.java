@@ -148,6 +148,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnValidationRejection;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
@@ -216,6 +217,7 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.s
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
@@ -1325,8 +1327,8 @@ public class StorageProxy implements StorageProxyMBean
                             logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                             continue;
                         }
-                        if (result.kind() == txn_data)
-                            ((TxnData) result).checkAndThrowValidationException();
+                        if (result.kind() == validation_rejection)
+                            throw ((TxnValidationRejection) result).validationException;
 
                         Tracing.trace("Successfully wrote Accord mutations");
                     }
@@ -1558,8 +1560,8 @@ public class StorageProxy implements StorageProxyMBean
                         TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
-                        if (result.kind() == txn_data)
-                            ((TxnData) result).checkAndThrowValidationException();
+                        if (result.kind() == validation_rejection)
+                            throw ((TxnValidationRejection) result).validationException;
                         Tracing.trace("Successfully wrote Accord mutations");
                         cleanup.ackMutation();
                     }

@@ -23,8 +23,6 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 
 import accord.primitives.Ranges;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
@@ -43,8 +41,7 @@ public interface TxnDataValue
     enum Kind
     {
         key(0),
-        range(1),
-        message(2);
+        range(1);
 
         int id;
 
@@ -62,8 +59,6 @@ public interface TxnDataValue
                     return (IVersionedSerializer<T>) TxnDataKeyValue.serializer;
                 case range:
                     return (IVersionedSerializer<T>) TxnDataRangeValue.serializer;
-                case message:
-                    return (IVersionedSerializer<T>) TxnDataValidationExceptionValue.serializer;
                 default:
                     throw new IllegalStateException("Unrecognized kind " + this);
             }
@@ -102,69 +97,4 @@ public interface TxnDataValue
             return sizeof((byte)txnDataValue.kind().ordinal()) + txnDataValue.kind().serializer().serializedSize(txnDataValue, version);
         }
     };
-
-    class TxnDataValidationExceptionValue implements TxnDataValue
-    {
-        public static final IVersionedSerializer<TxnDataValidationExceptionValue> serializer = new IVersionedSerializer<>() {
-
-            @Override
-            public void serialize(TxnDataValidationExceptionValue t, DataOutputPlus out, Version version) throws IOException
-            {
-                out.writeVInt32(t.code.value); // as of this writing the value is positive, but the client protocol treats it as signed; so keeping it signed here
-                out.writeUTF(t.message);
-            }
-
-            @Override
-            public TxnDataValidationExceptionValue deserialize(DataInputPlus in, Version version) throws IOException
-            {
-                return new TxnDataValidationExceptionValue(ExceptionCode.fromValue(in.readVInt32()), in.readUTF());
-            }
-
-            @Override
-            public long serializedSize(TxnDataValidationExceptionValue t, Version version)
-            {
-                return TypeSizes.sizeofVInt(t.code.value) + TypeSizes.sizeof(t.message);
-            }
-        };
-
-        public final ExceptionCode code;
-        public final String message;
-
-        public TxnDataValidationExceptionValue(ExceptionCode code, String message)
-        {
-            this.code = code;
-            this.message = message;
-        }
-
-        @Override
-        public Kind kind()
-        {
-            return Kind.message;
-        }
-
-        @Override
-        public TxnDataValue merge(TxnDataValue other)
-        {
-            return this;
-        }
-
-        @Nullable
-        @Override
-        public TxnDataValue without(Ranges ranges)
-        {
-            return this;
-        }
-
-        @Override
-        public long maxTimestamp()
-        {
-            return 0;
-        }
-
-        @Override
-        public long estimatedSizeOnHeap()
-        {
-            return 0;
-        }
-    }
 }

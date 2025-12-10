@@ -672,6 +672,9 @@ public class TxnUpdate extends AccordUpdate
         return new TxnUpdate(tables, keys, mergedBlocks, cassandraCommitCL, preserveTimestamps);
     }
 
+    @Nullable
+    private transient volatile RequestValidationException validationException = null;
+
     @Override
     public TxnWrite apply(Timestamp executeAt, Data data)
     {
@@ -686,7 +689,7 @@ public class TxnUpdate extends AccordUpdate
         catch (RequestValidationException e)
         {
             // the update isn't allowed
-            ((TxnData) data).putValidationException(e.code(), e.getMessage());
+            this.validationException = e;
             pair = null;
         }
 
