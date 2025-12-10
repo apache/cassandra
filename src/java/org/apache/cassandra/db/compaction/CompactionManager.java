@@ -675,7 +675,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         boolean skipSaiCheck = indexGroup == null || SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName());
         if (options.onlySai && skipSaiCheck)
         {
-            logger.info("Skipping table {} during SAI-only veriy becasue system keyspace or no SAI index.", cfs.getTableName());
+            logger.info("Skipping table {} during SAI-only verify because system keyspace or no SAI index.", cfs.getTableName());
             return AllSSTableOpStatus.SUCCESSFUL;
 
         }
@@ -1516,24 +1516,27 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         }
 
         CompactionInfo.Holder verifyInfo = null;
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
-        {
-            verifyInfo = verifier.getVerifyInfo();
-            activeCompactions.beginCompaction(verifyInfo);
 
-            if (!options.onlySai)
+        if (!options.onlySai)
+        {
+            try(IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
+            {
+                verifyInfo = verifier.getVerifyInfo();
+                activeCompactions.beginCompaction(verifyInfo);
                 verifier.verify();
+            }
+            finally
+            {
+                if (verifyInfo != null)
+                    activeCompactions.finishCompaction(verifyInfo);
+            }
+        }
 
-            if (!skipSaiCheck)
-                cfs.indexManager.validateSSTableAttachedIndexes(Collections.singleton(sstable), true, true);
-            else
-                logger.info("Skipping SAI validation for table {} (system keyspace or no SAI index).", cfs.getTableName());
-        }
-        finally
+        if ((options.onlySai || options.includeSai) && !skipSaiCheck)
         {
-            if (verifyInfo != null)
-                activeCompactions.finishCompaction(verifyInfo);
+            cfs.indexManager.validateSSTableAttachedIndexes(Collections.singleton(sstable), true, true);
         }
+
     }
 
     /**
