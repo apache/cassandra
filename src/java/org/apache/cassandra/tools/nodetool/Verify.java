@@ -80,12 +80,12 @@ public class Verify extends AbstractCommand
 
     @Option(paramLabel = "sai_only",
             names = { "-s", "--sai-only"},
-           description = "Verify only sai index")
+            description = "Verify only sai index")
     private boolean onlySai = false;
 
     @Option(paramLabel = "include_sai",
             names = { "-i", "--include-sai"},
-            description = "Include SAI index verification along with data files.")
+            description = "Include SAI index verification along with data files")
     private boolean includeSai = false;
 
     @Override

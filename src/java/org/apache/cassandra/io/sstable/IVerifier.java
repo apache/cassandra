@@ -66,7 +66,7 @@ public interface IVerifier extends Closeable
         public final boolean onlySai;
 
         /**
-         *   To include SAI verification along with data files
+         * To include SAI verification along with data files
          */
         public final boolean includeSai;
 

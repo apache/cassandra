@@ -385,11 +385,6 @@ public class IndexDescriptor
         }
     }
 
-    public void verify(IndexValidation validation, boolean validateChecksum, boolean rethrow)
-    {
-        validatePerSSTableComponents(validation, validateChecksum, rethrow);
-    }
-
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean validatePerSSTableComponents(IndexValidation validation, boolean validateChecksum, boolean rethrow)
     {
