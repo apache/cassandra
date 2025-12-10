@@ -319,6 +319,13 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         return writtenTo;
     }
 
+    @Override
+    public int writtenTo()
+    {
+        return writtenTo;
+    }
+
+    @Override
     public int fsyncedTo()
     {
         return fsyncedTo;

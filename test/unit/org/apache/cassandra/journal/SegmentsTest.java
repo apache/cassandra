@@ -122,6 +122,8 @@ public class SegmentsTest
         }
 
         @Override boolean isFlushed(long position) { throw new UnsupportedOperationException(); }
+        @Override public int writtenTo() { return 0; }
+        @Override public int fsyncedTo() { return 0; }
         @Override public void persistMetadata() { throw new UnsupportedOperationException(); }
         @Override boolean read(int offset, int size, EntrySerializer.EntryHolder<K> into)  { throw new UnsupportedOperationException(); }
         @Override public void readAll(RecordConsumer<K> consumer) { throw new UnsupportedOperationException(); }

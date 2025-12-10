@@ -316,6 +316,18 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         SyncUtil.trySyncDir(descriptor.directory);
     }
 
+    @Override
+    public int writtenTo()
+    {
+        return fsyncLimit;
+    }
+
+    @Override
+    public int fsyncedTo()
+    {
+        return fsyncLimit;
+    }
+
     /**
      * Read the entry and specified offset into the entry holder.
      * Expects the record to have been written at this offset, but potentially not flushed and lost.
