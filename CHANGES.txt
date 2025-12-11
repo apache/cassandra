@@ -6,6 +6,7 @@ Merged from 4.1:
  * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
 Merged from 4.0:
+ * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
  * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
  * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
  * Fix cleanup of old incremental repair sessions in case of owned token range changes or a table deleting (CASSANDRA-20877)
