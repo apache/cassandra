@@ -700,7 +700,7 @@ public final class TxnUpdate extends AccordUpdate
         ClusterMetadata cm = ClusterMetadata.current();
         checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
 
-        Pair<List<TxnWrite.Update>, SimpleBitSet> pair;
+        Pair<List<TxnWrite.Update>, SimpleBitSet> pair = null;
         try
         {
             validationException = null;
@@ -710,7 +710,6 @@ public final class TxnUpdate extends AccordUpdate
         {
             // the update isn't allowed
             validationException = e;
-            pair = null;
         }
 
         if (pair == null)
