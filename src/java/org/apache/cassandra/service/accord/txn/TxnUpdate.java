@@ -86,7 +86,7 @@ import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
-public class TxnUpdate extends AccordUpdate
+public final class TxnUpdate extends AccordUpdate
 {
     static class ConditionalBlock
     {
@@ -588,18 +588,23 @@ public class TxnUpdate extends AccordUpdate
         return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no);
     }
 
+    public static TxnValidationRejection validationException(@Nullable Update update)
+    {
+        if (update != null && update.getClass() == TxnUpdate.class)
+        {
+            RequestValidationException e = ((TxnUpdate) update).validationException();
+            if (e != null) return new TxnValidationRejection(e);
+        }
+        return null;
+    }
+
     @Nullable
-    public RequestValidationException validationException(Timestamp executeAt, Data data)
+    private RequestValidationException validationException()
     {
         Object snapshot = validationException;
         if (snapshot == this)
-        {
-            // need to call apply
-            apply(executeAt, data);
-            snapshot = validationException;
-        }
-        if (snapshot == null) return null;
-        return (RequestValidationException) snapshot;
+            throw Invariants.illegalState("Attempted to check for validation exception before .apply was called");
+        return snapshot == null ? null : (RequestValidationException) snapshot;
     }
 
     @Override

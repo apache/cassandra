@@ -38,7 +38,6 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -155,11 +154,9 @@ public abstract class TxnQuery implements Query
         @Override
         public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            if (update != null && update.getClass() == TxnUpdate.class)
-            {
-                RequestValidationException e = ((TxnUpdate) update).validationException(executeAt, data);
-                if (e != null) return new TxnValidationRejection(e);
-            }
+            TxnValidationRejection rejection = TxnUpdate.validationException(update);
+            if (rejection != null) return rejection;
+
             // Skip the migration checks in the base class for empty transactions, we don't
             // want/need the RetryWithNewProtocolResult
             return new TxnData();
@@ -213,11 +210,9 @@ public abstract class TxnQuery implements Query
     @Override
     public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
     {
-        if (update != null && update.getClass() == TxnUpdate.class)
-        {
-            RequestValidationException e = ((TxnUpdate) update).validationException(executeAt, data);
-            if (e != null) return new TxnValidationRejection(e);
-        }
+        TxnValidationRejection rejection = TxnUpdate.validationException(update);
+        if (rejection != null) return rejection;
+
         // TODO (required): This is not the cluster metadata of the current transaction
         ClusterMetadata clusterMetadata = ClusterMetadata.current();
         checkState(clusterMetadata.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", clusterMetadata.epoch.getEpoch(), executeAt.epoch());
