@@ -25,6 +25,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import accord.utils.Gen;
@@ -77,7 +78,7 @@ public class TxnReferenceOperationTest
         );
 
         StringBuilder sb = null;
-        for (var klass : com.google.common.collect.Sets.difference(subTypes, com.google.common.collect.Sets.union(knownTypes, safeToExclude)))
+        for (var klass : Sets.difference(subTypes, Sets.union(knownTypes, safeToExclude)))
         {
             if (sb == null)
                 sb = new StringBuilder();
