@@ -145,7 +145,7 @@ Below is the sstabledump output showing a live row with expired flag as "false":
       "type" : "row",
       "position" : 36,
       "clustering" : [ "2025-11-05T22:43:20.833Z" ],
-      "liveness_info" : { "tsamp" : "2025-11-05T22:43:20.8326Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : false },
+      "liveness_info" : { "tstamp" : "2025-11-05T22:43:20.8326Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : false },
       "cells" : [
         { "name" : "activity_details", "value" : "details_for_row_3099" },
         { "name" : "activity_type", "value" : "type_7" }
@@ -168,7 +168,7 @@ Below is the sstabledump output showing expired flag as "true" when TTL has expi
       "type" : "row",
       "position" : 30,
       "clustering" : [ "2025-11-05T22:43:20.833Z" ],
-      "liveness_info" : { "tsamp" : "2025-11-05T22:43:20.832650Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : true },
+      "liveness_info" : { "tstamp" : "2025-11-05T22:43:20.832650Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : true },
       "cells" : [
         { "name" : "activity_details", "deletion_info" : { "local_delete_time" : "2025-11-05T22:43:20Z" } },
         { "name" : "activity_type", "deletion_info" : { "local_delete_time" : "2025-11-05T22:43:20Z" } }
