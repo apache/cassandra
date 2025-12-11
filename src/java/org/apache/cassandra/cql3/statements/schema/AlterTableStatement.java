@@ -240,9 +240,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
                 if (!type.isSerializationCompatibleWith(droppedColumn.type))
                 {
-                    throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
+                    throw ire("Cannot add a column '%s' of type %s, incompatible with previously dropped column '%s' of type %s",
                               name,
                               type.asCQL3Type(),
+                              name,
                               droppedColumn.type.asCQL3Type());
                 }
 
