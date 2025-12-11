@@ -94,6 +94,14 @@ public class BytesType extends AbstractType<ByteBuffer>
         return true;
     }
 
+    @Override
+    public boolean isSerializationCompatibleWith(AbstractType<?> previous)
+    {
+        // BytesType should only be compatible with simple scalar types, not with collections or UDTs
+        // because converting a collection or UDT to raw bytes is nonsensical
+        return !previous.isCollection() && !previous.isUDT() && super.isSerializationCompatibleWith(previous);
+    }
+
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.BLOB;

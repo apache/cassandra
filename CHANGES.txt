@@ -358,6 +358,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
  * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
  * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
  * Fix cleanup of old incremental repair sessions in case of owned token range changes or a table deleting (CASSANDRA-20877)
