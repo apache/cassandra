@@ -451,8 +451,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             {
                 if (accordResult != null)
                 {
-                    TxnResult result = accordResult.awaitAndGet();
-                    TxnResult.Kind kind = result.kind();
+                    TxnResult.Kind kind = accordResult.awaitAndGet().kind();
                     if (kind == retry_new_protocol)
                         throw new RetryOnDifferentSystemException();
                 }
