@@ -119,7 +119,7 @@ public class TxnReferenceOperationTest
             TxnReferenceOperation.Kind kind;
             ColumnMetadata receiver;
             TableMetadata table;
-            @Nullable ByteBuffer key = null;
+            @Nullable ByteBuffer keyOrIndex = null;
             @Nullable ByteBuffer field = null;
             TxnReferenceValue value;
             Group group = rs.pick(Group.values());
@@ -226,7 +226,7 @@ public class TxnReferenceOperationTest
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
                     value = valueGen(type.getElementsType()).next(rs);
                     kind = TxnReferenceOperation.Kind.ListSetterByIndex;// x[?] = ?
-                    key = Int32Type.instance.decompose(42);
+                    keyOrIndex = Int32Type.instance.decompose(42);
                 }
                 break;
                 case Appender:
@@ -245,7 +245,7 @@ public class TxnReferenceOperationTest
                     receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
                     value = valueGen(type.getValuesType()).next(rs);
                     kind = TxnReferenceOperation.Kind.MapSetterByKey;
-                    key = Int32Type.instance.decompose(42);
+                    keyOrIndex = Int32Type.instance.decompose(42);
                 }
                 break;
                 case Putter: // x += {foo: bar, baz: biz} -- basically Appender but for Map!
@@ -274,7 +274,7 @@ public class TxnReferenceOperationTest
                 default:
                     throw new UnsupportedOperationException();
             }
-            return new TxnReferenceOperation(kind, receiver, table, key, field, value);
+            return new TxnReferenceOperation(kind, receiver, table, keyOrIndex, field, value);
         };
     }
 
