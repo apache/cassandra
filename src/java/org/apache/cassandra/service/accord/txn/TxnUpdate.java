@@ -588,18 +588,18 @@ public final class TxnUpdate extends AccordUpdate
         return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no);
     }
 
-    public static TxnValidationRejection validationException(@Nullable Update update)
+    public static TxnValidationRejection validationRejection(@Nullable Update update)
     {
         if (update != null && update.getClass() == TxnUpdate.class)
         {
-            RequestValidationException e = ((TxnUpdate) update).validationException();
+            RequestValidationException e = ((TxnUpdate) update).validationRejection();
             if (e != null) return new TxnValidationRejection(e);
         }
         return null;
     }
 
     @Nullable
-    private RequestValidationException validationException()
+    private RequestValidationException validationRejection()
     {
         Object snapshot = validationException;
         if (snapshot == this)

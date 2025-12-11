@@ -154,7 +154,7 @@ public abstract class TxnQuery implements Query
         @Override
         public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            TxnValidationRejection rejection = TxnUpdate.validationException(update);
+            TxnValidationRejection rejection = TxnUpdate.validationRejection(update);
             if (rejection != null) return rejection;
 
             // Skip the migration checks in the base class for empty transactions, we don't
@@ -210,7 +210,7 @@ public abstract class TxnQuery implements Query
     @Override
     public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
     {
-        TxnValidationRejection rejection = TxnUpdate.validationException(update);
+        TxnValidationRejection rejection = TxnUpdate.validationRejection(update);
         if (rejection != null) return rejection;
 
         // TODO (required): This is not the cluster metadata of the current transaction
