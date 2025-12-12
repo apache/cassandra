@@ -87,12 +87,14 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * A read command that selects a (part of a) single partition.
  */
 public class SinglePartitionReadCommand extends ReadCommand implements SinglePartitionReadQuery
 {
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
     protected static final Function<Seekable, SelectionDeserializer> accordSelectionDeserializer = AccordDeserializer::new;
 
@@ -876,7 +878,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
             List<UnfilteredRowIterator> iterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            return withSSTablesIterated(iterators, cfs.metric, metricsCollector);
+
+            UnfilteredRowIterator result = withSSTablesIterated(iterators, cfs.metric, metricsCollector);
+
+            if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
+                noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
+
+            return result;
         }
         catch (RuntimeException | Error e)
         {
@@ -1083,6 +1091,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         cfs.metric.updateSSTableIterated(metricsCollector.getMergedSSTables());
+
+        if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
+            noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
 
         if (result == null || result.isEmpty())
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);

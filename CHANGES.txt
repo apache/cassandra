@@ -1,4 +1,5 @@
 5.1
+ * Log queries scanning too many SSTables per read (CASSANDRA-21048)
  * Extend nodetool verify to (optionally) validate SAI files (CASSANDRA-20949)
  * Fix CompressionDictionary being closed while still in use (CASSANDRA-21047)
  * When updating a multi cell collection element, if the update is rejected then the shared Row.Builder is not freed causing all future mutations to be rejected (CASSANDRA-21055)
