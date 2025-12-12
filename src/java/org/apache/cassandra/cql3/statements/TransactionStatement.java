@@ -108,7 +108,6 @@ import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.US
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
-import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -562,8 +561,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         TxnResult txnResult = AccordService.instance().coordinate(minEpoch, txn, options.getConsistency(), requestTime);
         if (txnResult.kind() == retry_new_protocol)
             throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
-        if (txnResult.kind() == validation_rejection)
-            throw ((TxnValidationRejection) txnResult).validationException;
+        TxnValidationRejection.maybeThrow(txnResult);
 
         TxnData data = (TxnData)txnResult;
 

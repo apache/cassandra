@@ -88,7 +88,6 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.c
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
-import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 
 /**
@@ -576,8 +575,7 @@ public class CQL3CasRequest implements CASRequest
     {
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;
-        if (txnResult.kind() == validation_rejection)
-            throw ((TxnValidationRejection) txnResult).validationException;
+        TxnValidationRejection.maybeThrow(txnResult);
         TxnData txnData = (TxnData)txnResult;
         TxnDataKeyValue partition = (TxnDataKeyValue)txnData.get(txnDataName(CAS_READ));
         return casResult(partition != null ? partition.rowIterator(false) : null);

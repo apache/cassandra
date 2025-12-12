@@ -22,14 +22,21 @@ import java.util.Objects;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
 
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
+
 public class TxnValidationRejection implements TxnResult
 {
-    //TODO (now, ux): does wrapping the exception make sense?  The user only sees code/msg and we dont log these stack traces
-    public final RequestValidationException validationException;
+    private final RequestValidationException validationException;
 
     public TxnValidationRejection(RequestValidationException validationException)
     {
         this.validationException = Objects.requireNonNull(validationException);
+    }
+
+    public static void maybeThrow(TxnResult txnResult)
+    {
+        if (txnResult.kind() == validation_rejection)
+            throw ((TxnValidationRejection) txnResult).validationException;
     }
 
     @Override

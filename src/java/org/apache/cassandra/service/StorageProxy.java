@@ -216,7 +216,6 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.c
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
-import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
@@ -1326,8 +1325,7 @@ public class StorageProxy implements StorageProxyMBean
                             logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                             continue;
                         }
-                        if (result.kind() == validation_rejection)
-                            throw ((TxnValidationRejection) result).validationException;
+                        TxnValidationRejection.maybeThrow(result);
 
                         Tracing.trace("Successfully wrote Accord mutations");
                     }
@@ -1559,8 +1557,7 @@ public class StorageProxy implements StorageProxyMBean
                         TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
-                        if (result.kind() == validation_rejection)
-                            throw ((TxnValidationRejection) result).validationException;
+                        TxnValidationRejection.maybeThrow(result);
                         Tracing.trace("Successfully wrote Accord mutations");
                         cleanup.ackMutation();
                     }
