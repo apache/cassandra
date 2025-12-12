@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.repair;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import com.google.common.base.Preconditions;
@@ -28,8 +30,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
@@ -42,16 +45,30 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
 {
     private static final Logger logger = LoggerFactory.getLogger(SymmetricRemoteSyncTask.class);
 
-    public SymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind)
+    public SymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId)
     {
-        super(ctx, desc, r1, r2, differences, previewKind);
+        super(ctx, desc, r1, r2, differences, previewKind, transferId);
+    }
+
+    @Override
+    public SyncTask withRanges(Collection<Range<Token>> newRanges)
+    {
+        List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
+        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId);
+    }
+
+    @Override
+    public SyncTask withTransferId(ShortMutationId transferId)
+    {
+        Preconditions.checkState(this.transferId == null);
+        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId);
     }
 
     @Override
     protected void startSync()
     {
         InetAddressAndPort local = ctx.broadcastAddressAndPort();
-        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false, transferId);
         Preconditions.checkArgument(nodePair.coordinator.equals(request.src));
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
@@ -59,11 +76,12 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
         sendRequest(request, request.src);
     }
 
-    public void syncComplete(boolean success, List<SessionSummary> summaries)
+    @Override
+    public void syncComplete(SyncResponse response)
     {
-        if (success)
+        if (response.success)
         {
-            trySuccess(stat.withSummaries(summaries));
+            trySuccess(stat.withSummaries(response.summaries, response.planId, response.transferId));
         }
         else
         {
@@ -78,6 +96,7 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
         return "SymmetricRemoteSyncTask{" +
                "rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +
+               ", transfer ID=" + transferId +
                '}';
     }
 }

@@ -33,20 +33,20 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 
 /**
- * Factory and container for creating multiple {@link CoordinatedTransfer} instances from a collection
+ * Factory and container for creating multiple {@link TrackedImportTransfer} instances from a collection
  * of SSTables, partitioned by {@link MutationTrackingService.KeyspaceShards}, which are aligned to replica ownership
  * ranges. Each shard receives its own CoordinatedTransfer instance, which can be executed independently.
  */
-class CoordinatedTransfers implements Iterable<CoordinatedTransfer>
+public class TrackedImportTransfers implements Iterable<TrackedImportTransfer>
 {
-    private final Collection<CoordinatedTransfer> transfers;
+    private final Collection<TrackedImportTransfer> transfers;
 
-    private CoordinatedTransfers(Collection<CoordinatedTransfer> transfers)
+    private TrackedImportTransfers(Collection<TrackedImportTransfer> transfers)
     {
         this.transfers = transfers;
     }
 
-    static CoordinatedTransfers create(String keyspace, MutationTrackingService.KeyspaceShards shards, Collection<SSTableReader> sstables, ConsistencyLevel cl)
+    static TrackedImportTransfers create(String keyspace, MutationTrackingService.KeyspaceShards shards, Collection<SSTableReader> sstables, ConsistencyLevel cl)
     {
         // Clean up incoming SSTables to remove any existing untrusted CoordinatorLogOffsets
         for (SSTableReader sstable : sstables)
@@ -62,7 +62,7 @@ class CoordinatedTransfers implements Iterable<CoordinatedTransfer>
         }
 
         SSTableIntervalTree intervals = SSTableIntervalTree.buildSSTableIntervalTree(sstables);
-        List<CoordinatedTransfer> transfers = new ArrayList<>();
+        List<TrackedImportTransfer> transfers = new ArrayList<>();
 
         shards.forEachShard(shard -> {
             Range<Token> range = shard.tokenRange();
@@ -70,14 +70,14 @@ class CoordinatedTransfers implements Iterable<CoordinatedTransfer>
             if (sstablesForRange.isEmpty())
                 return;
 
-            CoordinatedTransfer transfer = new CoordinatedTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
+            TrackedImportTransfer transfer = new TrackedImportTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
             transfers.add(transfer);
         });
-        return new CoordinatedTransfers(transfers);
+        return new TrackedImportTransfers(transfers);
     }
 
     @Override
-    public Iterator<CoordinatedTransfer> iterator()
+    public Iterator<TrackedImportTransfer> iterator()
     {
         return transfers.iterator();
     }

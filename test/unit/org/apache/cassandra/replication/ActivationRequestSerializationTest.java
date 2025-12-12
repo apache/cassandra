@@ -22,16 +22,24 @@ import java.io.IOException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class TransferActivationSerializationTest
+public class ActivationRequestSerializationTest extends CassandraTestBase
 {
     private static final int VERSION = MessagingService.current_version;
 
@@ -39,37 +47,44 @@ public class TransferActivationSerializationTest
     public static void setUpClass()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @Test
     public void testRoundtripPreparePhase() throws IOException
     {
+        Pair<InetAddressAndPort, InetAddressAndPort> pair = Pair.create(InetAddressAndPort.getLocalHost(), InetAddressAndPort.getLocalHost());
         TimeUUID planId = nextTimeUUID();
-        MutationId transferId = new MutationId(1L, 100, 200);
+        ShortMutationId transferId = new ShortMutationId(1L, 100);
         NodeId coordinatorId = new NodeId(1);
-        TransferActivation.Phase phase = TransferActivation.Phase.PREPARE;
+        ActivationRequest.Phase phase = ActivationRequest.Phase.PREPARE;
+        String keyspace = "test_ks";
+        Range<Token> range = new Range<>(new ByteOrderedPartitioner.BytesToken("key1".getBytes()), new ByteOrderedPartitioner.BytesToken("key100".getBytes()));
 
-        TransferActivation activation = new TransferActivation(planId, transferId, coordinatorId, phase);
+        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, keyspace, planId);
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, TransferActivation.serializer, activation, VERSION);
+            Serializers.testSerde(output, ActivationRequest.serializer, activation, VERSION);
         }
     }
 
     @Test
     public void testRoundtripCommitPhase() throws IOException
     {
+        Pair<InetAddressAndPort, InetAddressAndPort> pair = Pair.create(InetAddressAndPort.getLocalHost(), InetAddressAndPort.getLocalHost());
         TimeUUID planId = nextTimeUUID();
-        MutationId transferId = new MutationId(2L, 300, 400);
+        ShortMutationId transferId = new ShortMutationId(2L, 300);
         NodeId coordinatorId = new NodeId(2);
-        TransferActivation.Phase phase = TransferActivation.Phase.COMMIT;
+        ActivationRequest.Phase phase = ActivationRequest.Phase.COMMIT;
+        String keyspace = "test_ks";
+        Range<Token> range = new Range<>(new ByteOrderedPartitioner.BytesToken("key1".getBytes()), new ByteOrderedPartitioner.BytesToken("key100".getBytes()));
 
-        TransferActivation activation = new TransferActivation(planId, transferId, coordinatorId, phase);
+        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, keyspace, planId);
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, TransferActivation.serializer, activation, VERSION);
+            Serializers.testSerde(output, ActivationRequest.serializer, activation, VERSION);
         }
     }
 }

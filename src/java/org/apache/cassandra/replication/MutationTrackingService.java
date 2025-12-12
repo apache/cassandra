@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -46,28 +48,35 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.SyncTask;
+import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
@@ -234,6 +243,35 @@ public class MutationTrackingService
         }
     }
 
+    // Requires that ranges is aligned to a single shard
+    public MutationId nextMutationId(String keyspace, Collection<Range<Token>> ranges)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards shards = getOrCreateShards(keyspace);
+            Shard shard = null;
+            for (Range<Token> range : ranges)
+            {
+                Shard curShard = shards.lookUp(range);
+                if (curShard == null)
+                    throw new UnknownShardException(range, shards.groups);
+                if (shard == null)
+                    shard = curShard;
+                else if (shard != curShard)
+                    throw new IllegalStateException(String.format("Cannot generate a mutation ID for ranges (%s) that span across more than one shard (%s, %s)", ranges, shard, curShard));
+            }
+            Preconditions.checkNotNull(shard);
+            MutationId id = shard.nextId();
+            logger.trace("Created new mutation id {}", id);
+            return id;
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     public void sentWriteRequest(Mutation mutation, IntHashSet toHostIds)
     {
         Preconditions.checkArgument(!mutation.id().isNone());
@@ -375,10 +413,10 @@ public class MutationTrackingService
             logger.info("Creating tracked bulk transfers for keyspace '{}' SSTables {}...", keyspace, sstables);
 
             KeyspaceShards shards = checkNotNull(keyspaceShards.get(keyspace));
-            CoordinatedTransfers transfers = CoordinatedTransfers.create(keyspace, shards, sstables, cl);
+            TrackedImportTransfers transfers = TrackedImportTransfers.create(keyspace, shards, sstables, cl);
             logger.info("Split input SSTables into transfers {}", transfers);
 
-            for (CoordinatedTransfer transfer : transfers)
+            for (TrackedImportTransfer transfer : transfers)
                 transfer.execute();
         }
         finally
@@ -390,23 +428,52 @@ public class MutationTrackingService
     public void received(PendingLocalTransfer transfer)
     {
         logger.debug("Received pending transfer for tracked table {}", transfer);
-        LocalTransfers.instance().received(transfer);
+        TransferTrackingService.instance().received(transfer);
     }
 
-    void activateLocal(TransferActivation activation)
+    void activateLocal(ActivationRequest request)
     {
-        PendingLocalTransfer pending = LocalTransfers.instance().getPendingTransfer(activation.planId);
-        if (pending == null)
-            throw new IllegalStateException(String.format("Cannot activate unknown local pending transfer %s", activation));
-        pending.activate(activation);
+        boolean committed = false;
+        String keyspace = request.keyspace;
+        Bounds<Token> bounds;
+        PendingLocalTransfer pending = null;
+
+        if (request.operation == StreamOperation.REPAIR)
+        {
+            bounds = new Bounds<>(request.range.left.nextValidToken(), request.range.right);
+
+            // A sync task does not necessarily stream to both replicas, which means there may be a plan ID without a
+            // pending local transfer. In this case, we simply treat this as an already committed transfer and update
+            // the required offsets in the log (unless we're just preparing).
+            committed = request.isCommit();
+
+            // If we have no plan ID, it means this replica did not participate in a sync.
+            if (request.planId != null)
+                pending = TransferTrackingService.instance().getPendingTransfer(request.planId);
+        }
+        else if (request.operation == StreamOperation.IMPORT)
+        {
+            pending = TransferTrackingService.instance().getPendingTransfer(request.planId);
+            if (pending == null)
+                throw new IllegalStateException(String.format("Cannot activate unknown local pending transfer %s", request));
+
+            bounds = ActivatedTransfers.covering(pending.sstables);
+        }
+        else
+        {
+            throw new IllegalArgumentException("Cannot activate transfer for stream operation " + request.operation);
+        }
+
+        if (pending != null)
+            committed = pending.activate(request, bounds);
 
         shardLock.readLock().lock();
         try
         {
-            if (activation.isCommit())
+            if (committed)
             {
-                keyspaceShards.get(pending.keyspace).lookUp(pending.range).finishActivation(pending, activation);
-                incomingMutations.invokeListeners(activation.transferId);
+                keyspaceShards.get(keyspace).lookUp(request.range).finishActivation(bounds, request);
+                incomingMutations.invokeListeners(request.transferId);
             }
         }
         finally
@@ -780,6 +847,66 @@ public class MutationTrackingService
         forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
     }
 
+    public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
+    {
+        Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(), "Keyspace " + keyspace.getName() + " is not tracked");
+
+        KeyspaceShards shards = keyspaceShards.get(keyspace.getName());
+        Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
+
+        // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
+        for (SyncTask task : unwrapped(tasks))
+        {
+            Set<Shard> intersectingShards = new HashSet<>();
+            shards.forEachIntersectingShard(task.rangesToSync, intersectingShards::add);
+            for (Shard shard : intersectingShards)
+            {
+                // Ensure that we don't expand outside the ranges of the original sync tasks.
+                Set<Range<Token>> intersectingSyncRanges = new HashSet<>();
+                for (Range<Token> syncRange : task.rangesToSync)
+                    intersectingSyncRanges.addAll(syncRange.intersectionWith(shard.range));
+
+                if (!intersectingSyncRanges.isEmpty())
+                    tasksByShard.computeIfAbsent(shard, key -> new ArrayList<>()).add(task.withRanges(intersectingSyncRanges));
+            }
+        }
+
+        SyncTasks into = new SyncTasks();
+
+        for (Map.Entry<Shard, List<SyncTask>> entry : tasksByShard.entrySet())
+        {
+            Shard shard = entry.getKey();
+            Collection<SyncTask> syncTasks = entry.getValue();
+
+            // Assign a new transfer ID to each sync task and add to the tasks container
+            for (SyncTask task : syncTasks)
+                into.add(shard, task.withTransferId(shard.nextId()));
+        }
+
+        return into;
+    }
+
+    private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
+    {
+        List<SyncTask> unwrapped = new ArrayList<>();
+
+        for (SyncTask task : tasks)
+        {
+            List<Range<Token>> unwrappedRanges = new ArrayList<>();
+            for (Range<Token> range : task.rangesToSync)
+            {
+                if (range.isTrulyWrapAround())
+                    unwrappedRanges.addAll(range.unwrap());
+                else
+                    unwrappedRanges.add(range);
+            }
+
+            unwrapped.add(task.withRanges(unwrappedRanges));
+        }
+
+        return unwrapped;
+    }
+
     public static class KeyspaceShards
     {
         private enum UpdateDecision
@@ -993,6 +1120,14 @@ public class MutationTrackingService
             });
         }
 
+        private void forEachIntersectingShard(Collection<Range<Token>> ranges, Consumer<Shard> consumer)
+        {
+            shards.forEach((range0, shard) -> {
+                if (shard.range.intersects(ranges))
+                    consumer.accept(shard);
+            });
+        }
+
         void collectShardReconciledOffsetsToBuilder(ReconciledLogSnapshot.Builder builder)
         {
             ReconciledKeyspaceOffsets.Builder keyspaceBuilder = builder.getKeyspaceBuilder(keyspace);
@@ -1098,8 +1233,9 @@ public class MutationTrackingService
     private static class ReplicatedOffsetsBroadcaster
     {
         // TODO (later): a more intelligent heuristic for scheduling broadcasts
-        private static final long TRANSIENT_BROADCAST_INTERVAL_MILLIS = 200;
-        private static final long DURABLE_BROADCAST_INTERVAL_MILLIS = 60_000;
+        // TODO: Revert before merge, just increased frequency for test
+        private static final long TRANSIENT_BROADCAST_INTERVAL_MILLIS = 1_000;
+        private static final long DURABLE_BROADCAST_INTERVAL_MILLIS = 1_000;
 
         private volatile boolean isPaused = false;
 
@@ -1148,11 +1284,13 @@ public class MutationTrackingService
     private static class LogStatePersister implements Runnable
     {
         // TODO (expected): consider a different interval
-        private static final long PERSIST_INTERVAL_MINUTES = 1;
+        // TODO: Revert before merge, just increased frequency for test
+        // private static final long PERSIST_INTERVAL_MILLIS = 60_000;
+        private static final long PERSIST_INTERVAL_MILLIS = 1_000;
 
         void start()
         {
-            executor.scheduleWithFixedDelay(this, PERSIST_INTERVAL_MINUTES, PERSIST_INTERVAL_MINUTES, TimeUnit.MINUTES);
+            executor.scheduleWithFixedDelay(this, PERSIST_INTERVAL_MILLIS, PERSIST_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -1221,6 +1359,36 @@ public class MutationTrackingService
         public static KeyspaceShards getKeyspaceShards(MutationTrackingService service, String keyspace)
         {
             return service.keyspaceShards.get(keyspace);
+        }
+
+        /**
+         * Creates a test KeyspaceShards with the given shard ranges.
+         * The shards are created with minimal configuration suitable for testing.
+         */
+        public static KeyspaceShards createTestKeyspaceShards(String keyspace, Set<Range<Token>> shardRanges)
+        {
+            Map<Range<Token>, Shard> shards = new HashMap<>();
+            Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();
+
+            int localNodeId = 1;
+            AtomicInteger hostLogId = new AtomicInteger(0);
+            LongSupplier logId = () -> CoordinatorLogId.asLong(localNodeId, hostLogId.getAndIncrement());
+            Participants participants = new Participants(List.of(localNodeId));
+            for (Range<Token> range : shardRanges)
+            {
+                shards.put(range, new Shard(localNodeId, keyspace, range, participants, logId, (s, l) -> {}));
+                groups.put(range, VersionedEndpoints.forRange(Epoch.EMPTY, EndpointsForRange.empty(range)));
+            }
+
+            return new KeyspaceShards(keyspace, shards, new ReplicaGroups(groups));
+        }
+
+        /**
+         * Sets the keyspace shards for testing purposes.
+         */
+        public static void setKeyspaceShards(MutationTrackingService service, String keyspace, KeyspaceShards shards)
+        {
+            service.keyspaceShards.put(keyspace, shards);
         }
     }
 }

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.repair;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -66,15 +69,36 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     public LocalSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, TimeUUID pendingRepair,
-                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind, ShortMutationId transferId)
     {
-        super(ctx, desc, local, remote, diff, previewKind);
+        super(ctx, desc, local, remote, diff, previewKind, transferId);
         Preconditions.checkArgument(requestRanges || transferRanges, "Nothing to do in a sync job");
         Preconditions.checkArgument(local.equals(ctx.broadcastAddressAndPort()));
 
         this.pendingRepair = pendingRepair;
         this.requestRanges = requestRanges;
         this.transferRanges = transferRanges;
+    }
+
+    public LocalSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
+                         List<Range<Token>> diff, TimeUUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
+    {
+        this(ctx, desc, local, remote, diff, pendingRepair, requestRanges, transferRanges, previewKind, null);
+    }
+
+    @Override
+    public SyncTask withRanges(Collection<Range<Token>> newRanges)
+    {
+        List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
+        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, pendingRepair, requestRanges, transferRanges, previewKind, transferId);
+    }
+
+    @Override
+    public SyncTask withTransferId(ShortMutationId transferId)
+    {
+        Preconditions.checkState(this.transferId == null);
+        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, pendingRepair, requestRanges, transferRanges, previewKind, transferId);
     }
 
     @VisibleForTesting
@@ -167,7 +191,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
                                            status, desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
             logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
             Tracing.traceRepair(message);
-            trySuccess(result.hasAbortedSession() ? stat : stat.withSummaries(result.createSummaries()));
+            trySuccess(result.hasAbortedSession() ? stat : stat.withSummaries(result.createSummaries(), result.planId, transferId));
             finished();
         }
     }
@@ -190,6 +214,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
                ", transferRanges=" + transferRanges +
                ", rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +
+               ", transfer ID=" + transferId +
                '}';
     }
 

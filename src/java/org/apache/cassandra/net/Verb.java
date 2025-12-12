@@ -74,12 +74,13 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.replication.ActivationResponse;
 import org.apache.cassandra.replication.BroadcastLogOffsets;
 import org.apache.cassandra.replication.ForwardedWrite;
-import org.apache.cassandra.replication.LocalTransfers;
+import org.apache.cassandra.replication.TransferTrackingService;
 import org.apache.cassandra.replication.PullMutationsRequest;
 import org.apache.cassandra.replication.PushMutationRequest;
-import org.apache.cassandra.replication.TransferActivation;
+import org.apache.cassandra.replication.ActivationRequest;
 import org.apache.cassandra.replication.TransferFailed;
 import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
@@ -339,10 +340,10 @@ public enum Verb
     TRACKED_SUMMARY_RSP        (910, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedSummaryResponse.serializer, () -> TrackedSummaryResponse.verbHandler                           ),
     TRACKED_SUMMARY_REQ        (911, P3, readTimeout,  READ,             () -> TrackedRead.SummaryRequest.serializer, () -> TrackedRead.verbHandler,           TRACKED_SUMMARY_RSP       ),
 
-    TRACKED_TRANSFER_ACTIVATE_RSP   (912,   P1, repairTimeout, REQUEST_RESPONSE,   () -> NoPayload.serializer,             RESPONSE_HANDLER),
-    TRACKED_TRANSFER_ACTIVATE_REQ   (913,   P1, repairTimeout, ANTI_ENTROPY,       () -> TransferActivation.serializer,    () -> TransferActivation.verbHandler, TRACKED_TRANSFER_ACTIVATE_RSP),
-    TRACKED_TRANSFER_FAILED_RSP     (914,   P1, repairTimeout, REQUEST_RESPONSE,   () -> NoPayload.serializer,             RESPONSE_HANDLER),
-    TRACKED_TRANSFER_FAILED_REQ     (915,   P1, repairTimeout, ANTI_ENTROPY,       () -> TransferFailed.serializer,        () -> LocalTransfers.verbHandler, TRACKED_TRANSFER_FAILED_RSP),
+    TRACKED_TRANSFER_ACTIVATE_RSP   (912, P1, repairTimeout, REQUEST_RESPONSE,   () -> ActivationResponse.serializer,    RESPONSE_HANDLER),
+    TRACKED_TRANSFER_ACTIVATE_REQ   (913, P1, repairTimeout, ANTI_ENTROPY,       () -> ActivationRequest.serializer,     () -> ActivationRequest.verbHandler, TRACKED_TRANSFER_ACTIVATE_RSP),
+    TRACKED_TRANSFER_FAILED_RSP     (914, P1, repairTimeout, REQUEST_RESPONSE,   () -> NoPayload.serializer,             RESPONSE_HANDLER),
+    TRACKED_TRANSFER_FAILED_REQ     (915, P1, repairTimeout, ANTI_ENTROPY, () -> TransferFailed.serializer, () -> TransferTrackingService.verbHandler, TRACKED_TRANSFER_FAILED_RSP),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),

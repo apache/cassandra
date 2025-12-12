@@ -35,15 +35,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
-import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -62,6 +59,10 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.MmappedRegionsCache;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -336,9 +337,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
-        // Migration from incremental repair to mutation tracking will be supported, but support for mixing
-        // incremental repair and mutation tracking is not planned
-        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+        // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces. 
+        boolean reconcile = txn.opType() != OperationType.STREAM;
+
+        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE && reconcile)
         {
             Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
             if (MutationTrackingService.instance.isDurablyReconciled(coordinatorLogOffsets))

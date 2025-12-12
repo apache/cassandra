@@ -18,16 +18,21 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
+
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
@@ -38,29 +43,46 @@ import org.apache.cassandra.tracing.Tracing;
  */
 public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRemoteSyncTask
 {
-    public AsymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind)
+    public AsymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId)
     {
-        super(ctx, desc, to, from, differences, previewKind);
+        super(ctx, desc, to, from, differences, previewKind, transferId);
+    }
+
+    @Override
+    public SyncTask withRanges(Collection<Range<Token>> newRanges)
+    {
+        List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
+        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId);
+    }
+
+    @Override
+    public SyncTask withTransferId(ShortMutationId transferId)
+    {
+        Preconditions.checkState(this.transferId == null);
+        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId);
     }
 
     public void startSync()
     {
         InetAddressAndPort local = ctx.broadcastAddressAndPort();
-        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true, transferId);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         Tracing.traceRepair(message);
         sendRequest(request, request.src);
     }
 
-    public void syncComplete(boolean success, List<SessionSummary> summaries)
+    public void syncComplete(SyncResponse response)
     {
-        if (success)
+        if (response.success)
         {
-            trySuccess(stat.withSummaries(summaries));
+            trySuccess(stat.withSummaries(response.summaries, response.planId, response.transferId));
         }
         else
         {
-            tryFailure(RepairException.warn(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
+            String message = transferId == null 
+                             ? String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)
+                             : String.format("Sync failed between %s and %s for transfer %s", nodePair.coordinator, nodePair.peer, transferId);
+            tryFailure(RepairException.warn(desc, previewKind, message));
         }
     }
 
@@ -70,6 +92,7 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
         return "AsymmetricRemoteSyncTask{" +
                "rangesToSync=" + rangesToSync +
                ", nodePair=" + nodePair +
+               ", transfer ID=" + transferId +
                '}';
     }
 }

@@ -44,6 +44,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
@@ -329,12 +330,31 @@ public abstract class CoordinatorLog
             MutationTrackingMetrics.instance.writeTimeOffsetsDiscovered.inc();
 
             unreconciledMutations.finishWriting(mutation);
+            maybeMoveOffset(offset);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
 
-            if (remoteReplicasWitnessed(offset))
-            {
-                reconciledOffsets.add(offset);
-                unreconciledMutations.remove(offset);
-            }
+    /*
+    - On local replicas after they've completed activation (onHostId == me)
+     */
+    void finishActivation(Bounds<Token> bounds, ActivationRequest activation)
+    {
+        logger.trace("witnessed local transfer {}", activation.id());
+
+        lock.writeLock().lock();
+        try
+        {
+            int offset = activation.id().offset();
+            // we've raced with another write, no need to do anything else
+            if (!witnessedOffsets.get(localNodeId).add(offset))
+                return;
+
+            unreconciledMutations.activatedTransfer(activation.id(), bounds);
+            maybeMoveOffset(offset);
         }
         finally
         {
@@ -358,33 +378,12 @@ public abstract class CoordinatorLog
         return othersWitnessed(offset, localNodeId);
     }
 
-    /*
-    - On local replicas after they've completed activation (onHostId == me)
-     */
-    void finishActivation(PendingLocalTransfer transfer, TransferActivation activation)
+    private void maybeMoveOffset(int offset)
     {
-        logger.trace("witnessed local transfer {}", activation.id());
-
-        lock.writeLock().lock();
-        try
+        if (remoteReplicasWitnessed(offset))
         {
-            int offset = activation.id().offset();
-            // we've raced with another write, no need to do anything else
-            if (!witnessedOffsets.get(localNodeId).add(offset))
-                return;
-
-            // This is the only difference with finishWriting - can we consolidate these methods?
-            unreconciledMutations.activatedTransfer(activation.id(), transfer.sstables);
-
-            if (remoteReplicasWitnessed(offset))
-            {
-                reconciledOffsets.add(offset);
-                unreconciledMutations.remove(offset);
-            }
-        }
-        finally
-        {
-            lock.writeLock().unlock();
+            reconciledOffsets.add(offset);
+            unreconciledMutations.remove(offset);
         }
     }
 

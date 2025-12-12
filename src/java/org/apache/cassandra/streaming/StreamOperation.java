@@ -27,7 +27,7 @@ public enum StreamOperation
     REBUILD("Rebuild", false, true, false),
     BULK_LOAD("Bulk Load", true, false, false),
     REPAIR("Repair", true, false, true),
-    TRACKED_TRANSFER("Tracked Transfer", false, false, false);
+    IMPORT("Import", false, false, false);
 
     private final String description;
     private final boolean requiresViewBuild;
@@ -45,6 +45,17 @@ public enum StreamOperation
         this.requiresViewBuild = requiresViewBuild;
         this.keepSSTableLevel = keepSSTableLevel;
         this.requiresBarrierTransaction = requiresBarrierTransaction;
+    }
+
+    /**
+     * For tracked keyspaces, streams that are received while serving reads must be tracked in the log, to ensure that 
+     * read reconciliation can represent the new data.
+     * 
+     * @see org.apache.cassandra.replication.CoordinatedTransfer
+     */
+    public boolean isTrackable()
+    {
+        return this == REPAIR || this == IMPORT;
     }
 
     public static StreamOperation fromString(String text)

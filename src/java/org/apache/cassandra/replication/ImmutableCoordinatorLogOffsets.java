@@ -19,14 +19,12 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
 import org.slf4j.Logger;
@@ -36,7 +34,6 @@ import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -161,7 +158,6 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             return this;
         }
 
-        @VisibleForTesting
         public Builder addTransfer(ShortMutationId transferId, Bounds<Token> bounds)
         {
             if (transferId.isNone())
@@ -169,16 +165,6 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             if (transfers == null)
                 transfers = new ActivatedTransfers();
             transfers.add(transferId, bounds);
-            return this;
-        }
-
-        public Builder addTransfer(ShortMutationId transferId, Collection<SSTableReader> sstables)
-        {
-            if (transferId.isNone())
-                return this;
-            if (transfers == null)
-                transfers = new ActivatedTransfers();
-            transfers.add(transferId, sstables);
             return this;
         }
 

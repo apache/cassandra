@@ -1020,6 +1020,7 @@ public class StreamSession
         manifest.keyspaceRanges.forEach((keyspace, ranges) ->
             logTransfer.addKeyspaceRanges(keyspace, ranges));
     }
+
     /**
      * In the case where we have an error checking disk space we allow the Operation to continue.
      * In the case where we do _not_ have available space, this method raises a RTE.

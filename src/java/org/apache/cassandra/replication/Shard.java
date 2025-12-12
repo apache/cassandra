@@ -41,6 +41,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -58,9 +59,9 @@ public class Shard
     private static final Logger logger = LoggerFactory.getLogger(Shard.class);
 
     final int localNodeId;
-    final String keyspace;
-    final Range<Token> range;
-    final Participants participants;
+    public final String keyspace;
+    public final Range<Token> range;
+    public final Participants participants;
     private final LongSupplier logIdProvider;
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
@@ -180,9 +181,9 @@ public class Shard
         getOrCreate(mutationId).receivedWriteResponse(mutationId, fromHostId);
     }
 
-    void finishActivation(PendingLocalTransfer transfer, TransferActivation activation)
+    void finishActivation(Bounds<Token> bounds, ActivationRequest activation)
     {
-        getOrCreate(activation.transferId).finishActivation(transfer, activation);
+        getOrCreate(activation.transferId).finishActivation(bounds, activation);
     }
 
     void receivedActivationResponse(CoordinatedTransfer transfer, InetAddressAndPort onHost)
@@ -404,6 +405,17 @@ public class Shard
     void collectShardReconciledOffsetsToBuilder(ReconciledKeyspaceOffsets.Builder keyspaceBuilder)
     {
         logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
+    }
+
+    @Override
+    public String toString()
+    {
+        return "Shard{" +
+               "participants=" + participants +
+               ", range=" + range +
+               ", keyspace='" + keyspace + '\'' +
+               ", localNodeId=" + localNodeId +
+               '}';
     }
 
     public DebugInfo getDebugInfo()

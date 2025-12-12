@@ -68,8 +68,8 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
 
-        SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
-        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false);
+        SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false, null);
+        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, null), desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false, null);
 
         StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertFalse(plan.getFlushBeforeTransfer());
@@ -81,8 +81,9 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         TimeUUID sessionID = registerSession(cfs, false, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
-        SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
-        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false);
+
+        SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false, null);
+        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, null), desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false, null);
 
         StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertTrue(plan.getFlushBeforeTransfer());

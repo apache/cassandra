@@ -133,7 +133,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
         LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
-                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
+                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE, null);
         NettyStreamingConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
         try
         {
@@ -159,7 +159,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
         LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
-                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
+                                               NO_PENDING_REPAIR, true, true, PreviewKind.NONE, null);
         StreamPlan plan = task.createStreamPlan();
 
         assertEquals(NO_PENDING_REPAIR, plan.getPendingRepair());

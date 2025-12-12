@@ -20,8 +20,11 @@ package org.apache.cassandra.repair.state;
 
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.utils.Clock;
 
 public class SyncState extends AbstractState<SyncState.State, SyncState.Id>
@@ -31,9 +34,9 @@ public class SyncState extends AbstractState<SyncState.State, SyncState.Id>
 
     public final Phase phase = new Phase();
 
-    public SyncState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst)
+    public SyncState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, ShortMutationId transferId)
     {
-        super(clock, new Id(desc, initiator, src, dst), State.class);
+        super(clock, new Id(desc, initiator, src, dst, transferId), State.class);
     }
 
     public final class Phase extends BaseSkipPhase
@@ -58,13 +61,17 @@ public class SyncState extends AbstractState<SyncState.State, SyncState.Id>
     {
         public final RepairJobDesc desc;
         public final InetAddressAndPort initiator, src, dst;
+        
+        @Nullable
+        public final ShortMutationId transferId;
 
-        public Id(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst)
+        public Id(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, ShortMutationId transferId)
         {
             this.desc = desc;
             this.initiator = initiator;
             this.src = src;
             this.dst = dst;
+            this.transferId = transferId;
         }
 
         @Override
@@ -73,13 +80,13 @@ public class SyncState extends AbstractState<SyncState.State, SyncState.Id>
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Id id = (Id) o;
-            return desc.equals(id.desc) && initiator.equals(id.initiator) && src.equals(id.src) && dst.equals(id.dst);
+            return desc.equals(id.desc) && initiator.equals(id.initiator) && src.equals(id.src) && dst.equals(id.dst) && Objects.equals(transferId, id.transferId);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(desc, initiator, src, dst);
+            return Objects.hash(desc, initiator, src, dst, transferId);
         }
     }
 }

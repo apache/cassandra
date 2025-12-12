@@ -284,7 +284,7 @@ public class RepairJobTest
         // block syncComplete execution until test has verified session still retains the trees
         CompletableFuture<?> future = new CompletableFuture<>();
         session.registerSyncCompleteCallback(future::get);
-        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
+        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(SyncTasks.untracked(syncTasks));
 
         // Immediately following execution the internal execution queue should still retain the trees
         long sizeDuringExecution = ObjectSizes.measureDeep(session);
@@ -903,7 +903,7 @@ public class RepairJobTest
                         break;
                     case SYNC_REQ:
                         SyncRequest syncRequest = (SyncRequest) message.payload;
-                        session.syncComplete(sessionJobDesc, Message.builder(Verb.SYNC_RSP, new SyncResponse(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst), true, Collections.emptyList())).from(to).build());
+                        session.syncComplete(sessionJobDesc, Message.builder(Verb.SYNC_RSP, new SyncResponse(sessionJobDesc, new SyncNodePair(syncRequest.src, syncRequest.dst), true, Collections.emptyList(), null, null)).from(to).build());
                         break;
                     default:
                         break;
