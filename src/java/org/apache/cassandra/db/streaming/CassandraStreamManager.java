@@ -131,9 +131,10 @@ public class CassandraStreamManager implements TableStreamManager
                 Set<SSTableReader> sstables = Sets.newHashSet();
                 SSTableIntervalTree intervalTree = buildSSTableIntervalTree(ImmutableList.copyOf(view.select(SSTableSet.CANONICAL)));
                 Predicate<SSTableReader> predicate;
+                // reconciledKeyspaceOffsets are only included when mutation logs are streamed, since we include logs
+                // for all unreconciled mutations, and SSTables for all reconciled mutations
                 if (reconciledKeyspaceOffsets != null)
                 {
-                    // TODO: relax these restrictions as repair support is add
                     Preconditions.checkArgument(previewKind == PreviewKind.NONE);
                     Preconditions.checkArgument(pendingRepair == ActiveRepairService.NO_PENDING_REPAIR);
                     predicate = getSSTablePredicateForKeyspaceRanges(reconciledKeyspaceOffsets);

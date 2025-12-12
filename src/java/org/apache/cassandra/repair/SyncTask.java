@@ -18,8 +18,12 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -33,8 +37,10 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.SYNC_REQ;
@@ -50,11 +56,13 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
     public final List<Range<Token>> rangesToSync;
     protected final PreviewKind previewKind;
     protected final SyncNodePair nodePair;
+    protected final ShortMutationId transferId;
+    protected volatile TimeUUID planId;
 
     protected volatile long startTime = Long.MIN_VALUE;
     protected final SyncStat stat;
 
-    protected SyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind)
+    protected SyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind, ShortMutationId transferId)
     {
         Preconditions.checkArgument(!peer.equals(primaryEndpoint), "Sending and receiving node are the same: %s", peer);
         this.ctx = ctx;
@@ -62,14 +70,45 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
         this.rangesToSync = rangesToSync;
         this.nodePair = new SyncNodePair(primaryEndpoint, peer);
         this.previewKind = previewKind;
+        this.transferId = transferId;
         this.stat = new SyncStat(nodePair, rangesToSync);
+
+        addCallback((syncStat, failure) -> {
+            if (syncStat != null && syncStat.planId != null)
+                this.planId = syncStat.planId;
+            else if (failure instanceof org.apache.cassandra.streaming.StreamException)
+                this.planId = ((org.apache.cassandra.streaming.StreamException) failure).finalState.planId;
+        });
     }
 
     protected abstract void startSync();
 
+    /**
+     * Creates a new SyncTask with the same parameters but different ranges.
+     * Used for splitting sync tasks on shard boundaries.
+     */
+    public abstract SyncTask withRanges(Collection<Range<Token>> newRanges);
+
+    public abstract SyncTask withTransferId(ShortMutationId transferId);
+
     public SyncNodePair nodePair()
     {
         return nodePair;
+    }
+
+    public ShortMutationId getTransferId()
+    {
+        return transferId;
+    }
+
+    /**
+     * Returns the planId associated with this sync task's streaming operation.
+     * The planId is captured when the task completes (successfully or with a StreamException).
+     * @return the planId if streaming has completed, null otherwise
+     */
+    public TimeUUID getPlanId()
+    {
+        return planId;
     }
 
     /**
@@ -117,5 +156,35 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
                                                SYNC_REQ,
                                                to,
                                                this::tryFailure);
+    }
+    
+    public static class SyncTaskId
+    {
+        RepairJobDesc desc;
+        SyncNodePair pair;
+
+        @Nullable
+        ShortMutationId transferId;
+
+        public SyncTaskId(RepairJobDesc desc, SyncNodePair pair, ShortMutationId transferId)
+        {
+            this.desc = desc;
+            this.pair = pair;
+            this.transferId = transferId;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            SyncTaskId that = (SyncTaskId) o;
+            return Objects.equals(desc, that.desc) && Objects.equals(pair, that.pair) && Objects.equals(transferId, that.transferId);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(desc, pair, transferId);
+        }
     }
 }

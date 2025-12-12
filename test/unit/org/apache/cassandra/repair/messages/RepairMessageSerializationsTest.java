@@ -173,7 +173,8 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
         InetAddressAndPort src = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
 
-        SyncRequest msg = new SyncRequest(buildRepairJobDesc(), initiator, src, dst, buildTokenRanges(), PreviewKind.NONE, false);
+        // TODO: Do we want to test with a transfer ID?
+        SyncRequest msg = new SyncRequest(buildRepairJobDesc(), initiator, src, dst, buildTokenRanges(), PreviewKind.NONE, false, null);
         serializeRoundTrip(msg, SyncRequest.serializer);
     }
 
@@ -187,7 +188,7 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 5, 100)),
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 500, 10))
         ));
-        SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries);
+        SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries, null, null);
         serializeRoundTrip(msg, SyncResponse.serializer);
     }
 

@@ -138,7 +138,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     // Each validation task waits response from replica in validating ConcurrentMap (keyed by CF name and endpoint address)
     private final ConcurrentMap<Pair<RepairJobDesc, InetAddressAndPort>, ValidationTask> validating = new ConcurrentHashMap<>();
     // Remote syncing jobs wait response in syncingTasks map
-    private final ConcurrentMap<Pair<RepairJobDesc, SyncNodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SyncTask.SyncTaskId, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final SafeExecutor taskExecutor;
@@ -231,7 +231,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         validating.put(key, task);
     }
 
-    public synchronized void trackSyncCompletion(Pair<RepairJobDesc, SyncNodePair> key, CompletableRemoteSyncTask task)
+    public synchronized void trackSyncCompletion(SyncTask.SyncTaskId key, CompletableRemoteSyncTask task)
     {
         if (terminated)
             return;
@@ -276,7 +276,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public void syncComplete(RepairJobDesc desc, Message<SyncResponse> message)
     {
         SyncNodePair nodes = message.payload.nodes;
-        CompletableRemoteSyncTask task = syncingTasks.remove(Pair.create(desc, nodes));
+        CompletableRemoteSyncTask task = syncingTasks.remove(new SyncTask.SyncTaskId(desc, nodes, message.payload.transferId));
         // replies without a callback get dropped, so if in mixed mode this should be ignored
         ctx.messaging().send(message.emptyResponse(), message.from());
         if (task == null)
@@ -284,11 +284,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
         if (logger.isDebugEnabled())
             logger.debug("{} Repair completed between {} and {} on {}", previewKind.logPrefix(getId()), nodes.coordinator, nodes.peer, desc.columnFamily);
-        task.syncComplete(message.payload.success, message.payload.summaries);
+        task.syncComplete(message.payload);
     }
 
     @VisibleForTesting
-    Map<Pair<RepairJobDesc, SyncNodePair>, CompletableRemoteSyncTask> getSyncingTasks()
+    Map<SyncTask.SyncTaskId, CompletableRemoteSyncTask> getSyncingTasks()
     {
         return Collections.unmodifiableMap(syncingTasks);
     }

@@ -63,7 +63,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -192,9 +191,8 @@ public class CassandraStreamReader implements IStreamReader
         ILifecycleTransaction txn = createTxn();
 
         RangeAwareSSTableWriter writer;
-        if (session.streamOperation() == StreamOperation.TRACKED_TRANSFER)
+        if (cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable())
         {
-            Preconditions.checkState(cfs.metadata().replicationType().isTracked());
             writer = new RangeAwarePendingSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, coordinatorLogOffsets, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()), session.planId());
         }
         else

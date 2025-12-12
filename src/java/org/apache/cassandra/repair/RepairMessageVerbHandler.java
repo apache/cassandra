@@ -311,7 +311,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         logErrorAndSendFailureResponse("Unknown repair " + desc.parentSessionId, message);
                         return;
                     }
-                    SyncState state = new SyncState(ctx.clock(), desc, request.initiator, request.src, request.dst);
+                    SyncState state = new SyncState(ctx.clock(), desc, request.initiator, request.src, request.dst, request.transferId);
                     if (!register(message, participate, state,
                                   participate::register,
                                   participate::sync))
@@ -324,7 +324,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                        request.ranges,
                                                                        isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
                                                                        request.previewKind,
-                                                                       request.asymmetric);
+                                                                       request.asymmetric,
+                                                                       request.transferId);
                     task.run();
                     sendAck(message);
                 }

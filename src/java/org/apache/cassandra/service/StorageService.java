@@ -3188,7 +3188,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                 false                       // permit no quorum
         );
 
-        return new RepairCoordinator(this, cmd, options, keyspace);
+        return new RepairCoordinator(this, cmd, options, keyspace, ClusterMetadata.current().epoch);
     }
 
     private void tryRepairPaxosForTopologyChange(String reason)

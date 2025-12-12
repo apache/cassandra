@@ -236,7 +236,7 @@ public class SSTableImporter
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
             if (isTracked)
-                TrackedBulkTransfer.execute(cfs.keyspace.getName(), newSSTables);
+                MutationTrackingService.instance.executeTransfers(cfs.keyspace.getName(), newSSTables, ConsistencyLevel.ALL);
             else
                 cfs.getTracker().addSSTables(newSSTables);
 
@@ -252,17 +252,6 @@ public class SSTableImporter
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
         return failedDirectories;
-    }
-
-    /**
-     * TODO: Support user-defined consistency level for import, for import with replicas down
-     */
-    private static class TrackedBulkTransfer
-    {
-        private static void execute(String keyspace, Set<SSTableReader> sstables)
-        {
-            MutationTrackingService.instance.executeTransfers(keyspace, sstables, ConsistencyLevel.ALL);
-        }
     }
 
     /**

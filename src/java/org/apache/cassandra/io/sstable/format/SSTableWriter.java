@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -350,9 +351,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected final Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
-        // Migration from incremental repair to mutation tracking will be supported, but support for mixing
-        // incremental repair and mutation tracking is not planned
-        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+        // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces. 
+        boolean reconcile = txn.opType() != OperationType.STREAM;
+
+        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE && reconcile)
         {
             Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
             if (MutationTrackingService.instance.isDurablyReconciled(coordinatorLogOffsets))

@@ -87,11 +87,6 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
             this.bounds = bounds;
         }
 
-        private ActivatedTransfer(ShortMutationId id, Collection<SSTableReader> sstables)
-        {
-            this(id, covering(sstables));
-        }
-
         public static final IVersionedSerializer<ActivatedTransfer> serializer = new IVersionedSerializer<>()
         {
             @Override
@@ -151,7 +146,6 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
         transfers.removeIf(transfer -> transfer.id.offset() == offset);
     }
 
-    @VisibleForTesting
     public void add(ShortMutationId transferId, Bounds<Token> bounds)
     {
         transfers.add(new ActivatedTransfer(transferId, bounds));
@@ -159,7 +153,7 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
 
     public void add(ShortMutationId transferId, Collection<SSTableReader> sstables)
     {
-        transfers.add(new ActivatedTransfer(transferId, sstables));
+        transfers.add(new ActivatedTransfer(transferId, covering(sstables)));
     }
 
     public void addAll(ActivatedTransfers other)
@@ -192,7 +186,7 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
         return transfers.isEmpty();
     }
 
-    private static Bounds<Token> covering(Collection<SSTableReader> sstables)
+    public static Bounds<Token> covering(Collection<SSTableReader> sstables)
     {
         Preconditions.checkArgument(!sstables.isEmpty());
         Iterator<SSTableReader> iter = sstables.iterator();

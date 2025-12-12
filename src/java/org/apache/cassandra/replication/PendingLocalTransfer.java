@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -48,7 +49,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 /**
  * Represents a bulk data transfer received on a replica, from completion of streaming into the pending location,
  * through activation when it's made visible to reads. Pending transfers are identified by their streaming plan ID,
- * and made live by {@link TransferActivation} which associates the streaming plan with a transfer ID that can be
+ * and made live by {@link ActivationRequest} which associates the streaming plan with a transfer ID that can be
  * represented in mutation summaries.
  */
 public class PendingLocalTransfer
@@ -133,16 +134,16 @@ public class PendingLocalTransfer
      * preserve is a transfer is only added to the live set iff the transfer ID is present in its mutation summaries.
      * <p>
      * We don't validate checksums here, mostly because a transfer can be activated during a read, if one replica
-     * missed the TransferActivation. Transfers should not be pending for very long, and should be protected by
+     * missed the {@link ActivationRequest}. Transfers should not be pending for very long, and should be protected by
      * internode integrity checks provided by TLS.
      * <p>
      * Synchronized to prevent a single activation from running multiple times if requested during read reconciliation
      * and in the background via {@link ActiveLogReconciler}.
      */
-    public synchronized void activate(TransferActivation activation)
+    public synchronized boolean activate(ActivationRequest request, Bounds<Token> bounds)
     {
         if (activated)
-            return;
+            return false;
 
         Preconditions.checkState(isFullReplica());
 
@@ -152,21 +153,19 @@ public class PendingLocalTransfer
         Preconditions.checkNotNull(cfs);
         Preconditions.checkState(!sstables.isEmpty());
 
-        if (activation.isPrepare())
+        if (request.isPrepare())
         {
-            logger.info("{} Not adding SSTables to live set for dryRun {}", logPrefix(), activation);
-            return;
+            logger.info("{} Not adding SSTables to live set for dryRun {}", logPrefix(), request);
+            return false;
         }
 
         // Modify SSTables metadata to durably set transfer ID before importing
-        ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
-                                                    .addTransfer(activation.transferId, sstables)
-                                                    .build();
+        ImmutableCoordinatorLogOffsets logOffsets =
+            new ImmutableCoordinatorLogOffsets.Builder().addTransfer(request.transferId, bounds).build();
 
         // Ensure no lingering mutation IDs, only activation IDs
         for (SSTableReader sstable : sstables)
         {
-            Preconditions.checkState(sstable.getCoordinatorLogOffsets().mutations().isEmpty());
             try
             {
                 sstable.mutateCoordinatorLogOffsetsAndReload(logOffsets);
@@ -185,7 +184,7 @@ public class PendingLocalTransfer
 
         // Retain the original SSTables in pending/ dir on the coordinator, so future streams can get the originals, and
         // we don't need to isolate activated SSTables during compaction
-        boolean isCoordinator = activation.transferId.hostId == ClusterMetadata.current().myNodeId().id();
+        boolean isCoordinator = request.transferId.hostId == ClusterMetadata.current().myNodeId().id();
         logger.debug("{} {} pending SSTables for activation to {}", isCoordinator ? "Copying" : "Moving", logPrefix(), dst);
 
         dst.createFileIfNotExists();
@@ -210,7 +209,8 @@ public class PendingLocalTransfer
         long finishedActivation = currentTimeMillis();
         logger.info("{} Finished activating transfer {} in {} ms", logPrefix(), this, finishedActivation - startedActivation);
 
-        LocalTransfers.instance().scheduleCleanup();
+        TransferTrackingService.instance().scheduleCleanup();
+        return true;
     }
 
     @Override

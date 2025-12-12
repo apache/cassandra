@@ -20,6 +20,8 @@ package org.apache.cassandra.repair;
 import java.util.Collection;
 import java.util.Collections;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
@@ -32,6 +34,7 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.state.SyncState;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -65,7 +68,20 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public StreamingRepairTask(SharedContext ctx, SyncState state, RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, TimeUUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
+    @Nullable
+    private final ShortMutationId transferId;
+
+    public StreamingRepairTask(SharedContext ctx,
+                               SyncState state,
+                               RepairJobDesc desc,
+                               InetAddressAndPort initiator,
+                               InetAddressAndPort src,
+                               InetAddressAndPort dst,
+                               Collection<Range<Token>> ranges,
+                               TimeUUID pendingRepair,
+                               PreviewKind previewKind,
+                               boolean asymmetric,
+                               ShortMutationId transferId)
     {
         this.ctx = ctx;
         this.state = state;
@@ -77,6 +93,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         this.asymmetric = asymmetric;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+        this.transferId = transferId;
     }
 
     public void run()
@@ -120,7 +137,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     {
         logger.info("[repair #{}] streaming task succeed, returning response to {}", desc.sessionId, initiator);
         this.state.phase.success();
-        RepairMessage.sendMessageWithRetries(ctx, new SyncResponse(desc, src, dst, true, state.createSummaries()), SYNC_RSP, initiator);
+        RepairMessage.sendMessageWithRetries(ctx, new SyncResponse(desc, src, dst, true, state.createSummaries(), state.planId, transferId), SYNC_RSP, initiator);
     }
 
     /**
@@ -130,6 +147,6 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     public void onFailure(Throwable t)
     {
         this.state.phase.fail(t);
-        RepairMessage.sendMessageWithRetries(ctx, new SyncResponse(desc, src, dst, false, Collections.emptyList()), SYNC_RSP, initiator);
+        RepairMessage.sendMessageWithRetries(ctx, new SyncResponse(desc, src, dst, false, Collections.emptyList(), null, transferId), SYNC_RSP, initiator);
     }
 }

@@ -120,10 +120,8 @@ public class StreamPlan
         // TODO: add flag for fully reconciled data only if this is for a tracked keyspace
         session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
 
-        // Automatically include mutation logs for tracked keyspaces
-        if (isTrackedReplicationEnabled(keyspace)) {
+        if (includeMutationLogs(keyspace, session))
             session.addMutationLogRequest(keyspace, fullRanges, transientRanges);
-        }
 
         return this;
     }
@@ -140,15 +138,18 @@ public class StreamPlan
     public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, RangesAtEndpoint replicas, String... columnFamilies)
     {
         StreamSession session = coordinator.getOrCreateOutboundSession(to);
-
-        // Automatically include mutation logs for tracked keyspaces
-        ReconciledKeyspaceOffsets reconciledKeyspaceOffsets = isTrackedReplicationEnabled(keyspace)
+        ReconciledKeyspaceOffsets reconciledKeyspaceOffsets = includeMutationLogs(keyspace, session)
                                                               ? session.addMutationLogTransfer(keyspace, replicas)
                                                               : null;
 
         session.addTransferRanges(keyspace, replicas, Arrays.asList(columnFamilies), flushBeforeTransfer, reconciledKeyspaceOffsets);
 
         return this;
+    }
+
+    private boolean includeMutationLogs(String keyspace, StreamSession session)
+    {
+        return isTrackedReplicationEnabled(keyspace) && session.getStreamOperation() != StreamOperation.REPAIR;
     }
 
     /**

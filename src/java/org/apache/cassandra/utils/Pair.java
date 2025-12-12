@@ -69,4 +69,9 @@ public class Pair<T1, T2>
     {
         return new Pair<X, Y>(x, y);
     }
+
+    public Pair<T2, T1> reverse()
+    {
+        return new Pair<>(right, left);
+    }
 }

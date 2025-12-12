@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -32,7 +34,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
@@ -51,6 +55,9 @@ public class SyncRequest extends RepairMessage
     public final Collection<Range<Token>> ranges;
     public final PreviewKind previewKind;
     public final boolean asymmetric;
+    
+    @Nullable
+    public final ShortMutationId transferId;
 
    public SyncRequest(RepairJobDesc desc,
                       InetAddressAndPort initiator,
@@ -58,7 +65,8 @@ public class SyncRequest extends RepairMessage
                       InetAddressAndPort dst,
                       Collection<Range<Token>> ranges,
                       PreviewKind previewKind,
-                      boolean asymmetric)
+                      boolean asymmetric,
+                      ShortMutationId transferId)
    {
         super(desc);
         this.initiator = initiator;
@@ -67,6 +75,7 @@ public class SyncRequest extends RepairMessage
         this.ranges = ranges;
         this.previewKind = previewKind;
         this.asymmetric = asymmetric;
+        this.transferId = transferId;
     }
 
     @Override
@@ -81,13 +90,14 @@ public class SyncRequest extends RepairMessage
                dst.equals(req.dst) &&
                ranges.equals(req.ranges) &&
                previewKind == req.previewKind &&
-               asymmetric == req.asymmetric;
+               asymmetric == req.asymmetric &&
+               transferId == req.transferId;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(desc, initiator, src, dst, ranges, previewKind);
+        return Objects.hash(desc, initiator, src, dst, ranges, previewKind, transferId);
     }
 
     public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<SyncRequest>()
@@ -103,6 +113,13 @@ public class SyncRequest extends RepairMessage
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
             out.writeInt(message.previewKind.getSerializationVal());
             out.writeBoolean(message.asymmetric);
+
+            if (version >= MessagingService.Version.VERSION_61.value)
+            {
+                out.writeBoolean(message.transferId != null);
+                if (message.transferId != null)
+                    ShortMutationId.serializer.serialize(message.transferId, out, version);
+            }
         }
 
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
@@ -118,7 +135,12 @@ public class SyncRequest extends RepairMessage
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version));
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             boolean asymmetric = in.readBoolean();
-            return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric);
+
+            ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
+                                         ? ShortMutationId.serializer.deserialize(in, version)
+                                         : null;
+
+            return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric, transferId);
         }
 
         public long serializedSize(SyncRequest message, int version)
@@ -132,6 +154,14 @@ public class SyncRequest extends RepairMessage
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             size += TypeSizes.sizeof(message.asymmetric);
+
+            if (version >= MessagingService.Version.VERSION_61.value)
+            {
+                size += TypeSizes.sizeof(false);
+                if (message.transferId != null)
+                    size += ShortMutationId.serializer.serializedSize(message.transferId, version);
+            }
+
             return size;
         }
     };
@@ -146,6 +176,7 @@ public class SyncRequest extends RepairMessage
                 ", ranges=" + ranges +
                 ", previewKind=" + previewKind +
                 ", asymmetric=" + asymmetric +
+                ", transfer ID=" + transferId +
                 "} " + super.toString();
     }
 }

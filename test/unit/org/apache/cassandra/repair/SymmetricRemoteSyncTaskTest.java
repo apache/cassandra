@@ -42,7 +42,7 @@ public class SymmetricRemoteSyncTaskTest extends AbstractRepairTest
     {
         public InstrumentedSymmetricRemoteSyncTask(InetAddressAndPort e1, InetAddressAndPort e2)
         {
-            super(SharedContext.Global.instance, DESC, e1, e2, RANGE_LIST, PreviewKind.NONE);
+            super(SharedContext.Global.instance, DESC, e1, e2, RANGE_LIST, PreviewKind.NONE, null);
         }
 
         RepairMessage sentMessage = null;

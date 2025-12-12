@@ -156,7 +156,7 @@ public class ActivatedTransfersTest
         ShortMutationId id1 = id(1, 0);
         transfers.add(id1, new Bounds<>(tk(400), tk(500))); // [400, 500]
 
-        final long min = Murmur3Partitioner.instance.getMinimumToken().token;
+        final long min = Murmur3Partitioner.instance.getMinimumToken().token();
 
         // Token
         assertNoIntersection(transfers, tk(0));

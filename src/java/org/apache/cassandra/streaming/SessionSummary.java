@@ -57,6 +57,7 @@ public class SessionSummary
         this.sendingSummaries = sendingSummaries;
     }
 
+    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
@@ -70,6 +71,7 @@ public class SessionSummary
         return sendingSummaries.equals(summary.sendingSummaries);
     }
 
+    @Override
     public int hashCode()
     {
         int result = coordinator.hashCode();
@@ -77,6 +79,17 @@ public class SessionSummary
         result = 31 * result + receivingSummaries.hashCode();
         result = 31 * result + sendingSummaries.hashCode();
         return result;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SessionSummary{" +
+               "coordinator=" + coordinator +
+               ", peer=" + peer +
+               ", receivingSummaries=" + receivingSummaries +
+               ", sendingSummaries=" + sendingSummaries +
+               '}';
     }
 
     public static IPartitionerDependentSerializer<SessionSummary> serializer = new IPartitionerDependentSerializer<SessionSummary>()

@@ -34,8 +34,8 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -151,9 +151,9 @@ public class UnreconciledMutations
             statesSet.remove(state);
     }
 
-    public void activatedTransfer(ShortMutationId id, Collection<SSTableReader> sstables)
+    public void activatedTransfer(ShortMutationId id, Bounds<Token> bounds)
     {
-        transfers.add(id, sstables);
+        transfers.add(id, bounds);
     }
 
     public UnreconciledMutations copy()
@@ -274,10 +274,10 @@ public class UnreconciledMutations
                     result.addDirectly(mutation);
                     continue;
                 }
-                CoordinatedTransfer transfer = LocalTransfers.instance().getActivatedTransfer(id);
+                CoordinatedTransfer transfer = TransferTrackingService.instance().getActivatedTransfer(id);
                 if (transfer != null)
                 {
-                    result.transfers.add(transfer.id(), transfer.sstables);
+                    result.transfers.add(transfer.id(), transfer.bounds());
                     continue;
                 }
 

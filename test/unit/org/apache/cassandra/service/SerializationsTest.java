@@ -193,7 +193,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
-        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE, false);
+        // TODO: Do we want to test with a transfer ID?
+        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE, false, null);
         testRepairMessageWrite("service.SyncRequest.bin", SyncRequest.serializer, message);
     }
 
@@ -229,9 +230,9 @@ public class SerializationsTest extends AbstractSerializationsTester
                                          Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 5, 100)),
                                          Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 500, 10))
         ));
-        SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
+        SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries, RANDOM_UUID, null);
         // sync fail
-        SyncResponse fail = new SyncResponse(DESC, src, dest, false, emptyList());
+        SyncResponse fail = new SyncResponse(DESC, src, dest, false, emptyList(), null, null);
 
         testRepairMessageWrite("service.SyncComplete.bin", SyncResponse.serializer, success, fail);
     }
