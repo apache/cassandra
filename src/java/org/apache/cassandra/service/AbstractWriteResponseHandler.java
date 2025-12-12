@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Supplier;
@@ -59,11 +60,29 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCounterWriteRpcTimeout;
 import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.isTrackCounterWriteMetricsEnabled;
 import static org.apache.cassandra.db.WriteType.COUNTER;
 import static org.apache.cassandra.schema.Schema.instance;
 import static org.apache.cassandra.service.StorageProxy.WritePerformer;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.locator.Replicas.countInOurDc;
+
+import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.service.StorageProxy.WritePerformer;
+import org.apache.cassandra.utils.NoSpamLogger;
+
+/**
+ * Enum to track which path a counter write mutation took.
+ * Used for distinguishing metrics between coordinator and leader paths.
+ * NONE is used for non-counter writes or when path is not tracked.
+ */
+enum CounterWritePath
+{
+    COORDINATOR_WAIT_FOR_REPLICAS,
+    COORDINATOR_WAIT_FOR_LEADER,
+    LEADER_WAIT_FOR_REPLICAS,
+    NONE
+}
 
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
 {
@@ -80,8 +99,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
+    private final Map<InetAddressAndPort, Long> successfulAcksByEndpoint = new ConcurrentHashMap<>();
     private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
+    protected CounterWritePath counterWritePath = CounterWritePath.NONE;
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -112,6 +133,133 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         this.requestTime = requestTime;
     }
 
+    /**
+     * Set the path taken by a counter write mutation.
+     * Used for tracking path-specific metrics on timeouts.
+     */
+    public void setCounterWritePath(CounterWritePath path)
+    {
+        this.counterWritePath = path;
+    }
+
+    /**
+     * Track a successful response from an endpoint.
+     * Called when onResponse() successfully processes a response from a replica.
+     */
+    protected void trackSuccessfulAck(InetAddressAndPort endpoint)
+    {
+        successfulAcksByEndpoint.put(endpoint, nanoTime());
+    }
+
+    /**
+     * Record counter write metrics and log details by path for timeouts and failures.
+     * Marks the appropriate timeout or failure metric based on the counter write path,
+     * and logs comprehensive debug information about the failure/timeout.
+     *
+     * @param timeoutNanos Timeout value in nanoseconds (0 for explicit failures, >0 for timeouts)
+     * @param isTimeout true if this is a timeout, false if it's an explicit failure
+     */
+    private void recordCounterWriteMetricsByPath(long timeoutNanos, boolean isTimeout)
+    {
+        if (writeType != COUNTER || !isTrackCounterWriteMetricsEnabled())
+            return;
+
+        // Log detailed debug info for counter write failures/timeouts
+        logCounterWriteFailureDetails(timeoutNanos, isTimeout);
+
+        switch (counterWritePath)
+        {
+            case COORDINATOR_WAIT_FOR_REPLICAS:
+                if (isTimeout)
+                    ClientMetrics.instance.counterWriteCoordinatorWaitForReplicasTimeouts.mark();
+                else
+                    ClientMetrics.instance.counterWriteCoordinatorWaitForReplicasFailures.mark();
+                break;
+            case COORDINATOR_WAIT_FOR_LEADER:
+                if (isTimeout)
+                    ClientMetrics.instance.counterWriteCoordinatorWaitForLeaderTimeouts.mark();
+                else
+                    ClientMetrics.instance.counterWriteCoordinatorWaitForLeaderFailures.mark();
+                break;
+            case LEADER_WAIT_FOR_REPLICAS:
+                if (isTimeout)
+                    ClientMetrics.instance.counterWriteLeaderWaitForReplicasTimeouts.mark();
+                else
+                    ClientMetrics.instance.counterWriteLeaderWaitForReplicasFailures.mark();
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Log detailed debug information for counter write failures and timeouts.
+     * This provides visibility into which replicas acked vs. didn't, consistency level, etc.
+     *
+     * @param timeoutNanos Timeout value in nanoseconds (0 for explicit failures, >0 for timeouts)
+     * @param isTimeout    true if this is a timeout, false if it's an explicit failure
+     */
+    private void logCounterWriteFailureDetails(long timeoutNanos, boolean isTimeout)
+    {
+        int blockedFor = blockFor();
+        int acks = ackCount();
+        int totalFailures = failures;
+
+        // Build descriptive strings for logging
+        String replicasStr = replicaPlan.contacts().stream()
+                .map(r -> r.endpoint().toString())
+                .collect(toList())
+                .toString();
+
+        // Calculate endpoints that acked successfully (tracked in successfulAcksByEndpoint)
+        String ackedEndpointsStr = successfulAcksByEndpoint.keySet().stream()
+                .map(Object::toString)
+                .collect(toList())
+                .toString();
+
+        // Calculate endpoints that failed (have explicit failure reasons)
+        String failedEndpointsStr = failureReasonByEndpoint.keySet().stream()
+                .map(Object::toString)
+                .collect(toList())
+                .toString();
+
+        // Calculate endpoints that never responded (not in either map)
+        String silentTimeoutEndpointsStr = replicaPlan.contacts().stream()
+                .filter(replica -> !successfulAcksByEndpoint.containsKey(replica.endpoint()) &&
+                        !failureReasonByEndpoint.containsKey(replica.endpoint()))
+                .map(replica -> replica.endpoint().toString())
+                .collect(toList())
+                .toString();
+
+        String failuresStr = failureReasonByEndpoint.isEmpty()
+                ? "none"
+                : failureReasonByEndpoint.entrySet().stream()
+                .map(e -> e.getKey() + ":" + e.getValue())
+                .collect(toList())
+                .toString();
+
+        String pathLabel = counterWritePath.toString();
+        String pathInfo = String.format("[%s] %s_replicas=%s",
+                pathLabel,
+                pathLabel.toLowerCase(),
+                replicasStr);
+
+        String eventType = isTimeout ? "Counter write TIMEOUT" : "Counter write FAILURE";
+
+        NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, 1, TimeUnit.SECONDS,
+                "{}: {} cl={} blockFor={} acked={} ackedEndpoints={} failedEndpoints={} silentTimeoutEndpoints={} failureReasons={} timeoutMs={}",
+                eventType,
+                pathInfo,
+                replicaPlan.consistencyLevel(),
+                blockedFor,
+                acks,
+                ackedEndpointsStr,
+                failedEndpointsStr,
+                silentTimeoutEndpointsStr,
+                failuresStr,
+                timeoutNanos / 1_000_000);
+    }
+
     public void get() throws WriteTimeoutException, WriteFailureException
     {
         long timeoutNanos = currentTimeoutNanos();
@@ -128,6 +276,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (!success)
         {
+            recordCounterWriteMetricsByPath(timeoutNanos, true);
             int blockedFor = blockFor();
             int acks = ackCount();
             // It's pretty unlikely, but we can race between exiting await above and here, so
@@ -140,6 +289,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (blockFor() + failures > candidateReplicaCount())
         {
+            recordCounterWriteMetricsByPath(0, false);
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
         }
     }

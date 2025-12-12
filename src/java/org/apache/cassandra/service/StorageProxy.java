@@ -125,6 +125,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.CASClientRequestMetrics;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -169,6 +170,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.commons.lang3.StringUtils.join;
 
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
+import static org.apache.cassandra.metrics.ClientMetrics.instance;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
@@ -1543,8 +1545,27 @@ public class StorageProxy implements StorageProxyMBean
         AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, mutation.hintOnFailure(), requestTime);
 
+        trackCounterWritePath(writeType, performer, responseHandler);
+
         performer.apply(mutation, replicaPlan, responseHandler, localDataCenter, requestTime);
         return responseHandler;
+    }
+
+    private static void trackCounterWritePath(WriteType writeType, WritePerformer performer, AbstractWriteResponseHandler<IMutation> responseHandler)
+    {
+        if (writeType == WriteType.COUNTER && DatabaseDescriptor.isTrackCounterWriteMetricsEnabled())
+        {
+            if (performer == counterWritePerformer)
+            {
+                ClientMetrics.instance.counterWriteLeaderWaitForReplicasAttempts.mark();
+                responseHandler.setCounterWritePath(CounterWritePath.LEADER_WAIT_FOR_REPLICAS);
+            }
+            else if (performer == counterWriteOnCoordinatorPerformer)
+            {
+                ClientMetrics.instance.counterWriteCoordinatorWaitForReplicasAttempts.mark();
+                responseHandler.setCounterWritePath(CounterWritePath.COORDINATOR_WAIT_FOR_REPLICAS);
+            }
+        }
     }
 
     // same as performWrites except does not initiate writes (but does perform availability checks).
@@ -1893,6 +1914,12 @@ public class StorageProxy implements StorageProxyMBean
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(ReplicaPlans.forForwardingCounterWrite(keyspace, tk, replica),
                                                                                                  WriteType.COUNTER, null, requestTime);
+            // Mark this as a leader path since the write will execute on the leader replica
+            if (DatabaseDescriptor.isTrackCounterWriteMetricsEnabled())
+            {
+                ClientMetrics.instance.counterWriteCoordinatorWaitForLeaderAttempts.mark();
+                responseHandler.setCounterWritePath(CounterWritePath.COORDINATOR_WAIT_FOR_LEADER);
+            }
 
             Tracing.trace("Enqueuing counter update to {}", replica);
 
@@ -2418,7 +2445,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (!command.isTrackingWarnings())
                         throw e;
-                    
+
                     response = command.createEmptyResponse();
                     readRejected = true;
                 }

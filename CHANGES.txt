@@ -1,4 +1,5 @@
 Unreleased
+ * [CAAS-479] Add logs and metrics for Counter mutation
  * [CAAS-1] Integrate continuous profiling
  * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)
  * [SO-58916] Flaky test fix for org.apache.cassandra.distributed.test.MVBackfillHappyPathTest

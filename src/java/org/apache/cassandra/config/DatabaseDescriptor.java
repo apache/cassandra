@@ -1980,6 +1980,16 @@ public class DatabaseDescriptor
         conf.counter_write_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static boolean isTrackCounterWriteMetricsEnabled()
+    {
+        return conf.track_counter_write_metrics;
+    }
+
+    public static void setTrackCounterWriteMetricsEnabled(boolean enabled)
+    {
+        conf.track_counter_write_metrics = enabled;
+    }
+
     public static long getCasContentionTimeout(TimeUnit unit)
     {
         return conf.cas_contention_timeout.to(unit);

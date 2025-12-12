@@ -64,6 +64,21 @@ public final class ClientMetrics
     private Timer queueTime;
     public Meter hasNoTransportQueueCapacity;
 
+    // Counter write metrics - track entry attempts for each path
+    public Meter counterWriteCoordinatorWaitForReplicasAttempts;
+    public Meter counterWriteCoordinatorWaitForLeaderAttempts;
+    public Meter counterWriteLeaderWaitForReplicasAttempts;
+
+    // Counter write metrics - track timeouts by path
+    public Meter counterWriteCoordinatorWaitForReplicasTimeouts;
+    public Meter counterWriteCoordinatorWaitForLeaderTimeouts;
+    public Meter counterWriteLeaderWaitForReplicasTimeouts;
+
+    // Counter write metrics - track failures by path
+    public Meter counterWriteCoordinatorWaitForReplicasFailures;
+    public Meter counterWriteCoordinatorWaitForLeaderFailures;
+    public Meter counterWriteLeaderWaitForReplicasFailures;
+
     private ClientMetrics()
     {
     }
@@ -156,6 +171,17 @@ public final class ClientMetrics
         protocolException = registerMeter("ProtocolException");
         unknownException = registerMeter("UnknownException");
         queueTime = registerTimer("Queued");
+
+        counterWriteCoordinatorWaitForReplicasTimeouts = registerMeter("CounterWriteCoordinatorWaitForReplicasTimeouts");
+        counterWriteCoordinatorWaitForLeaderTimeouts = registerMeter("CounterWriteCoordinatorWaitForLeaderTimeouts");
+        counterWriteLeaderWaitForReplicasTimeouts = registerMeter("CounterWriteLeaderWaitForReplicasTimeouts");
+        counterWriteCoordinatorWaitForReplicasFailures = registerMeter("CounterWriteCoordinatorWaitForReplicasFailures");
+        counterWriteCoordinatorWaitForLeaderFailures = registerMeter("CounterWriteCoordinatorWaitForLeaderFailures");
+        counterWriteLeaderWaitForReplicasFailures = registerMeter("CounterWriteLeaderWaitForReplicasFailures");
+
+        counterWriteCoordinatorWaitForReplicasAttempts = registerMeter("CounterWriteCoordinatorWaitForReplicasAttempts");
+        counterWriteCoordinatorWaitForLeaderAttempts = registerMeter("CounterWriteCoordinatorWaitForLeaderAttempts");
+        counterWriteLeaderWaitForReplicasAttempts = registerMeter("CounterWriteLeaderWaitForReplicasAttempts");
 
         initialized = true;
     }

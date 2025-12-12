@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.isTrackCounterWriteMetricsEnabled;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
@@ -57,6 +60,9 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public void onResponse(Message<T> m)
     {
+        // Track successful ack from this endpoint for counter writes (for detailed logging on timeout/failure)
+        trackCounterWriteAck(m);
+
         // Only decrement if we're waiting for this response
         // if m is null, it means the response is from local
         if (m == null || waitingFor(m.from()))
@@ -73,5 +79,24 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     protected int ackCount()
     {
         return blockFor() - responses;
+    }
+
+    /**
+     * Track successful ack from endpoint for counter writes to enable detailed logging on timeout/failure.
+     */
+    private void trackCounterWriteAck(Message<T> m)
+    {
+        if (writeType == WriteType.COUNTER && isTrackCounterWriteMetricsEnabled())
+        {
+            if (m == null)
+            {
+                // Local response - track with FBUtilities.getBroadcastAddressAndPort() or similar
+                trackSuccessfulAck(FBUtilities.getBroadcastAddressAndPort());
+            }
+            else if (m.from() != null)
+            {
+                trackSuccessfulAck(m.from());
+            }
+        }
     }
 }
