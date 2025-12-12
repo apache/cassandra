@@ -111,7 +111,6 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -672,10 +671,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         assert !cfs.isIndex();
         StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
-        boolean skipSaiCheck = indexGroup == null || SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName());
+        boolean skipSaiCheck = indexGroup == null;
         if (options.onlySai && skipSaiCheck)
         {
-            logger.info("Skipping table {} during SAI-only verify because system keyspace or no SAI index.", cfs.getTableName());
+            logger.info("Skipping table {} during SAI-only verify because it has no SAI indexes.", cfs.getTableName());
             return AllSSTableOpStatus.SUCCESSFUL;
 
         }
@@ -1506,12 +1505,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
 
         StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
-        boolean skipSaiCheck = indexGroup == null || SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName());
+        boolean skipSaiCheck = indexGroup == null;
 
-        // If this table shouldn’t be verified, we skip early
+        // Skip early if no SAI indexes on table
         if (options.onlySai && skipSaiCheck)
         {
-            logger.info("Skipping SAI validation for table {} (system keyspace or no SAI index).", cfs.getTableName());
+            logger.info("Skipping SAI validation for table {} because it has no SAI indexes.", cfs.getTableName());
             return;
         }
 
@@ -1519,7 +1518,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         if (!options.onlySai)
         {
-            try(IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
             {
                 verifyInfo = verifier.getVerifyInfo();
                 activeCompactions.beginCompaction(verifyInfo);
@@ -1536,7 +1535,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         {
             cfs.indexManager.validateSSTableAttachedIndexes(Collections.singleton(sstable), true, true);
         }
-
     }
 
     /**

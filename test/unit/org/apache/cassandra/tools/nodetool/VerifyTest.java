@@ -34,6 +34,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertFalse;
@@ -120,8 +121,9 @@ public class VerifyTest extends CQLTester
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
 
         // Both --sai-only and --include-sai should fail
-        invokeNodetool("verify", "--force", "--sai-only", "--include-sai", keyspace(), currentTable())
-        .asserts().failure();
+        ToolRunner.ToolResult result = invokeNodetool("verify", "--force", "--sai-only", "--include-sai", keyspace(), currentTable());
+        result.asserts().failure();
+        result.getStdout().contains("Cannot specify both --sai-only and --include-sai");
     }
 
     @Test
@@ -162,8 +164,8 @@ public class VerifyTest extends CQLTester
             throw new RuntimeException(e);
         }
 
-        invokeNodetool("verify", "--force", "--sai-only", keyspace(), currentTable()).asserts().failure();
-
-        invokeNodetool("verify", "--force", "--include-sai", keyspace(), currentTable()).asserts().failure();
+        invokeNodetool("verify", "--force", keyspace(), currentTable()).asserts().success();
+        invokeNodetool("verify", "--force", "--sai-only", keyspace(), currentTable()).asserts().failure().errorContains("file truncated");
+        invokeNodetool("verify", "--force", "--include-sai", keyspace(), currentTable()).asserts().failure().errorContains("file truncated");
     }
 }
