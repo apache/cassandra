@@ -34,4 +34,10 @@ public final class HeapCloner extends ByteBufferCloner
     {
         return ByteBuffer.allocate(size);
     }
+
+    @Override
+    public boolean isContextAwareCloningSupported()
+    {
+        return false;
+    }
 }

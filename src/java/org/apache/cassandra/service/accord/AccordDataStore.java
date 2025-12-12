@@ -26,10 +26,10 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.local.cfk.CommandsForKey;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
+import accord.utils.UnhandledEnum;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.Schema;
@@ -40,21 +40,13 @@ public class AccordDataStore implements DataStore
     private static final Logger logger = LoggerFactory.getLogger(AccordDataStore.class);
     enum FlushListenerKey { KEY }
 
-    @Override
-    public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
-    {
-        AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
-        coordinator.start();
-        return coordinator.result();
-    }
-
     /**
      * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
      * This is used to gate journal cleanup, since we skip the CommitLog for applying to the data table.
      */
     public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
     {
-        if (!CommandsForKey.reportLinearizabilityViolations())
+        if (commandStore.node().isReplaying())
             return;
 
         logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
@@ -93,6 +85,34 @@ public class AccordDataStore implements DataStore
             }
 
             prev = cfs;
+        }
+    }
+
+    @Override
+    public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback, FetchKind kind)
+    {
+        switch (kind)
+        {
+            default: throw new UnhandledEnum(kind);
+            case Image:
+            {
+                AccordFetchCoordinator coordinator;
+                try
+                {
+                    coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+                }
+                catch (Throwable t)
+                {
+                    return new FetchResult.Failure(t);
+                }
+
+                coordinator.start();
+                return coordinator.result();
+            }
+            case Sync:
+            {
+                throw new UnsupportedOperationException();
+            }
         }
     }
 }

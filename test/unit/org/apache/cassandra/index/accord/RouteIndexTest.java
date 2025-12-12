@@ -30,6 +30,8 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+
+import accord.topology.EpochReady;
 import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
@@ -238,7 +240,7 @@ public class RouteIndexTest extends CQLTester
             this.storeId = storeId;
             this.txnId = txnId;
             this.saveStatus = saveStatus;
-            this.participants = StoreParticipants.all(route);
+            this.participants = StoreParticipants.all(route, saveStatus);
         }
 
         @Override
@@ -503,7 +505,7 @@ public class RouteIndexTest extends CQLTester
                 storeRangesForEpochs.put(i, new RangesForEpoch(1, Ranges.of(TokenRange.fullRange(tableId, getPartitioner()))));
 
             accordService = startAccord();
-            accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
+            accordService.epochReady(ClusterMetadata.current().epoch, EpochReady::reads).awaitUninterruptibly();
 
             minDecidedIdNull = rs.nextFloat();
             txnWriteFrequency = rs.pickInt(1, // every txn is a Write
@@ -519,7 +521,8 @@ public class RouteIndexTest extends CQLTester
             AccordService.MetadataChangeListener.instance.resetForTesting(metadata);
             NodeId tcmNodeId = metadata.myNodeId();
             AccordService.unsafeSetNewAccordService(null);
-            return AccordService.startup(tcmNodeId);
+            AccordService.localStartup(tcmNodeId);
+            return AccordService.distributedStartup();
         }
 
         TxnId nextTxnId(Domain domain)

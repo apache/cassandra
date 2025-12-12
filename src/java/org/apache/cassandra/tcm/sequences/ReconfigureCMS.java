@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -198,7 +199,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         {
             String message = "Some data streaming failed. Use nodetool to check CMS reconfiguration state and resume. " +
                              "For more, see `nodetool help cms reconfigure`.";
-            logger.warn(message);
+            logger.warn(message, t);
             return SequenceState.error(new RuntimeException(message));
         }
     }
@@ -344,10 +345,10 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         // overlapping quorums invariant holds.
 
         Retry retry = Retry.withNoTimeLimit(TCMMetrics.instance.repairPaxosTopologyRetries);
-        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance()
-                                                                 .repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                                                    Collections.singletonList(entireRange),
-                                                                                                    "CMS reconfiguration");
+        List<Supplier<Future<?>>> remaining = Lists.newArrayList(ActiveRepairService.instance()
+                                                                                    .repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                                                                                       Collections.singletonList(entireRange),
+                                                                                                                       "CMS reconfiguration"));
 
         while (true)
         {

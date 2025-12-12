@@ -27,19 +27,15 @@ import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
-import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
-import accord.primitives.Range;
-import accord.topology.Topology;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.AccordSpec.QueueShardModel;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
-import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueShardCount;
@@ -71,6 +67,14 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         maxQueuedRangeLoads = DatabaseDescriptor.getAccordMaxQueuedRangeLoadCount();
         shrinkingOn = DatabaseDescriptor.getAccordCacheShrinkingOn();
         refreshCapacities();
+        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+            for (AccordExecutor executor : executors)
+            {
+                executor.executeDirectlyWithLock(() -> {
+                    executor.cacheExclusive().processNoEvictQueue();
+                });
+            }
+        }, 1L, 1L, TimeUnit.SECONDS);
     }
 
     static Factory factory()
@@ -113,30 +117,10 @@ public class AccordCommandStores extends CommandStores implements CacheSize
     }
 
     @Override
-    protected boolean shouldBootstrap(Node node, Topology previous, Topology updated, Range range)
-    {
-        if (!super.shouldBootstrap(node, previous, updated, range))
-            return false;
-        // we see new ranges when a new keyspace is added, so avoid bootstrap in these cases
-        return contains(previous, ((TokenKey)  range.start()).table());
-    }
-
-    @Override
     public SequentialAsyncExecutor someSequentialExecutor()
     {
         int idx = ((int) Thread.currentThread().getId()) & mask;
         return executors[idx].newSequentialExecutor();
-    }
-
-    private static boolean contains(Topology previous, TableId searchTable)
-    {
-        for (Range range : previous.ranges())
-        {
-            TableId table = ((TokenKey)  range.start()).table();
-            if (table.equals(searchTable))
-                return true;
-        }
-        return false;
     }
 
     public synchronized void setCapacity(long bytes)
@@ -216,7 +200,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         return Arrays.asList(executors.clone());
     }
 
-    public void waitForQuiescense()
+    public void waitForQuiescence()
     {
         for (AccordExecutor executor : this.executors)
             executor.waitForQuiescence();
@@ -229,6 +213,9 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         for (AccordExecutor executor : executors)
         {
             executor.shutdown();
+        }
+        for (AccordExecutor executor : executors)
+        {
             try
             {
                 executor.awaitTermination(1, TimeUnit.MINUTES);

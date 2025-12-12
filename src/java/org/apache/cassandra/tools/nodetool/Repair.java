@@ -117,6 +117,9 @@ public class Repair extends AbstractCommand
     @Option(paramLabel = "accord-only", names = { "-accord-only", "--accord-only" }, description = "If the --accord-only flag is included, no table data is repaired, only accord operations..")
     private boolean accordOnly = false;
 
+    @Option(paramLabel = "permit-no-quorum", names = { "-permit-no-quorum", "--permit-no-quorum" }, description = "If the --permit-no-quorum flag is included, accord repair is permitted to proceed without a quorum, including only the specified nodes")
+    private boolean permitNoQuorum = false;
+
     @Option(paramLabel = "skip-accord", names = { "-skip-accord", "--skip-accord" }, description = "If the --skip-accord flag is included, the Accord repair step is skipped. Accord repair is also skipped for preview repairs.")
     private boolean skipAccord = false;
 
@@ -202,6 +205,7 @@ public class Repair extends AbstractCommand
         checkArgument(!(skipAccord && accordOnly), "Can't specify both skip-accord and accord-only");
         boolean repairAccord = !skipAccord && !paxosOnly && getPreviewKind() == PreviewKind.NONE;
         options.put(RepairOption.REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
+        options.put(RepairOption.PERMIT_NO_QUORUM_KEY, Boolean.toString(permitNoQuorum));
         boolean repairData = false;
         if (getPreviewKind() == PreviewKind.NONE)
         {

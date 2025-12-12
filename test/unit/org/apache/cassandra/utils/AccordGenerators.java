@@ -63,12 +63,13 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.topology.TopologyManager;
+import accord.topology.TopologyRange;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.ReducingRangeMap;
+import accord.utils.SimpleBitSets;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
 import accord.utils.TriFunction;
@@ -90,7 +91,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
-import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
+import static accord.local.RedundantStatus.Property.UNREADY;
 import static accord.local.RedundantStatus.SomeStatus.LOCALLY_APPLIED_ONLY;
 import static accord.local.RedundantStatus.SomeStatus.LOCALLY_WITNESSED_ONLY;
 import static accord.local.RedundantStatus.SomeStatus.SHARD_APPLIED_ONLY;
@@ -276,7 +277,7 @@ public class AccordGenerators
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 builder.partialDeps(partialDeps);
 
-            builder.setParticipants(StoreParticipants.all(route));
+            builder.setParticipants(StoreParticipants.all(route, saveStatus));
             builder.durability(NotDurable);
             if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
                 builder.executeAt(executeAt);
@@ -290,7 +291,7 @@ public class AccordGenerators
             if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))
             {
                 if (txnId.is(Write))
-                    builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)));
+                    builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
                 builder.result(new TxnData());
             }
             return builder;
@@ -345,8 +346,8 @@ public class AccordGenerators
                     else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
 
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)) : null, new TxnData(), txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)) : null, new TxnData(), null);
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), txnId);
+                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), null);
 
                 case Erased:
                 case Vestigial:
@@ -601,9 +602,9 @@ public class AccordGenerators
             if (rs.nextBoolean())
                 bounds.add(Bounds.create(range, txnIdGen.next(rs).addFlag(SHARD_BOUND), oneSlow(GC_BEFORE), null ));
             if (rs.nextBoolean())
-                bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(PRE_BOOTSTRAP), null ));
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(UNREADY), null ));
             if (rs.nextBoolean())
-                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new short[0], txnIdGen.next(rs)));
+                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new int[0], txnIdGen.next(rs)));
 
             Collections.shuffle(bounds);
             long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : rs.nextLong(0, Long.MAX_VALUE);
@@ -618,7 +619,7 @@ public class AccordGenerators
             }
 
             long startEpoch = rs.nextLong(Math.min(minEpoch, endEpoch));
-            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new short[0], null);
+            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new int[0], null);
             if (result == null)
                 return epochBounds;
             return Bounds.reduce(result, epochBounds);
@@ -740,13 +741,11 @@ public class AccordGenerators
         Gen<TinyEnumSet<Shard.Flag>> shardFlagsGen = shardFlagsGen();
         return rs -> {
             SortedArrayList<Node.Id> nodes = nodesGen.next(rs);
-            int maxFailures = Shard.maxToleratedFailures(nodes.size());
             int slowQuorumSize = Shard.slowQuorumSize(nodes.size());
             Set<Node.Id> fastPathElectorate = new TreeSet<>(select(nodes, nodes.size() == slowQuorumSize ? slowQuorumSize : rs.nextInt(slowQuorumSize, nodes.size())).next(rs));
             List<Node.Id> nonFastPath = new ArrayList<>(Sets.difference(new HashSet<>(nodes), fastPathElectorate));
             nonFastPath.sort(Comparator.naturalOrder());
-            Set<Node.Id> joining = new TreeSet<>(select(nonFastPath, nonFastPath.size() == 0 ? 0 : rs.nextInt(0, nonFastPath.size())).next(rs));
-            return Shard.create(range, nodes, fastPathElectorate, joining, shardFlagsGen.next(rs));
+            return Shard.create(range, nodes, fastPathElectorate, shardFlagsGen.next(rs));
         };
     }
 
@@ -770,13 +769,19 @@ public class AccordGenerators
         return rs -> {
             long epoch = epochGen.nextLong(rs);
             Ranges ranges = rangesGen.next(rs);
-            if (ranges.isEmpty()) return new Topology(epoch, new Shard[0]);
+            if (ranges.isEmpty())
+                return new Topology(epoch, new Shard[0]);
 
             List<Shard> shards = new ArrayList<>(ranges.size());
             for (Range range : ranges)
                 shards.add(shardGen(range).next(rs));
+
             //TODO (coverage): staleNodes
-            return new Topology(epoch, shards.toArray(Shard[]::new));
+            Topology topology = new Topology(epoch, shards.toArray(Shard[]::new));
+            SortedArrayList<Node.Id> nodes = topology.nodes();
+            int hardRemovedCount = Math.min(rs.nextBoolean() ? 0 : rs.nextInt(0, 3), nodes.size());
+            SortedArrayList<Node.Id> hardRemoved = SortedArrayList.copyUnsorted(select(nodes, hardRemovedCount).next(rs), Node.Id[]::new);
+            return topology.withHardRemoved(hardRemoved);
         };
     }
 
@@ -803,7 +808,7 @@ public class AccordGenerators
         };
     }
 
-    public static Gen<TopologyManager.TopologyRange> topologyRangeGen()
+    public static Gen<TopologyRange> topologyRangeGen()
     {
         Gen.LongGen epochGen = AccordGens.epochs();
         return rs -> {
@@ -819,7 +824,7 @@ public class AccordGenerators
             if (minEpoch == Timestamp.MAX_EPOCH)
             {
                 // not possible to have a list of values, so to simplfiy just return empty
-                return new TopologyManager.TopologyRange(Timestamp.MAX_EPOCH, Timestamp.MAX_EPOCH, -1, Collections.emptyList());
+                return new TopologyRange(Timestamp.MAX_EPOCH, Timestamp.MAX_EPOCH, -1, Collections.emptyList());
             }
             long epochsRemaining = Timestamp.MAX_EPOCH - minEpoch;
             int size = rs.nextInt(1, Math.toIntExact(Math.min(100, epochsRemaining)));
@@ -837,7 +842,7 @@ public class AccordGenerators
                     firstNonEmpty = t.epoch();
                 topologies.add(t);
             }
-            return new TopologyManager.TopologyRange(topologies.get(0).epoch(), topologies.get(topologies.size() - 1).epoch(), firstNonEmpty, topologies);
+            return new TopologyRange(topologies.get(0).epoch(), topologies.get(topologies.size() - 1).epoch(), firstNonEmpty, topologies);
         };
     }
 

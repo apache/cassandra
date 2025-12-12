@@ -56,20 +56,20 @@ public class RecoverySerializers
     static final int HAS_EXECUTE_AT_EPOCH = 0x2;
     static final int IS_FAST_PATH_DECIDED = 0x4;
     static final int SIZE_OF_FLAGS = VIntCoding.computeUnsignedVIntSize(HAS_ROUTE | HAS_EXECUTE_AT_EPOCH | IS_FAST_PATH_DECIDED);
-    public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<BeginRecovery>()
+    public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<>()
     {
         @Override
         public void serializeBody(BeginRecovery recover, DataOutputPlus out, Version version) throws IOException
         {
             CommandSerializers.partialTxn.serialize(recover.partialTxn, out, version);
-            int flags =   (recover.route != null ? HAS_ROUTE : 0)
-                        | (recover.executeAtOrTxnIdEpoch != recover.txnId.epoch() ? HAS_EXECUTE_AT_EPOCH : 0)
-                        | (recover.isFastPathDecided ? IS_FAST_PATH_DECIDED : 0);
+            int encodedFlags = (recover.route != null ? HAS_ROUTE : 0)
+                             | (recover.executeAtOrTxnIdEpoch != recover.txnId.epoch() ? HAS_EXECUTE_AT_EPOCH : 0)
+                             | recover.flags << 2;
             CommandSerializers.ballot.serialize(recover.ballot, out);
-            out.writeUnsignedVInt32(flags);
+            out.writeUnsignedVInt32(encodedFlags);
             if (recover.route != null)
                 KeySerializers.fullRoute.serialize(recover.route, out);
-            if (0 != (flags & HAS_EXECUTE_AT_EPOCH))
+            if (0 != (encodedFlags & HAS_EXECUTE_AT_EPOCH))
                 out.writeUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
         }
 
@@ -78,15 +78,15 @@ public class RecoverySerializers
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in);
-            int flags = in.readUnsignedVInt32();
+            int encodedFlags = in.readUnsignedVInt32();
             FullRoute<?> route = null;
-            if (0 != (flags & HAS_ROUTE))
+            if (0 != (encodedFlags & HAS_ROUTE))
                 route = KeySerializers.fullRoute.deserialize(in);
             long executeAtOrTxnIdEpoch = txnId.epoch();
-            if (0 != (flags & HAS_EXECUTE_AT_EPOCH))
+            if (0 != (encodedFlags & HAS_EXECUTE_AT_EPOCH))
                 executeAtOrTxnIdEpoch += in.readUnsignedVInt32();
-            boolean isFastPathDecided = 0 != (flags & IS_FAST_PATH_DECIDED);
-            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, partialTxn, ballot, route, executeAtOrTxnIdEpoch, isFastPathDecided);
+            int recoveryFlags = encodedFlags >>> 2;
+            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, partialTxn, ballot, route, executeAtOrTxnIdEpoch, recoveryFlags);
         }
 
         @Override

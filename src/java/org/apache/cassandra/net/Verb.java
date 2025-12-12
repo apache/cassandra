@@ -44,6 +44,9 @@ import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.db.TruncateVerbHandler;
+import org.apache.cassandra.db.compression.CompressionDictionaryUpdateMessage;
+import org.apache.cassandra.db.compression.CompressionDictionaryUpdateVerbHandler;
+import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
@@ -195,6 +198,8 @@ public enum Verb
 {
     MUTATION_RSP           (60,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     MUTATION_REQ           (0,   P3, writeTimeout,    MUTATION,          () -> Mutation.serializer,                  () -> MutationVerbHandler.instance,        MUTATION_RSP        ),
+    VIRTUAL_MUTATION_RSP   (200, P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
+    VIRTUAL_MUTATION_REQ   (201, P3, writeTimeout,    MUTATION,          () -> VirtualMutation.serializer,           () -> VirtualMutation.handler,             VIRTUAL_MUTATION_RSP),
     HINT_RSP               (61,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     HINT_REQ               (1,   P4, writeTimeout,    MUTATION,          () -> HintMessage.serializer,               () -> HintVerbHandler.instance,            HINT_RSP            ),
     READ_REPAIR_RSP        (62,  P1, writeTimeout,    REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
@@ -350,13 +355,13 @@ public enum Verb
     ACCORD_GET_LATEST_DEPS_REQ      (151, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(LatestDepsSerializers.request),        AccordService::requestHandlerOrNoop, ACCORD_GET_LATEST_DEPS_RSP),
     ACCORD_GET_MAX_CONFLICT_RSP     (152, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(GetMaxConflictSerializers.reply),      AccordService::responseHandlerOrNoop                                           ),
     ACCORD_GET_MAX_CONFLICT_REQ     (153, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(GetMaxConflictSerializers.request),    AccordService::requestHandlerOrNoop, ACCORD_GET_MAX_CONFLICT_RSP),
-    ACCORD_GET_DURABLE_BEFORE_RSP   (154, P2, readTimeout,  MISC,               () -> accordEmbedded(GetDurableBeforeSerializers.reply),    AccordService::responseHandlerOrNoop                                           ),
-    ACCORD_GET_DURABLE_BEFORE_REQ   (155, P2, readTimeout,  MISC,               () -> accordEmbedded(GetDurableBeforeSerializers.request),  AccordService::requestHandlerOrNoop, ACCORD_GET_DURABLE_BEFORE_RSP             ),
-    ACCORD_SET_SHARD_DURABLE_REQ    (156, P2, rpcTimeout,   MISC,               () -> accordEmbedded(SetDurableSerializers.shardDurable),   AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
-    ACCORD_SET_GLOBALLY_DURABLE_REQ (157, P2, rpcTimeout,   MISC,               () -> accordEmbedded(SetDurableSerializers.globallyDurable),AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
+    ACCORD_GET_DURABLE_BEFORE_RSP   (154, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(GetDurableBeforeSerializers.reply),    AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_GET_DURABLE_BEFORE_REQ   (155, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(GetDurableBeforeSerializers.request),  AccordService::requestHandlerOrNoop, ACCORD_GET_DURABLE_BEFORE_RSP             ),
+    ACCORD_SET_SHARD_DURABLE_REQ    (156, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(SetDurableSerializers.shardDurable),   AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
+    ACCORD_SET_GLOBALLY_DURABLE_REQ (157, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(SetDurableSerializers.globallyDurable),AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
 
     ACCORD_SYNC_NOTIFY_RSP          (158, P2, writeTimeout, MISC,               () -> accordEmbedded(EnumSerializer.simpleReply),           RESPONSE_HANDLER),
-    ACCORD_SYNC_NOTIFY_REQ          (159, P2, writeTimeout, MISC,               () -> accordEmbedded(Notification.serializer),          () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
+    ACCORD_SYNC_NOTIFY_REQ          (159, P2, writeTimeout, MISC,               () -> accordEmbedded(Notification.serializer),              () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
 
     CONSENSUS_KEY_MIGRATION         (160, P1, writeTimeout,  MISC,              () -> accordEmbedded(ConsensusKeyMigrationFinished.serializer),() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
@@ -371,6 +376,9 @@ public enum Verb
     ACCORD_FETCH_WATERMARKS_REQ     (168, P0, shortTimeout, FETCH_METADATA,     () -> NoPayload.serializer,                      AccordService::watermarkHandlerOrNoop,   ACCORD_FETCH_WATERMARKS_RSP),
     ACCORD_FETCH_TOPOLOGY_RSP       (169, P0, shortTimeout, FETCH_METADATA,     () -> accordEmbedded(FetchTopologies.responseSerializer),        RESPONSE_HANDLER),
     ACCORD_FETCH_TOPOLOGY_REQ       (170, P0, shortTimeout, FETCH_METADATA,     () -> accordEmbedded(FetchTopologies.serializer),                () -> FetchTopologies.handler,           ACCORD_FETCH_TOPOLOGY_RSP),
+
+    DICTIONARY_UPDATE_RSP           (171, P1, rpcTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                  RESPONSE_HANDLER                             ),
+    DICTIONARY_UPDATE_REQ           (172, P1, rpcTimeout, MISC, () -> CompressionDictionaryUpdateMessage.serializer, () -> CompressionDictionaryUpdateVerbHandler.instance, DICTIONARY_UPDATE_RSP ),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

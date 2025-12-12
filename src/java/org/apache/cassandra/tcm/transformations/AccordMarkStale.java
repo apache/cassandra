@@ -19,18 +19,16 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
 import accord.topology.Shard;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -70,10 +68,11 @@ public class AccordMarkStale implements Transformation
             if (!prev.directory.peerIds().contains(id))
                 return new Rejected(INVALID, String.format("Can not mark node %s stale as it is not present in the directory.", id));
 
-        Set<Node.Id> accordIds = ids.stream().map(AccordTopology::tcmIdToAccord).collect(Collectors.toSet());
+        SortedArrayList<Node.Id> staleIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
+        SortedArrayList<Node.Id> allStaleIds = prev.accordStaleReplicas.stale().with(staleIds);
 
-        for (Node.Id id : accordIds)
-            if (prev.accordStaleReplicas.contains(id))
+        for (Node.Id id : staleIds)
+            if (prev.accordStaleReplicas.stale().contains(id))
                 return new Rejected(INVALID, String.format("Can not mark node %s stale as it already is.", id));
 
         for (KeyspaceMetadata keyspace : prev.schema.getKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES))
@@ -82,24 +81,17 @@ public class AccordMarkStale implements Transformation
             
             for (AccordTopology.KeyspaceShard shard : shards)
             {
-                // We're trying to mark a node in this shard stale...
-                if (!Collections.disjoint(shard.nodes(), accordIds))
+                SortedArrayList<Node.Id> intersecting = allStaleIds.intersecting(shard.nodes());
+                if (intersecting.size() > Shard.maxToleratedFailures(shard.nodes().size()))
                 {
-                    int quorumSize = Shard.slowQuorumSize(shard.nodes().size());
-                    Set<Node.Id> nonStaleNodes = new HashSet<>(shard.nodes());
-                    nonStaleNodes.removeAll(accordIds);
-                    nonStaleNodes.removeAll(prev.accordStaleReplicas.ids());
-
-                    // ...but reject the transformation if this would bring us below quorum.
-                    if (nonStaleNodes.size() < quorumSize)
-                        return new Rejected(INVALID, String.format("Can not mark nodes %s stale as that would leave fewer than a quorum of nodes active for ranges %s in keyspace '%s'.",
-                                                                   accordIds, shard.ranges(), keyspace.name));
+                    return new Rejected(INVALID, String.format("Can not mark nodes %s stale as that would leave fewer than a quorum of nodes active for ranges %s in keyspace '%s'.",
+                                                               allStaleIds, shard.ranges(), keyspace.name));
                 }
             }
         }
 
         logger.info("Marking " + ids + " stale. They will no longer participate in durability status coordination...");
-        ClusterMetadata.Transformer next = prev.transformer().markStaleReplicas(accordIds);
+        ClusterMetadata.Transformer next = prev.transformer().markStaleReplicas(staleIds);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 

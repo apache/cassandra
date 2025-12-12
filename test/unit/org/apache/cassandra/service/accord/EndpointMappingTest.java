@@ -35,7 +35,7 @@ public class EndpointMappingTest
     {
         qt().forAll(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN, SourceDSL.integers().between(1, Integer.MAX_VALUE).map(Node.Id::new)).checkAssert((endpoint, id) -> {
             EndpointMapping mapping = EndpointMapping.builder(1).add(endpoint, id).build();
-            Assertions.assertThat(mapping.mappedEndpoint(id)).isEqualTo(endpoint);
+            Assertions.assertThat(mapping.mappedEndpointOrNull(id)).isEqualTo(endpoint);
         });
     }
 }

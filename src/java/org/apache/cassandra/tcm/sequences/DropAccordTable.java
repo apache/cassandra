@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.topology.EpochReady;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Keyspaces;
@@ -168,7 +169,7 @@ public class DropAccordTable extends MultiStepOperation<Epoch>
             return error(new IllegalStateException(String.format("Table %s is in an invalid state to be dropped", table)));
 
         long startNanos = nanoTime();
-        AccordService.instance().epochReady(metadata.epoch).get();
+        AccordService.instance().epochReady(metadata.epoch, EpochReady::reads).get();
         long epochEndNanos = nanoTime();
 
         // As of this writing this logic is based off ExclusiveSyncPoints which is a bit heavy weight for what is needed, this could cause timeouts for clusters that have a lot of data.

@@ -831,7 +831,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             return nodes.values().stream().filter(predicate);
         }
 
-        public void waitForQuiescense()
+        public void waitForQuiescence()
         {
             Epoch waitFor = ClusterMetadataService.instance().log().waitForHighestConsecutive().epoch;
             realCluster.get(1).acceptsOnInstance((Long epoch) -> {

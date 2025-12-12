@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
@@ -30,11 +31,13 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.CoordinatorEventListener;
+import accord.api.OwnershipEventListener;
 import accord.api.ReplicaEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
-import accord.api.TraceEventType;
+import accord.coordinate.Coordination;
+import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.SafeCommand;
@@ -42,6 +45,7 @@ import accord.local.SafeCommandStore;
 import accord.local.TimeService;
 import accord.messages.ReplyContext;
 import accord.primitives.Keys;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Status;
@@ -60,10 +64,11 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.net.ResponseContext;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -87,16 +92,19 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryJoinBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 // TODO (expected): merge with AccordService
-public class AccordAgent implements Agent
+public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
+    private static final ReplicaEventListener replicaEventListener = new AccordReplicaMetrics.Listener();
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
     public static void setOnFailedBarrier(BiConsumer<TxnId, Throwable> newOnFailedBarrier) { onFailedBarrier = newOnFailedBarrier; }
@@ -120,9 +128,15 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public @Nullable Tracing trace(TxnId txnId, TraceEventType eventType)
+    public @Nullable Tracing trace(TxnId txnId, Participants<?> participants, Coordination.CoordinationKind eventType)
     {
-        return tracing.trace(txnId, eventType);
+        return tracing.trace(txnId, participants, eventType);
+    }
+
+    @Override
+    public OwnershipEventListener ownershipEvents()
+    {
+        return this;
     }
 
     public void setNodeId(Node.Id id)
@@ -131,10 +145,48 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure)
+    public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Runnable fail, Throwable failure)
     {
-        logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);
-        AccordService.instance().scheduler().once(retry, retryBootstrap.computeWait(attempts, MICROSECONDS), MICROSECONDS);
+        RetryStrategy strategy;
+        String message;
+        SystemKeyspace.BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
+        switch (bootstrapState)
+        {
+            default: throw new UnhandledEnum(bootstrapState);
+            case IN_PROGRESS:
+            case NEEDS_BOOTSTRAP:
+                message = "Failed bootstrap (for joining) at {} for {}{}";
+                strategy = retryJoinBootstrap;
+                break;
+            case COMPLETED:
+            case DECOMMISSIONED:
+                message = "Failed bootstrap at {} for {}{}";
+                strategy = retryBootstrap;
+                break;
+        }
+        long retryDelayMicros = strategy.computeWait(attempts, MICROSECONDS);
+        if (retryDelayMicros < 0)
+        {
+            if (strategy == retryJoinBootstrap)
+            {
+                logger.error(message, phase, ranges, ". Retry strategy giving up. Not yet joined, so failing bootstrap.", failure);
+                fail.run();
+            }
+            else
+            {
+                // TODO (expected): we should be able to resume these without restarting (but for now we just shouldn't configure a retry limit)
+                // failing would prevent the node processing all epochs (as this feeds into the epoch readiness), so we just drop in this case
+                logger.error(message, phase, ranges, ". Retry strategy giving up. To resume you will need to restart.", failure);
+            }
+        }
+        else
+        {
+            logger.error(message, phase, ranges, ". Retrying in " + retryDelayMicros + "us.", failure);
+            AccordService.instance().scheduler().once(() -> {
+                logger.info("Retrying bootstrap of {}", ranges);
+                retry.run();
+            }, retryDelayMicros, MICROSECONDS);
+        }
     }
 
     @Override
@@ -143,24 +195,23 @@ public class AccordAgent implements Agent
         logger.error("This replica has become stale for {} as of {}", ranges, staleSince);
     }
 
-    @Override
-    public void onUncaughtException(Throwable t)
+    public static void handleException(Throwable t)
     {
-        handleUncaughtException(t);
-    }
-
-    public static void handleUncaughtException(Throwable t)
-    {
-        if (t instanceof RequestTimeoutException || t instanceof CancellationException)
+        if (t instanceof RequestTimeoutException || t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
             return;
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override
-    public void onCaughtException(Throwable t, String context)
+    public void onException(Throwable t)
     {
-        logger.warn(context, t);
-        JVMStabilityInspector.inspectThrowable(t);
+        handleException(t);
+    }
+
+    @Override
+    public void onException(Throwable t, String context)
+    {
+        handleException(t);
     }
 
     @Override
@@ -218,13 +269,13 @@ public class AccordAgent implements Agent
     @Override
     public CoordinatorEventListener coordinatorEvents()
     {
-        return AccordCoordinatorMetrics.Listener.instance;
+        return tracing;
     }
 
     @Override
     public ReplicaEventListener replicaEvents()
     {
-        return AccordReplicaMetrics.Listener.instance;
+        return replicaEventListener;
     }
 
     private static final long ONE_SECOND = SECONDS.toMicros(1L);
@@ -254,7 +305,7 @@ public class AccordAgent implements Agent
         }
 
         RoutingKey homeKey = command.route().homeKey();
-        Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
+        Shard shard = node.topology().active().forEpochIfKnown(homeKey, command.txnId().epoch());
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), ONE_SECOND, random);
         long delayMicros = Math.max(1, startTime - nowMicros);
@@ -332,6 +383,12 @@ public class AccordAgent implements Agent
     public long retrySyncPointDelay(Node node, int attempt, TimeUnit units)
     {
         return retrySyncPoint.computeWait(attempt, units);
+    }
+
+    @Override
+    public long retryTopologyDelay(Node node, int attempt, TimeUnit units)
+    {
+        return retryFetchTopology.computeWait(attempt, units);
     }
 
     @Override

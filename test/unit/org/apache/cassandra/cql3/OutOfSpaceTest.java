@@ -79,6 +79,7 @@ public class OutOfSpaceTest extends CQLTester
             flushAndExpectError();
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
+            Assert.assertFalse(killerForTests.calledShutDownOnLogger());
         }
         finally
         {

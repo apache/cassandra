@@ -46,7 +46,7 @@ public class ExceptionSerializer
 {
     public static class RemoteException extends RuntimeException
     {
-        private final String originalClass;
+        public final String originalClass;
 
         public RemoteException(String originalClass, String originalMessage, StackTraceElement[] stackTrace)
         {

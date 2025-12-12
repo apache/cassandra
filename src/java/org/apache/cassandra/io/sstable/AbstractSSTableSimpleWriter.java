@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.index.Index;
@@ -57,6 +58,8 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
     protected boolean openSSTableOnProduced = false;
+    protected CompressionDictionary compressionDictionary;
+    protected SSTable.Owner owner;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -79,6 +82,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected void addIndexGroup(Index.Group indexGroup)
     {
         this.indexGroups.add(indexGroup);
+    }
+
+    public void setCompressionDictionary(CompressionDictionary compressionDictionary)
+    {
+        this.compressionDictionary = compressionDictionary;
     }
 
     protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
@@ -114,6 +122,20 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         if (makeRangeAware)
             return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
 
+
+        SSTable.Owner effectiveOwner;
+
+        if (this.owner != null && this.owner.compressionDictionaryManager() != null && compressionDictionary != null)
+        {
+            // already checks if it is cached or not
+            this.owner.compressionDictionaryManager().add(compressionDictionary);
+            effectiveOwner = this.owner;
+        }
+        else
+        {
+            effectiveOwner = owner;
+        }
+
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, format),
                                        0,
@@ -122,7 +144,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        false,
                                        header,
                                        indexGroups,
-                                       owner);
+                                       effectiveOwner);
     }
 
     private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException

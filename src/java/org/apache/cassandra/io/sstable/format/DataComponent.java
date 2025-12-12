@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format;
 
 import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -38,7 +39,8 @@ public class DataComponent
                                                SequentialWriterOption options,
                                                MetadataCollector metadataCollector,
                                                OperationType operationType,
-                                               FlushCompression flushCompression)
+                                               FlushCompression flushCompression,
+                                               CompressionDictionaryManager compressionDictionaryManager)
     {
         if (metadata.params.compression.isEnabled())
         {
@@ -49,7 +51,8 @@ public class DataComponent
                                                   descriptor.fileFor(Components.DIGEST),
                                                   options,
                                                   compressionParams,
-                                                  metadataCollector);
+                                                  metadataCollector,
+                                                  compressionDictionaryManager);
         }
         else
         {

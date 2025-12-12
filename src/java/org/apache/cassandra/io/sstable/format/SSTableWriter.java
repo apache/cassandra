@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -443,6 +445,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private boolean transientSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
+        @Nullable
+        private CompressionDictionaryManager compressionDictionaryManager;
 
         public B setMetadataCollector(MetadataCollector metadataCollector)
         {
@@ -519,6 +523,18 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             checkNotNull(indexGroups);
             this.indexGroups = ImmutableList.copyOf(indexGroups);
             return (B) this;
+        }
+
+        public B setCompressionDictionaryManager(CompressionDictionaryManager compressionDictionaryManager)
+        {
+            this.compressionDictionaryManager = compressionDictionaryManager;
+            return (B) this;
+        }
+
+        @Nullable
+        public CompressionDictionaryManager getCompressionDictionaryManager()
+        {
+            return compressionDictionaryManager;
         }
 
         public MetadataCollector getMetadataCollector()

@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -176,6 +177,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             throw ire("Altering column types is no longer supported");
         }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        }
     }
 
     /**
@@ -209,6 +216,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             // we don't allow creating masks if they are disabled, but we still allow dropping them
             if (rawMask != null)
                 ColumnMask.ensureEnabled();
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
         }
 
         @Override
@@ -301,6 +314,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
         }
 
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        }
+
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
@@ -362,9 +381,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 // columns is pushed deeper down the line. The latter would still be problematic in cases of schema races.
                 if (!type.isSerializationCompatibleWith(droppedColumn.type))
                 {
-                    throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
+                    throw ire("Cannot add a column '%s' of type %s, incompatible with previously dropped column '%s' of type %s",
                               name,
                               type.asCQL3Type(),
+                              name,
                               droppedColumn.type.asCQL3Type());
                 }
 
@@ -461,6 +481,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
 
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        }
+
         private void dropColumn(KeyspaceMetadata keyspace, TableMetadata table, ColumnIdentifier column, boolean ifExists, TableMetadata.Builder builder)
         {
             ColumnMetadata currentColumn = table.getColumn(column);
@@ -520,6 +546,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
             this.renamedColumns = renamedColumns;
             this.ifColumnsExists = ifColumnsExists;
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
         }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
@@ -640,6 +672,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             return next.unbuild().transactionalMigrationFrom(newMigrateFrom).build();
         }
 
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
@@ -685,6 +722,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         private DropCompactStorage(String keyspaceName, String tableName, boolean ifTableExists)
         {
             super(keyspaceName, tableName, ifTableExists);
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
         }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
@@ -815,6 +858,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     throw ire("Column '%s' doesn't exist", columnName);
             }
             return keyspace;
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V5);
         }
     }
 

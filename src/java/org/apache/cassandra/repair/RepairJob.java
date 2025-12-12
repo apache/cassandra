@@ -39,6 +39,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.durability.DurabilityService.SyncRemote;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -70,6 +71,9 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static accord.local.durability.DurabilityService.SyncRemote.All;
+import static accord.local.durability.DurabilityService.SyncRemote.NoRemote;
+import static accord.local.durability.DurabilityService.SyncRemote.Quorum;
 import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
@@ -179,20 +183,18 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         if (doAccordRepair)
         {
             accordRepair = paxosRepair.flatMap(unused -> {
-                boolean requireAllEndpoints;
-                // If the session excluded dead nodes it's not eligible for migration and is not supposed to occur at ALL anyways
-                if (session.excludedDeadNodes)
-                    requireAllEndpoints = false;
+                SyncRemote sync;
+                    // If the session is doing a data repair (which flushes sstables if not incremental) we can do the barriers at QUORUM
+                if (session.excludedDeadNodes || !session.allReplicas || (session.repairData && !session.isIncremental))
+                {
+                    sync = session.permitNoQuorum ? NoRemote : Quorum;
+                }
                 else
                 {
-                    // If the session is doing a data repair (which flushes sstables if not incremental) we can do the barriers at QUORUM
-                    if (session.repairData && !session.isIncremental)
-                        requireAllEndpoints = false;
-                    else
-                        requireAllEndpoints = true;
+                    sync = All;
                 }
-                logger.info("{} {}.{} starting accord repair, require all endpoints {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, requireAllEndpoints);
-                AccordRepair repair = new AccordRepair(ctx, cfs, desc.sessionId, desc.keyspace, desc.ranges, requireAllEndpoints);
+                logger.info("{} {}.{} starting accord repair, sync {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, sync);
+                AccordRepair repair = new AccordRepair(ctx, cfs, desc.sessionId, desc.keyspace, desc.ranges, sync, sync == All ? null : allEndpoints);
                 return repair.repair(taskExecutor).flatMap(accordRepairResult -> {
                     // Propagate the HLC discovered during Accord repair to Paxos so Paxos doesn't use ballots < Accord has already used
                     if (accordRepairResult.maxHlc != IAccordService.NO_HLC)

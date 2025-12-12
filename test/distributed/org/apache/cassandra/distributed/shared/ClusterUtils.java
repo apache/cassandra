@@ -49,6 +49,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 
+import accord.topology.EpochReady;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -336,11 +337,26 @@ public class ClusterUtils
                                                               I toReplace,
                                                               BiConsumer<I, WithProperties> fn)
     {
-        IInstanceConfig toReplaceConf = toReplace.config();
-        I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true)
-                                                           .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
-        return startHostReplacement(toReplace, inst, fn);
+        return replaceHostAndStart(cluster, toReplace, fn, ignore -> {});
+    }
 
+    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
+                                                              I toReplace,
+                                                              BiConsumer<I, WithProperties> fn,
+                                                              Consumer<IInstanceConfig> configFn)
+    {
+        IInstanceConfig toReplaceConf = toReplace.config();
+        I inst = addInstance(cluster, toReplaceConf, c -> {
+            c.set("auto_bootstrap", true)
+             .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE);
+            configFn.accept(c);
+        });
+        return startHostReplacement(toReplace, inst, fn);
+    }
+
+    public static <I extends IInstance> I startHostReplacement(I toReplace, I inst)
+    {
+        return startHostReplacement(toReplace, inst, (i1, i2) -> {});
     }
 
     /**
@@ -1698,7 +1714,7 @@ public class ClusterUtils
             i.runOnInstance(() -> {
                 try
                 {
-                    AccordService.instance().epochReady(Epoch.create(epoch)).get();
+                    AccordService.instance().epochReady(Epoch.create(epoch), EpochReady::reads).get();
                 }
                 catch (InterruptedException | ExecutionException e)
                 {

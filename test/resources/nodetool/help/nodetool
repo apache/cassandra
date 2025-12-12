@@ -21,6 +21,7 @@ The most commonly used nodetool commands are:
     compact                             Force a (major) compaction on one or more tables or user-defined compaction on given SSTables
     compactionhistory                   Print history of compaction
     compactionstats                     Print statistics on compactions
+    compressiondictionary               Manage compression dictionaries
     consensus_admin                     List and mark ranges as migrating between consensus protocols
     datapaths                           Print all directories where data of tables are stored
     decommission                        Decommission the *node I am connecting to*

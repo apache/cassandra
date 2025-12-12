@@ -143,11 +143,12 @@ public class AccordSpec
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 100ms";
     public String slow_read = "30ms <= p50*2 <= 100ms";
-    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempts <= 600s");
-    public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=3");
-    public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=100");
+    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempt <= 600s");
+    public StringRetryStrategy retry_join_bootstrap = new StringRetryStrategy("30s*attempt,attempts=5");
+    public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=3");
+    public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=100");
     public StringRetryStrategy retry_journal_index_ready = new StringRetryStrategy("100ms");
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
@@ -177,6 +178,13 @@ public class AccordSpec
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
     public boolean ephemeralReadEnabled = true;
     public boolean state_cache_listener_jfr_enabled = true;
+
+    public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
+    public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
+    public int catchup_on_start_max_attempts = 5;
+    public boolean catchup_on_start_exit_on_failure = true;
+    public boolean catchup_on_start = true;
+
     public final JournalSpec journal = new JournalSpec();
 
     public enum MixedTimeSourceHandling
@@ -189,6 +197,7 @@ public class AccordSpec
     public static class JournalSpec implements Params
     {
         public int segmentSize = 32 << 20;
+        public int compactMaxSegments = 32;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
         public ReplayMode replayMode = ReplayMode.ONLY_NON_DURABLE;
         public FlushMode flushMode = FlushMode.PERIODIC;
@@ -215,6 +224,12 @@ public class AccordSpec
         public int segmentSize()
         {
             return segmentSize;
+        }
+
+        @Override
+        public int compactMaxSegments()
+        {
+            return compactMaxSegments;
         }
 
         @Override

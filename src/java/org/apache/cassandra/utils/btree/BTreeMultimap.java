@@ -151,16 +151,30 @@ public class BTreeMultimap<K, V> implements Multimap<K, V>
         return map.keySet();
     }
 
+    private transient Multiset<K> keys = null;
     @Override
     public Multiset<K> keys()
+    {
+        Multiset<K> res = keys;
+        return res == null ? keys = createKeys() : res;
+    }
+
+    private Multiset<K> createKeys()
     {
         ImmutableMultiset.Builder<K> keys = ImmutableMultiset.builder();
         keys.addAll(map.keySet());
         return keys.build();
     }
 
+    private transient Collection<V> values = null;
     @Override
     public Collection<V> values()
+    {
+        Collection<V> res = values;
+        return res == null ? values = createValues() : res;
+    }
+
+    private Collection<V> createValues()
     {
         ImmutableList.Builder<V> builder = ImmutableList.builder();
         for (Map.Entry<K, Collection<V>> entry : map.entrySet())
@@ -168,8 +182,15 @@ public class BTreeMultimap<K, V> implements Multimap<K, V>
         return builder.build();
     }
 
+    private transient Collection<Map.Entry<K,V>> entries = null;
     @Override
     public Collection<Map.Entry<K, V>> entries()
+    {
+        Collection<Map.Entry<K, V>> res = entries;
+        return res == null ? entries = createEntries() : res;
+    }
+
+    public Collection<Map.Entry<K, V>> createEntries()
     {
         Set<Map.Entry<K, V>> entries = new HashSet<>();
         for (Map.Entry<K, Collection<V>> entry : map.entrySet())

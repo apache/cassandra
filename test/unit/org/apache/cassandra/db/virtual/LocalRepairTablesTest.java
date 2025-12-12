@@ -269,7 +269,7 @@ public class LocalRepairTablesTest extends CQLTester
 
     private static RepairCoordinator.NeighborsAndRanges neighbors()
     {
-        return new RepairCoordinator.NeighborsAndRanges(false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
+        return new RepairCoordinator.NeighborsAndRanges(false, false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
     }
 
     private static Range<Token> range(long a, long b)

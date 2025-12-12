@@ -54,6 +54,7 @@ public class IndexBuildFailsAfterStreamingTest extends TestBaseImpl
                                                              .set("disk_failure_policy", "die"))
                                            .start()))
         {
+            cluster.setUncaughtExceptionsFilter(t -> t.getMessage().equals("On purpose fail 2i build"));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (p int, c int, v int, PRIMARY KEY(p, c))"));
             cluster.schemaChange(withKeyspace("CREATE INDEX idx ON %s.tbl(v)"));
 

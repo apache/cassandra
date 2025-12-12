@@ -23,8 +23,10 @@ include::cassandra:example$BNF/ks_table.bnf[]
 ----
 
 Both keyspace and table name should be comprised of only alphanumeric
-characters, cannot be empty and are limited in size to 48 characters
-(that limit exists mostly to avoid filenames (which may include the
+or underscore characters and cannot be empty. 
+Keyspace name is limited in size to 48 characters, while
+table name is limited in size to 222 characters
+(those limits exist mostly to avoid filenames (which may include the
 keyspace and table name) to go over the limits of certain file systems).
 By default, keyspace and table names are case-insensitive (`myTable` is
 equivalent to `mytable`) but case sensitivity can be forced by using
@@ -801,3 +803,192 @@ statements.
 However, tables are the only object that can be truncated currently, and the `TABLE` keyword can be omitted.
 
 Truncating a table permanently removes all existing data from the table, but without removing the table itself.
+
+[[comment-statement]]
+== COMMENT
+
+The `COMMENT` statement allows you to add descriptive comments to schema elements for documentation purposes.
+Comments are stored in the schema metadata and displayed when using `DESCRIBE` statements.
+
+=== COMMENT ON KEYSPACE
+
+Add or modify a comment on a keyspace:
+
+[source,cql]
+----
+COMMENT ON KEYSPACE keyspace_name IS 'comment text';
+COMMENT ON KEYSPACE keyspace_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON KEYSPACE cycling IS 'Keyspace for cycling application data';
+----
+
+=== COMMENT ON TABLE
+
+Add or modify a comment on a table:
+
+[source,cql]
+----
+COMMENT ON TABLE keyspace_name.table_name IS 'comment text';
+COMMENT ON TABLE keyspace_name.table_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON TABLE cycling.cyclist_name IS 'Table storing cyclist names and basic information';
+----
+
+=== COMMENT ON COLUMN
+
+Add or modify a comment on a column:
+
+[source,cql]
+----
+COMMENT ON COLUMN keyspace_name.table_name.column_name IS 'comment text';
+COMMENT ON COLUMN keyspace_name.table_name.column_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON COLUMN cycling.cyclist_name.id IS 'Unique identifier for each cyclist';
+----
+
+=== COMMENT ON TYPE
+
+Add or modify a comment on a user-defined type:
+
+[source,cql]
+----
+COMMENT ON TYPE keyspace_name.type_name IS 'comment text';
+COMMENT ON TYPE keyspace_name.type_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON TYPE cycling.address IS 'User-defined type for storing address information';
+----
+
+=== COMMENT ON FIELD
+
+Add or modify a comment on a field within a user-defined type:
+
+[source,cql]
+----
+COMMENT ON FIELD keyspace_name.type_name.field_name IS 'comment text';
+COMMENT ON FIELD keyspace_name.type_name.field_name IS NULL;  -- Remove comment
+----
+
+Example:
+
+[source,cql]
+----
+COMMENT ON FIELD cycling.address.street IS 'Street address line';
+----
+
+NOTE: Comments can be removed by setting them to `NULL`. Comments are displayed when using `DESCRIBE` statements
+and are useful for documenting the purpose and structure of your schema elements.
+
+[[security-label-statement]]
+== SECURITY LABEL
+
+The `SECURITY LABEL` statement allows you to add security classification labels to schema elements.
+Security labels are stored in the schema metadata and displayed when using `DESCRIBE` statements.
+These labels can be used to mark data sensitivity levels or compliance requirements.
+
+=== SECURITY LABEL ON KEYSPACE
+
+Add or modify a security label on a keyspace:
+
+[source,cql]
+----
+SECURITY LABEL ON KEYSPACE keyspace_name IS 'label';
+SECURITY LABEL ON KEYSPACE keyspace_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON KEYSPACE cycling IS 'CONFIDENTIAL';
+----
+
+=== SECURITY LABEL ON TABLE
+
+Add or modify a security label on a table:
+
+[source,cql]
+----
+SECURITY LABEL ON TABLE keyspace_name.table_name IS 'label';
+SECURITY LABEL ON TABLE keyspace_name.table_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON TABLE cycling.cyclist_name IS 'PII';
+----
+
+=== SECURITY LABEL ON COLUMN
+
+Add or modify a security label on a column:
+
+[source,cql]
+----
+SECURITY LABEL ON COLUMN keyspace_name.table_name.column_name IS 'label';
+SECURITY LABEL ON COLUMN keyspace_name.table_name.column_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON COLUMN cycling.cyclist_name.email IS 'PII-EMAIL';
+----
+
+=== SECURITY LABEL ON TYPE
+
+Add or modify a security label on a user-defined type:
+
+[source,cql]
+----
+SECURITY LABEL ON TYPE keyspace_name.type_name IS 'label';
+SECURITY LABEL ON TYPE keyspace_name.type_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON TYPE cycling.address IS 'SENSITIVE';
+----
+
+=== SECURITY LABEL ON FIELD
+
+Add or modify a security label on a field within a user-defined type:
+
+[source,cql]
+----
+SECURITY LABEL ON FIELD keyspace_name.type_name.field_name IS 'label';
+SECURITY LABEL ON FIELD keyspace_name.type_name.field_name IS NULL;  -- Remove label
+----
+
+Example:
+
+[source,cql]
+----
+SECURITY LABEL ON FIELD cycling.personal_info.ssn IS 'PII-SSN';
+----
+
+NOTE: Security labels can be removed by setting them to `NULL`. Security labels are displayed when using `DESCRIBE` statements
+and can be used in conjunction with custom authorization plugins or audit systems to enforce data access policies.

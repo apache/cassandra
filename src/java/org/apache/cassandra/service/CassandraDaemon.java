@@ -61,6 +61,7 @@ import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.db.virtual.ExceptionsTable;
+import org.apache.cassandra.db.virtual.AccordDebugRemoteKeyspace;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
@@ -73,6 +74,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -89,6 +91,8 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -277,7 +281,12 @@ public class CassandraDaemon
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
             AccordOperations.initJmx();
-            if (ClusterMetadata.current().myNodeId() != null)
+            NodeState nodeStateForLocalAddress = ClusterMetadata.current().myNodeState();
+            // If another node with the same address was previously a member and was decommissioned, it can be
+            // present in ClusterMetadata with a LEFT state. That should not trigger _this_ node to update
+            // RegistrationStatus. During the startup process the old node will be expunged and this node
+            // will register, prompting another call to onRegistration.
+            if (nodeStateForLocalAddress != null && nodeStateForLocalAddress != NodeState.LEFT)
                 RegistrationStatus.instance.onRegistration();
         }
         catch (InterruptedException | ExecutionException | IOException e)
@@ -336,11 +345,12 @@ public class CassandraDaemon
         PaxosState.initializeTrackers();
 
         // replay the log if necessary
-        // TODO samt - when restarting a previously running instance, this needs to happen after reconstructing schema
-        //  from the cluster metadata log or all mutations will throw IncompatibleSchemaException on deserialisation
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
+            NodeId self = ClusterMetadata.current().myNodeId();
+            if (self != null)
+                AccordService.localStartup(self);
         }
         catch (IOException e)
         {
@@ -559,7 +569,10 @@ public class CassandraDaemon
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)
+        {
             VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
+            VirtualKeyspaceRegistry.instance.register(AccordDebugRemoteKeyspace.instance);
+        }
 
         // Flush log messages to system_views.system_logs virtual table as there were messages already logged
         // before that virtual table was instantiated.

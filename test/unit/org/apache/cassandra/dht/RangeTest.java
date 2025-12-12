@@ -1179,4 +1179,48 @@ public class RangeTest extends CassandraTestBase
             }
         }
     }
+
+    @Test
+    public void testGroupIntersection()
+    {
+        assertEquals(Collections.emptyList(),
+                     Range.intersect(asList(r(1, 5), r(10, 15)),
+                                     asList(r(6, 7), r(20, 25))
+        ));
+
+        assertEquals(asList(r(5, 6)),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     asList(r(5, 10))
+        ));
+
+        assertEquals(asList(r(5, 6), r(10, 11)),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     asList(r(5, 11))
+                     ));
+
+        assertEquals(asList(r(5, 6), r(10, 11)),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     asList(r(5, 11))
+                     ));
+
+        assertEquals(asList(r(5, 6), r(10, 11), r(12, 15)),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     asList(r(5, 11), r(12, 20))
+                     ));
+
+        assertEquals(asList(r(5, 6), r(10, 15)),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     asList(r(5, 11), r(11, 20))
+                     ));
+
+        assertEquals(Collections.emptyList(),
+                     Range.intersect(Collections.emptyList(),
+                                     asList(r(5, 11), r(11, 20))
+                     ));
+
+        assertEquals(Collections.emptyList(),
+                     Range.intersect(asList(r(1, 6), r(10, 15)),
+                                     Collections.emptyList()
+                     ));
+    }
 }

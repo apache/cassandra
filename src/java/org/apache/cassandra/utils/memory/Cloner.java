@@ -44,6 +44,8 @@ public interface Cloner
      */
     Clustering<?> clone(Clustering<?> clustering);
 
+    int estimateCloneSize(Clustering<?> clustering);
+
     /**
      * Clones the specified cell.
      *
@@ -51,4 +53,12 @@ public interface Cloner
      * @return the cloned cell
      */
     Cell<?> clone(Cell<?> cell);
+
+    int estimateCloneSize(Cell<?> cell);
+
+    boolean isContextAwareCloningSupported();
+
+    Cloner createContextAwareCloner(int estimatedCloneSize);
+
+    void adjustUnused();
 }

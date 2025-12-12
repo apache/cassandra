@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
@@ -32,27 +35,31 @@ import org.apache.cassandra.io.util.File;
 
 public class CompressionInfoComponent
 {
-    public static CompressionMetadata maybeLoad(Descriptor descriptor, Set<Component> components)
+    public static CompressionMetadata maybeLoad(Descriptor descriptor, Set<Component> components,
+                                                @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
         if (components.contains(Components.COMPRESSION_INFO))
-            return load(descriptor);
+            return load(descriptor, compressionDictionaryManager);
 
         return null;
     }
 
-    public static CompressionMetadata loadIfExists(Descriptor descriptor)
+    public static CompressionMetadata loadIfExists(Descriptor descriptor,
+                                                   @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
         if (descriptor.fileFor(Components.COMPRESSION_INFO).exists())
-            return load(descriptor);
+            return load(descriptor, compressionDictionaryManager);
 
         return null;
     }
 
-    public static CompressionMetadata load(Descriptor descriptor)
+    public static CompressionMetadata load(Descriptor descriptor,
+                                           @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
         return CompressionMetadata.open(descriptor.fileFor(Components.COMPRESSION_INFO),
                                         descriptor.fileFor(Components.DATA).length(),
-                                        descriptor.version.hasMaxCompressedLength());
+                                        descriptor.version.hasMaxCompressedLength(),
+                                        compressionDictionaryManager);
     }
 
     /**

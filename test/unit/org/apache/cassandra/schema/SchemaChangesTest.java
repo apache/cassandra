@@ -20,11 +20,16 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -49,6 +54,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
@@ -580,6 +586,142 @@ public class SchemaChangesTest
         assertTrue(diff.dropped.isEmpty());
         assertEquals(1, diff.altered.size());
         assertEquals(keyspace1, diff.altered.get(0).after);
+    }
+
+    @Test
+    public void testColumnComment()
+    {
+        TableMetadata t1 = addTestTable("ks1", "t", "");
+        ColumnIdentifier col = new ColumnIdentifier("col", false);
+        assertNotNull(t1.getColumn(col));
+        TableMetadata t2 = t1.unbuild().alterColumnComment(col, "added comment").build();
+        verifyTableDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testColumnSecurityLabel()
+    {
+        TableMetadata t1 = addTestTable("ks1", "t", "");
+        ColumnIdentifier col = new ColumnIdentifier("col", false);
+        assertNotNull(t1.getColumn(col));
+        TableMetadata t2 = t1.unbuild().alterColumnSecurityLabel(col, "added security label").build();
+        verifyTableDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testTableComment()
+    {
+        TableMetadata t1 = addTestTable("ks1", "t", "");
+        assertEquals("", t1.params.comment);
+        TableMetadata t2 = t1.unbuild().comment("added comment").build();
+        verifyTableDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testTableSecurityLabel()
+    {
+        TableMetadata t1 = addTestTable("ks1", "t", "");
+        assertEquals("", t1.params.comment);
+        TableMetadata t2 = t1.unbuild().securityLabel("added security label").build();
+        verifyTableDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testKeyspaceComment()
+    {
+        KeyspaceMetadata ks1 = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(1));
+        KeyspaceMetadata ks2 = ks1.withSwapped(ks1.params.withComment("added comment"));
+        verifyKeyspaceDifferencesDetected(ks1, ks2);
+    }
+
+    @Test
+    public void testKeyspaceSecurityLabel()
+    {
+        KeyspaceMetadata ks1 = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(1));
+        KeyspaceMetadata ks2 = ks1.withSwapped(ks1.params.withSecurityLabel("added security label"));
+        verifyKeyspaceDifferencesDetected(ks1, ks2);
+    }
+
+    @Test
+    public void testUserTypeComment()
+    {
+        UserType t1 = new UserType("ks1",
+                                   ByteBufferUtil.bytes("type_1"),
+                                   List.of(FieldIdentifier.forUnquoted("f1"), FieldIdentifier.forUnquoted("f2")),
+                                   List.of(Int32Type.instance, Int32Type.instance),
+                                   true);
+        UserType t2 = t1.withComment("added comment");
+        verifyUserTypeDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testUserTypeSecurityLabel()
+    {
+        UserType t1 = new UserType("ks1",
+                                   ByteBufferUtil.bytes("type_1"),
+                                   List.of(FieldIdentifier.forUnquoted("f1"), FieldIdentifier.forUnquoted("f2")),
+                                   List.of(Int32Type.instance, Int32Type.instance),
+                                   true);
+        UserType t2 = t1.withSecurityLabel("added comment");
+        verifyUserTypeDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testUserTypeFieldComment()
+    {
+        UserType t1 = new UserType("ks1",
+                                   ByteBufferUtil.bytes("type_1"),
+                                   List.of(FieldIdentifier.forUnquoted("f1"), FieldIdentifier.forUnquoted("f2")),
+                                   List.of(Int32Type.instance, Int32Type.instance),
+                                   true);
+        UserType t2 = t1.withFieldComment(FieldIdentifier.forUnquoted("f1"), "added comment");
+        verifyUserTypeDifferencesDetected(t1, t2);
+    }
+
+    @Test
+    public void testUserTypeFieldSecurityLabel()
+    {
+        UserType t1 = new UserType("ks1",
+                                   ByteBufferUtil.bytes("type_1"),
+                                   List.of(FieldIdentifier.forUnquoted("f1"), FieldIdentifier.forUnquoted("f2")),
+                                   List.of(Int32Type.instance, Int32Type.instance),
+                                   true);
+        UserType t2 = t1.withFieldSecurityLabel(FieldIdentifier.forUnquoted("f2"), "added comment");
+        verifyUserTypeDifferencesDetected(t1, t2);
+    }
+
+    private void verifyUserTypeDifferencesDetected(UserType t1, UserType t2)
+    {
+        assertFalse(t1.equals(t2));
+        Types types1 = Types.of(t1);
+        Types types2 = Types.of(t2);
+        Types.TypesDiff diff = Types.diff(types1, types2);
+        assertEquals(1, diff.altered.size());
+        Diff.Altered<UserType> altered = diff.altered.iterator().next();
+        assertEquals(t1, altered.before);
+        assertEquals(t2, altered.after);
+    }
+
+    private void verifyKeyspaceDifferencesDetected(KeyspaceMetadata ks1, KeyspaceMetadata ks2)
+    {
+        assertFalse(ks1.equals(ks2));
+        Optional<KeyspaceMetadata.KeyspaceDiff> opt = KeyspaceMetadata.diff(ks1, ks2);
+        assertTrue(opt.isPresent());
+        KeyspaceMetadata.KeyspaceDiff diff = opt.get();
+        assertEquals(ks1, diff.before);
+        assertEquals(ks2, diff.after);
+    }
+
+    private static void verifyTableDifferencesDetected(TableMetadata t1, TableMetadata t2)
+    {
+        assertFalse(t1.equals(t2));
+        Tables tables1 = Tables.of(t1);
+        Tables tables2 = Tables.of(t2);
+        Tables.TablesDiff diff = Tables.diff(tables1, tables2);
+        assertEquals(1, diff.altered.size());
+        Diff.Altered<TableMetadata> altered = diff.altered.iterator().next();
+        assertEquals(altered.before, t1);
+        assertEquals(altered.after, t2);
     }
 
     private TableMetadata addTestTable(String ks, String cf, String comment)

@@ -155,9 +155,16 @@ public class CommandStoreSerializers
             }
             for (int i = 0 ; i < b.bounds.length ; ++i)
             {
-                out.writeShort(b.status(i * 2));
-                out.writeShort(b.status(i * 2 + 1));
+                out.writeShort(cast(b.status(i * 2)));
+                out.writeShort(cast(b.status(i * 2 + 1)));
             }
+        }
+
+        private short cast(long v)
+        {
+            if ((v & ~0xFFFF) != 0)
+                throw new IllegalStateException("Cannot serialize RedundantStatus larger than 0xFFFF. Requires serialization version bump.");
+            return (short)v;
         }
 
         @Override
@@ -174,7 +181,7 @@ public class CommandStoreSerializers
             TxnId[] bounds = new TxnId[count];
             for (int i = 0 ; i < bounds.length ; ++i)
                 bounds[i] = CommandSerializers.txnId.deserialize(in);
-            short[] statuses = new short[count * 2];
+            int[] statuses = new int[count * 2];
             for (int i = 0 ; i < statuses.length ; ++i)
                 statuses[i] = in.readShort();
 

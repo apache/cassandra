@@ -228,6 +228,7 @@ public enum CassandraRelevantProperties
     DTEST_ACCORD_ENABLED("jvm_dtest.accord.enabled", "true"),
     DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED("jvm_dtest.accord.journal_sanity_check_enabled", "false"),
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
+    DTEST_IGNORE_SHUTDOWN_THREADCOUNT("jvm_dtests.ignore_shutdown_threadcount"),
     /** This property indicates if the code is running under the in-jvm dtest framework */
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
     /** In_JVM dtest property indicating that the test should use "latest" configuration */
@@ -578,8 +579,6 @@ public enum CassandraRelevantProperties
     // transactional cluster metadata relevant properties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
-
-    TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.allow_transformations_during_upgrades", "false"),
     /**
      * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
      */

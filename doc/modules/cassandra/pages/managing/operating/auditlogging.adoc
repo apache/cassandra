@@ -157,7 +157,7 @@ Supported values are:
 
 `BinAuditLogger` logs events to a file in binary format.
 `FileAuditLogger` uses the standard logging mechanism, `slf4j` to log events to the `audit/audit.log` file. It is a synchronous, file-based audit logger. The roll_cycle will be set in the `logback.xml` file.
-`NoOpAuditLogger` is a no-op implementation of the audit logger that shoudl be specified when audit logging is disabled.
+`NoOpAuditLogger` is a no-op implementation of the audit logger that should be specified when audit logging is disabled.
 
 For example:
 

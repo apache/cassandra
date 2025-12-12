@@ -65,6 +65,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,6 +84,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
@@ -320,6 +322,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final TopPartitionTracker topPartitions;
 
     private final SSTableImporter sstableImporter;
+    private final CompressionDictionaryManager compressionDictionaryManager;
 
     private volatile boolean compactionSpaceCheck = true;
 
@@ -390,6 +393,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 cfs.crcCheckChance = new DefaultValue<>(tableMetadata.params.crcCheckChance);
 
         compactionStrategyManager.maybeReloadParamsFromSchema(tableMetadata.params.compaction);
+        compressionDictionaryManager.maybeReloadFromSchema(tableMetadata.params.compression);
 
         indexManager.reload(tableMetadata);
 
@@ -576,6 +580,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
+        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
 
         if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
@@ -733,6 +738,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         invalidateCaches();
         if (topPartitions != null)
             topPartitions.close();
+
+        compressionDictionaryManager.close();
     }
 
     /**
@@ -2658,7 +2665,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // and so we only run one major compaction at a time
         synchronized (this)
         {
-            logger.debug("Cancelling in-progress compactions for {}", metadata.name);
             Iterable<ColumnFamilyStore> toInterruptFor = interruptIndexes
                                                          ? concatWithIndexes()
                                                          : Collections.singleton(this);
@@ -2668,6 +2674,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                              : toInterruptFor;
 
             Iterable<TableMetadata> toInterruptForMetadata = Iterables.transform(toInterruptFor, ColumnFamilyStore::metadata);
+
+            logger.debug("Cancelling in-progress compactions for {}.{} ({}) {}", metadata.keyspace, metadata.name,
+                         debugToInterruptFor(toInterruptFor), onelinerStackTrace(new Throwable()));
 
             try (CompactionManager.CompactionPauser pause = CompactionManager.instance.pauseGlobalCompaction();
                  CompactionManager.CompactionPauser pausedStrategies = pauseCompactionStrategies(toInterruptFor))
@@ -2694,13 +2703,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 {
                     if (cfs.getTracker().getCompacting().stream().anyMatch(sstablesPredicate))
                     {
-                        logger.warn("Unable to cancel in-progress compactions for {}. " +
-                                    "Perhaps there is an unusually large row in progress somewhere, or the system is simply overloaded.",
-                                    metadata.name);
+                        logger.warn("Unable to cancel in-progress compactions for {}.{}.  Perhaps there is an unusually large row in progress somewhere, or the system is simply overloaded.", metadata.keyspace, metadata.name);
                         return null;
                     }
                 }
-                logger.trace("Compactions successfully cancelled");
+                logger.debug("Compactions successfully cancelled for {}.{}", metadata.keyspace, metadata.name);
 
                 // run our task
                 try
@@ -2755,7 +2762,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return accumulate;
     }
 
-    public <T> T withAllSSTables(final OperationType operationType, Function<LifecycleTransaction, T> op)
+    private static String debugToInterruptFor(Iterable<ColumnFamilyStore> toInterruptFor)
+    {
+        StringBuilder debug = new StringBuilder();
+        for (ColumnFamilyStore cfs : toInterruptFor)
+            debug.append(cfs.getKeyspaceName()).append('.').append(cfs.getTableName()).append(',');
+        debug.setLength(debug.length() - 1);
+        return debug.toString();
+    }
+
+    private static String onelinerStackTrace(Throwable t)
+    {
+        return ExceptionUtils.getStackTrace(t)
+            .replace("java.lang.Throwable", "")
+            .replaceAll("at org[.]apache[.]cassandra[.]", "at ..")
+            .replaceAll("at [a-z].+\n", "")
+            .replaceAll("\n|\t", " ")
+            .replaceAll(" +", " ");
+     }
+
+public <T> T withAllSSTables(final OperationType operationType, Function<LifecycleTransaction, T> op)
     {
         Callable<LifecycleTransaction> callable = () -> {
             assert data.getCompacting().isEmpty() : data.getCompacting();
@@ -3418,6 +3444,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public TableMetrics getMetrics()
     {
         return metric;
+    }
+
+    @Override
+    public CompressionDictionaryManager compressionDictionaryManager()
+    {
+        return compressionDictionaryManager;
     }
 
     public TableId getTableId()

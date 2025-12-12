@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -66,9 +65,14 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
+import org.apache.cassandra.metrics.AccordExecutorMetrics;
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
+import org.apache.cassandra.metrics.ShardedDecayingHistograms;
+import org.apache.cassandra.metrics.ShardedDecayingHistograms.DecayingHistogramsShard;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.UniqueSave;
@@ -98,6 +102,8 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AbstractAsyncExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
+    public static final ShardedDecayingHistograms HISTOGRAMS = new ShardedDecayingHistograms();
+
     public interface AccordExecutorFactory
     {
         AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent);
@@ -122,6 +128,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public void close()
         {
             executor.beforeUnlock();
+            global.tryShrinkOrEvict(lock);
             lock.unlock();
         }
     }
@@ -158,6 +165,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     private List<Condition> waitingForQuiescence;
     private Queue<WaitForCompletion> waitingForCompletion;
+
+    final LogLinearDecayingHistograms histograms;
+    final LogLinearDecayingHistogram elapsedPreparingToRun;
+    final LogLinearDecayingHistogram elapsedWaitingToRun;
+    final LogLinearDecayingHistogram elapsedRunning;
+    final LogLinearDecayingHistogram keys;
+    public final AccordReplicaMetrics.Shard replicaMetrics;
 
     private static class WaitForCompletion
     {
@@ -212,9 +226,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         registerJfrListener(executorId, commandsForKey, "CommandsForKey");
 
         this.caches = new ExclusiveGlobalCaches(this, cache, commands, commandsForKey);
-        ScheduledExecutors.scheduledFastTasks.scheduleAtFixedRate(() -> {
-            executeDirectlyWithLock(cache::processNoEvictQueue);
-        }, 1L, 1L, TimeUnit.SECONDS);
+
+        DecayingHistogramsShard histogramsShard = HISTOGRAMS.newShard(lock);
+        this.histograms = histogramsShard.unsafeGetInternal();
+        this.elapsedPreparingToRun = AccordExecutorMetrics.INSTANCE.elapsedPreparingToRun.forShard(histogramsShard);
+        this.elapsedWaitingToRun = AccordExecutorMetrics.INSTANCE.elapsedWaitingToRun.forShard(histogramsShard);
+        this.elapsedRunning = AccordExecutorMetrics.INSTANCE.elapsedRunning.forShard(histogramsShard);
+        this.keys = AccordExecutorMetrics.INSTANCE.keys.forShard(histogramsShard);
+        this.replicaMetrics = new AccordReplicaMetrics.Shard(histogramsShard);
     }
 
     public int executorId()
@@ -470,7 +489,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
         catch (Throwable t)
         {
-            agent.onUncaughtException(t);
+            agent.onException(t);
         }
     }
 
@@ -640,6 +659,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
             if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
                 maybeNotifyWaitingForCompletion();
+
+            cache.tryShrinkOrEvict(lock);
         }
     }
 
@@ -722,7 +743,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return;
 
         try { task.failExclusive(fail); }
-        catch (Throwable t) { agent.onUncaughtException(t); }
+        catch (Throwable t) { agent.onException(t); }
         finally
         {
             task.unqueueIfQueued();
@@ -1174,7 +1195,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 return false;
 
             try { run.run(); }
-            catch (Throwable t) { agent.onUncaughtException(t); }
+            catch (Throwable t) { agent.onException(t); }
             finally
             {
                 if (owner == null)
@@ -1299,7 +1320,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 queue.remove(this);
                 completeTaskExclusive(this);
                 try { fail(new CancellationException()); }
-                catch (Throwable t) { agent.onUncaughtException(t); }
+                catch (Throwable t) { agent.onException(t); }
             }
         }
 
@@ -1350,7 +1371,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             if (result != null)
                 result.tryFailure(t);
-            agent.onUncaughtException(t);
+            agent.onException(t);
         }
 
         @Override
@@ -1583,7 +1604,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             }
             catch (Throwable t)
             {
-                agent.onUncaughtException(t);
+                agent.onException(t);
                 return;
             }
         }
@@ -1598,7 +1619,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             catch (Throwable t)
             {
                 fail.addSuppressed(t);
-                agent.onUncaughtException(fail);
+                agent.onException(fail);
             }
         }
     }
@@ -1655,7 +1676,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public static class TaskInfo implements Comparable<TaskInfo>
     {
-        public enum Status { WAITING_TO_LOAD, SCANNING_RANGES, LOADING, WAITING_TO_RUN, RUNNING }
+        // sorted in name order for reporting to virtual tables
+        public enum Status { LOADING, RUNNING, SCANNING_RANGES, WAITING_TO_LOAD, WAITING_TO_RUN }
 
         final Status status;
         final int commandStoreId;
@@ -1706,7 +1728,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public int compareTo(TaskInfo that)
         {
             int c = this.status.compareTo(that.status);
-            if (c == 0) c = this.position() - that.position();
+            if (c == 0) c = Integer.compare(this.position(), that.position());
             return c;
         }
     }
@@ -1760,4 +1782,18 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
+    public int unsafePreparingToRunCount()
+    {
+        return waitingToLoad.size() + waitingToLoadRangeTxns.size() + scanningRanges.size() + loading.size();
+    }
+
+    public int unsafeWaitingToRunCount()
+    {
+        return waitingToRun.size();
+    }
+
+    public int unsafeRunningCount()
+    {
+        return running.size();
+    }
 }

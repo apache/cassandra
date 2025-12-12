@@ -144,13 +144,13 @@ public class AccordInteropStableThenRead extends AccordInteropRead
     }
 
     @Override
-    public CommitOrReadNack apply(SafeCommandStore safeStore)
+    public CommitOrReadNack applyInternal(SafeCommandStore safeStore)
     {
         Route<?> route = this.route == null ? (Route)scope : this.route;
         StoreParticipants participants = StoreParticipants.execute(safeStore, route, txnId, minEpoch(), executeAtEpoch);
         SafeCommand safeCommand = safeStore.get(txnId, participants);
         Commands.commit(safeStore, safeCommand, participants, kind.saveStatus, Ballot.ZERO, txnId, route, partialTxn, executeAt, partialDeps, kind);
-        return super.apply(safeStore, safeCommand, participants);
+        return super.applyInternal(safeStore, safeCommand, participants);
     }
 
     @Override

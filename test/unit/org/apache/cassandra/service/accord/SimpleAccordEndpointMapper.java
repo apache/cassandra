@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 import accord.local.Node;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -31,7 +32,7 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
     INSTANCE;
 
     @Override
-    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
+    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, Object ignore)
     {
         if (endpoint.addressBytes.length != 4)
             throw new IllegalArgumentException("Only IPV4 is allowed: given " + endpoint.toString(true));
@@ -39,7 +40,7 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
     }
 
     @Override
-    public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
+    public InetAddressAndPort mappedEndpointOrNull(Node.Id id, Object ignore)
     {
         byte[] array = ByteBufferUtil.bytes(id.id).array();
         try
@@ -50,5 +51,17 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
         {
             throw new AssertionError("Unable to convert " + id + " to an IPV4 address", e);
         }
+    }
+
+    @Override
+    public Map<Node.Id, Long> removedNodes()
+    {
+        return Map.of();
+    }
+
+    @Override
+    public NodeStatus nodeStatus(Node.Id id)
+    {
+        return NodeStatus.HEALTHY;
     }
 }

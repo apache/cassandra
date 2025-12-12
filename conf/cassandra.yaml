@@ -2048,6 +2048,11 @@ batch_size_fail_threshold: 50KiB
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
+# GCInspector configs:
+# For GC like ShenandoahGC/ZGC etc., there are GC events that do not have STW pauses (Concurrent phases)
+# Operator might find it reasonable to use lower thresholds for events require STW pauses and higher thresholds
+# for concurrent phases.
+#
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # Min unit: ms
@@ -2058,6 +2063,17 @@ unlogged_batch_across_partitions_warn_threshold: 10
 # will deactivate the feature.
 # Min unit: ms
 # gc_warn_threshold: 1000ms
+
+# GC Concurrent phase greater than 1000 ms will be logged at INFO level
+# This threshold can be adjusted to minimize logging if necessary
+# Min unit: ms
+# gc_concurrent_phase_log_threshold: 1000ms
+
+# GC Concurrent phase than gc_concurrent_phase_warn_threshold will be logged at WARN level
+# Adjust the threshold based on your application throughput requirement. Setting to 0
+# will deactivate the feature.
+# Min unit: ms
+# gc_concurrent_phase_warn_threshold: 2000ms
 
 # Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
 # early. Any value size larger than this threshold will result into marking an SSTable
@@ -2594,6 +2610,14 @@ drop_compact_storage_enabled: false
 # Defaults to true, which means that reconfiguration of password validator via JMX is possible.
 #password_policy_reconfiguration_enabled: true
 
+# Maximum allowed length for comments on schema elements (keyspaces, tables, columns, types, type fields).
+# Comments exceeding this length will be rejected. Defaults to 128 characters.
+max_comment_length: 128
+
+# Maximum allowed length for security labels on schema elements (tables, columns).
+# Security labels exceeding this length will be rejected. Defaults to 48 characters.
+max_security_label_length: 48
+
 # Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
 # It is suspicious to use default_time_to_live set to 0 with such compaction strategy.
@@ -2870,3 +2894,49 @@ storage_compatibility_mode: NONE
 #         # especially in keyspaces with many tables. The splitter avoids batching tables together if they
 #         # exceed other configuration parameters like bytes_per_assignment or partitions_per_assignment.
 #         max_tables_per_assignment: 64
+
+# Dictionary compression settings for ZSTD dictionary-based compression
+# These settings control the automatic training and caching of compression dictionaries
+# for tables that use ZSTD dictionary compression.
+
+# How often to refresh compression dictionaries across the cluster.
+# During refresh, nodes will check for newer dictionary versions and update their caches.
+# Min unit: s
+compression_dictionary_refresh_interval: 3600s
+
+# Initial delay before starting the first dictionary refresh cycle after node startup.
+# This prevents all nodes from refreshing simultaneously when the cluster starts.
+# Min unit: s
+compression_dictionary_refresh_initial_delay: 10s
+
+# Maximum number of compression dictionaries to cache per table.
+# Each table using dictionary compression can have multiple dictionaries cached
+# (current version plus recently used versions for reading older SSTables).
+compression_dictionary_cache_size: 10
+
+# How long to keep compression dictionaries in the cache before they expire.
+# Expired dictionaries will be removed from memory but can be reloaded if needed.
+# Min unit: s
+compression_dictionary_cache_expire: 24h
+
+# Dictionary training configuration (advanced settings)
+# These settings control how compression dictionaries are trained from sample data.
+
+# Maximum size of a trained compression dictionary.
+# Larger dictionaries may provide better compression but use more memory.
+compression_dictionary_training_max_dictionary_size: 64KiB
+
+# Maximum total size of sample data to collect for dictionary training.
+# More sample data generally produces better dictionaries but takes longer to train.
+# The recommended sample size is 100x the dictionary size.
+compression_dictionary_training_max_total_sample_size: 10MiB
+
+# Enable automatic dictionary training based on sampling of write operations.
+# When enabled, the system will automatically collect samples and train new dictionaries.
+# Manual training via nodetool is always available regardless of this setting.
+compression_dictionary_training_auto_train_enabled: false
+
+# Sampling rate for automatic dictionary training (1-10000).
+# Value of 100 means 1% of writes are sampled. Lower values reduce overhead but may
+# result in less representative sample data for dictionary training.
+compression_dictionary_training_sampling_rate: 0.01

@@ -46,12 +46,6 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     @Override
     public void doVerb(Message<T> message) throws IOException
     {
-        if (!AccordService.instance().shouldAcceptMessages())
-        {
-            dropping.debug(message.verb(), message.from());
-            return;
-        }
-
         logger.trace("Receiving {} from {}", message.payload, message.from());
 
         T request = message.payload;
@@ -60,9 +54,15 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
          * TODO (desired): messages are retained on heap until the node catches up to waitForEpoch,
          *  which can be problematic in absense of proper Accord<->Messaging backpressure
          */
-        Node.Id fromNodeId = endpointMapper.mappedId(message.from());
+        Node.Id fromNodeId = endpointMapper.mappedIdOrNull(message.from(), message);
+        if (fromNodeId == null)
+        {
+            dropping.debug(message.verb(), message.from());
+            return;
+        }
+
         long waitForEpoch = request.waitForEpoch();
-        if (node.topology().hasAtLeastEpoch(waitForEpoch))
+        if (node.topology().active().hasAtLeastEpoch(waitForEpoch))
         {
             request.process(node, fromNodeId, message.header);
         }

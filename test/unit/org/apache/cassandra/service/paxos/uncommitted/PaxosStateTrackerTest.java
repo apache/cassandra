@@ -75,7 +75,7 @@ public class PaxosStateTrackerTest
     {
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setAccordTransactionsEnabled(false);
-        AccordService.startup(null);
+        AccordService.localStartup(null);
 
         ks = "coordinatorsessiontest";
         cfm1 = TableMetadata.builder(ks, "tbl1").addPartitionKeyColumn("k", Int32Type.instance).addRegularColumn("v", Int32Type.instance).build();

@@ -56,6 +56,7 @@ import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionExceptio
 import org.apache.cassandra.cql3.constraints.NotNullConstraint;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.Columns;
@@ -1070,7 +1071,7 @@ public class TableMetadata implements SchemaElement
 
         static ColumnMetadata withUniqueId(ColumnMetadata prev, int uniqueId)
         {
-            return new ColumnMetadata(prev.ksName, prev.cfName, prev.name, prev.type, uniqueId, prev.position(), prev.kind, prev.getMask(), prev.getColumnConstraints());
+            return new ColumnMetadata(prev.ksName, prev.cfName, prev.name, prev.type, uniqueId, prev.position(), prev.kind, prev.getMask(), prev.getColumnConstraints(), prev.comment, prev.securityLabel);
         }
 
         public Builder id(TableId val)
@@ -1129,6 +1130,12 @@ public class TableMetadata implements SchemaElement
         public Builder comment(String val)
         {
             params.comment(val);
+            return this;
+        }
+
+        public Builder securityLabel(String val)
+        {
+            params.securityLabel(val);
             return this;
         }
 
@@ -1482,6 +1489,32 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder alterColumnComment(ColumnIdentifier name, String comment)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException("Column " + name + " doesn't exist");
+
+            ColumnMetadata newColumn = column.withNewComment(comment);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
+        public Builder alterColumnSecurityLabel(ColumnIdentifier name, String securityLabel)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException("Column " + name + " doesn't exist" );
+
+            ColumnMetadata newColumn = column.withNewSecurityLabel(securityLabel);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
         public Builder alterColumnConstraints(ColumnIdentifier name, ColumnConstraints constraints)
         {
             ColumnMetadata column = columns.get(name.bytes);
@@ -1606,6 +1639,16 @@ public class TableMetadata implements SchemaElement
         CqlBuilder builder = new CqlBuilder(2048);
         appendCqlTo(builder, withWarnings, withInternals, withInternals, ifNotExists);
         return builder.toString();
+    }
+
+    @Override
+    public String describe(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+    {
+        String baseStatement = toCqlString(withWarnings, withInternals, ifNotExists);
+        StringBuilder result = new StringBuilder(baseStatement);
+        SchemaDescriptionsUtil.appendCommentOnTable(result, this);
+        SchemaDescriptionsUtil.appendSecurityLabelOnTable(result, this);
+        return result.toString();
     }
 
     public String toCqlString(boolean withWarnings,

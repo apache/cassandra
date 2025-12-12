@@ -103,6 +103,9 @@ public class CreateTableValidationTest extends CQLTester
         String tableName = "t".repeat(FILENAME_LENGTH - tableIdSuffix);
         String tooLongTableName = "l".repeat(FILENAME_LENGTH - tableIdSuffix + 1);
 
+        // Assert that the documented value of 222 corresponds to the actual constant.
+        assertThat(TABLE_NAME_LENGTH).isEqualTo(222);
+
         execute(String.format("CREATE KEYSPACE %s with replication = " +
                               "{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
                               keyspaceName));
@@ -129,6 +132,13 @@ public class CreateTableValidationTest extends CQLTester
                              String.format("CREATE TABLE %s.\"d-3\" (key int PRIMARY KEY, val int)", KEYSPACE));
         assertInvalidMessage(String.format("%s.    : Table name must not be empty or not contain non-alphanumeric-underscore characters (got \"    \")", KEYSPACE),
                              String.format("CREATE TABLE %s.\"    \" (key int PRIMARY KEY, val int)", KEYSPACE));
+    }
+
+    @Test
+    public void testInvalidCompactionOptions()
+    {
+        expectedFailure(ConfigurationException.class, "CREATE TABLE %s (k int PRIMARY KEY, v int) WITH compaction = {'class': 'LeveledCompactionStrategy', 'fanout_size': '90', 'sstable_size_in_mb': '1089'}",
+                        "your maxSSTableSize must be absurdly high to compute");
     }
 
     private void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)

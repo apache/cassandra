@@ -232,6 +232,12 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
  */
 public abstract class CQLTester
 {
+
+    static
+    {
+        System.setProperty("accord.debug", "true"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+    }
+
     /**
      * The super user
      */
@@ -3185,7 +3191,7 @@ public abstract class CQLTester
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
     {
-        if (bb == null)
+        if (bb == null || (!bb.hasRemaining() && type.isEmptyValueMeaningless()))
             return "null";
 
         if (type instanceof CollectionType)

@@ -46,9 +46,11 @@ import accord.primitives.Timestamp;
 import accord.primitives.TimestampWithUniqueHlc;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.ActiveEpochs;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.topology.TopologyException;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
@@ -66,6 +68,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -93,6 +96,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.topology.Topologies.SelectNodeOwnership.SHARE;
+import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -136,7 +140,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private volatile long uniqueHlc;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
-                                  SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
+                                  SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
         this.node = node;
@@ -154,9 +158,10 @@ public class AccordInteropExecution implements ReadCoordinator
         this.endpointMapper = endpointMapper;
 
         // TODO (required): compare this to latest logic in Accord, make sure it makes sense
-        this.executes = node.topology().forEpoch(route, executeAt.epoch(), SHARE);
+        ActiveEpochs epochs = node.topology().active();
+        this.executes = epochs.forEpoch(route, executeAt.epoch(), SHARE);
         this.allTopologies = txnId.epoch() != executeAt.epoch()
-                             ? node.topology().preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
+                             ? epochs.preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
                              : executes;
         this.executeTopology = executes.getEpoch(executeAt.epoch());
         this.coordinateTopology = allTopologies.getEpoch(txnId.epoch());
@@ -190,7 +195,10 @@ public class AccordInteropExecution implements ReadCoordinator
         for (int i=0; i<replicas.length; i++)
         {
             Node.Id id = shard.nodes.get(i);
-            replicas[i] = new Replica(endpointMapper.mappedEndpoint(id), range, true);
+            InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(id);
+            if (endpoint == null) // TODO (required): how should this be handled?
+                throw illegalState();
+            replicas[i] = new Replica(endpoint, range, true);
         }
 
         return EndpointsForToken.of(token, replicas);
@@ -199,7 +207,12 @@ public class AccordInteropExecution implements ReadCoordinator
     @Override
     public void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback)
     {
-        Node.Id id = endpointMapper.mappedId(to);
+        Node.Id id = endpointMapper.mappedIdOrNull(to, message);
+        if (id == null)
+        {
+            callback.onFailure(to, RequestFailure.NODE_DOWN);
+            return;
+        }
         // TODO (desired): It would be better to use the re-use the command from the transaction but it's fragile
         //  to try and figure out exactly what changed for things like read repair and short read protection
         //  Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
@@ -213,7 +226,12 @@ public class AccordInteropExecution implements ReadCoordinator
     {
         requireArgument(message.payload.potentialTxnConflicts().allowed);
         requireArgument(message.payload.getTableIds().size() == 1);
-        Node.Id id = endpointMapper.mappedId(to);
+        Node.Id id = endpointMapper.mappedIdOrNull(to, message);
+        if (id == null)
+        {
+            callback.onFailure(to, RequestFailure.NODE_DOWN);
+            return;
+        }
         Participants<?> readScope = Participants.singleton(txn.read().keys().domain(), new TokenKey(message.payload.getTableIds().iterator().next(), message.payload.key().getToken()));
         AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt.epoch(), message.payload);
         node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this));
@@ -354,8 +372,11 @@ public class AccordInteropExecution implements ReadCoordinator
     private void sendStableToUncontacted()
     {
         for (Node.Id to : executeTopology.nodes())
-            if (!contacted.contains(endpointMapper.mappedEndpoint(to)))
+        {
+            InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to);
+            if (endpoint != null && !contacted.contains(endpoint))
                 node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
+        }
     }
 
     public void start()

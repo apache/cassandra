@@ -38,6 +38,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
@@ -68,6 +69,8 @@ import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 
+import static org.apache.cassandra.tcm.serialization.Version.V0;
+
 /**
  * Implementations should be pure transformations from one ClusterMetadata state to another. They are likely to be
  * replayed during startup to rebuild the node's current state and so should be free of side effects and should not
@@ -90,9 +93,28 @@ public interface Transformation
      */
     Result execute(ClusterMetadata metadata);
 
-    default boolean allowDuringUpgrades()
+    /**
+     * Returns true if the type of Transformation (as identified by its KIND) is eligible to be committed to the
+     * metadata log given the state of the supplied ClusterMetadata. This is to ensure that newly introduced
+     * transformations can not be added to the log until all current members are able to read and enact them.
+     *
+     * The default implementation works in conjunction with {@link Kind#introducedIn}. It checks whether the lowest
+     * common serialization version in the cluster is at least equal to the minimum version required to deserialize
+     * transformations of that Kind.
+     *
+     * Specific Transformation implementations are free to consider other factors if they override this method. For
+     * example, they may inspect the Cassandra release versions as well as or instead of supported serialization
+     * versions.
+     *
+     * Note: this check pertains only to the KIND of Transformation. Even if the Kind is eligible to be applied, a
+     * specific instance of that kind may still be rejected based on its parameters and/or current cluster state.
+     * e.g. Transforms with a Kind of PREPARE_JOIN are eligible to be committed as their introducedIn() implementation
+     * returns Version.V0, but a specific PrepareJoin may still return a Rejected result if the target node is already
+     * in a JOINED state.
+     */
+    default boolean eligibleToCommit(ClusterMetadata metadata)
     {
-        return false;
+        return kind().introducedIn.isEqualOrBefore(metadata.directory.commonSerializationVersion);
     }
 
     static Success success(ClusterMetadata.Transformer transformer, LockedRanges.AffectedRanges affectedRanges)
@@ -193,67 +215,80 @@ public interface Transformation
 
     enum Kind
     {
-        PRE_INITIALIZE_CMS(0, () -> PreInitialize.serializer),
-        INITIALIZE_CMS(1, () -> Initialize.serializer),
-        FORCE_SNAPSHOT(2, () -> ForceSnapshot.serializer),
-        TRIGGER_SNAPSHOT(3, () -> TriggerSnapshot.serializer),
-        SCHEMA_CHANGE(4, () -> AlterSchema.serializer),
-        REGISTER(5, () -> Register.serializer),
-        UNREGISTER(6, () -> Unregister.serializer),
+        PRE_INITIALIZE_CMS(0, V0, () -> PreInitialize.serializer),
+        INITIALIZE_CMS(1, V0, () -> Initialize.serializer),
+        FORCE_SNAPSHOT(2, V0, () -> ForceSnapshot.serializer),
+        TRIGGER_SNAPSHOT(3, V0, () -> TriggerSnapshot.serializer),
+        SCHEMA_CHANGE(4, V0, () -> AlterSchema.serializer),
+        REGISTER(5, V0, () -> Register.serializer),
+        UNREGISTER(6, V0, () -> Unregister.serializer),
 
-        UNSAFE_JOIN(7, () -> UnsafeJoin.serializer),
-        PREPARE_JOIN(8, () -> PrepareJoin.serializer),
-        START_JOIN(9, () -> PrepareJoin.StartJoin.serializer),
-        MID_JOIN(10, () -> PrepareJoin.MidJoin.serializer),
-        FINISH_JOIN(11, () -> PrepareJoin.FinishJoin.serializer),
+        UNSAFE_JOIN(7, V0, () -> UnsafeJoin.serializer),
+        PREPARE_JOIN(8, V0, () -> PrepareJoin.serializer),
+        START_JOIN(9, V0, () -> PrepareJoin.StartJoin.serializer),
+        MID_JOIN(10, V0, () -> PrepareJoin.MidJoin.serializer),
+        FINISH_JOIN(11, V0, () -> PrepareJoin.FinishJoin.serializer),
 
-        PREPARE_MOVE(12, () -> PrepareMove.serializer),
-        START_MOVE(13, () -> PrepareMove.StartMove.serializer),
-        MID_MOVE(14, () -> PrepareMove.MidMove.serializer),
-        FINISH_MOVE(15, () -> PrepareMove.FinishMove.serializer),
+        PREPARE_MOVE(12, V0, () -> PrepareMove.serializer),
+        START_MOVE(13, V0, () -> PrepareMove.StartMove.serializer),
+        MID_MOVE(14, V0, () -> PrepareMove.MidMove.serializer),
+        FINISH_MOVE(15, V0, () -> PrepareMove.FinishMove.serializer),
 
-        PREPARE_LEAVE(16, () -> PrepareLeave.serializer),
-        START_LEAVE(17, () -> PrepareLeave.StartLeave.serializer),
-        MID_LEAVE(18, () -> PrepareLeave.MidLeave.serializer),
-        FINISH_LEAVE(19, () -> PrepareLeave.FinishLeave.serializer),
-        ASSASSINATE(20, () -> Assassinate.serializer),
+        PREPARE_LEAVE(16, V0, () -> PrepareLeave.serializer),
+        START_LEAVE(17, V0, () -> PrepareLeave.StartLeave.serializer),
+        MID_LEAVE(18, V0, () -> PrepareLeave.MidLeave.serializer),
+        FINISH_LEAVE(19, V0, () -> PrepareLeave.FinishLeave.serializer),
+        ASSASSINATE(20, V0, () -> Assassinate.serializer),
 
-        PREPARE_REPLACE(21, () -> PrepareReplace.serializer),
-        START_REPLACE(22, () -> PrepareReplace.StartReplace.serializer),
-        MID_REPLACE(23, () -> PrepareReplace.MidReplace.serializer),
-        FINISH_REPLACE(24, () -> PrepareReplace.FinishReplace.serializer),
+        PREPARE_REPLACE(21, V0, () -> PrepareReplace.serializer),
+        START_REPLACE(22, V0, () -> PrepareReplace.StartReplace.serializer),
+        MID_REPLACE(23, V0, () -> PrepareReplace.MidReplace.serializer),
+        FINISH_REPLACE(24, V0, () -> PrepareReplace.FinishReplace.serializer),
 
-        CANCEL_SEQUENCE(25, () -> CancelInProgressSequence.serializer),
+        CANCEL_SEQUENCE(25, V0, () -> CancelInProgressSequence.serializer),
 
         @Deprecated(since = "CEP-21")
-        START_ADD_TO_CMS(26, () -> StartAddToCMS.serializer),
+        START_ADD_TO_CMS(26, V0, () -> StartAddToCMS.serializer),
         @Deprecated(since = "CEP-21")
-        FINISH_ADD_TO_CMS(27, () -> FinishAddToCMS.serializer),
+        FINISH_ADD_TO_CMS(27, V0, () -> FinishAddToCMS.serializer),
         @Deprecated(since = "CEP-21")
-        REMOVE_FROM_CMS(28, () -> RemoveFromCMS.serializer),
+        REMOVE_FROM_CMS(28, V0, () -> RemoveFromCMS.serializer),
 
-        STARTUP(29, () -> Startup.serializer),
+        STARTUP(29, V0, () -> Startup.serializer),
 
-        CUSTOM(30, () -> CustomTransformation.serializer),
+        CUSTOM(30, V0, () -> CustomTransformation.serializer),
 
-        PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
-        PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
-        ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
-        ALTER_TOPOLOGY(35, () -> AlterTopology.serializer),
+        PREPARE_SIMPLE_CMS_RECONFIGURATION(31, V0, () -> PrepareCMSReconfiguration.Simple.serializer),
+        PREPARE_COMPLEX_CMS_RECONFIGURATION(32, V0, () -> PrepareCMSReconfiguration.Complex.serializer),
+        ADVANCE_CMS_RECONFIGURATION(33, V0, () -> AdvanceCMSReconfiguration.serializer),
+        CANCEL_CMS_RECONFIGURATION(34, V0, () -> CancelCMSReconfiguration.serializer),
+        ALTER_TOPOLOGY(35, V0, () -> AlterTopology.serializer),
 
-        UPDATE_AVAILABILITY(36, () -> ReconfigureAccordFastPath.serializer),
+        UPDATE_AVAILABILITY(36, Version.MIN_ACCORD_VERSION, () -> ReconfigureAccordFastPath.serializer),
 
-        BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, () -> BeginConsensusMigrationForTableAndRange.serializer),
-        MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
-        ACCORD_MARK_STALE(39, () -> AccordMarkStale.serializer),
-        ACCORD_MARK_REJOINING(40, () -> AccordMarkRejoining.serializer),
-        PREPARE_DROP_ACCORD_TABLE(41, () -> PrepareDropAccordTable.serializer),
-        FINISH_DROP_ACCORD_TABLE(42, () -> FinishDropAccordTable.serializer),
+        BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, Version.MIN_ACCORD_VERSION, () -> BeginConsensusMigrationForTableAndRange.serializer),
+        MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, Version.MIN_ACCORD_VERSION, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        ACCORD_MARK_STALE(39, Version.MIN_ACCORD_VERSION, () -> AccordMarkStale.serializer),
+        ACCORD_MARK_REJOINING(40, Version.MIN_ACCORD_VERSION, () -> AccordMarkRejoining.serializer),
+        PREPARE_DROP_ACCORD_TABLE(41, Version.MIN_ACCORD_VERSION, () -> PrepareDropAccordTable.serializer),
+        FINISH_DROP_ACCORD_TABLE(42, Version.MIN_ACCORD_VERSION, () -> FinishDropAccordTable.serializer),
+        ACCORD_MARK_HARD_REMOVED(43, Version.MIN_ACCORD_VERSION, () -> AccordMarkHardRemoved.serializer),
         ;
 
-        private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
+        /**
+         * The metadata serialization version which was current (as defined by
+         * {@link org.apache.cassandra.tcm.membership.NodeVersion#CURRENT_METADATA_VERSION}) when a transformation was
+         * first introduced. During an upgrade this is used to prevent new transformations being committed by upgraded
+         * nodes as nodes still running the older version will not be able to deserialize them.
+         *
+         * This should generally always be left as the first version the transformation was added and not be bumped when
+         * the implementation is modified. Adding Version guards to the associated {@link AsymmetricMetadataSerializer}
+         * is the way to handle this type of evolution.
+         */
+        public final Version introducedIn;
         public final int id;
+
+        private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
 
         private static final Kind[] idToKindMap;
 
@@ -269,10 +304,11 @@ public interface Transformation
             idToKindMap = idMap;
         }
 
-        Kind(int id, Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer)
+        Kind(int id, Version introducedIn, Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer)
         {
             this.serializer = serializer;
             this.id = id;
+            this.introducedIn = introducedIn;
         }
 
         public static Kind fromId(int id)

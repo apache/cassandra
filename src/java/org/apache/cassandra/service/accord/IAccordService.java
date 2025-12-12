@@ -19,12 +19,12 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -47,7 +47,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
-import accord.primitives.TxnId;
+import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
@@ -108,6 +108,7 @@ public interface IAccordService
     }
 
     boolean isEnabled();
+
     long currentEpoch();
 
     void setCacheSize(long kb);
@@ -115,7 +116,7 @@ public interface IAccordService
 
     TopologyManager topology();
 
-    void startup();
+    void localStartup();
 
     Future<Void> flushCaches();
     void markShuttingDown();
@@ -127,9 +128,8 @@ public interface IAccordService
      * Return a future that will complete once the accord has completed it's local bootstrap process
      * for any ranges gained in the given epoch
      */
-    Future<Void> epochReady(Epoch epoch);
-
-    Future<Void> epochReadyFor(ClusterMetadata epoch);
+    Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> f);
+    Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> f);
 
     void receive(Message<AccordSyncPropagator.Notification> message);
 
@@ -177,17 +177,15 @@ public interface IAccordService
 
     Id nodeId();
 
-    List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
-
     long minEpoch();
 
     void awaitDone(TableId id, long epoch);
 
-    AccordConfigurationService configService();
+    AccordEndpointMapper endpointMapper();
+
+    AccordTopologyService topologyService();
 
     Params journalConfiguration();
-
-    boolean shouldAcceptMessages();
 
     Node node();
 
@@ -275,7 +273,7 @@ public interface IAccordService
         }
 
         @Override
-        public void startup()
+        public void localStartup()
         {
             try
             {
@@ -308,13 +306,13 @@ public interface IAccordService
         }
 
         @Override
-        public Future<Void> epochReady(Epoch epoch)
+        public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
             return BOOTSTRAP_SUCCESS;
         }
 
         @Override
-        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        public Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
             return BOOTSTRAP_SUCCESS;
         }
@@ -341,12 +339,6 @@ public interface IAccordService
         }
 
         @Override
-        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-        {
-            return Collections.emptyList();
-        }
-
-        @Override
         public long minEpoch()
         {
             return -1;
@@ -359,21 +351,21 @@ public interface IAccordService
         }
 
         @Override
-        public AccordConfigurationService configService()
+        public AccordEndpointMapper endpointMapper()
         {
-            return null;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public AccordTopologyService topologyService()
+        {
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public Params journalConfiguration()
         {
             throw new UnsupportedOperationException("Cannot return configuration when accord.enabled = false in cassandra.yaml");
-        }
-
-        @Override
-        public boolean shouldAcceptMessages()
-        {
-            return true;
         }
 
         @Override
@@ -429,9 +421,15 @@ public interface IAccordService
         }
 
         @Override
-        public AccordConfigurationService configService()
+        public AccordEndpointMapper endpointMapper()
         {
-            return delegate.configService();
+            return delegate.endpointMapper();
+        }
+
+        @Override
+        public AccordTopologyService topologyService()
+        {
+            return delegate.topologyService();
         }
 
         @Nonnull
@@ -485,9 +483,9 @@ public interface IAccordService
         }
 
         @Override
-        public void startup()
+        public void localStartup()
         {
-            delegate.startup();
+            delegate.localStartup();
         }
 
         @Override
@@ -515,15 +513,15 @@ public interface IAccordService
         }
 
         @Override
-        public Future<Void> epochReady(Epoch epoch)
+        public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
-            return delegate.epochReady(epoch);
+            return delegate.epochReady(epoch, get);
         }
 
         @Override
-        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        public Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
-            return delegate.epochReadyFor(epoch);
+            return delegate.epochReadyFor(epoch, get);
         }
 
         @Override
@@ -551,12 +549,6 @@ public interface IAccordService
         }
 
         @Override
-        public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
-        {
-            return delegate.debugTxnBlockedGraph(txnId);
-        }
-
-        @Override
         public long minEpoch()
         {
             return delegate.minEpoch();
@@ -572,12 +564,6 @@ public interface IAccordService
         public Params journalConfiguration()
         {
             return delegate.journalConfiguration();
-        }
-
-        @Override
-        public boolean shouldAcceptMessages()
-        {
-            return delegate.shouldAcceptMessages();
         }
 
         @Override

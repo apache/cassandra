@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+import javax.management.InstanceNotFoundException;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -88,10 +89,13 @@ import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
+import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
+import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
+import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
+import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -2084,6 +2088,7 @@ public class NodeProbe implements AutoCloseable
                 case "BloomFilterFalseRatio":
                 case "BloomFilterOffHeapMemoryUsed":
                 case "IndexSummaryOffHeapMemoryUsed":
+                case "CompressionDictionariesMemoryUsed":
                 case "CompressionMetadataOffHeapMemoryUsed":
                 case "CompressionRatio":
                 case "EstimatedColumnCountHistogram":
@@ -2681,6 +2686,136 @@ public class NodeProbe implements AutoCloseable
     public void setMixedMajorVersionRepairEnabled(boolean enabled)
     {
         autoRepairProxy.setMixedMajorVersionRepairEnabled(enabled);
+    }
+
+    /**
+     * Triggers compression dictionary training for the specified table.
+     * Samples chunks from existing SSTables and trains a dictionary.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param force force the dictionary training even if there are not enough samples
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
+    {
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.train(force); return null; }, keyspace, table);
+    }
+
+    /**
+     * Returns latest dictionary for given keyspace and table.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the latest dictionary for given keyspace and table
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public CompositeData getCompressionDictionary(String keyspace, String table) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(CompressionDictionaryManagerMBean::getCompressionDictionary, keyspace, table);
+    }
+
+    /**
+     * Returns the dictionary for given keyspace and table and dictionary id.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @param dictId id of dictionary to get
+     * @return the dictionary for given keyspace and table and dictionary id.
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public CompositeData getCompressionDictionary(String keyspace, String table, long dictId) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(proxy -> proxy.getCompressionDictionary(dictId), keyspace, table);
+    }
+
+    /**
+     * Imports dictionary in composite data to database.
+     *
+     * @param compositeData data to import
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if keyspace and table values in compositeData are missing
+     * or if table doesn't support dictionary compression
+     */
+    public void importCompressionDictionary(CompositeData compositeData) throws IOException
+    {
+        String keyspace = (String) compositeData.get(CompressionDictionaryDetailsTabularData.KEYSPACE_NAME);
+        String table = (String) compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_NAME);
+
+        if (keyspace == null || table == null)
+        {
+            throw new IllegalArgumentException("Argument must have keyspace and table values.");
+        }
+
+        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.importCompressionDictionary(compositeData); return null; }, keyspace, table);
+    }
+
+    /**
+     *
+     * @param keyspace keyspace to list dictionaries for
+     * @param table table to list dictionaries for
+     * @return tabular data with listing
+     * @throws IOException if there's an error accessing the MBean
+     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     */
+    public TabularData listCompressionDictionaries(String keyspace, String table) throws IOException
+    {
+        return doWithCompressionDictionaryManagerMBean(CompressionDictionaryManagerMBean::listCompressionDictionaries, keyspace, table);
+    }
+
+    private <T> T doWithCompressionDictionaryManagerMBean(Function<CompressionDictionaryManagerMBean, T> func,
+                                                          String keyspace, String table) throws IOException
+    {
+        try
+        {
+            return func.apply(getDictionaryManagerProxy(keyspace, table));
+        }
+        catch (Exception e)
+        {
+            if (e.getCause() instanceof InstanceNotFoundException)
+            {
+                String message = String.format("Table %s.%s does not exist or does not support dictionary compression",
+                                               keyspace, table);
+                throw new IllegalArgumentException(message);
+            }
+            else
+            {
+                throw new IOException(e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Gets the compression dictionary training state for the specified table.
+     * Returns an atomic snapshot of training status, progress, and failure details.
+     *
+     * @param keyspace the keyspace name
+     * @param table the table name
+     * @return the current training state
+     * @throws IOException if there's an error accessing the MBean
+     */
+    public TrainingState getCompressionDictionaryTrainingState(String keyspace, String table) throws IOException
+    {
+        CompositeData compositeData = getDictionaryManagerProxy(keyspace, table).getTrainingState();
+        return TrainingState.fromCompositeData(compositeData);
+    }
+
+    private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
+    {
+        // Construct table-specific MBean name
+        String mbeanName = CompressionDictionaryManagerMBean.MBEAN_NAME + ",keyspace=" + keyspace + ",table=" + table;
+        try
+        {
+            ObjectName objectName = new ObjectName(mbeanName);
+            return JMX.newMBeanProxy(mbeanServerConn, objectName, CompressionDictionaryManagerMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new IOException("Invalid keyspace or table name", e);
+        }
     }
 }
 

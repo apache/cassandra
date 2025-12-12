@@ -67,25 +67,30 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     static
     {
-        Field totalTempField = null;
-        Field maxTempField = null;
-        Field reservedTempField = null;
+        Class<?> bitsClass = null;
+
         try
         {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            totalTempField = getField(bitsClass, "TOTAL_CAPACITY");
-            // Returns the maximum amount of allocatable direct buffer memory.
-            maxTempField = getField(bitsClass, "MAX_MEMORY");
-            reservedTempField = getField(bitsClass, "RESERVED_MEMORY");
+            bitsClass = Class.forName("java.nio.Bits");
         }
         catch (Throwable t)
         {
             logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
         }
-        BITS_TOTAL_CAPACITY = totalTempField;
-        BITS_MAX = maxTempField;
-        BITS_RESERVED = reservedTempField;
+
+        if (bitsClass != null)
+        {
+            BITS_TOTAL_CAPACITY = getField(bitsClass, "TOTAL_CAPACITY");
+            // Returns the maximum amount of allocatable direct buffer memory.
+            BITS_MAX = getField(bitsClass, "MAX_MEMORY");
+            BITS_RESERVED = getField(bitsClass, "RESERVED_MEMORY");
+        }
+        else
+        {
+            BITS_TOTAL_CAPACITY = null;
+            BITS_MAX = null;
+            BITS_RESERVED = null;
+        }
     }
 
     static final class State
@@ -173,6 +178,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         ObjectName gcName = new ObjectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*");
         for (ObjectName name : server.queryNames(gcName, null))
         {
+            logger.info("Notification listener is added for: {}", name);
             server.addNotificationListener(name, inspector, null, null);
         }
     }
@@ -261,6 +267,11 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 duration = total - previousTotal; // may be zero for a really fast collection
             }
 
+            logger.trace("Received GarbageCollectionNotificationInfo with gcId: {}, gcName: {}, " +
+                         "gcCause: {}, gcAction: {}, event duration: {} ms, calculated duration: {} ms",
+                         gcInfo.getId(), info.getGcName(), info.getGcCause(), info.getGcAction(),
+                         gcInfo.getDuration(), duration);
+
             StringBuilder sb = new StringBuilder();
             sb.append(info.getGcName()).append(" GC in ").append(duration).append("ms.  ");
             long bytes = 0;
@@ -287,22 +298,55 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 if (state.compareAndSet(prev, new State(duration, bytes, prev)))
                     break;
             }
-            
-            if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
-                logger.warn(sb.toString());
-            else if (duration > getGcLogThresholdInMs())
-                logger.info(sb.toString());
-            else if (logger.isTraceEnabled())
-                logger.trace(sb.toString());
 
-            if (duration > this.getStatusThresholdInMs())
-                StatusLogger.log();
+            if (isConcurrentPhase(info.getGcCause(), info.getGcName()))
+            {
+                if (getGcConcurrentPhaseWarnThresholdInMs() != 0 && duration > getGcConcurrentPhaseWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcConcurrentPhaseLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+
+                if (duration > this.getConcurrentStatusThresholdInMs())
+                    StatusLogger.log();
+            }
+            else
+            {
+                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+
+                if (duration > this.getStatusThresholdInMs())
+                    StatusLogger.log();
+            }
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
                 LifecycleTransaction.rescheduleFailedDeletions();
         }
     }
+
+    static boolean isConcurrentPhase(String cause, String name) {
+        // Mostly taken from: https://github.com/Netflix/spectator/blob/v1.7.x/spectator-ext-gc/src/main/java/com/netflix/spectator/gc/GcLogger.java
+        // So far the only indicator known is that the cause will be reported as "No GC"
+        // when using CMS.
+        //
+        // For ZGC, behavior was changed in JDK17: https://bugs.openjdk.java.net/browse/JDK-8265136
+        // For ZGC in older versions, there is no way to accurately get the amount of time
+        // in STW pauses.
+        //
+        // For G1, a new bean is added in JDK20 to indicate time spent in concurrent phases:
+        // https://bugs.openjdk.org/browse/JDK-8297247
+
+        return "No GC".equals(cause)                // CMS
+               || "G1 Concurrent GC".equals(name)   // G1 in JDK20+
+               || name.endsWith(" Cycles");         // Shenandoah, ZGC
+    }
+
 
     public State getTotalSinceLastCheck()
     {
@@ -358,9 +402,15 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     }
 
     /**
+     * Retrieves the value of a Field, handling both regular long fields and AtomicLong fields.
+     *
      * From the implementation of java.nio.Bits, we can infer that TOTAL_CAPACITY/RESERVED_MEMORY is AtomicLong
-     * and MAX_MEMORY is long. This method works well with JDK 11/17
-     * */
+     * and MAX_MEMORY is long.
+     *
+     * @param field the Field to retrieve the value from
+     * @param isAtomicLong true if the field is an AtomicLong, false if it's a regular long
+     * @return the field value, or -1 if retrieval fails or field is null.
+     */
     private static long getFieldValue(Field field, boolean isAtomicLong)
     {
         if (field == null) return -1;
@@ -378,14 +428,6 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcWarnThresholdInMs(long threshold)
     {
-        long gcLogThresholdInMs = getGcLogThresholdInMs();
-        if (threshold < 0)
-            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
-        if (threshold != 0 && threshold <= gcLogThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be greater than gcLogThresholdInMs which is currently "
-                    + gcLogThresholdInMs);
-        if (threshold > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
         DatabaseDescriptor.setGCWarnThreshold((int)threshold);
     }
 
@@ -396,15 +438,27 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcLogThresholdInMs(long threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGcWarnThresholdInMs();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be less than gcWarnThresholdInMs which is currently "
-                                               + gcWarnThresholdInMs);
-
         DatabaseDescriptor.setGCLogThreshold((int) threshold);
+    }
+
+    public int getGcConcurrentPhaseWarnThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold();
+    }
+
+    public void setGcConcurrentPhaseWarnThresholdInMs(int threshold)
+    {
+        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
+    }
+
+    public int getGcConcurrentPhaseLogThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseLogThreshold();
+    }
+
+    public void setGcConcurrentPhaseLogThresholdInMs(int threshold)
+    {
+        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
     }
 
     public long getGcLogThresholdInMs()
@@ -417,4 +471,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         return getGcWarnThresholdInMs() != 0 ? getGcWarnThresholdInMs() : getGcLogThresholdInMs();
     }
 
+    public long getConcurrentStatusThresholdInMs()
+    {
+        return getGcConcurrentPhaseWarnThresholdInMs() != 0 ? getGcConcurrentPhaseWarnThresholdInMs() : getGcConcurrentPhaseLogThresholdInMs();
+    }
 }

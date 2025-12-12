@@ -29,7 +29,13 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 
 public enum Version
 {
+    /**
+     * Used for nodes on older, pre-CEP-21 release versions
+     */
     OLD(-1),
+    /**
+     * Initial version
+     */
     V0(0),
     /**
      *  - Moved Partitioner in ClusterMetadata serializer to be the first field
@@ -68,6 +74,11 @@ public enum Version
      */
     V7(7),
 
+    /**
+     *  - Comments and security labels for schema elements (keyspaces, tables, columns, UDTs, and UDT fields)
+     */
+    V8(8),
+
     UNKNOWN(Integer.MAX_VALUE);
 
     /**
@@ -76,6 +87,7 @@ public enum Version
     public static final Version MIN_ACCORD_VERSION = V7;
 
     private static Map<Integer, Version> values = new HashMap<>();
+
     static
     {
         for (Version v : values())
@@ -94,10 +106,9 @@ public enum Version
     public static Version minCommonSerializationVersion()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata != null)
-            return metadata.directory.clusterMinVersion.serializationVersion();
-        return NodeVersion.CURRENT.serializationVersion();
-
+        return metadata != null
+               ? metadata.directory.commonSerializationVersion
+               : NodeVersion.CURRENT.serializationVersion();
     }
 
     public int asInt()
@@ -115,9 +126,19 @@ public enum Version
         return version >= other.version;
     }
 
+    public boolean isEqualOrBefore(Version version)
+    {
+        return this.version <= version.version;
+    }
+
     public boolean isBefore(Version other)
     {
         return version < other.version;
+    }
+
+    public boolean isAfter(Version other)
+    {
+        return version > other.version;
     }
 
     public static Version fromInt(int i)

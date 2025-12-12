@@ -35,6 +35,7 @@ import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -54,6 +55,11 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
+            Object [][] r = cluster.get(1).executeInternal("select keyspace_name from system_schema.keyspaces where keyspace_name='system_cluster_metadata'");
+            assertEquals(1, r.length);
+            r = cluster.get(1).executeInternal("select table_name from system_schema.tables where keyspace_name='system_cluster_metadata' and table_name='distributed_metadata_log'");
+            assertEquals(1, r.length);
+
             cluster.get(1).nodetoolResult("cms","initialize").asserts().success();
             cluster.forEach(i ->
             {

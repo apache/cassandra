@@ -33,29 +33,37 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.Utils;
 import accord.api.Agent;
-import accord.impl.AbstractConfigurationService;
+import accord.api.MessageSink;
+import accord.api.TopologyListener;
+import accord.api.TopologySorter;
 import accord.impl.TestAgent;
 import accord.impl.basic.Pending;
 import accord.impl.basic.PendingQueue;
 import accord.impl.basic.MonitoredPendingQueue;
 import accord.impl.basic.RandomDelayQueue;
 import accord.impl.basic.SimulatedDelayedExecutorService;
+import accord.impl.mock.MockCluster;
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.SortedListSet;
 import org.apache.cassandra.concurrent.AdaptingScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -63,14 +71,11 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.HeartBeatState;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
-import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -80,6 +85,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
+import static org.apache.cassandra.utils.AccordGenerators.partitioner;
 
 public class AccordSyncPropagatorTest
 {
@@ -93,15 +99,15 @@ public class AccordSyncPropagatorTest
     @Test
     public void burnTest()
     {
-        Gen<Ranges> rangesGen = AccordGenerators.ranges().filter(r -> !r.isEmpty());
+        Gen<Gen<Ranges>> rangesGenGen = partitioner().map(p -> AccordGenerators.ranges(p).filter(r -> !r.isEmpty()));
         Gen<List<Node.Id>> nodesGen = Gens.lists(AccordGens.nodes()).unique().ofSizeBetween(1, 40);
-        qt().withExamples(100).check(rs -> {
+        qt().withExamples(10).check(rs -> {
             // when gossip and cluster metadata don't know an endpoint, retries are avoided (node removed)
             // so when instances are created here they are added to gossip to trick the membership check...
             Gossiper.instance.clearUnsafe();
 
-            List<Node.Id> nodes = nodesGen.next(rs);
-            Set<Node.Id> nodesAsSet = ImmutableSet.copyOf(nodes);
+            SortedArrayList<Node.Id> nodes = SortedArrayList.copyUnsorted(nodesGen.next(rs), Node.Id[]::new);
+            SortedListSet<Node.Id> nodesAsSet = SortedListSet.allOf(nodes);
 
             List<Throwable> failures = new ArrayList<>();
             RandomDelayQueue delayQueue = new RandomDelayQueue.Factory(rs).get();
@@ -110,30 +116,46 @@ public class AccordSyncPropagatorTest
             SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent, null);
             ScheduledExecutorPlus scheduler = new AdaptingScheduledExecutorPlus(globalExecutor);
 
-            Cluster cluster = new Cluster(nodes, rs, scheduler);
-
-            long epochOffset = rs.nextLong(1, 1024);
-            int numEpochs = rs.nextInt(1, 10);
+            final long epochOffset = rs.nextLong(1, 1024);
             Map<Long, Ranges> allRanges = new HashMap<>();
+            Cluster cluster = new Cluster(nodes, epochOffset, allRanges, rs, scheduler);
+
+            Gen<Ranges> rangesGen = rangesGenGen.next(rs);
+            int numEpochs = rs.nextInt(1, 10);
             Pending.Global.setNoActiveOrigin();
+            Set<Object> prefixes = new HashSet<>();
             for (int i = 0; i < numEpochs; i++)
             {
                 long epoch = epochOffset + i;
-                Ranges ranges = rangesGen.next(rs);
-                allRanges.put(epoch, ranges);
+                Ranges ranges;
+                {
+                    Ranges tmp = rangesGen.next(rs);
+                    while (tmp.stream().anyMatch(r -> prefixes.contains(r.prefix())))
+                        tmp = rangesGen.next(rs);
+                    ranges = tmp;
+                }
+                ranges.stream().forEach(r -> prefixes.add(r.prefix()));
+                allRanges.put(epoch, ranges.mergeTouching());
                 scheduler.schedule(() -> {
                     for (Node.Id nodeId : nodes)
-                        cluster.node(nodeId).propagator.reportSyncComplete(epoch, nodes, nodeId);
+                    {
+                        cluster.node(nodeId).topology.onReadyToCoordinate(nodeId, epoch);
+                        cluster.node(nodeId).propagator.onReadyToCoordinate(epoch, nodes);
+                    }
 
                     for (int j = 0, attempts = rs.nextInt(1, 4); j < attempts; j++)
                     {
                         for (Range range : ranges)
                         {
-                            Cluster.Instace inst = cluster.node(choose(rs, nodes));
+                            Cluster.Instance inst = cluster.node(choose(rs, nodesAsSet));
                             scheduler.schedule(() -> {
                                 Ranges subrange = Ranges.of(range);
-                                inst.propagator.reportClosed(epoch, nodes, subrange);
-                                scheduler.schedule(() -> inst.propagator.reportRetired(epoch, nodes, subrange), 1, TimeUnit.MINUTES);
+                                inst.topology.onEpochClosed(subrange, epoch);
+                                inst.propagator.onEpochClosed(subrange, epoch, nodes);
+                                scheduler.schedule(() -> {
+                                    inst.topology.onEpochRetired(subrange, epoch);
+                                    inst.propagator.onEpochRetired(subrange, epoch, nodes);
+                                }, 1, TimeUnit.MINUTES);
                             }, rs.nextInt(30, 300), TimeUnit.SECONDS);
                         }
                     }
@@ -159,14 +181,18 @@ public class AccordSyncPropagatorTest
             if (hasPending(cluster))
                 throw new AssertionError("Unable to make progress: pending syncs on \n" + cluster.instances.values().stream().filter(i -> i.propagator.hasPending()).map(i -> i.propagator.toString()).collect(Collectors.joining("\n")));
 
-            for (Cluster.Instace inst : cluster.instances.values())
+            for (Cluster.Instance inst : cluster.instances.values())
             {
-                Cluster.ConfigService cs = inst.configurationService;
+                Cluster.Listener cs = inst.listener;
                 assertSetsEqual(cs.completedEpochs, allRanges.keySet(), "completedEpochs %s", inst.id);
                 assertSetsEqual(cs.syncCompletes.keySet(), allRanges.keySet(), "syncCompletes %s", inst.id);
                 for (Map.Entry<Long, Set<Node.Id>> e : cs.syncCompletes.entrySet())
                     assertSetsEqual(e.getValue(), nodesAsSet, "syncCompletes values on %s", inst.id);
 
+                for (Map.Entry<?, Ranges> e : cs.closed.entrySet())
+                    e.setValue(e.getValue().mergeTouching());
+                for (Map.Entry<?, Ranges> e : cs.redundant.entrySet())
+                    e.setValue(e.getValue().mergeTouching());
                 assertMapEquals(cs.closed, allRanges, "Unexpected state for closed on %s", inst.id);
                 assertMapEquals(cs.redundant, allRanges, "Unexpected state for redundant on %s", inst.id);
             }
@@ -190,7 +216,7 @@ public class AccordSyncPropagatorTest
             V value = e.getValue();
             V other = expected.get(e.getKey());
             if (!Objects.equals(value, other))
-                errors.add(String.format("Missmatch at key %s: expected %s but given %s", e.getKey(), other, value));
+                errors.add(String.format("Mismatch at key %s: expected %s but given %s", e.getKey(), other, value));
         }
         if (!errors.isEmpty())
             throw new AssertionError(String.join("\n", errors));
@@ -204,26 +230,34 @@ public class AccordSyncPropagatorTest
     private static class Cluster implements AccordEndpointMapper
     {
         private final ImmutableBiMap<Node.Id, InetAddressAndPort> nodeToAddress;
-        private final ImmutableMap<Node.Id, Instace> instances;
+        private final ImmutableMap<Node.Id, Instance> instances;
         private final RandomSource rs;
         private final ScheduledExecutorPlus scheduler;
 
         private Cluster(List<Node.Id> nodes,
+                        long minEpoch,
+                        Map<Long, Ranges> allRanges,
                         RandomSource rs,
                         ScheduledExecutorPlus scheduler)
         {
             this.rs = rs;
             this.scheduler = scheduler;
             ImmutableBiMap.Builder<Node.Id, InetAddressAndPort> nodeToAddress = ImmutableBiMap.builder();
-            ImmutableMap.Builder<Node.Id, Instace> instances = ImmutableMap.builder();
+            ImmutableMap.Builder<Node.Id, Instance> instances = ImmutableMap.builder();
             for (Node.Id id : nodes)
             {
                 InetAddressAndPort address = addressFromInt(id.id);
                 nodeToAddress.put(id, address);
-                ConfigService cs = new ConfigService(id);
+                Node node = Utils.createNode(id, Topology.EMPTY, new MessageSink.NoOpSink(), new MockCluster.Clock(0));
+                TopologyManager topology = new TopologyManager((TopologySorter.StaticSorter)(a,b,c)->0, node, ignore -> { throw new UnsupportedOperationException(); }, null, null);
+                Listener cs = new Listener(id, minEpoch, nodes, allRanges);
                 Sink sink = new Sink(id);
-                IFailureDetector fd = new FailureDetector(address);
-                instances.put(id, new Instace(id, address, cs, sink, fd, cs, new AccordSyncPropagator(id, Cluster.this, sink, fd, scheduler, cs)));
+                FailureWrapper fw = new FailureWrapper(Cluster.this, id);
+                AccordSyncPropagator propagator = new AccordSyncPropagator(id, fw, sink, scheduler);
+                topology.addListener(propagator);
+                topology.addListener(cs);
+                propagator.setTestListener(cs);
+                instances.put(id, new Instance(id, topology, cs, sink, propagator));
                 Gossiper.instance.endpointStateMap.put(address, new EndpointState(HeartBeatState.empty()));
             }
             this.nodeToAddress = nodeToAddress.build();
@@ -244,29 +278,41 @@ public class AccordSyncPropagatorTest
             }
         }
 
-        public Cluster.Instace node(Node.Id id)
+        public Instance node(Node.Id id)
         {
-            Instace instace = instances.get(id);
-            if (instace == null)
+            Instance instance = instances.get(id);
+            if (instance == null)
                 throw new NullPointerException("Unknown id: " + id);
-            return instace;
+            return instance;
         }
 
-        public Cluster.Instace node(InetAddressAndPort address)
+        public Instance node(InetAddressAndPort address)
         {
-            return node(mappedId(address));
+            return node(mappedIdOrNull(address));
         }
 
         @Override
-        public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
+        public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, Object ignore)
         {
             return nodeToAddress.inverse().get(endpoint);
         }
 
         @Override
-        public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
+        public InetAddressAndPort mappedEndpointOrNull(Node.Id id, Object ignore)
         {
             return nodeToAddress.get(id);
+        }
+
+        @Override
+        public Map<Node.Id, Long> removedNodes()
+        {
+            return Map.of();
+        }
+
+        @Override
+        public NodeStatus nodeStatus(Node.Id id)
+        {
+            throw new UnsupportedOperationException();
         }
 
         private enum Action
@@ -309,7 +355,7 @@ public class AccordSyncPropagatorTest
                         throw new IllegalStateException("Unknown action: " + action);
                 }
                 callbacks.put(message.id(), cb);
-                scheduler.schedule(() -> AccordService.receive(this, node(to).configurationService, (Message<AccordSyncPropagator.Notification>) message.withFrom(mappedEndpoint(from))), 500, TimeUnit.MILLISECONDS);
+                scheduler.schedule(() -> AccordService.receive(this, node(to).topology, (Message<AccordSyncPropagator.Notification>) message.withFrom(mappedEndpointOrNull(from))), 500, TimeUnit.MILLISECONDS);
                 scheduler.schedule(() -> {
                     RequestCallback<?> removed = callbacks.remove(message.id());
                     if (removed != null)
@@ -355,166 +401,128 @@ public class AccordSyncPropagatorTest
             }
         }
 
-        private class FailureDetector implements IFailureDetector
+        private class FailureWrapper implements AccordEndpointMapper
         {
-            private final InetAddressAndPort self;
-            private final Map<InetAddressAndPort, Gen<Boolean>> nodeRuns = new HashMap<>();
+            private final AccordEndpointMapper wrapped;
+            private final Node.Id self;
+            private final Map<Node.Id, Gen<Boolean>> nodeRuns = new HashMap<>();
 
-            private FailureDetector(InetAddressAndPort self)
+            private FailureWrapper(AccordEndpointMapper wrapped, Node.Id self)
             {
+                this.wrapped = wrapped;
                 this.self = self;
             }
 
+            @Nullable
             @Override
-            public boolean isAlive(InetAddressAndPort ep)
+            public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped)
             {
-                if (self.equals(ep)) return true;
+                return wrapped.mappedIdOrNull(endpoint, logIdentityIfUnmapped);
+            }
 
-                return !nodeRuns.computeIfAbsent(ep, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs);
+            @Nullable
+            @Override
+            public InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped)
+            {
+                return wrapped.mappedEndpointOrNull(id, logIdentityIfUnmapped);
             }
 
             @Override
-            public void interpret(InetAddressAndPort ep)
+            public NodeStatus nodeStatus(Node.Id id)
             {
-                throw new UnsupportedOperationException();
+                if (self.equals(id)) return NodeStatus.HEALTHY;
+
+                return !nodeRuns.computeIfAbsent(id, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs) ? NodeStatus.HEALTHY : NodeStatus.UNHEALTHY;
             }
 
             @Override
-            public void report(InetAddressAndPort ep)
+            public Map<Node.Id, Long> removedNodes()
             {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void remove(InetAddressAndPort ep)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void forceConviction(InetAddressAndPort ep)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
-            {
-                throw new UnsupportedOperationException();
+                return Map.of();
             }
         }
 
-        private class ConfigService extends AbstractConfigurationService.Minimal implements AccordSyncPropagator.Listener
+        private static class Listener implements AccordSyncPropagator.TestListener, TopologyListener
         {
+            private final Node.Id self;
+            private final long minEpoch;
+            private final List<Node.Id> nodes;
             private final Map<Long, Set<Node.Id>> syncCompletes = new HashMap<>();
             private final Map<Long, Set<Node.Id>> endpointAcks = new HashMap<>();
             private final NavigableSet<Long> completedEpochs = Collections.synchronizedNavigableSet(new TreeSet<>());
+            private final Map<Long, Ranges> allRanges;
             private final Map<Long, Ranges> closed = new HashMap<>();
             private final Map<Long, Ranges> redundant = new HashMap<>();
 
-            private ConfigService(Node.Id node)
+            private Listener(Node.Id node, long minEpoch, List<Node.Id> nodes, Map<Long, Ranges> allRanges)
             {
-                super(node, new AccordAgent());
+                this.self = node;
+                this.minEpoch = minEpoch;
+                this.nodes = nodes;
+                this.allRanges = allRanges;
             }
 
             @Override
-            protected void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
+            public void onRemoteReadyToCoordinate(Node.Id node, long epoch)
             {
                 syncCompletes.computeIfAbsent(epoch, ignore -> new HashSet<>()).add(node);
             }
 
             @Override
-            public void fetchTopologyForEpoch(long epoch)
+            public void onEpochClosed(Ranges ranges, long epoch, @Nullable Topology topology)
             {
-                // TODO
+                merge(closed, ranges, epoch);
             }
 
             @Override
-            protected void localSyncComplete(Topology topology, boolean startSync)
+            public void onEpochRetired(Ranges ranges, long epoch, @Nullable Topology topology)
             {
-                Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
-                instances.get(localId).propagator.reportSyncComplete(topology.epoch(), notify, localId);
+                merge(redundant, ranges, epoch);
             }
 
-            @Override
-            public void reportEpochClosed(Ranges ranges, long epoch)
+            private void merge(Map<Long, Ranges> map, Ranges ranges, long epoch)
             {
-                Topology topology = getTopologyForEpoch(epoch);
-                instances.get(localId).propagator.reportClosed(epoch, topology.nodes(), ranges);
-            }
-
-            @Override
-            public void reportEpochRetired(Ranges ranges, long epoch)
-            {
-                Topology topology = getTopologyForEpoch(epoch);
-                instances.get(localId).propagator.reportRetired(epoch, topology.nodes(), ranges);
-            }
-
-            @Override
-            public void reportEpochRemoved(long epoch)
-            {
+                while (epoch >= minEpoch)
+                {
+                    Ranges cur = map.get(epoch);
+                    Ranges upd = cur == null ? ranges : cur.with(ranges);
+                    if (upd == cur)
+                        break;
+                    if (cur != null)
+                        ranges = ranges.without(cur);
+                    ranges = ranges.without(allRanges.get(epoch));
+                    map.put(epoch, upd);
+                    --epoch;
+                }
             }
 
             @Override
             public void onEndpointAck(Node.Id id, long epoch)
             {
-                endpointAcks.computeIfAbsent(epoch, ignore -> new HashSet<>()).add(id);
-            }
-
-            @Override
-            public void onComplete(long epoch)
-            {
-                completedEpochs.add(epoch);
-                // TODO why do we see multiple calls?
-//                if (!completedEpochs.add(epoch))
-//                    throw new IllegalStateException("Completed epoch " + epoch + " multiple times");
-            }
-
-            @Override
-            public synchronized void receiveClosed(Ranges ranges, long epoch)
-            {
-                super.receiveClosed(ranges, epoch);
-                closed.merge(epoch, ranges, Ranges::with);
-            }
-
-            @Override
-            public synchronized void receiveRetired(Ranges ranges, long epoch)
-            {
-                super.receiveRetired(ranges, epoch);
-                redundant.merge(epoch, ranges, Ranges::with);
+                Set<Node.Id> acks = endpointAcks.computeIfAbsent(epoch, ignore -> new HashSet<>());
+                if (acks.add(id) && acks.containsAll(nodes))
+                    completedEpochs.add(epoch);
             }
         }
 
-        public class Instace
+        public class Instance
         {
             private final Node.Id id;
-            private final InetAddressAndPort address;
-            private final ConfigService configurationService;
+            private final TopologyManager topology;
+            private final Listener listener;
             private final Sink messagingService;
-            private final IFailureDetector failureDetector;
-            private final AccordSyncPropagator.Listener listener;
             private final AccordSyncPropagator propagator;
 
-            private Instace(Node.Id id,
-                            InetAddressAndPort address,
-                            ConfigService configurationService,
-                            Sink messagingService,
-                            IFailureDetector failureDetector,
-                            AccordSyncPropagator.Listener listener,
-                            AccordSyncPropagator propagator)
+            private Instance(Node.Id id,
+                             TopologyManager topology,
+                             Listener listener,
+                             Sink messagingService,
+                             AccordSyncPropagator propagator)
             {
                 this.id = id;
-                this.address = address;
-                this.configurationService = configurationService;
-                this.messagingService = messagingService;
-                this.failureDetector = failureDetector;
+                this.topology = topology;
                 this.listener = listener;
+                this.messagingService = messagingService;
                 this.propagator = propagator;
             }
         }

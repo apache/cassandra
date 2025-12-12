@@ -55,6 +55,7 @@ import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
@@ -66,6 +67,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults.CountingResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -140,6 +142,7 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void close()
         {
+            global().tryShrinkOrEvict(lock);
             lock.unlock();
         }
     }
@@ -161,6 +164,7 @@ public class AccordCommandStore extends CommandStore
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
+    LogLinearDecayingHistograms.Buffer metricsBuffer;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
@@ -205,10 +209,14 @@ public class AccordCommandStore extends CommandStore
                 ranges = update.newRangesForEpoch;
             Invariants.require(ranges != null, "CommandStore %d created with no ranges", id);
         }
+
         tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
+
+        if (AccordService.isStarted())
+            progressLog.unsafeStart();
     }
 
     static Factory factory(IntFunction<AccordExecutor> executorFactory)
@@ -474,7 +482,7 @@ public class AccordCommandStore extends CommandStore
     @Override
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
     {
-        if (!CommandsForKey.reportLinearizabilityViolations())
+        if (node().isReplaying())
             return;
 
         long reportId = nextDurabilityLoggingId.incrementAndGet();
@@ -490,12 +498,16 @@ public class AccordCommandStore extends CommandStore
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
-                for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                for (Range range : ranges)
                 {
-                    if (ranges.contains(e.key()) && e.isModified())
+                    for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
                     {
-                        ready.increment();
-                        caches.global().saveWhenReadyExclusive(e, ready);
+                        AccordCacheEntry<RoutingKey, CommandsForKey> e = caches.commandsForKeys().getUnsafe(k);
+                        if (e.isModified())
+                        {
+                            ready.increment();
+                            caches.global().saveWhenReadyExclusive(e, ready);
+                        }
                     }
                 }
             }

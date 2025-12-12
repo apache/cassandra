@@ -96,4 +96,23 @@ public interface SchemaElement
      * @return a CQL representation of this element
      */
     String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists);
+
+    /**
+     * Returns a complete CQL representation of this schema element for DESCRIBE statements.
+     * <p>
+     * This method returns the full schema definition including the CREATE statement and any
+     * associated metadata such as comments and security labels. It is specifically designed
+     * for use by DESCRIBE statements to provide a comprehensive view of the schema element.
+     * </p>
+     *
+     * @param withWarnings if commented warnings should be included
+     * @param withInternals if the internals part of the CQL should be exposed
+     * @param ifNotExists if "IF NOT EXISTS" should be included
+     * @return a complete CQL representation of this element including comments and security labels
+     * @see org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil
+     */
+    default String describe(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+    {
+        return toCqlString(withWarnings, withInternals, ifNotExists);
+    }
 }

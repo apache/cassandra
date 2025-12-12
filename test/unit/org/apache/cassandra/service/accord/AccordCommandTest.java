@@ -69,7 +69,6 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AccordCommandTest
 {
-
     static final AtomicLong clock = new AtomicLong(0);
     private static final Node.Id ID1 = new Node.Id(1);
     private static final Node.Id ID2 = new Node.Id(2);
@@ -104,7 +103,7 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        Route<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 
@@ -176,7 +175,7 @@ public class AccordCommandTest
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));
-            Assert.assertEquals(commit.partialDeps, before.partialDeps());
+            Assert.assertEquals(commit.partialDeps(), before.partialDeps());
 
             CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
@@ -196,7 +195,7 @@ public class AccordCommandTest
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
-        Route<?> route = fullRoute.slice(fullRange(txn));
+        Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
 

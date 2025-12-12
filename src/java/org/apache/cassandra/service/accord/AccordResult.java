@@ -32,10 +32,10 @@ import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Exhausted;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
-import accord.coordinate.TopologyMismatch;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+import accord.topology.TopologyMismatch;
 import accord.utils.UnhandledEnum;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ReadFailureException;
@@ -152,25 +152,9 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             {
                 report = bookkeeping.newExhausted(txnId, keysOrRanges);
             }
-            else if (isTxnRequest && coordinationFailed instanceof TopologyMismatch)
+            else if (fail instanceof TimeoutException)
             {
-                // Excluding bugs topology mismatch can occur because a table was dropped in between creating the txn
-                // and executing it.
-                // It could also race with the table stopping/starting being managed by Accord.
-                // The caller can retry if the table indeed exists and is managed by Accord.
-                Set<TableId> txnDroppedTables = txnDroppedTables(keysOrRanges);
-                Tracing.trace("Accord returned topology mismatch: " + coordinationFailed.getMessage());
-                logger.debug("Accord returned topology mismatch", coordinationFailed);
-                bookkeeping.markTopologyMismatch();
-                // Throw IRE in case the caller fails to check if the table still exists
-                if (!txnDroppedTables.isEmpty())
-                {
-                    Tracing.trace("Accord txn uses dropped tables {}", txnDroppedTables);
-                    logger.debug("Accord txn uses dropped tables {}", txnDroppedTables);
-                    throw new InvalidRequestException("Accord transaction uses dropped tables");
-                }
-                trySuccess((V) RetryWithNewProtocolResult.instance);
-                return false;
+                report = bookkeeping.newTimeout(txnId, keysOrRanges);
             }
             else
             {
@@ -179,6 +163,26 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             // this case happens when a non-timeout exception is seen, and we are unable to move forward
             if (txnId != null && txnId.isSyncPoint())
                 AccordAgent.onFailedBarrier(txnId, fail);
+        }
+        else if (isTxnRequest && fail instanceof TopologyMismatch)
+        {
+            // Excluding bugs topology mismatch can occur because a table was dropped in between creating the txn
+            // and executing it.
+            // It could also race with the table stopping/starting being managed by Accord.
+            // The caller can retry if the table indeed exists and is managed by Accord.
+            Set<TableId> txnDroppedTables = txnDroppedTables(keysOrRanges);
+            Tracing.trace("Accord returned topology mismatch: " + fail.getMessage());
+            logger.debug("Accord returned topology mismatch", fail);
+            bookkeeping.markTopologyMismatch();
+            // Throw IRE in case the caller fails to check if the table still exists
+            if (!txnDroppedTables.isEmpty())
+            {
+                Tracing.trace("Accord txn uses dropped tables {}", txnDroppedTables);
+                logger.debug("Accord txn uses dropped tables {}", txnDroppedTables);
+                throw new InvalidRequestException("Accord transaction uses dropped tables");
+            }
+            trySuccess((V) RetryWithNewProtocolResult.instance);
+            return false;
         }
         else if (fail instanceof RequestTimeoutException || fail instanceof TimeoutException)
         {

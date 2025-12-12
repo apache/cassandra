@@ -132,9 +132,13 @@ public class AccordSystemMetrics
         }
     }
 
+    public static void touch()
+    {
+    }
+
     private AccordSystemMetrics()
     {
-        Invariants.expect(AccordService.isSetup());
+        Invariants.expect(AccordService.isSetupOrStarting());
         DefaultNameFactory factory = new DefaultNameFactory(ACCORD_SYSTEM);
         minEpoch = Metrics.gauge(factory.createMetricName(MIN_EPOCH), fromTopologyManager(TopologyManager::minEpoch));
         maxEpoch = Metrics.gauge(factory.createMetricName(MAX_EPOCH), fromTopologyManager(TopologyManager::epoch));
@@ -160,13 +164,13 @@ public class AccordSystemMetrics
 
     private synchronized void refreshHistograms()
     {
-        if (!AccordService.isSetup())
+        if (!AccordService.isSetupOrStarting())
         {
             snapshot = new Snapshot();
             return;
         }
 
-        IAccordService service = AccordService.instance();
+        IAccordService service = AccordService.unsafeInstance();
         if (!service.isEnabled())
         {
             snapshot = new Snapshot();
@@ -175,7 +179,7 @@ public class AccordSystemMetrics
 
         int nowSeconds = (int) (Clock.Global.currentTimeMillis() / 1000);
         SnapshotBuilder builder = new SnapshotBuilder();
-        service.node().commandStores().forEachCommandStore(commandStore -> {
+        service.node().commandStores().forAllUnsafe(commandStore -> {
             DefaultProgressLog.ImmutableView view = ((DefaultProgressLog)commandStore.unsafeProgressLog()).immutableView();
             builder.progressLogActive += view.activeCount();
             builder.progressLogSize.increment(view.size());

@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public class ClientNotificiationsTest extends CQLTester
+public class ClientNotificationsTest extends CQLTester
 {
     private static Server.EventNotifier notifier = new Server.EventNotifier();
 
@@ -101,7 +101,7 @@ public class ClientNotificiationsTest extends CQLTester
         }
     }
 
-    static class EventHandler extends SimpleClient.SimpleEventHandler
+    public static class EventHandler extends SimpleClient.SimpleEventHandler
     {
         public void assertNextEvent(Event expected)
         {

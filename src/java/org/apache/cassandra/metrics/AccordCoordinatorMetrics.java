@@ -42,6 +42,7 @@ public class AccordCoordinatorMetrics
 {
     public final static AccordCoordinatorMetrics readMetrics = new AccordCoordinatorMetrics("ro");
     public final static AccordCoordinatorMetrics writeMetrics = new AccordCoordinatorMetrics("rw");
+    public final static AccordCoordinatorMetrics syncPointMetrics = new AccordCoordinatorMetrics("rx");
 
     public static final String ACCORD_COORDINATOR = "AccordCoordinator";
     public static final String COORDINATOR_EPOCHS = "Epochs";
@@ -192,14 +193,12 @@ public class AccordCoordinatorMetrics
         {
             throw new RuntimeException(e);
         }
-        builder.append("]");
+        builder.append(']');
         return builder.toString();
     }
 
     public static class Listener implements CoordinatorEventListener
     {
-        public static final Listener instance = new Listener();
-
         private AccordCoordinatorMetrics forTransaction(TxnId txnId)
         {
             if (txnId != null)
@@ -208,6 +207,8 @@ public class AccordCoordinatorMetrics
                     return writeMetrics;
                 else if (txnId.isSomeRead())
                     return readMetrics;
+                else if (txnId.isSyncPoint())
+                    return syncPointMetrics;
             }
             return null;
         }

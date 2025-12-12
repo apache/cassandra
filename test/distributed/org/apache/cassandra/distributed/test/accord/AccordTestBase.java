@@ -166,7 +166,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         SHARED_CLUSTER.filters().reset();
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start()));
 
         truncateSystemTables();
 
@@ -177,8 +177,7 @@ public abstract class AccordTestBase extends TestBaseImpl
                 return true;
 
             AccordService accord = ((AccordService) AccordService.instance());
-            return metadata.epoch.getEpoch() == accord.configService().currentEpoch() &&
-                   metadata.epoch.getEpoch() == accord.topology().current().epoch();
+            return metadata.epoch.getEpoch() == accord.topology().current().epoch();
             }, 60));
     }
 

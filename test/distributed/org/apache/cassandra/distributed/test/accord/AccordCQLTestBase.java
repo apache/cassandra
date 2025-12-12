@@ -48,6 +48,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
+import accord.topology.TopologyException;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ast.Symbol;
@@ -709,7 +710,9 @@ public abstract class AccordCQLTestBase extends AccordTestBase
 
                 Unseekables<?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toParticipants();
                 long epoch = AccordService.instance().topology().epoch();
-                Topologies topology = AccordService.instance().topology().withUnsyncedEpochs(routables, epoch, epoch);
+                Topologies topology;
+                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch); }
+                catch (TopologyException e) { throw new RuntimeException(e); }
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
             });
@@ -3258,7 +3261,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                                         .value("c", 0)
                                                         .build())
                                      .build();
-                 coordinator.execute(stmt.toCQL(), QUORUM, stmt.bindsEncoded());
+                 coordinator.execute(stmt.toCQL(), QUORUM, (Object[]) stmt.bindsEncoded());
 
                  // is the data correct?
                  var result = coordinator.executeWithResult("SELECT * FROM " + qualifiedAccordTableName, QUORUM);

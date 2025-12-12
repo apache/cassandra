@@ -71,9 +71,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,6 +131,7 @@ import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -158,7 +156,9 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -183,6 +183,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -199,6 +200,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -206,9 +208,9 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
+import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
-import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
@@ -845,7 +847,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.waitToSettle();
 
         NodeId self = Register.maybeRegister();
-        AccordService.startup(self);
+        if (!AccordService.isSetupOrStarting())
+            AccordService.localStartup(self);
+        AccordService.distributedStartup();
+
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
 
@@ -2069,9 +2074,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (keyspaceMetadata.params.replication.isMeta())
             {
-                rangeToEndpointMap.put(MetaStrategy.entireRange,
-                                       metadata.placements.get(keyspaceMetadata.params.replication)
-                                       .reads.forRange(MetaStrategy.entireRange).get());
+                DataPlacement placement = metadata.placements.get(keyspaceMetadata.params.replication);
+                // May be empty if mid-upgrade and CMS is not yet initialized
+                if (!placement.reads.isEmpty())
+                    rangeToEndpointMap.put(MetaStrategy.entireRange, placement.reads.forRange(MetaStrategy.entireRange).get());
             }
             else
             {
@@ -3145,6 +3151,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task);
     }
 
+    public RepairCoordinator repairAccordKeyspace(String keyspace, Collection<Range<Token>> ranges)
+    {
+        int cmd = nextRepairCommand.incrementAndGet();
+        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, // parallelism
+                                                false,                       // primaryRange
+                                                false,                      // incremental
+                                                false,                      // trace
+                                                5,                          // jobThreads
+                                                ranges,                     // ranges
+                                                true,                       // pullRepair
+                                                true,                       // forceRepair
+                                                PreviewKind.NONE,           // previewKind
+                                                false,                      // optimiseStreams
+                                                true,                       // ignoreUnreplicatedKeyspaces
+                                                true,                       // repairData
+                                                false,                      // repairPaxos
+                                                true,                       // dontPurgeTombstones
+                                                false,                      // repairAccord
+                                                false                       // permit no quorum
+        );
+
+        return new RepairCoordinator(this, cmd, options, keyspace);
+    }
+
     private void tryRepairPaxosForTopologyChange(String reason)
     {
         try
@@ -3820,8 +3850,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 transientMode = Optional.of(Mode.DRAINING);
             }
 
-            if (AccordService.isSetup())
-                AccordService.instance().markShuttingDown();
+            if (AccordService.isSetupOrStarting())
+                AccordService.unsafeInstance().markShuttingDown();
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3837,14 +3867,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.error("Messaging service timed out shutting down", t);
             }
 
-            if (AccordService.isSetup())
+            if (AccordService.isSetupOrStarting())
             {
                 logger.info("Flushing Accord caches");
-                if (!AccordService.instance().flushCaches().awaitUninterruptibly(1, MINUTES))
+                if (!AccordService.unsafeInstance().flushCaches().awaitUninterruptibly(1, MINUTES))
                     logger.error("Could not flush Accord caches promptly");
                 if (AccordColumnFamilyStores.commandsForKey != null)
                     AccordColumnFamilyStores.commandsForKey.forceBlockingFlush(INTERNALLY_FORCED);
-                AccordService.instance().shutdownAndWait(1, MINUTES);
+                AccordService.unsafeInstance().shutdownAndWait(1, MINUTES);
             }
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.

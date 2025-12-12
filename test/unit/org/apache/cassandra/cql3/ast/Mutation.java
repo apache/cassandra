@@ -261,11 +261,11 @@ public abstract class Mutation implements Statement
 
     public static class Insert extends Mutation
     {
-        public final LinkedHashMap<Symbol, Expression> values;
+        public final LinkedHashMap<ReferenceExpression, Expression> values;
         public final boolean ifNotExists;
         public final Optional<Using> using;
 
-        public Insert(TableReference table, LinkedHashMap<Symbol, Expression> values, boolean ifNotExists, Optional<Using> using)
+        public Insert(TableReference table, LinkedHashMap<ReferenceExpression, Expression> values, boolean ifNotExists, Optional<Using> using)
         {
             super(Mutation.Kind.INSERT, table);
             this.values = values;
@@ -290,7 +290,7 @@ public abstract class Mutation implements Statement
             sb.append("INSERT INTO ");
             table.toCQL(sb, formatter);
             sb.append(" (");
-            for (Symbol col : values.keySet())
+            for (ReferenceExpression col : values.keySet())
             {
                 col.toCQL(sb, formatter);
                 sb.append(", ");
@@ -339,10 +339,10 @@ public abstract class Mutation implements Statement
             var u = v.visit(this);
             if (u != this) return u;
             boolean updated = false;
-            LinkedHashMap<Symbol, Expression> copied = new LinkedHashMap<>(values.size());
+            LinkedHashMap<ReferenceExpression, Expression> copied = new LinkedHashMap<>(values.size());
             for (var e : values.entrySet())
             {
-                Symbol s = e.getKey();
+                Symbol s = e.getKey().asSymbol();
                 Symbol s2 = s.visit("INSERT", v);
                 if (s != s2)
                     updated = true;
@@ -388,11 +388,11 @@ public abstract class Mutation implements Statement
     public static class Update extends Mutation
     {
         public final Optional<Using> using;
-        public final LinkedHashMap<Symbol, Expression> set;
+        public final LinkedHashMap<ReferenceExpression, Expression> set;
         public final Conditional where;
         public final Optional<? extends CasCondition> casCondition;
 
-        public Update(TableReference table, Optional<Using> using, LinkedHashMap<Symbol, Expression> set, Conditional where, Optional<? extends CasCondition> casCondition)
+        public Update(TableReference table, Optional<Using> using, LinkedHashMap<ReferenceExpression, Expression> set, Conditional where, Optional<? extends CasCondition> casCondition)
         {
             super(Mutation.Kind.UPDATE, table);
             this.using = using;
@@ -477,10 +477,10 @@ public abstract class Mutation implements Statement
             var u = v.visit(this);
             if (u != this) return u;
             boolean updated = false;
-            LinkedHashMap<Symbol, Expression> copied = new LinkedHashMap<>(set.size());
+            LinkedHashMap<ReferenceExpression, Expression> copied = new LinkedHashMap<>(set.size());
             for (var e : set.entrySet())
             {
-                Symbol s = e.getKey().visit("UPDATE", v);
+                ReferenceExpression s = e.getKey().visit(v);
                 if (s != e.getKey())
                     updated = true;
                 Expression ex = e.getValue().visit(v);
@@ -736,7 +736,7 @@ WHERE PK_column_conditions
 
     public static class InsertBuilder extends TableBasedBuilder<Insert, InsertBuilder>
     {
-        private final LinkedHashMap<Symbol, Expression> values = new LinkedHashMap<>();
+        private final LinkedHashMap<ReferenceExpression, Expression> values = new LinkedHashMap<>();
         private boolean ifNotExists = false;
         private @Nullable TTL ttl;
         private @Nullable Timestamp timestamp;
@@ -775,7 +775,7 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public InsertBuilder value(Symbol ref, Expression e)
+        public InsertBuilder value(ReferenceExpression ref, Expression e)
         {
             maybePkEq(ref);
             values.put(ref, e);
@@ -816,7 +816,7 @@ WHERE PK_column_conditions
                                                                        Conditional.EqBuilder<B>,
                                                                        WithTTl<B>, WithTimestamp<B>
     {
-        B set(Symbol column, Expression value);
+        B set(ReferenceExpression column, Expression value);
         default B set(String column, Object value, AbstractType<?> type)
         {
             return set(new Symbol(column, type), new Literal(value, type));
@@ -837,7 +837,7 @@ WHERE PK_column_conditions
         private TableReference table;
         private @Nullable TTL ttl;
         private @Nullable Timestamp timestamp;
-        private final LinkedHashMap<Symbol, Expression> set = new LinkedHashMap<>();
+        private final LinkedHashMap<ReferenceExpression, Expression> set = new LinkedHashMap<>();
         private final Conditional.Builder where = new Conditional.Builder();
         private @Nullable CasCondition casCondition;
 
@@ -868,7 +868,7 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public B set(Symbol column, Expression value)
+        public B set(ReferenceExpression column, Expression value)
         {
             set.put(column, value);
             return (B) this;
@@ -967,9 +967,9 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public TableBasedUpdateBuilder set(Symbol column, Expression value)
+        public TableBasedUpdateBuilder set(ReferenceExpression column, Expression value)
         {
-            if (!metadata.regularAndStaticColumns.contains(column))
+            if (!metadata.regularAndStaticColumns.contains(column.column()))
                 throw new IllegalArgumentException("Attempted to set a non regular or static column " + column + "; expected " + metadata.regularAndStaticColumns);
             return super.set(column, value);
         }

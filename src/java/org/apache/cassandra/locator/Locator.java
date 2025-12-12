@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -64,6 +67,10 @@ public class Locator
     // Set from ClusterMetadata. After initial registration has happened, location of this node itself
     // is always taken from ClusterMetadata.
     private volatile VersionedLocation local;
+
+    // Convenience to avoid making too many Directory lookups, which can be relatively expensive due to
+    // being backed by BTreeMap/BTreeBiMap.
+    private final Map<InetAddressAndPort, VersionedLocation> locationCache = new ConcurrentHashMap<>();
 
     private static class VersionedLocation
     {
@@ -167,23 +174,28 @@ public class Locator
                 return new VersionedLocation(Epoch.EMPTY, Location.UNKNOWN);
             source = metadata.directory;
         }
-        NodeId nodeId = source.peerId(endpoint);
-        Location location =  nodeId != null ? source.location(nodeId) : Location.UNKNOWN;
-        return new VersionedLocation(source.lastModified(), location);
+
+        VersionedLocation versionedLocation = locationCache.get(endpoint);
+        if (versionedLocation == null || versionedLocation.epoch.isBefore(source.lastModified()))
+        {
+            NodeId nodeId = source.peerId(endpoint);
+            if (nodeId != null)
+            {
+                Location location = source.location(nodeId);
+                versionedLocation = new VersionedLocation(source.lastModified(), location);
+                locationCache.put(endpoint, versionedLocation);
+            }
+            else
+            {
+                versionedLocation = new VersionedLocation(source.lastModified(), Location.UNKNOWN);
+            }
+        }
+        return versionedLocation;
     }
 
     private Location fromDirectory(InetAddressAndPort endpoint)
     {
-        Directory source = directory;
-        if (source == null)
-        {
-            ClusterMetadata metadata = ClusterMetadata.currentNullable();
-            if (metadata == null)
-                return Location.UNKNOWN;
-            source = metadata.directory;
-        }
-        NodeId nodeId = source.peerId(endpoint);
-        return nodeId != null ? source.location(nodeId) : Location.UNKNOWN;
+        return versionedFromDirectory(endpoint).location;
     }
 
     private Location initialLocation()

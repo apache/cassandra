@@ -18,17 +18,17 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.concurrent.TimeUnit;
-
 import com.codahale.metrics.Meter;
-
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public interface Processor
 {
@@ -51,28 +51,18 @@ public interface Processor
     }
 
     /**
-     * Since we are using message expiration for communicating timeouts to CMS nodes, we have to be careful not
-     * to overflow the long, since messaging is using only 32 bits for deadlines. To achieve that, we are
-     * giving `timeoutNanos` every time we retry, but will retry indefinitely.
+     * To be used only when submitting a STARTUP transformation when a node is restarted with a new set of addresses or
+     * running a new release version.
      */
-    private static Retry unsafeRetryIndefinitely()
+    static Retry unsafeRetryIndefinitely()
     {
-        long timeoutNanos = getCmsAwaitTimeout().to(NANOSECONDS);
         Meter retryMeter = TCMMetrics.instance.commitRetries;
-        return Retry.withNoTimeLimit(retryMeter, new WaitStrategy()
-        {
-            @Override
-            public long computeWaitUntil(int attempts)
-            {
-                return nanoTime() + timeoutNanos;
-            }
-
-            @Override
-            public long computeWait(int attempts, TimeUnit units)
-            {
-                return units.convert(timeoutNanos, NANOSECONDS);
-            }
-        });
+        DurationSpec.IntMillisecondsBound defaultBackoff = DatabaseDescriptor.getDefaultRetryBackoff();
+        DurationSpec.IntMillisecondsBound defaultMaxBackoff = DatabaseDescriptor.getDefaultMaxRetryBackoff();
+        String spec = (defaultBackoff == null ? "100ms" : defaultBackoff.toMilliseconds() + "ms")
+                      + "*attempts <=" + (defaultMaxBackoff == null ? "10s" : defaultMaxBackoff.toMilliseconds() + "ms");
+        WaitStrategy wait = RetryStrategy.parse(spec, TimeoutStrategy.LatencySourceFactory.none());
+        return Retry.withNoTimeLimit(retryMeter, wait);
     }
 
     Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy);

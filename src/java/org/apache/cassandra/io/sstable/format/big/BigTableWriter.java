@@ -389,7 +389,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
                                                                     getIOOptions().writerOptions,
                                                                     getMetadataCollector(),
                                                                     ensuringInBuildInternalContext(operationType),
-                                                                    getIOOptions().flushCompression);
+                                                                    getIOOptions().flushCompression,
+                                                                    getCompressionDictionaryManager());
             this.dataWriterOpened = true;
             return dataWriter;
         }

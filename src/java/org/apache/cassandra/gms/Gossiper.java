@@ -106,6 +106,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitionerName;
 import static org.apache.cassandra.gms.Gossiper.GossipedWith.CMS;
 import static org.apache.cassandra.gms.Gossiper.GossipedWith.SEED;
 import static org.apache.cassandra.gms.VersionedValue.BOOTSTRAPPING_STATUS;
+import static org.apache.cassandra.gms.VersionedValue.HIBERNATE;
 import static org.apache.cassandra.gms.VersionedValue.unsafeMakeVersionedValue;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
@@ -402,6 +403,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         for (InetAddressAndPort endpoint : unreachableEndpoints.keySet())
         {
             NodeId nodeId = metadata.directory.peerId(endpoint);
+            // If the endpoint is not known to cluster metadata, the peer is probably a leftover of upgrading as
+            // long-gone hibernating peers may persist indefinitely. By definition though, such a peer cannot be
+            // a token owner, so it is safe to exclude it.
+            if (nodeId == null)
+                continue;
             NodeState state = metadata.directory.peerState(nodeId);
             switch (state)
             {
@@ -876,11 +882,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     public boolean isGossipOnlyMember(InetAddressAndPort endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
-        {
+        // gossip status only used for checking transient state HIBERNATE
+        if (epState == null || Gossiper.getGossipStatus(epState).equals(HIBERNATE))
             return false;
-        }
-        return !isDeadState(epState) && !ClusterMetadata.current().directory.allJoinedEndpoints().contains(endpoint);
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return false;
+        return NodeState.isPreJoin(metadata.directory.states.get(nodeId));
     }
 
     @VisibleForTesting

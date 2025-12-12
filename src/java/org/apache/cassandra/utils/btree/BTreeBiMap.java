@@ -68,10 +68,12 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
         return BTreeBiMap.<K, V>empty(naturalOrder(), naturalOrder());
     }
 
+    private transient BTreeBiMap<V, K> inverseMap = null;
     @Override
     public BiMap<V, K> inverse()
     {
-        return new BTreeBiMap<>(inverse, tree, valueComparator, asymmetricValueComparator, comparator, asymmetricComparator);
+        BiMap<V, K> res = inverseMap;
+        return res == null ? inverseMap = new BTreeBiMap<>(inverse, tree, valueComparator, asymmetricValueComparator, comparator, asymmetricComparator) : res;
     }
 
     @Override
@@ -87,7 +89,7 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
             throw new IllegalArgumentException("Value already exists in map: " + value);
 
         return new BTreeBiMap<>(BTree.update(tree, new Object[]{ entry }, comparator, UpdateFunction.noOp()),
-                                BTree.update(inverse, new Object[] { new AbstractBTreeMap.Entry<>(value, key) }, valueComparator, UpdateFunction.noOp()),
+                                BTree.update(inverse, new Object[] { inverseEntry }, valueComparator, UpdateFunction.noOp()),
                                 comparator, asymmetricComparator,
                                 valueComparator, asymmetricValueComparator);
     }

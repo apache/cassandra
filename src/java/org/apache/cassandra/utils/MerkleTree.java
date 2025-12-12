@@ -735,7 +735,7 @@ public class MerkleTree
 
         if (offHeapRequested && !offHeapSupported && !warnedOnce)
         {
-            logger.warn("Configuration requests off-heap merkle trees, but partitioner does not support it. Ignoring.");
+            logger.warn("Configuration requests off-heap merkle trees, but partitioner {} does not support it. Ignoring.", partitioner.getClass().getName());
             warnedOnce = true;
         }
 

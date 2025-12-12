@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm.membership;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.UUID;
 
 import com.google.common.primitives.Ints;
@@ -84,13 +83,13 @@ public class NodeId implements Comparable<NodeId>, MultiStepOperation.SequenceKe
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeId nodeId = (NodeId) o;
-        return Objects.equals(id, nodeId.id);
+        return id == nodeId.id;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(id);
+        return Long.hashCode(id);
     }
 
     @Override

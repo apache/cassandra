@@ -21,14 +21,17 @@ package org.apache.cassandra.tcm.transformations;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -105,8 +108,8 @@ public class PrepareJoin implements Transformation
                        boolean joinTokenRing,
                        boolean streamData)
     {
-        this.nodeId = nodeId;
-        this.tokens = tokens;
+        this.nodeId = Invariants.nonNull(nodeId);
+        this.tokens = Invariants.nonNull(tokens);
         this.placementProvider = placementProvider;
         this.joinTokenRing = joinTokenRing;
         this.streamData = streamData;
@@ -131,6 +134,17 @@ public class PrepareJoin implements Transformation
         if (!ALLOWED_STATES.contains(prev.directory.peerState(nodeId)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
                                                        nodeId, prev.directory.peerState(nodeId)));
+        Set<Token> alreadyAssigned = prev.tokenMap.tokens().stream().filter(tokens::contains).collect(Collectors.toSet());
+        if (!alreadyAssigned.isEmpty())
+        {
+            String assignedString = alreadyAssigned.stream()
+                                                   .map(t -> {
+                                                       NodeId n = prev.tokenMap.owner(t);
+                                                       InetAddressAndPort e = prev.directory.endpoint(n);
+                                                       return String.format("%s (node %s|%s)", t, n.id(), e);
+                                                   }).collect(Collectors.joining(","));
+            return new Rejected(INVALID, String.format("Rejecting this plan as some tokens are already assigned: [%s]", assignedString));
+        }
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForJoin(prev, nodeId, tokens, prev.schema.getKeyspaces());
 

@@ -91,7 +91,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     if (!prediction.state.get().isWriteTargetFor(token, prediction.node(6).matcher))
                         continue;
 
-                    simulatedCluster.waitForQuiescense();
+                    simulatedCluster.waitForQuiescence();
                     List<Replica> replicas = simulatedCluster.state.get().writePlacementsFor(token);
                     // At most 2 replicas should respond, so that when the pending node is added, results would be insufficient for recomputed blockFor
                     BooleanSupplier shouldRespond = atMostResponses(simulatedCluster.state.get().isWriteTargetFor(token, simulatedCluster.node(1).matcher) ? 1 : 2);
@@ -121,7 +121,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                                     .prepareJoin()
                                     .startJoin();
 
-                    simulatedCluster.waitForQuiescense();
+                    simulatedCluster.waitForQuiescence();
 
                     waiting.forEach(WaitingAction::resume);
 
@@ -165,7 +165,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     !simulatedCluster.state.get().isReadReplicaFor(token(pk), simulatedCluster.node(1).matcher))
                     continue;
 
-                simulatedCluster.waitForQuiescense();
+                simulatedCluster.waitForQuiescence();
 
                 List<Replica> replicas = simulatedCluster.state.get().readReplicasFor(token(pk));
                 Function<Integer, BooleanSupplier> shouldRespond = respondFrom(1, 4);
@@ -185,7 +185,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                                 .midLeave()
                                 .finishLeave();
 
-                simulatedCluster.waitForQuiescense();
+                simulatedCluster.waitForQuiescence();
 
                 waiting.forEach(WaitingAction::resume);
 
@@ -224,7 +224,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                             .prepareJoin()
                             .startJoin();
 
-            simulatedCluster.waitForQuiescense();
+            simulatedCluster.waitForQuiescence();
 
             AtomicInteger reads = new AtomicInteger();
             AtomicInteger writes = new AtomicInteger();

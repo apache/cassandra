@@ -108,6 +108,9 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound credentials_update_interval = null;
     public volatile boolean credentials_cache_active_update = false;
 
+    public int max_comment_length = 128;
+    public int max_security_label_length = 48;
+
     /* Hashing strategy Random or OPHF */
     public String partitioner;
 
@@ -514,6 +517,17 @@ public class Config
     public volatile DurationSpec.IntSecondsBound counter_cache_save_period = new DurationSpec.IntSecondsBound("7200s");
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
+    public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_interval = new DurationSpec.IntSecondsBound("3600s"); // 1 hour - TODO: re-assess whether daily (86400s) is more appropriate
+    public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_initial_delay = new DurationSpec.IntSecondsBound("10s"); // 10 seconds default
+    public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
+    public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
+
+    // Dictionary training settings
+    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("64KiB");
+    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("10MiB");
+    public volatile boolean compression_dictionary_training_auto_train_enabled = false;
+    public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
+
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
     public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
@@ -582,6 +596,8 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound gc_log_threshold = new DurationSpec.IntMillisecondsBound("200ms");
     @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound gc_warn_threshold = new DurationSpec.IntMillisecondsBound("1s");
+    public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_log_threshold = new DurationSpec.IntMillisecondsBound("1s");
+    public volatile DurationSpec.IntMillisecondsBound gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound("2s");
 
     // TTL for different types of trace events.
     @Replaces(oldName = "tracetype_query_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)

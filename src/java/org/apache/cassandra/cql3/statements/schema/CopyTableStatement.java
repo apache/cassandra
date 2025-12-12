@@ -20,12 +20,15 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -54,6 +57,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 
 /**
@@ -67,14 +71,14 @@ public final class CopyTableStatement extends AlterSchemaStatement
     private final String targetTableName;
     private final boolean ifNotExists;
     private final TableAttributes attrs;
-    private final CreateLikeOption createLikeOption;
+    private final Set<CreateLikeOption> createLikeOptions;
 
     public CopyTableStatement(String sourceKeyspace,
                               String targetKeyspace,
                               String sourceTableName,
                               String targetTableName,
                               boolean ifNotExists,
-                              CreateLikeOption createLikeOption,
+                              Set<CreateLikeOption> createLikeOptions,
                               TableAttributes attrs)
     {
         super(targetKeyspace);
@@ -83,7 +87,9 @@ public final class CopyTableStatement extends AlterSchemaStatement
         this.sourceTableName = sourceTableName;
         this.targetTableName = targetTableName;
         this.ifNotExists = ifNotExists;
-        this.createLikeOption = createLikeOption;
+        this.createLikeOptions = createLikeOptions != null
+                                 ? EnumSet.copyOf(createLikeOptions)
+                                 : EnumSet.noneOf(CreateLikeOption.class);
         this.attrs = attrs;
     }
 
@@ -107,6 +113,12 @@ public final class CopyTableStatement extends AlterSchemaStatement
     }
 
     @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V5);
+    }
+
+    @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
@@ -115,10 +127,10 @@ public final class CopyTableStatement extends AlterSchemaStatement
         if (null == sourceKeyspaceMeta)
             throw ire("Source Keyspace '%s' doesn't exist", sourceKeyspace);
 
-        TableMetadata sourceTableMeta = sourceKeyspaceMeta.getTableNullable(sourceTableName);
+        TableMetadata sourceTableMeta = sourceKeyspaceMeta.getTableOrViewNullable(sourceTableName);
 
         if (null == sourceTableMeta)
-            throw ire("Souce Table '%s.%s' doesn't exist", sourceKeyspace, sourceTableName);
+            throw ire("Source Table '%s.%s' doesn't exist", sourceKeyspace, sourceTableName);
 
         if (sourceTableMeta.isIndex())
             throw ire("Cannot use CREATE TABLE LIKE on an index table '%s.%s'.", sourceKeyspace, sourceTableName);
@@ -191,7 +203,7 @@ public final class CopyTableStatement extends AlterSchemaStatement
         if (!sourceTableMeta.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-        // withInternals can be set to false as it is only used for souce table id, which is not need for target table and the table
+        // withInternals can be set to false as it is only used for source table id, which is not need for target table and the table
         // id can be set through create table like cql using WITH ID
         String sourceCQLString = sourceTableMeta.toCqlString(false, false, false, false);
 
@@ -203,9 +215,12 @@ public final class CopyTableStatement extends AlterSchemaStatement
                                                                   .indexes(Indexes.none())
                                                                   .triggers(Triggers.none());
 
+        // Copy requested features using the CreateLikeHandler pattern
+        for (CreateLikeOption option : createLikeOptions)
+            option.copy(targetBuilder, targetKeyspace, targetTableName, sourceTableMeta, targetKeyspaceMeta);
+
         TableParams originalParams = targetBuilder.build().params;
         TableParams newTableParams = attrs.asAlteredTableParams(originalParams);
-        maybeCopyIndexes(targetBuilder, sourceTableMeta, targetKeyspaceMeta);
 
         TableMetadata table = targetBuilder.params(newTableParams)
                                            .id(TableId.get(metadata))
@@ -219,6 +234,9 @@ public final class CopyTableStatement extends AlterSchemaStatement
     public void validate(ClientState state)
     {
         super.validate(state);
+        // validate attributes to avoid silently accepting following statements
+        // create table ... like ... with security_label='xxx';
+        attrs.validate();
 
         // If a memtable configuration is specified, validate it against config
         if (attrs.hasOption(TableParams.Option.MEMTABLE))
@@ -239,59 +257,13 @@ public final class CopyTableStatement extends AlterSchemaStatement
         validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
     }
 
-    private void maybeCopyIndexes(TableMetadata.Builder builder, TableMetadata sourceTableMeta, KeyspaceMetadata targetKeyspaceMeta)
-    {
-        if (createLikeOption != CreateLikeOption.INDEXES || sourceTableMeta.indexes.isEmpty())
-            return;
-
-        Set<String> customIndexes = Sets.newTreeSet();
-        List<IndexMetadata> indexesToCopy = new ArrayList<>();
-        for (IndexMetadata indexMetadata : sourceTableMeta.indexes)
-        {
-            // only sai and legacy secondary index is supported
-            if (indexMetadata.isCustom() && !StorageAttachedIndex.class.getCanonicalName().equals(indexMetadata.getIndexClassName()))
-            {
-                customIndexes.add(indexMetadata.name);
-                continue;
-            }
-
-            ColumnMetadata targetColumn = sourceTableMeta.getColumn(UTF8Type.instance.decompose(indexMetadata.options.get("target")));
-            String indexName;
-            // The rules for generating the index names of the target table are:
-            // (1) If the source table's index names follow the pattern sourcetablename_columnname_idx_number, the index names are considered to be generated by the system,
-            //     then we directly replace the name of source table with the name of target table, and increment the number after idx to avoid index name conflicts.
-            // (2) Index names that do not follow the above pattern are considered user-defined, so the index names are retained and increment the number after idx to avoid conflicts.
-            if (indexMetadata.name.startsWith(sourceTableName + "_" + targetColumn.name + "_idx"))
-            {
-                String baseName = IndexMetadata.generateDefaultIndexName(targetTableName, targetColumn.name);
-                indexName = targetKeyspaceMeta.findAvailableIndexName(baseName, indexesToCopy, targetKeyspaceMeta);
-            }
-            else
-            {
-                indexName = targetKeyspaceMeta.findAvailableIndexName(indexMetadata.name, indexesToCopy, targetKeyspaceMeta);
-            }
-            indexesToCopy.add(IndexMetadata.fromSchemaMetadata(indexName, indexMetadata.kind, indexMetadata.options));
-        }
-
-        if (!indexesToCopy.isEmpty())
-            builder.indexes(Indexes.builder().add(indexesToCopy).build());
-
-        if (!customIndexes.isEmpty())
-            ClientWarn.instance.warn(String.format("Source table %s.%s to copy indexes from to %s.%s has custom indexes. These indexes were not copied: %s",
-                                                   sourceKeyspace,
-                                                   sourceTableName,
-                                                   targetKeyspace,
-                                                   targetTableName,
-                                                   customIndexes));
-    }
-
     public final static class Raw extends CQLStatement.Raw
     {
         private final QualifiedName oldName;
         private final QualifiedName newName;
         private final boolean ifNotExists;
         public final TableAttributes attrs = new TableAttributes();
-        private CreateLikeOption createLikeOption = null;
+        private Set<CreateLikeOption> createLikeOptions = EnumSet.noneOf(CreateLikeOption.class);
 
         public Raw(QualifiedName newName, QualifiedName oldName, boolean ifNotExists)
         {
@@ -305,17 +277,126 @@ public final class CopyTableStatement extends AlterSchemaStatement
         {
             String oldKeyspace = oldName.hasKeyspace() ? oldName.getKeyspace() : state.getKeyspace();
             String newKeyspace = newName.hasKeyspace() ? newName.getKeyspace() : state.getKeyspace();
-            return new CopyTableStatement(oldKeyspace, newKeyspace, oldName.getName(), newName.getName(), ifNotExists, createLikeOption, attrs);
+            return new CopyTableStatement(oldKeyspace, newKeyspace, oldName.getName(), newName.getName(), ifNotExists, createLikeOptions, attrs);
         }
 
-        public void withLikeOption(CreateLikeOption option)
+        public void addLikeOption(CreateLikeOption option)
         {
-            this.createLikeOption = option;
+            this.createLikeOptions.add(option);
         }
     }
 
-    public enum CreateLikeOption
+    /**
+     * Handler interface for copying specific table features when using CREATE TABLE LIKE.
+     * Each CreateLikeOption implements this to provide specific copy logic.
+     */
+    interface CreateLikeHandler
     {
-        INDEXES;
+        /**
+         * Copies a specific feature from the source table to the target table builder.
+         *
+         * @param targetTableBuilder the builder for the target table being created
+         * @param targetKeyspace the keyspace where the target table will be created
+         * @param targetTableName the name of the target table being created
+         * @param sourceTableMeta metadata of the source table to copy from
+         * @param targetKeyspaceMeta metadata of the target keyspace for schema lookup
+         */
+        void copy(TableMetadata.Builder targetTableBuilder,
+                  String targetKeyspace,
+                  String targetTableName,
+                  TableMetadata sourceTableMeta,
+                  KeyspaceMetadata targetKeyspaceMeta);
+    }
+
+    public enum CreateLikeOption implements CreateLikeHandler
+    {
+        INDEXES
+        {
+            @Override
+            public void copy(TableMetadata.Builder targetTableBuilder,
+                             String targetKeyspace,
+                             String targetTableName,
+                             TableMetadata sourceTableMeta,
+                             KeyspaceMetadata targetKeyspaceMeta)
+            {
+                if (sourceTableMeta.indexes.isEmpty())
+                    return;
+
+                String sourceTableName = sourceTableMeta.name;
+                String sourceKeyspace = sourceTableMeta.keyspace;
+                Set<String> customIndexes = Sets.newTreeSet();
+                List<IndexMetadata> indexesToCopy = new ArrayList<>();
+                for (IndexMetadata indexMetadata : sourceTableMeta.indexes)
+                {
+                    // only sai and legacy secondary index is supported
+                    if (indexMetadata.isCustom() && !StorageAttachedIndex.class.getCanonicalName().equals(indexMetadata.getIndexClassName()))
+                    {
+                        customIndexes.add(indexMetadata.name);
+                        continue;
+                    }
+
+                    ColumnMetadata targetColumn = sourceTableMeta.getColumn(UTF8Type.instance.decompose(indexMetadata.options.get("target")));
+                    String indexName;
+                    // The rules for generating the index names of the target table are:
+                    // (1) If the source table's index names follow the pattern sourcetablename_columnname_idx_number, the index names are considered to be generated by the system,
+                    //     then we directly replace the name of source table with the name of target table, and increment the number after idx to avoid index name conflicts.
+                    // (2) Index names that do not follow the above pattern are considered user-defined, so the index names are retained and increment the number after idx to avoid conflicts.
+                    if (indexMetadata.name.startsWith(sourceTableName + "_" + targetColumn.name + "_idx"))
+                    {
+                        String baseName = IndexMetadata.generateDefaultIndexName(targetTableName, targetColumn.name);
+                        indexName = targetKeyspaceMeta.findAvailableIndexName(baseName, indexesToCopy, targetKeyspaceMeta);
+                    }
+                    else
+                    {
+                        indexName = targetKeyspaceMeta.findAvailableIndexName(indexMetadata.name, indexesToCopy, targetKeyspaceMeta);
+                    }
+                    indexesToCopy.add(IndexMetadata.fromSchemaMetadata(indexName, indexMetadata.kind, indexMetadata.options));
+                }
+
+                if (!indexesToCopy.isEmpty())
+                    targetTableBuilder.indexes(Indexes.builder().add(indexesToCopy).build());
+
+                if (!customIndexes.isEmpty())
+                    ClientWarn.instance.warn(String.format("Source table %s.%s to copy indexes from to %s.%s has custom indexes. These indexes were not copied: %s",
+                                                           sourceKeyspace,
+                                                           sourceTableName,
+                                                           targetKeyspace,
+                                                           targetTableName,
+                                                           customIndexes));
+            }
+        },
+        COMMENTS
+        {
+            @Override
+            public void copy(TableMetadata.Builder targetTableBuilder,
+                             String targetKeyspace,
+                             String targetTableName,
+                             TableMetadata sourceTableMeta,
+                             KeyspaceMetadata targetKeyspaceMeta)
+            {
+                if (!StringUtils.isEmpty(sourceTableMeta.params.comment))
+                    targetTableBuilder.comment(sourceTableMeta.params.comment);
+
+                for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
+                    targetTableBuilder.alterColumnComment(columnMetadata.name, columnMetadata.comment);
+            }
+        },
+        SECURITY_LABELS
+        {
+            @Override
+            public void copy(TableMetadata.Builder targetTableBuilder,
+                             String targetKeyspace,
+                             String targetTableName,
+                             TableMetadata sourceTableMeta,
+                             KeyspaceMetadata targetKeyspaceMeta)
+            {
+                if (!StringUtils.isEmpty(sourceTableMeta.params.securityLabel))
+                    targetTableBuilder.securityLabel(sourceTableMeta.params.securityLabel);
+
+                for (ColumnMetadata columnMetadata : sourceTableMeta.columns())
+                    targetTableBuilder.alterColumnSecurityLabel(columnMetadata.name, columnMetadata.securityLabel);
+            }
+        }
+
     }
 }

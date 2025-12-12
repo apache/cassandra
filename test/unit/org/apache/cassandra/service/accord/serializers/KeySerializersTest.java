@@ -181,7 +181,7 @@ public class KeySerializersTest
         int count = superset.isEmpty() ? 0 : rs.nextInt(superset.size());
         Participants<?> subset = selectSubset(rs, count, superset);
         if (superset instanceof Route<?> && (!changeType || rs.nextBoolean()))
-            return superset.intersecting(subset);
+            return superset.overlapping(subset);
         return subset;
     }
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.UserFunction;
@@ -35,6 +36,7 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,14 +154,25 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return keyspaces.stream().anyMatch(ksm -> ksm.tables.stream().anyMatch(TableMetadata::requiresAccordSupport));
     }
 
+    /**
+     * @deprecated since TCM, used on upgrade from gossip to populate system schema tables with the correct generation
+     */
+    @Deprecated(since = "TCM")
+    public static List<Pair<KeyspaceMetadata, Long>> distributedKeyspacesWithGeneration(Set<String> knownDatacenters)
+    {
+        return ImmutableList.of(Pair.create(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters), DistributedMetadataLogKeyspace.GENERATION),
+                                Pair.create(TraceKeyspace.metadata(), TraceKeyspace.GENERATION),
+                                Pair.create(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION),
+                                Pair.create(AuthKeyspace.metadata(),AuthKeyspace.GENERATION));
+    }
+
     public static DistributedSchema fromSystemTables(Keyspaces keyspaces, Set<String> knownDatacenters)
     {
         if (!keyspaces.containsKeyspace(SchemaConstants.METADATA_KEYSPACE_NAME))
         {
-            Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters),
-                                         TraceKeyspace.metadata(),
-                                         SystemDistributedKeyspace.metadata(),
-                                         AuthKeyspace.metadata());
+            Keyspaces kss = Keyspaces.none();
+            for (Pair<KeyspaceMetadata, Long> ksmGen : distributedKeyspacesWithGeneration(knownDatacenters))
+                kss = kss.with(ksmGen.left);
             for (KeyspaceMetadata ksm : keyspaces) // on disk keyspaces
                 kss = kss.withAddedOrUpdated(kss.get(ksm.name)
                                                 .map(k -> merged(ksm, k))

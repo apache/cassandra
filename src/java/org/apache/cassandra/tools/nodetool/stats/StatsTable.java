@@ -57,6 +57,8 @@ public class StatsTable
     public String bloomFilterOffHeapMemoryUsed;
     public boolean indexSummaryOffHeapUsed = false;
     public String indexSummaryOffHeapMemoryUsed;
+    public boolean compressionDictionariesUsed = false;
+    public String compressionDictionariesMemoryUsed;
     public boolean compressionMetadataOffHeapUsed = false;
     public String compressionMetadataOffHeapMemoryUsed;
     public long compactedPartitionMinimumBytes;

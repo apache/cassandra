@@ -580,7 +580,7 @@ public class CollectionSerializers
         return result;
     }
 
-    private static <V, P, C extends Collection<? super V>, Version> C deserializeCollection(P p, DataInputPlus in, AsymmetricParameterisedUnversionedSerializer<?, P, V> serializer, IntFunction<C> factory) throws IOException
+    private static <V, P, C extends Collection<? super V>> C deserializeCollection(P p, DataInputPlus in, AsymmetricParameterisedUnversionedSerializer<?, P, V> serializer, IntFunction<C> factory) throws IOException
     {
         int size = in.readUnsignedVInt32();
         C result = factory.apply(size);

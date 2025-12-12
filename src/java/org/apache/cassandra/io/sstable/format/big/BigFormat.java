@@ -433,7 +433,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
     static class BigVersion extends Version
     {
-        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" : "oa";
+        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" :
+                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pa";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -448,6 +449,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // oa (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         //           Long deletionTime to prevent TTL overflow
         //           token space coverage
+        // pa (6.0): compression dictionary metadata in CompressionInfo component
         //
         // NOTE: When adding a new version:
         //  - Please add it to LegacySSTableTest

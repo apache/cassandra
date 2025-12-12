@@ -264,6 +264,28 @@ public class ExceptionsTableTest extends CQLTester
         });
     }
 
+    @Test
+    public void testEmptyStacktrace()
+    {
+        doWithVTable(4, table ->
+        {
+            // register after treating exception, so it goes to pre-initialisation buffer first
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+            ExceptionsTable.INSTANCE = getVirtualTable(ExceptionsTable.class, KS_NAME, EXCEPTIONS_TABLE_NAME);
+
+            JVMStabilityInspector.uncaughtException(currentThread(), new MyUncaughtExceptionWithoutStacktrace("my exception"));
+
+            ExceptionsTable.BoundedMap buffer = table.buffer;
+            assertEquals(1, buffer.size());
+
+            LinkedHashMap<String, ExceptionRow> partition = buffer.get(MyUncaughtExceptionWithoutStacktrace.class.getName());
+            ExceptionRow clustering = partition.get("unknown");
+            assertNotNull(clustering);
+            assertEquals(1, clustering.count);
+            assertEquals("my exception", clustering.message);
+        });
+    }
+
     private List<UntypedResultSet.Row> rows(String query)
     {
         return execute(query).stream().collect(toList());
@@ -304,6 +326,14 @@ public class ExceptionsTableTest extends CQLTester
         public MyUncaughtException2(String message)
         {
             super(message);
+        }
+    }
+
+    public static class MyUncaughtExceptionWithoutStacktrace extends Throwable
+    {
+        public MyUncaughtExceptionWithoutStacktrace(String message)
+        {
+            super(message, null, false, false);
         }
     }
 }

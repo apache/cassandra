@@ -17,7 +17,7 @@
 
 # apache/cassandra-jenkins-k8s
 #
-# docker buildx build --platform="linux/amd64,linux/arm64" -t apache/cassandra-jenkins-k8s -t apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s  --push  .
+# docker buildx build --platform="linux/amd64,linux/arm64" -t apache/cassandra-jenkins-k8s -t apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s --provenance=true --sbom=true -f agent-build.docker --push .
 #
 
 FROM jenkins/inbound-agent

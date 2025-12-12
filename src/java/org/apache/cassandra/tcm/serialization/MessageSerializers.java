@@ -35,47 +35,47 @@ import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
  * NOTE: Serialization version here is used for convenience of serializing the message
  * on the outgoing path. Since receiving node may have a different view of
  * min serialization version, we _always_ have to either use a {@link VerboseMetadataSerializer}
- * (like {@link LogState}/ {@link Replication} or explicitly serialize the version (like {@link Commit}).
+ * (like {@link LogState}) or explicitly serialize the version (like {@link Commit}).
  */
 public class MessageSerializers
 {
     public static IVersionedSerializer<LogState> logStateSerializer()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
+        if (metadata == null || metadata.directory.commonSerializationVersion.asInt() == NodeVersion.CURRENT.serializationVersion)
             return LogState.defaultMessageSerializer;
 
-        assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
-        return LogState.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
+        assert !metadata.directory.commonSerializationVersion.equals(NodeVersion.CURRENT.serializationVersion());
+        return LogState.messageSerializer(metadata.directory.commonSerializationVersion);
     }
 
     public static IVersionedSerializer<Commit.Result> commitResultSerializer()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
+        if (metadata == null || metadata.directory.commonSerializationVersion.asInt() == NodeVersion.CURRENT.serializationVersion)
             return Commit.Result.defaultMessageSerializer;
 
-        assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
-        return Commit.Result.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
+        assert !metadata.directory.commonSerializationVersion.equals(NodeVersion.CURRENT.serializationVersion());
+        return Commit.Result.messageSerializer(metadata.directory.commonSerializationVersion);
     }
 
     public static IVersionedSerializer<Commit> commitSerializer()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
+        if (metadata == null || metadata.directory.commonSerializationVersion.asInt() == NodeVersion.CURRENT.serializationVersion)
             return Commit.defaultMessageSerializer;
 
-        assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
-        return Commit.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
+        assert !metadata.directory.commonSerializationVersion.equals(NodeVersion.CURRENT.serializationVersion());
+        return Commit.messageSerializer(metadata.directory.commonSerializationVersion);
     }
 
     public static IVersionedSerializer<CMSInitializationRequest> initRequestSerializer()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
+        if (metadata == null || metadata.directory.commonSerializationVersion.asInt() == NodeVersion.CURRENT.serializationVersion)
             return CMSInitializationRequest.defaultMessageSerializer;
 
-        assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
-        return CMSInitializationRequest.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
+        assert !metadata.directory.commonSerializationVersion.equals(NodeVersion.CURRENT.serializationVersion());
+        return CMSInitializationRequest.messageSerializer(metadata.directory.commonSerializationVersion);
     }
 }

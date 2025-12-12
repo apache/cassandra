@@ -54,13 +54,13 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     @Override
     public void doVerb(Message message)
     {
-        if (!AccordService.instance().shouldAcceptMessages())
+        Node.Id from = endpointMapper.mappedIdOrNull(message.from(), message);
+        if (from == null)
         {
             dropping.debug(message.verb(), message.from());
             return;
         }
 
-        Node.Id from = endpointMapper.mappedId(message.from());
         logger.trace("Receiving {} from {}", message.payload, message.from());
         if (message.isFailureResponse())
         {

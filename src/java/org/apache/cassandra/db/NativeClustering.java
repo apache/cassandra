@@ -29,10 +29,10 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AddressBasedAllocator;
 import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
-import org.apache.cassandra.utils.memory.NativeAllocator;
 
 public class NativeClustering implements Clustering<NativeData>
 {
@@ -42,7 +42,17 @@ public class NativeClustering implements Clustering<NativeData>
 
     private NativeClustering() { peer = 0; }
 
-    public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering<?> clustering)
+    public static int estimateAllocationSize(Clustering<?> clustering)
+    {
+        int count = clustering.size();
+        int metadataSize = (count * 2) + 4;
+        int dataSize = clustering.dataSize();
+        int bitmapSize = ((count + 7) >>> 3);
+
+        return metadataSize + dataSize + bitmapSize;
+    }
+
+    public NativeClustering(AddressBasedAllocator allocator, OpOrder.Group writeOp, Clustering<?> clustering)
     {
         int count = clustering.size();
         int metadataSize = (count * 2) + 4;
