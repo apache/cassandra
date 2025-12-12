@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.TimeUUID;
 /**
  * Notification from coordinator to replicas when a bulk data transfer fails, triggering cleanup of the pending
  * transfer state.
- * @see CoordinatedTransfer
+ * @see TrackedImportTransfer
  * @see PendingLocalTransfer
  */
 public class TransferFailed

@@ -16,11 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair;
+package org.apache.cassandra.distributed.test.tracking;
 
-import org.apache.cassandra.repair.messages.SyncResponse;
+import java.io.IOException;
 
-public interface CompletableRemoteSyncTask
+import org.junit.BeforeClass;
+
+public class TrackedNonZeroCopyRepairTransferTest extends TrackedRepairTransferSuccessTestBase
 {
-    void syncComplete(SyncResponse response);
+    @BeforeClass
+    public static void setup() throws IOException
+    {
+        cluster = cluster(NON_ZCS_CONFIG);
+    }
 }

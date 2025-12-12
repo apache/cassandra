@@ -222,15 +222,7 @@ public class MockSchema
                                                                                            first.retainable().getKey().slice(),
                                                                                            last.retainable().getKey().slice());
                 StatsMetadata statsMetadata = (StatsMetadata) metadataComponents.get(MetadataType.STATS);
-                try (DataOutputStreamPlus out = descriptor.fileFor(Components.STATS).newOutputStream(File.WriteMode.OVERWRITE))
-                {
-                    new StatsComponent(metadataComponents).save(descriptor);
-                    out.flush();
-                }
-                catch (IOException ioe)
-                {
-                    throw new RuntimeException(ioe);
-                }
+                writeStatsMetadata(descriptor, metadataComponents);
                 BigTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)
                                                                               .setDataFile(fileHandle.sharedCopy())
@@ -253,7 +245,7 @@ public class MockSchema
         }
         else if (BtiFormat.is(format))
         {
-            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC);
+            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC, Components.STATS);
             for (Component component : components)
             {
                 File file = descriptor.fileFor(component);
@@ -268,9 +260,17 @@ public class MockSchema
                 collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
-                StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, ImmutableCoordinatorLogOffsets.NONE, header, first.retainable().getKey(), last.retainable().getKey())
-                                                                  .get(MetadataType.STATS);
+                Map<MetadataType, MetadataComponent> metadataComponents = collector.sstableLevel(level)
+                                                                                   .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
+                                                                                                     0.01f,
+                                                                                                     UNREPAIRED_SSTABLE,
+                                                                                                     null,
+                                                                                                     ImmutableCoordinatorLogOffsets.NONE,
+                                                                                                     header,
+                                                                                                     first.retainable().getKey(),
+                                                                                                     last.retainable().getKey());
+                StatsMetadata statsMetadata = (StatsMetadata) metadataComponents.get(MetadataType.STATS);
+                writeStatsMetadata(descriptor, metadataComponents);
                 BtiTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)
                                                                               .setDataFile(fileHandle.sharedCopy())
@@ -278,7 +278,7 @@ public class MockSchema
                                                                               .setRowIndexFile(fileHandle.sharedCopy())
                                                                               .setFilter(FilterFactory.AlwaysPresent)
                                                                               .setMaxDataAge(1L)
-                                                                              .setStatsMetadata(metadata)
+                                                                              .setStatsMetadata(statsMetadata)
                                                                               .setOpenReason(SSTableReader.OpenReason.NORMAL)
                                                                               .setSerializationHeader(header)
                                                                               .setFirst(readerBounds(firstToken))
@@ -292,6 +292,19 @@ public class MockSchema
         else
         {
             throw Util.testMustBeImplementedForSSTableFormat();
+        }
+    }
+
+    private static void writeStatsMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> metadataComponents)
+    {
+        try (DataOutputStreamPlus out = descriptor.fileFor(Components.STATS).newOutputStream(File.WriteMode.OVERWRITE))
+        {
+            new StatsComponent(metadataComponents).save(descriptor);
+            out.flush();
+        }
+        catch (IOException ioe)
+        {
+            throw new RuntimeException(ioe);
         }
     }
 

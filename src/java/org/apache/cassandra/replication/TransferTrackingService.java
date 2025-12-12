@@ -18,25 +18,39 @@
 
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.repair.RepairJob;
+import org.apache.cassandra.repair.SyncStat;
+import org.apache.cassandra.repair.SyncTask;
+import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -50,9 +64,9 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
  * TODO: Make changes to pending set durable with SystemKeyspace.savePendingLocalTransfer(transfer)?
  * TODO: Add vtable for visibility into local and coordinated transfers
  */
-public class LocalTransfers
+public class TransferTrackingService
 {
-    private static final Logger logger = LoggerFactory.getLogger(LocalTransfers.class);
+    private static final Logger logger = LoggerFactory.getLogger(TransferTrackingService.class);
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<ShortMutationId, CoordinatedTransfer> coordinating = new ConcurrentHashMap<>();
@@ -60,19 +74,18 @@ public class LocalTransfers
 
     final ExecutorPlus executor = executorFactory().pooled("LocalTrackedTransfers", Integer.MAX_VALUE);
 
-    private static final LocalTransfers instance = new LocalTransfers();
-    static LocalTransfers instance()
+    private static final TransferTrackingService instance = new TransferTrackingService();
+    public static TransferTrackingService instance()
     {
         return instance;
     }
 
-    void save(CoordinatedTransfer transfer)
+    void save(TrackedImportTransfer transfer)
     {
         lock.writeLock().lock();
         try
         {
-            CoordinatedTransfer existing = coordinating.put(transfer.id(), transfer);
-            Preconditions.checkState(existing == null);
+            saveInternal(transfer);
         }
         finally
         {
@@ -80,18 +93,12 @@ public class LocalTransfers
         }
     }
 
-    void activating(CoordinatedTransfer transfer)
+    private void saveInternal(CoordinatedTransfer transfer)
     {
-        Preconditions.checkNotNull(transfer.id());
-        lock.writeLock().lock();
-        try
-        {
-            coordinating.put(transfer.id(), transfer);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        Preconditions.checkNotNull(transfer.id(), "Cannot coordinate a transfar with no ID");
+        logger.debug("{} Saving {}", transfer.logPrefix(), transfer);
+        CoordinatedTransfer existing = coordinating.put(transfer.id(), transfer);
+        Preconditions.checkState(existing == null, "Attempted to save transfer multiple times");
     }
 
     void received(PendingLocalTransfer transfer)
@@ -111,6 +118,132 @@ public class LocalTransfers
         }
     }
 
+    /**
+     * Track a repair as a set of {@link TrackedRepairTransfer} instances corresponding to sync tasks prior to task 
+     * execution so when the syncs are done, we can activate them via {@link ActivationRequest} or fail by 
+     * sending {@link TransferFailed} to all replicas. In other words, one {@link RepairJob} will have as many
+     * transfers as sync tasks.
+     */
+    public void onRepairSyncExecution(SyncTasks tasks)
+    {
+        lock.writeLock().lock();
+        try
+        {
+            tasks.apply((SyncTasks.ShardedSyncTask shardedTask) -> {
+                TrackedRepairTransfer transfer = new TrackedRepairTransfer(shardedTask);
+                saveInternal(transfer);
+            });
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Begin activation for transfers whose repair sync tasks have completed.
+     */
+    public Future<List<SyncStat>> onRepairSyncCompletion(RepairJob job, Future<List<SyncStat>> syncCompletion, Executor executor)
+    {
+        AsyncPromise<List<SyncStat>> activationFuture = new AsyncPromise<>();
+
+        syncCompletion.addCallback(new FutureCallback<>()
+        {
+            @Override
+            public void onSuccess(List<SyncStat> syncs)
+            {
+                logger.info("Completed syncs {}. Coordinating: {} Local: {}", syncs, coordinating, local);
+
+                List<Pair<SyncStat, TrackedRepairTransfer>> transfersToActivate = new ArrayList<>();
+
+                lock.writeLock().lock();
+                try
+                {
+                    // Look up transfers while holding the lock
+                    for (SyncStat sync : syncs)
+                    {
+                        TrackedRepairTransfer transfer = (TrackedRepairTransfer) coordinating.get(sync.transferId);
+                        transfersToActivate.add(Pair.create(sync, transfer));
+                    }
+                }
+                finally
+                {
+                    lock.writeLock().unlock();
+                }
+
+                // Activate transfers WITHOUT holding the lock (activate() acquires its own locks and can block)
+                for (Pair<SyncStat, TrackedRepairTransfer> pair : transfersToActivate)
+                {
+                    TrackedRepairTransfer transfer = pair.right;
+
+                    try
+                    {
+                        logger.info("{} Activating transfer...", transfer.logPrefix());
+                        transfer.activate(pair.left);
+                    }
+                    catch (Throwable t)
+                    {
+                        // Note: cleanup will be triggered automatically when the async COMMIT responses complete
+                        logger.error("{} Failed to activate transfer", transfer.logPrefix(), t);
+                        activationFuture.tryFailure(t);
+                    }
+                }
+
+                // Activation succeeded, complete the future with the sync stats
+                activationFuture.trySuccess(syncs);
+            }
+
+            @Override
+            public void onFailure(Throwable t)
+            {
+                logger.error("Failed to complete sync tasks. Cleaning up pending transfers... ", t);
+
+                lock.writeLock().lock();
+                try
+                {
+                    Set<ShortMutationId> transferIds = new HashSet<>();
+                    for (SyncTask task : job.getSyncTasks())
+                    {
+                        ShortMutationId transferId = task.getTransferId();
+                        Preconditions.checkNotNull(transferId);
+                        transferIds.add(transferId);
+
+                        TimeUUID planId = task.getPlanId();
+                        if (planId == null)
+                            continue;
+
+                        CoordinatedTransfer transfer = coordinating.get(transferId);
+                        Pair<InetAddressAndPort, InetAddressAndPort> pair = Pair.create(task.nodePair().coordinator, task.nodePair().peer);
+                        transfer.streamResults.put(pair, CoordinatedTransfer.SingleTransferResult.Init().streamFailed(planId));
+                        transfer.streamResults.put(pair.reverse(), CoordinatedTransfer.SingleTransferResult.Init().streamFailed(planId));
+                    }
+
+                    for (ShortMutationId transferId : transferIds)
+                    {
+                        CoordinatedTransfer transfer = coordinating.get(transferId);
+                        try
+                        {
+                            transfer.notifyFailure();
+                        }
+                        catch (Throwable t0)
+                        {
+                            logger.error("{} Failed to notify peers of repair failure", transfer.logPrefix(), t0);
+                        }
+                    }
+
+                    scheduleCleanup();
+                    activationFuture.tryFailure(t);
+                }
+                finally
+                {
+                    lock.writeLock().unlock();
+                }
+            }
+        }, executor);
+
+        return activationFuture;
+    }
+
     Purger purger = new Purger();
 
     static class Purger
@@ -126,7 +259,7 @@ public class LocalTransfers
             boolean failedBeforeActivation = false;
             boolean noneActivated = true;
             boolean allComplete = true;
-            for (CoordinatedTransfer.SingleTransferResult result : transfer.streamResults.values())
+            for (TrackedImportTransfer.SingleTransferResult result : transfer.streamResults.values())
             {
                 switch (result.state)
                 {
@@ -230,12 +363,18 @@ public class LocalTransfers
 
             if (transfer.id() != null)
                 coordinating.remove(transfer.id());
-
-            CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResults.get(FBUtilities.getBroadcastAddressAndPort());
-            PendingLocalTransfer localTransfer;
-            TimeUUID planId;
-            if (localPending != null && (planId = localPending.planId()) != null && (localTransfer = local.get(planId)) != null)
-                purge(localTransfer);
+            
+            for (Map.Entry<Pair<InetAddressAndPort, InetAddressAndPort>, CoordinatedTransfer.SingleTransferResult> result : transfer.streamResults.entrySet())
+            {
+                if (result.getKey().right.equals(FBUtilities.getBroadcastAddressAndPort()))
+                {
+                    CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResults.get(result.getKey());
+                    PendingLocalTransfer localTransfer;
+                    TimeUUID planId;
+                    if (localPending != null && (planId = localPending.planId()) != null && (localTransfer = local.get(planId)) != null)
+                        purge(localTransfer);
+                }
+            }
         }
         finally
         {
@@ -270,7 +409,8 @@ public class LocalTransfers
         }
     }
 
-    @Nullable CoordinatedTransfer getActivatedTransfer(ShortMutationId transferId)
+    @Nullable
+    CoordinatedTransfer getActivatedTransfer(ShortMutationId transferId)
     {
         lock.readLock().lock();
         try
@@ -284,7 +424,7 @@ public class LocalTransfers
     }
 
     public static IVerbHandler<TransferFailed> verbHandler = message -> {
-        LocalTransfers.instance().purge(message.payload);
+        TransferTrackingService.instance().purge(message.payload);
         MessagingService.instance().respond(NoPayload.noPayload, message);
     };
 }

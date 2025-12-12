@@ -160,7 +160,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     private File getDataDir(ColumnFamilyStore cfs, long totalSize) throws IOException
     {
-        boolean isTracked = cfs.metadata().replicationType().isTracked();
+        boolean isTracked = cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable();
 
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)

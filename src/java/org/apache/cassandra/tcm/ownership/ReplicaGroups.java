@@ -130,11 +130,11 @@ public class ReplicaGroups
     }
 
     /**
-     * This method is intended to be used on read/write path, not forRange.
+     * This method is intended to be used on read/write path, not forRange. Returns a {@link VersionedEndpoints.ForRange}
+     * with the full ownership range, which necessarily contains the input range but may be wider.
      */
     public VersionedEndpoints.ForRange matchRange(Range<Token> range)
     {
-        EndpointsForRange.Builder builder = new EndpointsForRange.Builder(range);
         Epoch lastModified = Epoch.EMPTY;
         // find a range containing the *right* token for the given range - Range is start exclusive so if we looked for the
         // left one we could get the wrong range
@@ -142,10 +142,9 @@ public class ReplicaGroups
         if (pos >= 0 && pos < ranges.size() && ranges.get(pos).contains(range))
         {
             VersionedEndpoints.ForRange eps = endpoints.get(pos);
-            lastModified = eps.lastModified();
-            builder.addAll(eps.get(), ReplicaCollection.Builder.Conflict.ALL);
+            return VersionedEndpoints.forRange(eps.lastModified(), eps.get());
         }
-        return VersionedEndpoints.forRange(lastModified, builder.build());
+        return VersionedEndpoints.forRange(lastModified, EndpointsForRange.empty(range));
     }
 
     public VersionedEndpoints.ForRange forRange(Token token)

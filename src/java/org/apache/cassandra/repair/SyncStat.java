@@ -20,9 +20,13 @@ package org.apache.cassandra.repair;
 import java.util.Collection;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.SessionSummary;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Statistics about synchronizing two replica
@@ -32,21 +36,48 @@ public class SyncStat
     public final SyncNodePair nodes;
     public final Collection<Range<Token>> differences;
     public final List<SessionSummary> summaries;
+    public final TimeUUID planId;
+
+    @Nullable
+    public final ShortMutationId transferId;
 
     public SyncStat(SyncNodePair nodes, Collection<Range<Token>> differences)
     {
         this(nodes, differences, null);
     }
 
-    public SyncStat(SyncNodePair nodes,  Collection<Range<Token>> differences, List<SessionSummary> summaries)
+    private SyncStat(SyncNodePair nodes,  Collection<Range<Token>> differences, List<SessionSummary> summaries)
     {
         this.nodes = nodes;
         this.summaries = summaries;
         this.differences = differences;
+        this.planId = null;
+        this.transferId = null;
     }
 
-    public SyncStat withSummaries(List<SessionSummary> summaries)
+    private SyncStat(SyncNodePair nodes,  Collection<Range<Token>> differences, List<SessionSummary> summaries, TimeUUID planId, ShortMutationId transferId)
     {
-        return new SyncStat(nodes, differences, summaries);
+        this.nodes = nodes;
+        this.summaries = summaries;
+        this.differences = differences;
+        this.planId = planId;
+        this.transferId = transferId;
+    }
+
+    public SyncStat withSummaries(List<SessionSummary> summaries, TimeUUID planId, ShortMutationId transferId)
+    {
+        return new SyncStat(nodes, differences, summaries, planId, transferId);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SyncStat{" +
+               "nodes=" + nodes +
+               ", differences=" + differences +
+               ", summaries=" + summaries +
+               ", planId=" + planId +
+               ", transfer ID=" + transferId +
+               '}';
     }
 }

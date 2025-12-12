@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.replication;
 
-import java.util.Collections;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -132,7 +131,7 @@ public final class ActiveLogReconciler implements Shutdownable
     {
         private static Task from(ShortMutationId id, InetAddressAndPort toHost)
         {
-            CoordinatedTransfer transfer = LocalTransfers.instance().getActivatedTransfer(id);
+            CoordinatedTransfer transfer = TransferTrackingService.instance().getActivatedTransfer(id);
             if (transfer != null)
                 return new TransferTask(transfer, toHost);
             else
@@ -246,10 +245,10 @@ public final class ActiveLogReconciler implements Shutdownable
         void send()
         {
             logger.debug("Sending activation to {}", toHost);
-            LocalTransfers.instance().executor.submit(() -> {
+            TransferTrackingService.instance().executor.submit(() -> {
                 try
                 {
-                    transfer.activateOn(Collections.singleton(toHost));
+                    transfer.activate(toHost);
                     onResponse(null);
                 }
                 catch (Throwable t)
