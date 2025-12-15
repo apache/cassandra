@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.github.luben.zstd.ZstdDictTrainer;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;
@@ -427,7 +428,11 @@ public class CompressionDictionaryCacheTest
         {
             try
             {
-                resource.selfRef().release();
+                Ref<ZstdCompressionDictionary> selfRef = resource.selfRef();
+                if (selfRef != null && selfRef.globalCount() > 0)
+                {
+                    selfRef.release();
+                }
             }
             catch (Exception e)
             {

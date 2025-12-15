@@ -43,7 +43,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     // One ZstdDictDecompress and multiple ZstdDictCompress (per level) can be derived from the same raw dictionary content
     private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel = new ConcurrentHashMap<>();
     private final AtomicReference<ZstdDictDecompress> dictDecompress = new AtomicReference<>();
-    private final Ref<ZstdCompressionDictionary> selfRef;
+    private volatile Ref<ZstdCompressionDictionary> selfRef;
 
     @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
@@ -58,7 +58,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         this.dictId = dictId;
         this.rawDictionary = rawDictionary;
         this.checksum = checksum;
-        this.selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
+        this.selfRef = null;
     }
 
     @Override
@@ -180,7 +180,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     @Override
     public Ref<ZstdCompressionDictionary> tryRef()
     {
-        return selfRef.tryRef();
+        return initRefLazily().tryRef();
     }
 
     @Override
@@ -192,11 +192,31 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     @Override
     public Ref<ZstdCompressionDictionary> ref()
     {
-        return selfRef.ref();
+        return initRefLazily().ref();
+    }
+
+    @Override
+    public Ref<ZstdCompressionDictionary> initRefLazily()
+    {
+        if (selfRef == null)
+        {
+            synchronized (this)
+            {
+                if (selfRef == null)
+                {
+                    selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
+                }
+            }
+        }
+        return selfRef;
     }
 
     private void ensureNotReleased()
     {
+        if (selfRef == null)
+            throw new IllegalStateException("Dictionary ref is not initialized. " +
+                                            "Call initRefLazily() or tryRef() first: " + dictId);
+
         if (selfRef.globalCount() <= 0)
             throw new IllegalStateException("Dictionary has been released: " + dictId);
     }

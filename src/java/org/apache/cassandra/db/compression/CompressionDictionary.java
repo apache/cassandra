@@ -36,7 +36,16 @@ import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
- * Interface for compression dictionaries with reference-counted lifecycle management.
+ * Interface for compression dictionaries with opt-in reference-counted lifecycle management.
+ * <p>
+ * Dictionaries can be used in two modes:
+ * <ul>
+ *   <li><b>Lightweight mode</b>: No native resources allocated. Suitable for export, serialization,
+ *       or scenarios where only the raw dictionary bytes are needed.</li>
+ *   <li><b>Managed mode</b>: Native compression/decompression resources allocated on-demand and
+ *       managed via reference counting. Required for caching and active use.</li>
+ * </ul>
+ * Call {@link #initRefLazily()} or {@link #tryRef()} to transition from lightweight to managed mode.
  *
  * <h2>Reference Counting Model</h2>
  * Compression dictionaries hold native resources that must be explicitly managed. This interface
@@ -110,6 +119,13 @@ public interface CompressionDictionary
     }
 
     /**
+     * Returns a reference from lazily initialized reference counter.
+     *
+     * @return reference to this dictionary; once initialized, the reference is the same as self-reference
+     */
+    Ref<? extends CompressionDictionary> initRefLazily();
+
+    /**
      * Try to acquire a new reference to this dictionary.
      * Returns null if the dictionary is already released.
      * <p>
@@ -125,9 +141,11 @@ public interface CompressionDictionary
     /**
      * Get the self-reference of this dictionary.
      * This is used to release the primary reference held by the cache.
+     * Self-reference is initialized after initRefLazily or tryRef
      *
-     * @return the self-reference
+     * @return the self-reference or null if not yet initialized.
      */
+    @Nullable
     Ref<? extends CompressionDictionary> selfRef();
 
     /**
@@ -137,9 +155,12 @@ public interface CompressionDictionary
      * This method is idempotent - calling it multiple times is safe and will only
      * release the self-reference once. Subsequent calls have no effect.
      * <p>
-     * This method is typically used when creating a dictionary outside the cache
-     * (e.g., in tests or temporary usage) and needing to clean it up. For dictionaries
-     * managed by the cache, the cache's removal listener handles cleanup via
+     * There is no need to call this method in the context of releasing references when an instance
+     * is never put to a cache. That might be the case when we are constructing a dictionary object
+     * just for the purpose of passing it to a user (e.g. on exporting and similar) where reference counting
+     * is not necessary nor needed.
+     * <p>
+     * For dictionaries managed by the cache, the cache's removal listener handles cleanup via
      * {@code selfRef().release()}.
      *
      * @see #selfRef()
@@ -148,7 +169,9 @@ public interface CompressionDictionary
     @VisibleForTesting
     default void close()
     {
-        selfRef().close();
+        Ref<?> selfRef = selfRef();
+        if (selfRef != null)
+            selfRef.close();
     }
 
     /**

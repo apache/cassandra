@@ -1,4 +1,5 @@
 5.1
+ * Change the eager reference counting of compression dictionaries to lazy (CASSANDRA-21074)
  * Add cursor based optimized compaction path (CASSANDRA-20918)
  * Ensure peers with LEFT status are expired from gossip state (CASSANDRA-21035)
  * Optimize UTF8Validator.validate for ASCII prefixed Strings (CASSANDRA-21075)
