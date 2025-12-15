@@ -67,25 +67,30 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     static
     {
-        Field totalTempField = null;
-        Field maxTempField = null;
-        Field reservedTempField = null;
+        Class<?> bitsClass = null;
+
         try
         {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            totalTempField = getField(bitsClass, "TOTAL_CAPACITY");
-            // Returns the maximum amount of allocatable direct buffer memory.
-            maxTempField = getField(bitsClass, "MAX_MEMORY");
-            reservedTempField = getField(bitsClass, "RESERVED_MEMORY");
+            bitsClass = Class.forName("java.nio.Bits");
         }
         catch (Throwable t)
         {
             logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
         }
-        BITS_TOTAL_CAPACITY = totalTempField;
-        BITS_MAX = maxTempField;
-        BITS_RESERVED = reservedTempField;
+
+        if (bitsClass != null)
+        {
+            BITS_TOTAL_CAPACITY = getField(bitsClass, "TOTAL_CAPACITY");
+            // Returns the maximum amount of allocatable direct buffer memory.
+            BITS_MAX = getField(bitsClass, "MAX_MEMORY");
+            BITS_RESERVED = getField(bitsClass, "RESERVED_MEMORY");
+        }
+        else
+        {
+            BITS_TOTAL_CAPACITY = null;
+            BITS_MAX = null;
+            BITS_RESERVED = null;
+        }
     }
 
     static final class State
@@ -397,9 +402,15 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     }
 
     /**
+     * Retrieves the value of a Field, handling both regular long fields and AtomicLong fields.
+     *
      * From the implementation of java.nio.Bits, we can infer that TOTAL_CAPACITY/RESERVED_MEMORY is AtomicLong
-     * and MAX_MEMORY is long. This method works well with JDK 11/17
-     * */
+     * and MAX_MEMORY is long.
+     *
+     * @param field the Field to retrieve the value from
+     * @param isAtomicLong true if the field is an AtomicLong, false if it's a regular long
+     * @return the field value, or -1 if retrieval fails or field is null.
+     */
     private static long getFieldValue(Field field, boolean isAtomicLong)
     {
         if (field == null) return -1;

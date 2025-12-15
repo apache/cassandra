@@ -452,7 +452,16 @@ public interface StorageServiceMBean extends NotificationEmitter
      * The entire sstable will be read to ensure each cell validates if extendedVerify is true
      */
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Kept for backward compatibility with existing clients.
+     */
     public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Verify checksums of the given keyspace with extended options including SAI index validation.
+     */
+    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, boolean includeSai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Rewrite all sstables to the latest version.
@@ -1026,6 +1035,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getClusterName();
     /** Returns the cluster partitioner */
     public String getPartitionerName();
+
+    /** Returns the threshold for logging queries that read more than threshold amount of SSTables */
+    public int getSSTablesPerReadLogThreshold();
+    /** Sets the threshold for logging queries that read more than threshold amount of SSTables */
+    public void setSSTablesPerReadLogThreshold(int threshold);
 
     /** Returns the threshold for warning of queries with many tombstones */
     public int getTombstoneWarnThreshold();

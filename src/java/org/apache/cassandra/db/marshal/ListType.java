@@ -281,6 +281,18 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        for (byte[] buffer: buffers)
+        {
+            if (buffer == null)
+                throw new MarshalException("null is not supported inside collections");
+            elements.validate(buffer, ByteArrayAccessor.instance);
+        }
+        return buffers;
+    }
+
+    @Override
     protected int compareNextCell(Iterator<Cell<?>> cellIterator, Iterator<ByteBuffer> elementIter)
     {
         return getElementsType().compare(cellIterator.next().buffer(), elementIter.next());

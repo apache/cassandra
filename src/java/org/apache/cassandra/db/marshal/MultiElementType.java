@@ -99,6 +99,8 @@ public abstract class MultiElementType<T> extends AbstractType<T>
      */
     public abstract List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers);
 
+    public abstract List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers);
+
     /**
      * Compares the multicell value represensted by the column data with the specified elements.
      * @param columnData the column data representing the multicell value

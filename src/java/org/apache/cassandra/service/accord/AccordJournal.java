@@ -189,8 +189,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         Invariants.require(status == Status.INITIALIZED);
         this.node = node;
         status = Status.STARTING;
-        journal.start();
+        // start table first to scrub directories before compactor starts
         journalTable.start();
+        journal.start();
     }
 
     public boolean started()
@@ -320,28 +321,28 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public RedundantBefore loadRedundantBefore(int commandStoreId)
     {
-        IdentityAccumulator<RedundantBefore> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId));
+        IdentityAccumulator<RedundantBefore> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId));
+        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId));
+        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch loadRangesForEpoch(int commandStoreId)
     {
-        IdentityAccumulator<RangesForEpoch> accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId));
+        IdentityAccumulator<RangesForEpoch> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId));
         return accumulator.get();
     }
 
@@ -517,6 +518,16 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
         journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        return builder;
+    }
+
+    public <BUILDER extends FlyweightImage> BUILDER readLast(JournalKey key)
+    {
+        BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
+        builder.reset(key);
+        // TODO (expected): this can be further improved to avoid allocating lambdas
+        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
+        journalTable.readLast(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }
 

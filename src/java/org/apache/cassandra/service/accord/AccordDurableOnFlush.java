@@ -58,7 +58,7 @@ class AccordDurableOnFlush implements Consumer<TableMetadata>
             notify = commandStores;
             commandStores = null;
         }
-        CommandStores commandStores = AccordService.instance().node().commandStores();
+        CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
         for (Map.Entry<Integer, RedundantBefore> e : notify.entrySet())
         {
             RedundantBefore durable = e.getValue();

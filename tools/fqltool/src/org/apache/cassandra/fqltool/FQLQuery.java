@@ -244,11 +244,15 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         public BinLog.ReleaseableWriteMarshallable toMarshallable()
         {
             List<String> queryStrings = new ArrayList<>();
-            List<List<ByteBuffer>> values = new ArrayList<>();
+            List<byte[][]> values = new ArrayList<>();
             for (Single q : queries)
             {
                 queryStrings.add(q.query);
-                values.add(q.values);
+                byte[][] valuesAsArray = new byte[q.values.size()][];
+                int i = 0;
+                for (ByteBuffer value : q.values)
+                    valuesAsArray[i++] = value.array();
+                values.add(valuesAsArray);
             }
             return new FullQueryLogger.Batch(org.apache.cassandra.cql3.statements.BatchStatement.Type.valueOf(batchType.name()), queryStrings, values, queryOptions, queryState, queryStartTime);
         }

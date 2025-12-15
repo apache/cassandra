@@ -4,17 +4,18 @@
 
 == What are tombstones?
 
-{cassandra}'s processes for deleting data are designed to improve performance, and to work with {cassandra}'s built-in properties for data distribution and fault-tolerance.
+{cassandra}'s processes for deleting data are designed to be efficient, and to work with {cassandra}'s native features for data distribution and fault-tolerance.
 
 {cassandra} treats a deletion as an insertion, and inserts a time-stamped deletion marker called a tombstone.
 The tombstones go through {cassandra}'s write path, and are written to SSTables on one or more nodes. 
 The key feature difference of a tombstone is that it has a built-in expiration date/time. 
-At the end of its expiration period, the grace period, the tombstone is deleted as part of {cassandra}'s normal compaction process.
+At the end of its expiration period, called the grace period, the tombstone is deleted as part of {cassandra}'s normal compaction process.
 
 [NOTE]
 ====
-You can also mark a {cassandra} row or column with a time-to-live (TTL) value. 
-After this amount of time has ended, {cassandra} marks the object with a tombstone, and handles it like other tombstoned objects.
+In {cassandra}, you can assign a time-to-live (TTL) to a row or column. Once the TTL expires, the data is eligible for removal.
+During compaction, if the `gc_grace_seconds` period is still active, {cassandra} marks the data as expired, handling it like any other deleted item.
+After `gc_grace_seconds` has elapsed, the data is eligible for permanent removal.
 ====
 
 == Why tombstones?
@@ -23,14 +24,14 @@ The tombstone represents the deletion of an object, either a row or column value
 This approach is used instead of removing values because of the distributed nature of {cassandra}.
 Once an object is marked as a tombstone, queries will ignore all values that are time-stamped previous to the tombstone insertion.
 
-== Zombies
+== Preventing Data Resurrection
 
-In a multi-node cluster, {cassandra} may store replicas of the same data on two or more nodes. 
-This helps prevent data loss, but it complicates the deletion process. 
-If a node receives a delete command for data it stores locally, the node tombstones the specified object and tries to pass the tombstone to other nodes containing replicas of that object. 
-But if one replica node is unresponsive at that time, it does not receive the tombstone immediately, so it still contains the pre-delete version of the object. 
-If the tombstoned object has already been deleted from the rest of the cluster before that node recovers, {cassandra} treats the object on the recovered node as new data, and propagates it to the rest of the cluster. 
-This kind of deleted but persistent object is called a https://cassandra.apache.org/_/glossary.html#zombie[zombie].
+In a multi-node {cassandra} cluster, data is often replicated across several nodes to safeguard against loss.
+However, this replication can make deletions more complex.
+When a node receives a request to delete data, it marks the item with a tombstone and attempts to share this tombstone with other nodes that hold copies of the same data.
+If one of these replica nodes is offline or unreachable during the deletion, it won’t get the tombstone right away and will continue to store the original, undeleted data.
+If the rest of the cluster purges the tombstoned data before the offline node comes back online, {cassandra} may mistakenly treat the data on the recovered node as live and repair may replicate it across the cluster again.
+This scenario, where deleted data reappears, is known as a https://cassandra.apache.org/_/glossary.html#zombie[zombie].
 
 == Grace period
 
@@ -52,10 +53,10 @@ After the tombstone's grace period ends, {cassandra} deletes the tombstone durin
 
 == Deletion 
 
-After `gc_grace_seconds` has expired the tombstone may be removed (meaning there will no longer be any object that a certain piece of data was
-deleted). 
-But one complication for deletion is that a tombstone can live in one SSTable and the data it marks for deletion in another, so a compaction must also remove both SSTables.
-More precisely, drop an actual tombstone the:
+Once the `gc_grace_seconds` period has passed, the tombstone can be removed, meaning there will no longer be any record indicating that a specific piece of data was deleted.
+However, deleting data can be complicated because the tombstone might exist in one SSTable while the data it marks for deletion is in another.
+Therefore, a compaction process must remove both SSTables.
+More specifically, a tombstone is only dropped when:
 
 * The tombstone must be older than `gc_grace_seconds`.
 Note that tombstones will not be removed until a compaction event even if `gc_grace_seconds` has elapsed.
@@ -124,6 +125,67 @@ To avoid keeping tombstones forever, we set `gc_grace_seconds` for every table i
 
 If an SSTable contains only tombstones and it is guaranteed that SSTable is not shadowing data in any other SSTable, then the compaction can drop
 that SSTable.  
-If you see SSTables with only tombstones (note that TTL'd data is considered tombstones once the time-to-live has expired), but it is not being dropped by compaction, it is likely that other SSTables contain older data. 
+If you observe SSTables that contain only tombstones or expired TTL data, and compaction is not removing them, it likely indicates that older versions of the data still exist in other SSTables.
 There is a tool called `sstableexpiredblockers` that will list which SSTables are droppable and which are blocking them from being dropped. 
 With `TimeWindowCompactionStrategy` it is possible to remove the guarantee (not check for shadowing data) by enabling `unsafe_aggressive_sstable_expiration`.
+
+
+== Examples
+
+Below is the sstabledump output showing a live row with expired flag as "false":
+[source,json]
+----
+{
+  "partition" : {
+    "key" : [ "4ac48f1d-c736-4ca5-9b03-2566150f6af5" ],
+    "position" : 0
+  },
+  "rows" : [
+    {
+      "type" : "row",
+      "position" : 36,
+      "clustering" : [ "2025-11-05T22:43:20.833Z" ],
+      "liveness_info" : { "tstamp" : "2025-11-05T22:43:20.8326Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : false },
+      "cells" : [
+        { "name" : "activity_details", "value" : "details_for_row_3099" },
+        { "name" : "activity_type", "value" : "type_7" }
+      ]
+    }
+  ]
+}
+----
+
+Below is the sstabledump output showing expired flag as "true" when TTL has expired (and is considered as tombstone when read):
+[source,json]
+----
+{
+  "partition" : {
+    "key" : [ "4ac48f1d-c736-4ca5-9b03-2566150f6af5" ],
+    "position" : 0
+  },
+  "rows" : [
+    {
+      "type" : "row",
+      "position" : 30,
+      "clustering" : [ "2025-11-05T22:43:20.833Z" ],
+      "liveness_info" : { "tstamp" : "2025-11-05T22:43:20.832650Z", "ttl" : 86400, "expires_at" : "2025-11-06T22:43:20Z", "expired" : true },
+      "cells" : [
+        { "name" : "activity_details", "deletion_info" : { "local_delete_time" : "2025-11-05T22:43:20Z" } },
+        { "name" : "activity_type", "deletion_info" : { "local_delete_time" : "2025-11-05T22:43:20Z" } }
+      ]
+    }
+  ]
+}
+----
+
+Below is the output from sstabledump, showing how a delete operation generates a tombstone:
+[source,json]
+----
+{
+    "partition" : {
+      "key" : [ "4ac48f1d-c736-4ca5-9b03-2566150f6af5" ],
+      "position" : 31,
+      "deletion_info" : { "marked_deleted" : "2025-12-02T21:58:26.185187Z", "local_delete_time" : "2025-12-02T21:58:26Z" }
+    }
+}
+----

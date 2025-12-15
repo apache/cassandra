@@ -22,7 +22,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.nio.ByteBuffer;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Principal;
@@ -317,7 +316,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     public void batchSuccess(BatchStatement.Type batchType,
                              List<? extends CQLStatement> statements,
                              List<String> queries,
-                             List<List<ByteBuffer>> values,
+                             List<byte[][]> values,
                              QueryOptions options,
                              QueryState state,
                              long queryStartTimeMillis,
@@ -358,7 +357,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         }
     }
 
-    public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, Exception cause)
+    public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<byte[][]> values, QueryOptions options, QueryState state, Exception cause)
     {
         String auditMessage = String.format("BATCH of %d statements at consistency %s", statements.size(), options.getConsistency());
         AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(auditMessage)

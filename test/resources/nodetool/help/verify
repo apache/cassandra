@@ -7,8 +7,9 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] verify
                 [(-c | --check-version)] [(-d | --dfp)] [(-e | --extended-verify)]
-                [(-f | --force)] [(-q | --quick)] [(-r | --rsc)]
-                [(-t | --check-tokens)] [--] [<keyspace> <tables>...]
+                [(-f | --force)] [(-i | --include-sai)] [(-q | --quick)] [(-r | --rsc)]
+                [(-s | --sai-only)] [(-t | --check-tokens)] [--] [<keyspace>
+                <tables>...]
 
 OPTIONS
         -c, --check-version
@@ -25,6 +26,9 @@ OPTIONS
 
         -h <host>, --host <host>
             Node hostname or ip address
+
+        -i, --include-sai
+            Include SAI index verification along with data files
 
         -p <port>, --port <port>
             Remote jmx agent port number
@@ -43,6 +47,9 @@ OPTIONS
 
         -r, --rsc
             Mutate the repair status on corrupt sstables
+
+        -s, --sai-only
+            Verify only sai index
 
         -t, --check-tokens
             Verify that all tokens in sstables are owned by this node

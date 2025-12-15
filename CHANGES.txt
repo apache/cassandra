@@ -1,4 +1,8 @@
 5.1
+ * Use byte[] directly in QueryOptions instead of ByteBuffer and convert them to ArrayCell instead of BufferCell to reduce allocations (CASSANDRA-20166)
+ * Log queries scanning too many SSTables per read (CASSANDRA-21048)
+ * Extend nodetool verify to (optionally) validate SAI files (CASSANDRA-20949)
+ * Fix CompressionDictionary being closed while still in use (CASSANDRA-21047)
  * When updating a multi cell collection element, if the update is rejected then the shared Row.Builder is not freed causing all future mutations to be rejected (CASSANDRA-21055)
  * Schema annotations escape validation on CREATE and ALTER DDL statements (CASSANDRA-21046)
  * Calculate once and cache the result of ModificationStatement#requiresRead as a perf optimization (CASSANDRA-21040)
@@ -340,6 +344,7 @@ Merged from 5.0:
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
 Merged from 4.1:
+ * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
  * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
  * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
@@ -356,6 +361,8 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
+ * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
  * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
  * Fix cleanup of old incremental repair sessions in case of owned token range changes or a table deleting (CASSANDRA-20877)
  * Fix memory leak in BufferPoolAllocator when a capacity needs to be extended (CASSANDRA-20753)

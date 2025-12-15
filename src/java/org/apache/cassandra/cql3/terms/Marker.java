@@ -26,9 +26,11 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -74,7 +76,7 @@ public final class Marker extends Term.NonTerminal
     {
         try
         {
-            ByteBuffer bytes = options.getValues().get(bindIndex);
+            ByteBuffer bytes = options.getValue(bindIndex);
             if (bytes == null)
                 return null;
 
@@ -90,6 +92,40 @@ public final class Marker extends Term.NonTerminal
         catch (MarshalException e)
         {
             throw new InvalidRequestException(e.getMessage(), e);
+        }
+    }
+
+    public boolean isByteArrayGetSupported(QueryOptions options)
+    {
+        return options.isByteArrayValuesGetSupported();
+    }
+
+    /*
+       Same logic as bind() but it returns byte[] instead of ByteBuffer and there is no Value wrapper usage
+     */
+    @Override
+    public byte[] bindAndGetByteArray(QueryOptions options) throws InvalidRequestException
+    {
+        try
+        {
+            byte[] bytes = options.getByteArrayValues()[bindIndex];
+            if (bytes == null)
+                return null;
+
+            if (bytes == ByteArrayUtil.UNSET_BYTE_ARRAY)
+                return ByteArrayUtil.UNSET_BYTE_ARRAY;
+
+            if (receiver.type instanceof MultiElementType<?>)
+            {
+                MultiElementType<?> type = (MultiElementType<?>) receiver.type;
+                return type.pack(type.filterSortAndValidateElementsFromArrays(type.unpack(bytes)), ByteArrayAccessor.instance);
+            }
+            receiver.type.validate(bytes, ByteArrayAccessor.instance);
+            return bytes;
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
         }
     }
 
