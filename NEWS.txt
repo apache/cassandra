@@ -65,6 +65,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+5.0.7
+======
+
+Upgrading
+---------
+    - This release addresses a security vulnerability in the LZ4 dependency, documented in CASSANDRA-21052. For users
+      who did not use LZ4 native libraries, this will now fallback to a safer but less performant pure Java
+      implementation. During startup, a warning will be logged if the LZ4 native library is not available.
+
 5.0.5
 =====
 
