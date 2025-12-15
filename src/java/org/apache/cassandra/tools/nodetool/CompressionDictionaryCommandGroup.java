@@ -19,7 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.openmbean.CompositeData;
@@ -28,6 +30,7 @@ import javax.management.openmbean.TabularData;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
@@ -48,6 +51,10 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.stream.Collectors.joining;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 
 @Command(name = "compressiondictionary",
          description = "Manage compression dictionaries",
@@ -61,6 +68,9 @@ public class CompressionDictionaryCommandGroup
              description = "Manually trigger compression dictionary training for a table. If no SSTables are available, the memtable will be flushed first.")
     public static class TrainDictionary extends AbstractCommand
     {
+        private static final String MAX_DICT_SIZE_PARAM_NAME = "--max-dict-size";
+        private static final String MAX_TOTAL_SAMPLE_SIZE_PARAM_NAME = "--max-total-sample-size";
+
         @Parameters(index = "0", description = "The keyspace name", arity = "1")
         private String keyspace;
 
@@ -70,18 +80,40 @@ public class CompressionDictionaryCommandGroup
         @Option(names = { "-f", "--force" }, description = "Force the dictionary training even if there are not enough samples")
         private boolean force = false;
 
+        @Option(names = MAX_DICT_SIZE_PARAM_NAME, description = "Maximum size of a trained compression dictionary. " +
+                                                                "Larger dictionaries may provide better compression but use more memory. When not set, " +
+                                                                "the value from compression configuration from CQL for a given table is used. " +
+                                                                "The default value is " + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + '.')
+        private String trainingMaxDictionarySize;
+
+        @Option(names = MAX_TOTAL_SAMPLE_SIZE_PARAM_NAME, description = "Maximum total size of sample data to collect for dictionary training. " +
+                                                                        "More sample data generally produces better dictionaries but takes longer to train. " +
+                                                                        "The recommended sample size is 100x the dictionary size. When not set, " +
+                                                                        "the value from compression configuration from CQL for a give table is used. " +
+                                                                        "The default value is " + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '.')
+        private String trainingMaxTotalSampleSize;
+
         @Override
         public void execute(NodeProbe probe)
         {
             PrintStream out = probe.output().out;
             PrintStream err = probe.output().err;
 
+            validateParameters(err, trainingMaxDictionarySize, trainingMaxTotalSampleSize);
+
             try
             {
                 out.printf("Starting compression dictionary training for %s.%s...%n", keyspace, table);
                 out.printf("Training from existing SSTables (flushing first if needed)%n");
 
-                probe.trainCompressionDictionary(keyspace, table, force);
+                Map<String, String> parameters = new HashMap<>();
+                if (trainingMaxDictionarySize != null)
+                    parameters.put(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, trainingMaxDictionarySize);
+
+                if (trainingMaxTotalSampleSize != null)
+                    parameters.put(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, trainingMaxTotalSampleSize);
+
+                probe.trainCompressionDictionary(keyspace, table, force, parameters);
 
                 // Wait for training completion (10 minutes timeout for SSTable-based training)
                 out.println("Sampling from existing SSTables and training.");
@@ -139,6 +171,35 @@ public class CompressionDictionaryCommandGroup
 
             out.printf("\rStatus: %s | Samples: %d | Size: %.2f MiB | Elapsed: %ds",
                        status, sampleCount, sampleSizeMB, elapsedSeconds);
+        }
+
+        private static void validateParameters(PrintStream err, String trainingMaxDictionarySize, String trainingMaxTotalSampleSize)
+        {
+            if (trainingMaxDictionarySize != null)
+            {
+                try
+                {
+                    new DataStorageSpec.IntKibibytesBound(trainingMaxDictionarySize).toBytes();
+                }
+                catch (Throwable t)
+                {
+                    err.println("Invalid value for " + MAX_DICT_SIZE_PARAM_NAME + ": " + t.getMessage());
+                    System.exit(1);
+                }
+            }
+
+            if (trainingMaxTotalSampleSize != null)
+            {
+                try
+                {
+                    new DataStorageSpec.IntKibibytesBound(trainingMaxTotalSampleSize).toBytes();
+                }
+                catch (Throwable t)
+                {
+                    err.println("Invalid value for " + MAX_TOTAL_SAMPLE_SIZE_PARAM_NAME + ": " + t.getMessage());
+                    System.exit(1);
+                }
+            }
         }
     }
 

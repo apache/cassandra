@@ -51,42 +51,48 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
 
     private final String keyspaceName;
     private final String tableName;
-    private final CompressionDictionaryTrainingConfig config;
+    private volatile CompressionDictionaryTrainingConfig config;
     private final AtomicLong totalSampleSize;
     private final AtomicLong sampleCount;
     private final int compressionLevel; // optimal if using the same level for training as when compressing.
 
     // Sampling rate can be updated during training
-    private volatile int samplingRate;
+    private volatile float samplingRate;
 
     // Minimum number of samples required by ZSTD library
     private static final int MIN_SAMPLES_REQUIRED = 11;
 
     private volatile Consumer<CompressionDictionary> dictionaryTrainedListener;
     // TODO: manage the samples in this class for auto-train (follow-up). The ZstdDictTrainer cannot be re-used for multiple training runs.
-    private ZstdDictTrainer zstdTrainer;
+    private volatile ZstdDictTrainer zstdTrainer;
     private volatile boolean closed = false;
     private volatile TrainingStatus currentTrainingStatus;
     private volatile String failureMessage;
 
-    public ZstdDictionaryTrainer(String keyspaceName, String tableName,
-                                 CompressionDictionaryTrainingConfig config,
-                                 int compressionLevel)
+    public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel)
+    {
+        this(keyspaceName,
+             tableName,
+             compressionLevel,
+             DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate());
+    }
+
+    @VisibleForTesting
+    public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel, float samplingRate)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
-        this.config = config;
         this.totalSampleSize = new AtomicLong(0);
         this.sampleCount = new AtomicLong(0);
         this.compressionLevel = compressionLevel;
-        this.samplingRate = config.samplingRate;
+        this.samplingRate = samplingRate;
         this.currentTrainingStatus = TrainingStatus.NOT_STARTED;
     }
 
     @Override
     public boolean shouldSample()
     {
-        return zstdTrainer != null && ThreadLocalRandom.current().nextInt(samplingRate) == 0;
+        return zstdTrainer != null && ThreadLocalRandom.current().nextFloat() < samplingRate;
     }
 
     @Override
@@ -228,6 +234,12 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             return message.toString();
         }
 
+        if (config == null)
+        {
+            message.append(": configuration not initialized (call start() first)");
+            return message.toString();
+        }
+
         long currentSampleCount = sampleCount.get();
         long currentTotalSampleSize = totalSampleSize.get();
 
@@ -263,6 +275,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         return currentTrainingStatus != TrainingStatus.TRAINING
                && !closed
                && zstdTrainer != null
+               && config != null
                && totalSampleSize.get() >= config.acceptableTotalSampleSize
                && sampleCount.get() >= MIN_SAMPLES_REQUIRED;
     }
@@ -291,7 +304,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public boolean start(boolean manualTraining)
+    public boolean start(boolean manualTraining, CompressionDictionaryTrainingConfig trainingConfig)
     {
         if (closed || !(manualTraining || shouldAutoStartTraining()))
             return false;
@@ -299,7 +312,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         try
         {
             // reset on starting; a new zstdTrainer instance is created during reset
-            reset();
+            reset(trainingConfig);
             logger.info("Started dictionary training for {}.{}", keyspaceName, tableName);
             currentTrainingStatus = TrainingStatus.SAMPLING;
             failureMessage = null; // Clear any previous failure message
@@ -323,7 +336,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public void reset()
+    public void reset(CompressionDictionaryTrainingConfig trainingConfig)
     {
         if (closed)
         {
@@ -335,7 +348,8 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         {
             totalSampleSize.set(0);
             sampleCount.set(0);
-            zstdTrainer = new ZstdDictTrainer(config.maxTotalSampleSize, config.maxDictionarySize, compressionLevel);
+            zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+            config = trainingConfig;
         }
     }
 
@@ -352,12 +366,11 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public void updateSamplingRate(int newSamplingRate)
+    public void updateSamplingRate(float newSamplingRate)
     {
-        if (newSamplingRate <= 0)
-        {
-            throw new IllegalArgumentException("Sampling rate must be positive, got: " + newSamplingRate);
-        }
+        if (newSamplingRate <= 0.0f || newSamplingRate > 1.0f)
+            throw new IllegalArgumentException("Sampling rate has to be between (0.0;1], it is " + newSamplingRate);
+
         this.samplingRate = newSamplingRate;
         logger.debug("Updated sampling rate to {} for {}.{}", newSamplingRate, keyspaceName, tableName);
     }

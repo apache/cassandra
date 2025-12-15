@@ -1238,6 +1238,9 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
+
+        if (conf.compression_dictionary_training_sampling_rate <= 0.0f || conf.compression_dictionary_training_sampling_rate > 1.0f)
+            throw new ConfigurationException("Sampling rate has to be between (0.0;1], it is " + conf.compression_dictionary_training_sampling_rate);
     }
 
     @VisibleForTesting
@@ -4423,16 +4426,6 @@ public class DatabaseDescriptor
     public static int getCompressionDictionaryCacheExpireSeconds()
     {
         return conf.compression_dictionary_cache_expire.toSeconds();
-    }
-
-    public static int getCompressionDictionaryTrainingMaxDictionarySize()
-    {
-        return conf.compression_dictionary_training_max_dictionary_size.toBytes();
-    }
-
-    public static int getCompressionDictionaryTrainingMaxTotalSampleSize()
-    {
-        return conf.compression_dictionary_training_max_total_sample_size.toBytes();
     }
 
     public static boolean getCompressionDictionaryTrainingAutoTrainEnabled()

@@ -39,6 +39,8 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.utils.concurrent.Ref;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateTrainingParameter;
+
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
     private static final ConcurrentHashMap<Integer, ZstdDictionaryCompressor> instancesPerLevel = new ConcurrentHashMap<>();
@@ -75,6 +77,12 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     {
         int level = getOrDefaultCompressionLevel(options);
         validateCompressionLevel(level);
+        validateTrainingParameter(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                  options.getOrDefault(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                                       DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE));
+        validateTrainingParameter(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                  options.getOrDefault(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                                       DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE));
         return getOrCreate(level, null);
     }
 
@@ -109,7 +117,9 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
     private ZstdDictionaryCompressor(int level, ZstdCompressionDictionary dictionary, Ref<ZstdCompressionDictionary> dictionaryRef)
     {
-        super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME));
+        super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME,
+                            TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                            TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME));
         this.dictionary = dictionary;
         this.dictionaryRef = dictionaryRef;
     }
