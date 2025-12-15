@@ -45,6 +45,7 @@ import accord.utils.SortedArrays;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -85,7 +86,7 @@ import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
-public class TxnUpdate extends AccordUpdate
+public final class TxnUpdate extends AccordUpdate
 {
     static class ConditionalBlock
     {
@@ -547,6 +548,9 @@ public class TxnUpdate extends AccordUpdate
     // Memoize computation of condition
     private Boolean anyConditionResult;
 
+    @Nullable
+    private transient volatile Object validationException = this;
+
     public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
@@ -582,6 +586,25 @@ public class TxnUpdate extends AccordUpdate
     public static TxnUpdate empty()
     {
         return new TxnUpdate(TableMetadatas.none(), Keys.EMPTY, Collections.emptyList(), null, PreserveTimestamp.no);
+    }
+
+    public static TxnValidationRejection validationRejection(@Nullable Update update)
+    {
+        if (update != null && update.getClass() == TxnUpdate.class)
+        {
+            RequestValidationException e = ((TxnUpdate) update).validationRejection();
+            if (e != null) return new TxnValidationRejection(e);
+        }
+        return null;
+    }
+
+    @Nullable
+    private RequestValidationException validationRejection()
+    {
+        Object snapshot = validationException;
+        if (snapshot == this)
+            throw Invariants.illegalState("Attempted to check for validation exception before .apply was called");
+        return snapshot == null ? null : (RequestValidationException) snapshot;
     }
 
     @Override
@@ -677,7 +700,18 @@ public class TxnUpdate extends AccordUpdate
         ClusterMetadata cm = ClusterMetadata.current();
         checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
 
-        Pair<List<TxnWrite.Update>, SimpleBitSet> pair = processCondition(executeAt, data);
+        Pair<List<TxnWrite.Update>, SimpleBitSet> pair = null;
+        try
+        {
+            validationException = null;
+            pair = processCondition(executeAt, data);
+        }
+        catch (RequestValidationException e)
+        {
+            // the update isn't allowed
+            validationException = e;
+        }
+
         if (pair == null)
             return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allUnset(numConditionalBlocks()));
 

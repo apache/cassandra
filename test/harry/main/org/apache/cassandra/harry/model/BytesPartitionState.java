@@ -348,7 +348,7 @@ public class BytesPartitionState
             sb.append(partition);
             sb.append(", clustering=");
             if (clustering == null) sb.append("null");
-            else                    appendValues(sb, factory.clusteringColumns, clustering);
+            else                    appendValues(sb, clustering == Clustering.STATIC_CLUSTERING ? List.of() : factory.clusteringColumns, clustering);
             sb.append(')');
             return sb.toString();
         }

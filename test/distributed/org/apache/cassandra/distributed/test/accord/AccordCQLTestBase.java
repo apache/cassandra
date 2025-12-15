@@ -3416,4 +3416,20 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             }
         });
     }
+
+    @Test
+    public void userSeesInvalidRejection() throws Exception
+    {
+        var expectedType = AssertionUtils.isInstanceof(InvalidRequestException.class);
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int PRIMARY KEY, l list<int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String cql = "UPDATE " + qualifiedAccordTableName + " SET l[0] = 42 WHERE k=42";
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(cql, QUORUM))
+                      .is(expectedType)
+                      .hasMessage("Attempted to set an element on a list which is null");
+
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(wrapInTxn(cql), QUORUM))
+                      .is(expectedType)
+                      .hasMessage("Attempted to set an element on a list which is null");
+        });
+    }
 }
