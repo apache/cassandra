@@ -1,4 +1,5 @@
 5.1
+ * Move training parameters for Zstd dictionary compression to CQL (CASSANDRA-21078)
  * Add configuration for sorted imports in source files (CASSANDRA-17925)
  * Change the eager reference counting of compression dictionaries to lazy (CASSANDRA-21074)
  * Add cursor based optimized compaction path (CASSANDRA-20918)

@@ -2693,15 +2693,19 @@ public class NodeProbe implements AutoCloseable
      * Triggers compression dictionary training for the specified table.
      * Samples chunks from existing SSTables and trains a dictionary.
      *
-     * @param keyspace the keyspace name
-     * @param table the table name
-     * @param force force the dictionary training even if there are not enough samples
-     * @throws IOException if there's an error accessing the MBean
-     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     * @param keyspace                   the keyspace name
+     * @param table                      the table name
+     * @param force                      force the dictionary training even if there are not enough samples
+     * @param parameters                 training parameters, if empty, training parameters will be taken from CQL's
+     *                                   compression section of a given table training is conducted on.
+     * @throws IOException               if there's an error accessing the MBean
+     * @throws IllegalArgumentException  if table doesn't support dictionary compression
      */
-    public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
+    public void trainCompressionDictionary(String keyspace, String table,
+                                           boolean force,
+                                           Map<String, String> parameters) throws IOException
     {
-        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.train(force); return null; }, keyspace, table);
+        doWithCompressionDictionaryManagerMBean(proxy -> {proxy.train(force, parameters); return null; }, keyspace, table);
     }
 
     /**

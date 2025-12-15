@@ -22,6 +22,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
@@ -51,6 +52,56 @@ public class TrainCompressionDictionaryTest extends CQLTester
         assertThat(result.getStdout())
         .as("Should indicate training completed")
         .contains("Training completed successfully")
+        .contains(keyspace())
+        .contains(table);
+    }
+
+    @Test
+    public void testTrainingParameterOverride()
+    {
+        // Create a table with dictionary compression enabled
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+
+        disableCompaction(keyspace(), table);
+
+        createSSTables(true);
+
+        // Test training command without --force since we have limited test data will fail
+        ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", keyspace(), table);
+        result.asserts().failure();
+        assertThat(result.getStderr())
+        .as("Should indicate training not completed")
+        .contains("Trainer is not ready: insufficient sample size")
+        .contains("/8 MiB") // 10MiB / 10 * 8
+        .contains(keyspace())
+        .contains(table);
+
+        ToolRunner.ToolResult resultWithOverrides = invokeNodetool("compressiondictionary",
+                                                                   "train",
+                                                                   "--max-total-sample-size", "5MiB",
+                                                                   keyspace(), table);
+
+        assertThat(resultWithOverrides.getStderr())
+        .as("Should indicate training not completed")
+        .contains("Trainer is not ready: insufficient sample size")
+        .contains("/4 MiB") // 5MiB / 10 * 8
+        .contains(keyspace())
+        .contains(table);
+
+        execute(String.format("ALTER TABLE %s.%s WITH " +
+                              "compression = {'class': 'ZstdDictionaryCompressor', '%s': '6MiB'}",
+                              keyspace(),
+                              table,
+                              IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME));
+
+        // we are not overriding, but we have changed training_max_total_sample_size to 6MiB via CQL, so it sticks
+
+        ToolRunner.ToolResult resultWithoutOverrides = invokeNodetool("compressiondictionary", "train", keyspace(), table);
+
+        assertThat(resultWithoutOverrides.getStderr())
+        .as("Should indicate training not completed")
+        .contains("Trainer is not ready: insufficient sample size")
+        .contains("/4.8 MiB") // 6MiB / 10 * 8
         .contains(keyspace())
         .contains(table);
     }

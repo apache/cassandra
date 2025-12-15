@@ -525,8 +525,6 @@ public class Config
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
 
     // Dictionary training settings
-    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("64KiB");
-    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("10MiB");
     public volatile boolean compression_dictionary_training_auto_train_enabled = false;
     public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
 

@@ -28,7 +28,7 @@ public class CompressionDictionaryTrainingConfig
     public final int maxDictionarySize;
     public final int maxTotalSampleSize;
     public final int acceptableTotalSampleSize;
-    public final int samplingRate;
+    public final float samplingRate;
     public final int chunkSize;
 
     private CompressionDictionaryTrainingConfig(Builder builder)
@@ -49,7 +49,7 @@ public class CompressionDictionaryTrainingConfig
     {
         private int maxDictionarySize = 65536; // 64KB default
         private int maxTotalSampleSize = 10 * 1024 * 1024; // 10MB total
-        private int samplingRate = 100; // Sampling 1%
+        private float samplingRate = 0.01f; // Sampling 1%
         private int chunkSize = 64 * 1024; // 64KB default
 
         public Builder maxDictionarySize(int size)
@@ -66,7 +66,10 @@ public class CompressionDictionaryTrainingConfig
 
         public Builder samplingRate(float samplingRate)
         {
-            this.samplingRate = Math.round(1 / samplingRate);
+            if (samplingRate <= 0.0f || samplingRate > 1.0f)
+                throw new IllegalArgumentException("Sampling rate has to be between (0.0;1], it is " + samplingRate);
+
+            this.samplingRate = samplingRate;
             return this;
         }
 

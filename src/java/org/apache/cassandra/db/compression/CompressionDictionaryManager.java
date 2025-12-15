@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -32,6 +33,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
@@ -43,6 +45,10 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -77,13 +83,12 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         {
             // Initialize components
             this.trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName,
-                                                                columnFamilyStore.metadata().params.compression,
-                                                                createTrainingConfig());
+                                                                columnFamilyStore.metadata().params.compression);
             trainer.setDictionaryTrainedListener(this::handleNewDictionary);
 
             scheduler.scheduleRefreshTask();
 
-            trainer.start(false);
+            trainer.start(false, createTrainingConfig());
         }
 
         if (registerBookkeeping && isEnabled)
@@ -134,7 +139,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                     }
                 }
 
-                trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName, newParams, createTrainingConfig());
+                trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName, newParams);
                 trainer.setDictionaryTrainedListener(this::handleNewDictionary);
             }
 
@@ -143,7 +148,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             // Start trainer if it exists
             if (trainer != null)
             {
-                trainer.start(false);
+                trainer.start(false, createTrainingConfig());
             }
             return;
         }
@@ -174,7 +179,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             dictionaryTrainer.addSample(sample);
         }
     }
-    
+
     @Nullable
     @Override
     public CompressionDictionary getCurrent()
@@ -213,7 +218,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     }
 
     @Override
-    public synchronized void train(boolean force)
+    public synchronized void train(boolean force, Map<String, String> parameters)
     {
         // Validate table supports dictionary compression
         if (!isEnabled)
@@ -226,12 +231,15 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             throw new IllegalStateException("Dictionary trainer is not available for table " + keyspaceName + '.' + tableName);
         }
 
+        // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
+        CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
+
         // SSTable-based training: sample from existing SSTables
         Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
         if (sstables.isEmpty())
         {
             logger.info("No SSTables available for training in table {}.{}, flushing memtable first",
-                       keyspaceName, tableName);
+                        keyspaceName, tableName);
             columnFamilyStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
             sstables = columnFamilyStore.getLiveSSTables();
 
@@ -242,10 +250,10 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         }
 
         logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
-                   keyspaceName, tableName, sstables.size());
+                    keyspaceName, tableName, sstables.size());
 
-        trainer.start(true);
-        scheduler.scheduleSSTableBasedTraining(trainer, sstables, createTrainingConfig(), force);
+        trainer.start(true, trainingConfig);
+        scheduler.scheduleSSTableBasedTraining(trainer, sstables, trainingConfig, force);
     }
 
     @Override
@@ -358,16 +366,69 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         onNewDictionaryTrained(dictionary.dictId());
     }
 
+    /**
+     * @return training configuration with max dictionary size and total sample size from CQL table compression params.
+     */
     private CompressionDictionaryTrainingConfig createTrainingConfig()
+    {
+        return createTrainingConfig(Map.of());
+    }
+
+    /**
+     * Returns configuration for training where max dictionary size and total sample size can be supplied by a
+     * user, e.g. upon the invocation of training method via JMX.
+     *
+     * @param parameters user-supplied parameters from training, when not specified, CQL compression parameters
+     *                   for a given table will be used
+     * @return training configuration with max dictionary size and total sample size of supplied arguments.
+     */
+    private CompressionDictionaryTrainingConfig createTrainingConfig(Map<String, String> parameters)
     {
         CompressionParams compressionParams = columnFamilyStore.metadata().params.compression;
         return CompressionDictionaryTrainingConfig
                .builder()
-               .maxDictionarySize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxDictionarySize())
-               .maxTotalSampleSize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxTotalSampleSize())
+               .maxDictionarySize(getCompressionDictionaryTrainingMaxDictionarySize(compressionParams, parameters))
+               .maxTotalSampleSize(getCompressionDictionaryTrainingMaxTotalSampleSize(compressionParams, parameters))
                .samplingRate(DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate())
                .chunkSize(compressionParams.chunkLength())
                .build();
+    }
+
+    private int getCompressionDictionaryTrainingMaxDictionarySize(CompressionParams compressionParams, Map<String, String> parameters)
+    {
+        return internalTrainingParameterResolution(compressionParams,
+                                                   parameters.get(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME),
+                                                   TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                                   DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE);
+    }
+
+    private int getCompressionDictionaryTrainingMaxTotalSampleSize(CompressionParams compressionParams, Map<String, String> parameters)
+    {
+        return internalTrainingParameterResolution(compressionParams,
+                                                   parameters.get(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME),
+                                                   TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                                   DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE);
+    }
+
+    private int internalTrainingParameterResolution(CompressionParams compressionParams,
+                                                    String userSuppliedValue,
+                                                    String parameterName,
+                                                    String defaultParameterValue)
+    {
+        String resolvedValue = null;
+        try
+        {
+            if (userSuppliedValue == null)
+                resolvedValue = compressionParams.getOtherOptions().getOrDefault(parameterName, defaultParameterValue);
+            else
+                resolvedValue = userSuppliedValue;
+
+            return new DataStorageSpec.IntKibibytesBound(resolvedValue).toBytes();
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(String.format("Invalid value for %s: %s", parameterName, resolvedValue));
+        }
     }
 
     private void storeDictionary(CompressionDictionary dictionary)
@@ -385,7 +446,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
      * Determines if a new trainer should be created based on compression parameter changes.
      * A new trainer is needed when no existing trainer exists or when the existing trainer
      * is not compatible with the new compression parameters.
-     *
+     * <p>
      * The method is (and should be) only invoked inside {@link #maybeReloadFromSchema(CompressionParams)},
      * which is guarded by synchronized.
      *
