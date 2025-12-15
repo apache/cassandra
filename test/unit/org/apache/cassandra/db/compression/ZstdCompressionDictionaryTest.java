@@ -61,6 +61,7 @@ public class ZstdCompressionDictionaryTest
     public void setUp()
     {
         dictionary = new ZstdCompressionDictionary(SAMPLE_DICT_ID, SAMPLE_DICT_DATA);
+        dictionary.initRefLazily();
     }
 
     @Test
@@ -81,9 +82,6 @@ public class ZstdCompressionDictionaryTest
         assertThat(dictionary)
         .as("Dictionaries with different IDs should not be equal")
         .isNotEqualTo(differentIdDict);
-
-        dictionary2.selfRef().release();
-        differentIdDict.selfRef().release();
     }
 
     @Test
@@ -187,6 +185,8 @@ public class ZstdCompressionDictionaryTest
             SAMPLE_DICT_DATA
         );
 
+        testDict.initRefLazily();
+
         // Access some dictionaries first to initialize them
         testDict.dictionaryForCompression(3);
         testDict.dictionaryForDecompression();
@@ -260,7 +260,6 @@ public class ZstdCompressionDictionaryTest
     @Test
     public void testReferenceAfterClose()
     {
-        // Release the self-reference
         dictionary.selfRef().release();
 
         assertThatThrownBy(() -> dictionary.ref())
@@ -386,9 +385,6 @@ public class ZstdCompressionDictionaryTest
         .as("Both deserializations should return identical dictionary")
         .isNotNull()
         .isEqualTo(dict2);
-
-        dict1.selfRef().release();
-        dict2.selfRef().release();
     }
 
     @Test

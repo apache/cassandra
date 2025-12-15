@@ -32,6 +32,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Manages caching and current dictionary state for compression dictionaries.
@@ -68,7 +69,9 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                                  {
                                      try
                                      {
-                                         dictionary.selfRef().release();
+                                         // The dictionary's selfRef should never be null when evicting from cache
+                                         // but using close() to have better resiliency
+                                         dictionary.close();
                                      }
                                      catch (Exception e)
                                      {
@@ -102,7 +105,14 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
         // Only update cache if not already in the cache
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> compressionDictionary);
+        cache.get(newDictId, id -> {
+            Ref<?> ref = compressionDictionary.initRefLazily();
+            if (ref == null)
+            {
+                throw new IllegalStateException("Failed to acquire reference to compression dictionary");
+            }
+            return compressionDictionary;
+        });
 
         // Update current dictionary if we don't have one or the new one has a higher ID (newer)
         DictId currentId = currentDictId.get();
