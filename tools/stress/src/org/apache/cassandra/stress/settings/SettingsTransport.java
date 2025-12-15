@@ -54,8 +54,10 @@ public class SettingsTransport implements Serializable
                          .withTrustStore(options.trustStore.value())
                          .withTrustStorePassword(options.trustStorePw.setByUser() ? options.trustStorePw.value() : credentials.transportTruststorePassword)
                          .withAlgorithm(options.alg.value())
-                         .withProtocol(options.protocol.value())
-                         .withCipherSuites(options.ciphers.value().split(","));
+                         .withProtocol(options.protocol.value());
+
+            if (options.ciphers.value() != null)
+                encOptions = encOptions.withCipherSuites(options.ciphers.value().split(","));
             if (options.keyStore.present())
             {
                 encOptions = encOptions
@@ -87,8 +89,9 @@ public class SettingsTransport implements Serializable
                                                                 TRANSPORT_KEYSTORE_PASSWORD_PROPERTY_KEY), false);
         final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", null, "SSL: algorithm", false);
+        // Null is to auto-negotiate
         final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*",
-                                                      "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA",
+                                                      null,
                                                       "SSL: comma delimited list of encryption suites to use", false);
 
         @Override
