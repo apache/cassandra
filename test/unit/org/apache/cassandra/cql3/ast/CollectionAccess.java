@@ -36,6 +36,18 @@ public class CollectionAccess implements ReferenceExpression
     }
 
     @Override
+    public ReferenceExpression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        var col = column.visit(v);
+        var val = element.visit(v);
+        if (col != column || val != element)
+            return new CollectionAccess(col, val, type);
+        return this;
+    }
+
+    @Override
     public void toCQL(StringBuilder sb, CQLFormatter formatter)
     {
         column.toCQL(sb, formatter);

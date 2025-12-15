@@ -85,6 +85,7 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnValidationRejection;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
@@ -250,7 +251,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) select.getQuery(options, 0);
 
         if (selectQuery.queries.size() != 1)
-            throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+            throw invalidRequest("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
 
         SinglePartitionReadCommand command = Iterables.getOnlyElement(selectQuery.queries);
         return new TxnNamedRead(namedSelect.name, keyCollector.collect(command.metadata(), command.partitionKey()), command, keyCollector.tables);
@@ -560,6 +561,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         TxnResult txnResult = AccordService.instance().coordinate(minEpoch, txn, options.getConsistency(), requestTime);
         if (txnResult.kind() == retry_new_protocol)
             throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
+        TxnValidationRejection.maybeThrow(txnResult);
+
         TxnData data = (TxnData)txnResult;
 
         if (returningSelect != null)

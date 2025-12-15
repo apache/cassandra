@@ -148,6 +148,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnValidationRejection;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
@@ -1316,13 +1317,16 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                         {
                             Tracing.trace("Accord returned retry new protocol");
                             logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                             continue;
                         }
+                        TxnValidationRejection.maybeThrow(result);
+
                         Tracing.trace("Successfully wrote Accord mutations");
                     }
                 }
@@ -1549,9 +1553,11 @@ public class StorageProxy implements StorageProxyMBean
                     // the batch log.
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
+                        TxnValidationRejection.maybeThrow(result);
                         Tracing.trace("Successfully wrote Accord mutations");
                         cleanup.ackMutation();
                     }

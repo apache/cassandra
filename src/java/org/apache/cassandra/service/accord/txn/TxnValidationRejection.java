@@ -18,26 +18,36 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import accord.api.Result;
+import java.util.Objects;
 
-public interface TxnResult extends Result
+import org.apache.cassandra.exceptions.RequestValidationException;
+
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.validation_rejection;
+
+public class TxnValidationRejection implements TxnResult
 {
-    enum Kind
+    private final RequestValidationException validationException;
+
+    public TxnValidationRejection(RequestValidationException validationException)
     {
-        txn_data(0),
-        retry_new_protocol(1),
-        range_read(2),
-        validation_rejection(3);
-
-        int id;
-
-        Kind(int id)
-        {
-            this.id = id;
-        }
+        this.validationException = Objects.requireNonNull(validationException);
     }
 
-    Kind kind();
+    public static void maybeThrow(TxnResult txnResult)
+    {
+        if (txnResult.kind() == validation_rejection)
+            throw ((TxnValidationRejection) txnResult).validationException;
+    }
 
-    long estimatedSizeOnHeap();
+    @Override
+    public Kind kind()
+    {
+        return Kind.validation_rejection;
+    }
+
+    @Override
+    public long estimatedSizeOnHeap()
+    {
+        return 0;
+    }
 }
