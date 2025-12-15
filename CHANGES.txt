@@ -1,4 +1,5 @@
 4.0.20
+ * Switch lz4-java to at.yawk.lz4 version due to CVE (CASSANDRA-20152)
  * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
  * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
  * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
