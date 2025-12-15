@@ -56,8 +56,8 @@ public class SettingsTransport implements Serializable
                                         .withAlgorithm(options.alg.value())
                                         .withProtocol(options.protocol.value());
 
-			if (options.ciphers.value() != null)
-				encOptionsBuilder.withCipherSuites(options.ciphers.value().split(","));
+            if (options.ciphers.value() != null)
+                encOptionsBuilder.withCipherSuites(options.ciphers.value().split(","));
 
             if (options.keyStore.present())
             {
