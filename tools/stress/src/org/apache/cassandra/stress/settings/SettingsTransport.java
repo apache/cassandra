@@ -54,8 +54,10 @@ public class SettingsTransport implements Serializable
                                         .withTrustStore(options.trustStore.value())
                                         .withTrustStorePassword(options.trustStorePw.setByUser() ? options.trustStorePw.value() : credentials.transportTruststorePassword)
                                         .withAlgorithm(options.alg.value())
-                                        .withProtocol(options.protocol.value())
-                                        .withCipherSuites(options.ciphers.value().split(","));
+                                        .withProtocol(options.protocol.value());
+
+			if (options.ciphers.value() != null)
+				encOptionsBuilder.withCipherSuites(options.ciphers.value().split(","));
 
             if (options.keyStore.present())
             {
