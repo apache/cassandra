@@ -102,7 +102,12 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
         // Only update cache if not already in the cache
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> compressionDictionary);
+        CompressionDictionary cached = cache.get(newDictId, id -> compressionDictionary);
+        if (cached != compressionDictionary)
+        {
+            compressionDictionary.close();
+            return;
+        }
 
         // Update current dictionary if we don't have one or the new one has a higher ID (newer)
         DictId currentId = currentDictId.get();

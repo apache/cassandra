@@ -283,7 +283,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        try
+        {
+            return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        }
+        finally
+        {
+            compressionDictionary.close();
+        }
     }
 
     @Override
@@ -293,7 +300,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        try
+        {
+            return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        }
+        finally
+        {
+            compressionDictionary.close();
+        }
     }
 
     @Override
@@ -351,9 +365,16 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private void handleNewDictionary(CompressionDictionary dictionary)
     {
-        // sequence meatters; persist the new dictionary before broadcasting to others.
-        storeDictionary(dictionary);
-        onNewDictionaryTrained(dictionary.dictId());
+        if (isEnabled)
+        {
+            // sequence meatters; persist the new dictionary before broadcasting to others.
+            storeDictionary(dictionary);
+            onNewDictionaryTrained(dictionary.dictId());
+        }
+        else
+        {
+            dictionary.close();
+        }
     }
 
     private CompressionDictionaryTrainingConfig createTrainingConfig()
@@ -370,11 +391,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private void storeDictionary(CompressionDictionary dictionary)
     {
-        if (!isEnabled)
-        {
-            return;
-        }
-
         SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, dictionary);
         cache.add(dictionary);
     }
