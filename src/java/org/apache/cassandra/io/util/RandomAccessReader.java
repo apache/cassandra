@@ -81,6 +81,9 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
     protected long current()
     {
+        // defensive check used here to prevent NPE if reader is closed, buffer and bufferHolder will be null. this can happen due to race condition between cleanup and repair threads
+        if (buffer == null || bufferHolder == null)
+            throw new IllegalStateException("Attempted to get current position on a closed RandomAccessReader");
         return bufferHolder.offset() + buffer.position();
     }
 

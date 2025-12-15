@@ -549,6 +549,65 @@ public class RandomAccessReaderTest
         }
     }
 
+    /**
+     * Test that accessing current() after close throws IllegalStateException
+     * This can happen due to race condition between cleanup and repair threads
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testCurrentAfterClose() throws IOException
+    {
+        Parameters params = new Parameters(8192, 4096);
+        final File f = writeFile(params);
+        
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+                                                     .bufferType(params.bufferType).bufferSize(params.bufferSize))
+        {
+            FileHandle fh = builder.complete();
+            RandomAccessReader reader = fh.createReader();
+            
+            // Read some data
+            byte[] b = new byte[params.expected.length];
+            reader.readFully(b);
+            
+            // Close the reader
+            reader.close();
+            
+            // Attempting to call current(), which should throw IllegalStateException
+            // This simulates the race condition where cleanup thread accesses closed reader
+            reader.current();  // Should throw IllegalStateException
+        }
+    }
+
+    /**
+     * Test that getFilePointer() after close returns file length (existing behavior)
+     * This is different from current() which throws exception
+     */
+    @Test
+    public void testGetFilePointerAfterClose() throws IOException
+    {
+        Parameters params = new Parameters(8192, 4096);
+        final File f = writeFile(params);
+        
+        try (FileHandle.Builder builder = new FileHandle.Builder(f.path())
+                                                     .bufferType(params.bufferType).bufferSize(params.bufferSize))
+        {
+            FileHandle fh = builder.complete();
+            RandomAccessReader reader = fh.createReader();
+            
+            // Read some data
+            byte[] b = new byte[params.expected.length];
+            reader.readFully(b);
+            
+            long sizeBeforeClose = f.length();
+            
+            // Close the reader
+            reader.close();
+            
+            // getFilePointer() should return file length (not throw exception)
+            assertEquals(sizeBeforeClose, reader.getFilePointer());
+        }
+    }
+
     private static void testSkipBytes(Parameters params, int expectationMultiples) throws IOException
     {
         final File f = writeFile(params);
