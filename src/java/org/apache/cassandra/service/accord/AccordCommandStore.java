@@ -317,7 +317,7 @@ public class AccordCommandStore extends CommandStore
         CommandsForKey cfk = CommandsForKeyAccessor.load(id, (TokenKey) key);
         if (cfk == null)
             return null;
-        RedundantBefore.QuickBounds bounds = unsafeGetRedundantBefore().get(key);
+        RedundantBefore.QuickBounds bounds = safeGetRedundantBefore().get(key);
         if (bounds == null)
             return cfk; // TODO (required): I don't think this should be possible? but we hit it on some test
         return cfk.withGcBeforeAtLeast(bounds.gcBefore, false);
@@ -420,7 +420,7 @@ public class AccordCommandStore extends CommandStore
     @VisibleForTesting
     public Command loadCommand(TxnId txnId)
     {
-        return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+        return journal.loadCommand(id, txnId, safeGetRedundantBefore(), durableBefore());
     }
 
     @VisibleForTesting
@@ -446,12 +446,12 @@ public class AccordCommandStore extends CommandStore
 
     public Command.Minimal loadMinimal(TxnId txnId)
     {
-        return journal.loadMinimal(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+        return journal.loadMinimal(id, txnId, safeGetRedundantBefore(), durableBefore());
     }
 
     public Command.MinimalWithDeps loadMinimalWithDeps(TxnId txnId)
     {
-        return journal.loadMinimalWithDeps(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+        return journal.loadMinimalWithDeps(id, txnId, safeGetRedundantBefore(), durableBefore());
     }
 
     public AccordCompactionInfo getCompactionInfo()
@@ -465,6 +465,11 @@ public class AccordCommandStore extends CommandStore
         return new AccordCompactionInfo(id, redundantBefore, ranges, tableId);
     }
 
+    public final RedundantBefore safeGetRedundantBefore()
+    {
+        return safeRedundantBefore.redundantBefore;
+    }
+
     public RangeSearcher rangeSearcher()
     {
         return rangeSearcher;
@@ -472,10 +477,10 @@ public class AccordCommandStore extends CommandStore
 
     public AccordCommandStoreReplayer replayer()
     {
-        boolean replayOnlyDurable = true;
+        boolean replayOnlyNonDurable = true;
         if (journal instanceof AccordJournal)
-            replayOnlyDurable = ((AccordJournal)journal).configuration().replayMode() == ONLY_NON_DURABLE;
-        return new AccordCommandStoreReplayer(this, replayOnlyDurable);
+            replayOnlyNonDurable = ((AccordJournal)journal).configuration().replayMode() == ONLY_NON_DURABLE;
+        return new AccordCommandStoreReplayer(this, replayOnlyNonDurable);
     }
 
     static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
@@ -540,15 +545,22 @@ public class AccordCommandStore extends CommandStore
         super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
+    @VisibleForTesting
+    public void unsafeUpdateRangesForEpoch()
+    {
+        super.unsafeUpdateRangesForEpoch();
+        safeRedundantBefore = new SafeRedundantBefore(0, unsafeGetRedundantBefore());
+    }
+
     public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
-        private final AccordCommandStore store;
+        private final AccordCommandStore commandStore;
         private final boolean onlyNonDurable;
 
-        private AccordCommandStoreReplayer(AccordCommandStore store, boolean onlyNonDurable)
+        private AccordCommandStoreReplayer(AccordCommandStore commandStore, boolean onlyNonDurable)
         {
-            super(store.unsafeGetRedundantBefore());
-            this.store = store;
+            super(commandStore, null);
+            this.commandStore = commandStore;
             this.onlyNonDurable = onlyNonDurable;
         }
 
@@ -558,7 +570,7 @@ public class AccordCommandStore extends CommandStore
             if (onlyNonDurable && !maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
 
-            return store.chain(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
+            return commandStore.chain(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
                 if (onlyNonDurable && !shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
                     return null;
 
@@ -574,11 +586,15 @@ public class AccordCommandStore extends CommandStore
 
     void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
     {
+        Invariants.require(safeRedundantBefore == null);
         if (redundantBefore != null)
         {
             loadRedundantBefore(redundantBefore);
-            Invariants.require(safeRedundantBefore == null);
             safeRedundantBefore = new SafeRedundantBefore(0, redundantBefore);
+        }
+        else
+        {
+            safeRedundantBefore = new SafeRedundantBefore(0, this.unsafeGetRedundantBefore());
         }
     }
 

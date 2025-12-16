@@ -125,7 +125,6 @@ public class AccordJournalCompactionTest
                 DurableBefore addDurableBefore = durableBeforeGen.next(rs);
                 // TODO: improve redundant before generator and re-enable
 //                updates.addRedundantBefore = redundantBeforeGen.next(rs);
-//                updates.newRedundantBefore = redundantBefore = RedundantBefore.merge(redundantBefore, updates.addRedundantBefore);
                 updates.newSafeToRead = safeToReadGen.next(rs);
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
 
