@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * <p/>
  * TODO (performance, expected): an interval/range structure for StaticSegment lookup based on min/max key bounds
  */
-class Segments<K, V>
+public class Segments<K, V>
 {
     private final Long2ObjectHashMap<Segment<K, V>> segments;
     private SortedArrayList<Segment<K, V>> sorted;

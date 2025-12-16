@@ -57,6 +57,8 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
         cfs.addSSTables(writer.finish(true));
         writer.close();
         writer = null;
+        // await reads to complete before swapping segments, to provide additional guarantees against reading incomplete data
+        cfs.readOrdering.awaitNewBarrier();
     }
 
     @Override

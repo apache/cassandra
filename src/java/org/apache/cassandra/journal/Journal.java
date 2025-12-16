@@ -121,7 +121,7 @@ public class Journal<K, V> implements Shutdownable
 
     private final FlusherCallbacks flusherCallbacks;
 
-    final OpOrder readOrder = new OpOrder();
+    final OpOrder readOrder;
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -177,7 +177,8 @@ public class Journal<K, V> implements Shutdownable
                    Params params,
                    KeySupport<K> keySupport,
                    ValueSerializer<K, V> valueSerializer,
-                   SegmentCompactor<K, V> segmentCompactor)
+                   SegmentCompactor<K, V> segmentCompactor,
+                   OpOrder readOrder)
     {
         this.name = name;
         this.directory = directory;
@@ -185,6 +186,7 @@ public class Journal<K, V> implements Shutdownable
 
         this.keySupport = keySupport;
         this.valueSerializer = valueSerializer;
+        this.readOrder = readOrder;
 
         this.metrics = new Metrics<>(name);
         this.flusherCallbacks = new FlusherCallbacks();
@@ -357,15 +359,25 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-    public void readAll(K id, RecordConsumer<K> consumer)
+    public static <K, V> void readAll(K id, RecordConsumer<K> consumer, OpOrder.Group readGroup, Segments<K, V> segments)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-        try (OpOrder.Group group = readOrder.start())
+        for (Segment<K, V> segment : segments.allSorted(false))
         {
-            for (Segment<K, V> segment : segments.get().allSorted(false))
-            {
-                segment.readAll(id, holder, consumer);
-            }
+            segment.readAll(id, holder, consumer);
+        }
+    }
+
+    public void readAll(K id, RecordConsumer<K> consumer, OpOrder.Group readGroup)
+    {
+        readAll(id, consumer, readGroup, segments.get());
+    }
+
+    public void readAll(K id, RecordConsumer<K> consumer)
+    {
+        try (OpOrder.Group readGroup = readOrder.start())
+        {
+            readAll(id, consumer, readGroup);
         }
     }
 
@@ -449,18 +461,15 @@ public class Journal<K, V> implements Shutdownable
      * @return true if the record was found, false otherwise
      */
     @SuppressWarnings("unused")
-    public boolean readLast(K id, RecordConsumer<K> consumer)
+    public static <K, V> boolean readLast(K id, RecordConsumer<K> consumer, OpOrder.Group readOrder, Segments<K, V> segments)
     {
-        try (OpOrder.Group group = readOrder.start())
+        for (Segment<K, V> segment : segments.allSorted(false))
         {
-            for (Segment<K, V> segment : segments.get().allSorted(false))
-            {
-                if (!segment.index().mayContainId(id))
-                    continue;
+            if (!segment.index().mayContainId(id))
+                continue;
 
-                if (segment.readLast(id, consumer))
-                    return true;
-            }
+            if (segment.readLast(id, consumer))
+                return true;
         }
         return false;
     }
@@ -728,7 +737,7 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    Segments<K, V> segments()
+    public Segments<K, V> segments()
     {
         return segments.get();
     }

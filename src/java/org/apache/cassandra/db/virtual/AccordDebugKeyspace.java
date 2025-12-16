@@ -692,7 +692,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  waiting_until text,\n" +
                         "  waiter 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (command_store_id, waiting_on, waiting_until, waiter)" +
-                        ')', Int32Type.instance), FAIL, UNSORTED, ASC);
+                        ')', Int32Type.instance), FAIL, ASC, ASC);
         }
 
         @Override
@@ -726,9 +726,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             LocalListeners listeners = safeStore.commandStore().unsafeGetListeners();
             for (LocalListeners.TxnListener listener : listeners.txnListeners())
             {
-                rows.add(listener.waitingOn.toString(), listener.awaitingStatus.name(), listener.waiter.toString())
+                rows.add(listener.waitingOn.toString(), ordered(listener.awaitingStatus), listener.waiter.toString())
                     .eagerCollect(ignore -> {});
             }
+        }
+
+        private String ordered(SaveStatus saveStatus)
+        {
+            return (saveStatus.ordinal() <= 9 ? "0" : "") + saveStatus.ordinal() + '_' + saveStatus.name();
         }
     }
 
@@ -1796,7 +1801,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 case TRY_EXECUTE:
                     run(txnId, commandStoreId, safeStore -> {
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-                        Commands.maybeExecute(safeStore, safeCommand, safeCommand.current(), true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
+                        Command command = safeCommand.current();
+                        if (command.saveStatus() == SaveStatus.Applying)
+                            return Commands.applyChain(safeStore, (Command.Executed) command);
+                        Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
                     break;
@@ -1896,7 +1904,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply));
+                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .flatMap(i -> i));
         }
 
         private void cleanup(TxnId txnId, int commandStoreId, Cleanup cleanup)

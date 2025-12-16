@@ -1321,7 +1321,7 @@ public class AccordCache implements CacheSize
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
             {
                 builder.deserializeNext(buf, Version.LATEST);
-                return builder.construct(commandStore.unsafeGetRedundantBefore());
+                return builder.construct(commandStore.safeGetRedundantBefore());
             }
             catch (UnknownTableException e)
             {

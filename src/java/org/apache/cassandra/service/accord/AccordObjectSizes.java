@@ -417,6 +417,7 @@ public class AccordObjectSizes
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
     private static long EMPTY_INFO_SIZE = measure(CommandsForKey.NO_INFO);
+    private static long EMPTY_UNMANAGED_SIZE = measure(new CommandsForKey.Unmanaged(null, TxnId.NONE, TxnId.NONE));
     private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
@@ -437,6 +438,15 @@ public class AccordObjectSizes
                 size += infoExtra.missing.length * TIMESTAMP_SIZE;
                 size += ballot(infoExtra.ballot);
             }
+        }
+        size += ObjectSizes.sizeOfReferenceArray(cfk.unmanagedCount());
+        size += cfk.unmanagedCount() * EMPTY_UNMANAGED_SIZE;
+        size += cfk.unmanagedCount() * TIMESTAMP_SIZE;
+        for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
+        {
+            CommandsForKey.Unmanaged unmanaged = cfk.getUnmanaged(i);
+            if (unmanaged.waitingUntil != unmanaged.txnId)
+                size += TIMESTAMP_SIZE;
         }
         return size;
     }

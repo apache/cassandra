@@ -38,6 +38,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.AbstractReplayer;
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
 import accord.local.Cleanup;
@@ -109,6 +110,8 @@ import static accord.impl.CommandChange.toIterableSetFields;
 import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Accumulator;
@@ -157,7 +160,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                              throw new UnsupportedOperationException();
                                          }
                                      },
-                                     compactor(cfs, userVersion));
+                                     compactor(cfs, userVersion),
+                                     cfs.readOrdering);
         this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, userVersion);
         this.params = params;
     }
@@ -617,20 +621,23 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         class ReplayStream implements Closeable
         {
             final CommandStore commandStore;
-            final Replayer replayer;
+            final AbstractReplayer replayer;
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter;
             JournalKey prev;
 
             public ReplayStream(CommandStore commandStore)
             {
                 this.commandStore = commandStore;
-                this.replayer = commandStore.replayer();
+                this.replayer = (AbstractReplayer) commandStore.replayer();
                 // Keys in the index are sorted by command store id, so index iteration will be sequential
-                this.iter = journalTable.keyIterator(new JournalKey(TxnId.NONE, COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false);
+                this.iter = journalTable.keyIterator(new JournalKey(replayer.minReplay.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false);
             }
 
             boolean replay()
             {
+                logger.info("Beginning replay of {} with min={}, {}", commandStore, replayer.minReplay,
+                            replayer.redundantBefore.map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
+
                 JournalKey key;
                 long[] segments;
                 while (true)

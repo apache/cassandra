@@ -51,6 +51,7 @@ import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class AccordJournalSimulationTest extends SimulationTestBase
 {
@@ -80,7 +81,8 @@ public class AccordJournalSimulationTest extends SimulationTestBase
                                                    spec,
                                                    new IdentityKeySerializer(),
                                                    new IdentityValueSerializer(),
-                                                   SegmentCompactor.noop());
+                                                   SegmentCompactor.noop(),
+                                                   new OpOrder());
                  }),
                  () -> check());
     }
