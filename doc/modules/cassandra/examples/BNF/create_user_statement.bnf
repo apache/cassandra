@@ -1,4 +1,6 @@
-create_user_statement ::= CREATE USER [ IF NOT EXISTS ] role_name
-                          [ WITH [ HASHED ] PASSWORD string ]
-                          [ user_option ]
-user_option: SUPERUSER | NOSUPERUSER
+create_user_statement ::= CREATE USER [ IF NOT EXISTS ] role_name ( WITH <option> ( AND <option> )* )?
+<option> ::= PASSWORD = <string>
+           | HASHED PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
+           | NOSUPERUSER
