@@ -353,7 +353,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             }
         }
 
-        public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
+        public CommandsForRanges.Loader loader(TxnId primaryTxnId, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
         {
             RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
             MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();

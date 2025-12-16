@@ -134,6 +134,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -252,7 +254,6 @@ public class AccordService implements IAccordService, Shutdownable
     private enum State { INIT, STARTED, SHUTTING_DOWN, SHUTDOWN }
 
     private final Node node;
-    private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordEndpointMapper endpointMapper;
     private final AccordTopologyService topologyService;
@@ -435,7 +436,6 @@ public class AccordService implements IAccordService, Shutdownable
                              new AccordInteropFactory(endpointMapper),
                              journal.durableBeforePersister(),
                              journal);
-        this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, endpointMapper);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, endpointMapper);
     }
@@ -1042,7 +1042,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private List<Shutdownable> shutdownableSubsystems()
     {
-        return Arrays.asList(scheduler, nodeShutdown, journal, topologyService);
+        return Arrays.asList((AccordCommandStores)node.commandStores(), journal, topologyService, scheduler);
     }
 
     @VisibleForTesting
@@ -1051,6 +1051,10 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!ExecutorUtils.shutdownThenWait(shutdownableSubsystems(), timeout, unit))
             logger.error("One or more subsystems did not shut down cleanly.");
+
+        node.commandStores().forAllUnsafe(commandStore -> {
+            logger.info("{} stopping with durability: {}", commandStore, commandStore.unsafeGetRedundantBefore().map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
+        });
     }
 
     @Override
@@ -1117,43 +1121,6 @@ public class AccordService implements IAccordService, Shutdownable
         if (!notification.retired.isEmpty())
             topologyManager.onEpochRetired(notification.retired, notification.epoch);
         sink.respond(Ok, message);
-    }
-
-    private static Shutdownable toShutdownable(Node node)
-    {
-        return new Shutdownable() {
-            private volatile boolean isShutdown = false;
-
-            @Override
-            public boolean isTerminated()
-            {
-                // we don't know about terminiated... so settle for shutdown!
-                return isShutdown;
-            }
-
-            @Override
-            public void shutdown()
-            {
-                isShutdown = true;
-                node.shutdown();
-            }
-
-            @Override
-            public Object shutdownNow()
-            {
-                // node doesn't offer shutdownNow
-                shutdown();
-                return null;
-            }
-
-            @Override
-            public boolean awaitTermination(long timeout, TimeUnit units)
-            {
-                // TODO (required): expose awaitTermination in Node
-                // node doesn't offer
-                return true;
-            }
-        };
     }
 
     @VisibleForTesting
