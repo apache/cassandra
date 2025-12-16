@@ -334,7 +334,7 @@ EXPAND OFF
 
 === `ELAPSED`
 
-Enables or disables the printing of the elapsed time for a query. Except a quick evalution
+Enables or disables the printing of the elapsed time for a query. Except a quick evaluation
 of how long a CQL statement took, this is also a complementary output to `TRACING` (if enabled).
 A user can debug if there is a communication delay to a node or not comparing the timestamps as `TRACING` tracks
 the time elapsed only on the server side.
@@ -469,7 +469,7 @@ See `shared-copy-options` for options that apply to both `COPY TO` and
 `PAGESIZE`::
   The number of rows to fetch in a single page. Defaults to 1000.
 `PAGETIMEOUT`::
-  By default the page timeout is 10 seconds per 1000 entries in the page
+  By default, the page timeout is 10 seconds per 1000 entries in the page
   size or 10 seconds if pagesize is smaller.
 `BEGINTOKEN`, `ENDTOKEN`::
   Token range to export. Defaults to exporting the full ring.
