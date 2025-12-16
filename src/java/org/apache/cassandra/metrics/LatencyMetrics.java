@@ -167,7 +167,7 @@ public class LatencyMetrics
         Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
-    public class LatencyMetricsTimer extends OverrideTimer implements org.apache.cassandra.metrics.Timer
+    public class LatencyMetricsTimer extends ThreadLocalTimer implements org.apache.cassandra.metrics.Timer
     {
         long releasedLatencyCount = 0;
 
@@ -246,7 +246,7 @@ public class LatencyMetrics
         }
     }
 
-    class LatencyMetricsCounter extends Counter 
+    class LatencyMetricsCounter extends ThreadLocalCounter
     {
         @Override
         public long getCount()
