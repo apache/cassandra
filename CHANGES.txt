@@ -1,4 +1,5 @@
 5.1
+ * Ensure peers with LEFT status are expired from gossip state (CASSANDRA-21035)
  * Optimize UTF8Validator.validate for ASCII prefixed Strings (CASSANDRA-21075)
  * Switch LatencyMetrics to use ThreadLocalTimer/ThreadLocalCounter (CASSANDRA-21080)
  * Accord: write rejections would be returned to users as server errors rather than INVALID and TxnReferenceOperation didn't handle all collections prperly (CASSANDRA-21061)

@@ -26,7 +26,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -385,9 +384,9 @@ public class Directory implements MetadataValue<Directory>
      * those cases use allJoinedEndpoints.
      * @return
      */
-    public ImmutableList<InetAddressAndPort> allAddresses()
+    public Set<InetAddressAndPort> allAddresses()
     {
-        return ImmutableList.copyOf(peers.values());
+        return peers.values();
     }
 
     public NavigableSet<NodeId> peerIds()

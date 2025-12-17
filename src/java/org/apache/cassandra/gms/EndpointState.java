@@ -324,7 +324,7 @@ public class EndpointState
     public String toString()
     {
         View view = ref.get();
-        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState;
+        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState + ", isAlive = " + isAlive;
     }
 
     public boolean isSupersededBy(EndpointState that)

@@ -251,7 +251,7 @@ public class GossipTest extends TestBaseImpl
     }
 
     @Test
-    public void testQuarantine() throws IOException
+    public void testReplacedNodeRemovedFromGossip() throws IOException
     {
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(4, 1);
         try (Cluster cluster = Cluster.build(4)

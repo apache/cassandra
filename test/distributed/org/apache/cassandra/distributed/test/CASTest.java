@@ -105,13 +105,17 @@ public class CASTest extends CASCommonTestCases
         ParameterizedClass seeds = new ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                           Collections.singletonMap("seeds", "127.0.0.2"));
 
+        // TODO: This currently requires the accord service to be disabled as some tests remove a node from the
+        //  cluster and re-join it using the same broadcast address. See CASSANDRA-21026
         Consumer<IInstanceConfig> conf = config -> config
                                                    .set("paxos_variant", "v2")
                                                    .set("write_request_timeout", REQUEST_TIMEOUT)
                                                    .set("cas_contention_timeout", CONTENTION_TIMEOUT)
                                                    .set("request_timeout", REQUEST_TIMEOUT)
                                                    .set("seed_provider", seeds)
-                                                   .set("auto_bootstrap", config.num() == 2);
+                                                   .set("auto_bootstrap", config.num() == 2)
+                                                   .set("accord.enabled", false);
+
         // TODO: fails with vnode enabled
         THREE_NODES = init(Cluster.build(3).withConfig(conf).withoutVNodes().start());
         FOUR_NODES = init(Cluster.build(4).withConfig(conf).withoutVNodes().start(), 3);
@@ -830,18 +834,28 @@ public class CASTest extends CASCommonTestCases
     {
         IInstanceConfig config = cluster.get(node).config();
         InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
+        String dc = config.localDatacenter();
+        String rack = config.localRack();
         IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
         Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
-        cluster.get(node).runOnInstance(() -> ClusterMetadataTestHelper.join(address, token));
+        cluster.get(node).runOnInstance(() -> {
+            ClusterMetadataTestHelper.register(address, dc, rack);
+            ClusterMetadataTestHelper.join(address, token);
+        });
     }
 
     private void joinPartially(Cluster cluster, int node)
     {
         IInstanceConfig config = cluster.get(node).config();
         InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
+        String dc = config.localDatacenter();
+        String rack = config.localRack();
         IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
         Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
-        cluster.get(node).runOnInstance(() -> ClusterMetadataTestHelper.joinPartially(address, token));
+        cluster.get(node).runOnInstance(() -> {
+            ClusterMetadataTestHelper.register(address, dc, rack);
+            ClusterMetadataTestHelper.joinPartially(address, token);
+        });
     }
 
     private void finishJoin(Cluster cluster, int node)

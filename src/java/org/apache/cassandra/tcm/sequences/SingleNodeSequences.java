@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tcm.sequences;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.service.StorageService.Mode.LEAVING;
 import static org.apache.cassandra.service.StorageService.Mode.MOVE_FAILED;
@@ -73,7 +75,7 @@ public interface SingleNodeSequences
         logger.debug("DECOMMISSIONING");
 
         NodeId self = metadata.myNodeId();
-
+        Collection<Token> tokens = metadata.tokenMap.tokens(self);
         ReconfigureCMS.maybeReconfigureCMS(metadata, getBroadcastAddressAndPort());
         MultiStepOperation<?> inProgress = metadata.inProgressSequences.get(self);
 
@@ -95,6 +97,9 @@ public interface SingleNodeSequences
         }
 
         InProgressSequences.finishInProgressSequences(self);
+        Gossiper.instance.unsafeBroadcastLeftStatus(FBUtilities.getBroadcastAddressAndPort(),
+                                                    tokens,
+                                                    metadata.directory.allJoinedEndpoints());
         if (shutdownNetworking)
             StorageService.instance.shutdownNetworking();
     }
@@ -134,12 +139,13 @@ public interface SingleNodeSequences
         ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
 
         logger.info("starting removenode with {} {}", metadata.epoch, toRemove);
-
+        Collection<Token> tokens  = metadata.tokenMap.tokens(toRemove);
         ClusterMetadataService.instance().commit(new PrepareLeave(toRemove,
                                                                   force,
                                                                   ClusterMetadataService.instance().placementProvider(),
                                                                   LeaveStreams.Kind.REMOVENODE));
         InProgressSequences.finishInProgressSequences(toRemove);
+        Gossiper.instance.unsafeBroadcastLeftStatus(endpoint, tokens, metadata.directory.allJoinedEndpoints());
     }
 
     static void abortRemoveNode(String nodeId)

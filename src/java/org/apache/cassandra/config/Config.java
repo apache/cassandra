@@ -1521,4 +1521,29 @@ public class Config
     public boolean enforce_native_deadline_for_hints = false;
 
     public boolean paxos_repair_race_wait = true;
+
+    /**
+     * If true, gossip state updates for nodes which have left the cluster will continue to be processed while the
+     * node is still present in ClusterMetadata. This enables the gossip expiry time for those nodes (the deadline
+     * after which their state is fully purged from gossip) to converge across the remaining nodes in the cluster.
+     * This is a change from previous behaviour as historically once a node has advertised a LEFT status further
+     * updates to gossip state for it are ignored for a period of time to prevent flapping if older/stale states
+     * are encountered.
+     * Following CEP-21, most significant state changes are handled by the cluster metadata log, so resurrection
+     * of left nodes is not a problem for gossip to solve and so quarantine is not really necessary. However,
+     * FailureDetector does still use gossip messages to assess node health and some external systems still use gossip
+     * state to inform decisions about topology/node health/etc. For those reasons, for now the disabling of quarantine
+     * is off by default and hot-proppable.
+     *
+     * With quarantine still in effect, expiry from gossip of LEFT nodes will occur at different times on each peer.
+     * Also, when there are LEFT nodes in gossip, the state will never fully converge across the cluster as each node
+     * will have its own expiry time for a LEFT peer.
+     *
+     * With quarantine disabled the STATUS_WITH_PORT values for the left node which include the expiry time will
+     * converge and peers will all evict it from gossip after the same deadline.
+     *
+     * Eventually, this configuration option should be removed and quarantine disabled entirely for clusters running
+     * 6.0 and later.
+     */
+    public volatile boolean gossip_quarantine_disabled = false;
 }

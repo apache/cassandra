@@ -6119,4 +6119,14 @@ public class DatabaseDescriptor
     {
         partitioner = FBUtilities.newPartitioner(name);
     }
+
+    public static boolean getGossipQuarantineDisabled()
+    {
+        return conf.gossip_quarantine_disabled;
+    }
+
+    public static void setGossipQuarantineDisabled(boolean disabled)
+    {
+        conf.gossip_quarantine_disabled = disabled;
+    }
 }

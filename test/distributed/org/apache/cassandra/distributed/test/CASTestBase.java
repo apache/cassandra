@@ -193,7 +193,10 @@ public abstract class CASTestBase extends TestBaseImpl
 
     public static void removeFromRing(IInvokableInstance peer)
     {
-        peer.runOnInstance(() -> ClusterMetadataTestHelper.leave(FBUtilities.getBroadcastAddressAndPort()));
+        peer.runOnInstance(() -> {
+            ClusterMetadataTestHelper.leave(FBUtilities.getBroadcastAddressAndPort());
+            ClusterMetadataTestHelper.unregister(FBUtilities.getBroadcastAddressAndPort());
+        });
     }
 
     public static void assertNotVisibleInRing(IInstance peer)

@@ -43,4 +43,8 @@ public interface GossiperMBean
     public boolean getLooseEmptyEnabled();
 
     public void setLooseEmptyEnabled(boolean enabled);
+
+    public boolean getQuarantineDisabled();
+
+    public void setQuarantineDisabled(boolean disabled);
 }
