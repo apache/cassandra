@@ -285,8 +285,8 @@ _main() {
   # check split_chunk is compatible with target (if not a regexp)
   if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
-      "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
-          error 1 "Target ${target} does not suport splits."
+      "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "cqlsh-test")
+          error 1 "Target ${target} does not support splits."
           ;;
         *)
           ;;
@@ -377,7 +377,7 @@ _main() {
       _run_testlist "long" "testclasslist" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.long.timeout')" "${repeat_count}"
       ;;
     "simulator-dtest")
-      ant test-simulator-dtest ${ANT_TEST_OPTS} || echo "failed ${target}"
+      _run_testlist "simulator" "testclasslist-simulator" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.simulation.timeout')" "${repeat_count}"
       ;;
     "jvm-dtest" | "jvm-dtest-novnode")
       [ "jvm-dtest-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"

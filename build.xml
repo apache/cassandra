@@ -1792,6 +1792,13 @@
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-system-keyspace-directory"/>
   </target>
+  <target name="testclasslist-simulator" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-simulator"/>
+  </target>
 
   <!-- Build a self-contained jar for e.g. remote execution; not currently used for running burn tests with this build script -->
   <target name="burn-test-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
@@ -1857,31 +1864,49 @@
     </testmacro>
   </target>
 
-    <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
+  <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
+  <resources id="_simulator_jvmargs_items">
+    <string>-Djdk.attach.allowAttachSelf=true</string>
+    <string>-Dlogback.configurationFile=test/conf/logback-simulator.xml</string>
+    <string>-Dcassandra.ring_delay_ms=10000</string>
+    <string>-Dcassandra.tolerate_sstable_size=true</string>
+    <string>-Dcassandra.skip_sync=true</string>
+    <string>-Dcassandra.debugrefcount=false</string>
+    <string>-Dcassandra.test.simulator.determinismcheck=strict</string>
+    <string>-Dcassandra.test.simulator.print_asm=${simulator.asm.print}</string>
+      <!-- Support Simulator Tests -->
+    <string>-javaagent:${test.lib}/jars/simulator-asm.jar</string>
+    <string>-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar</string>
+    <string>-XX:ActiveProcessorCount=4</string>
+    <string>-XX:-TieredCompilation</string>
+    <string>-XX:-BackgroundCompilation</string>
+    <string>-XX:CICompilerCount=1</string>
+    <string>-XX:Tier4CompileThreshold=1000</string>
+    <string>-XX:ReservedCodeCacheSize=256M</string>
+    <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+    <string>-Xmx8G</string>
+    <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
+    <string>-XX:MaxDirectMemorySize=8G</string>
+  </resources>
+  <pathconvert property="_simulator.jvmargs_concat" refid="_simulator_jvmargs_items" pathsep=" "/>
+
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
     <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
-      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
-      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-      <jvmarg value="-Dcassandra.skip_sync=true" />
-      <jvmarg value="-Dcassandra.debugrefcount=false"/>
-      <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
-      <jvmarg value="-Dcassandra.test.simulator.print_asm=${simulator.asm.print}" />
-      <!-- Support Simulator Tests -->
-      <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
-      <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
-      <jvmarg line="-XX:ActiveProcessorCount=4"/>
-      <jvmarg line="-XX:-TieredCompilation"/>
-      <jvmarg line="-XX:-BackgroundCompilation"/>
-      <jvmarg line="-XX:CICompilerCount=1"/>
-      <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
-      <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
-      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
-      <jvmarg line="-Xmx8G"/>
-      <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
-      <jvmarg line="-XX:MaxDirectMemorySize=8G"/>
+      <jvmarg line="${_simulator.jvmargs_concat}"/>
     </testmacro>
   </target>
+
+  <macrodef name="testlist-simulator">
+    <attribute name="test.file.list" />
+    <sequential>
+      <testmacrohelper inputdir="${test.simulator-test.src}" timeout="${test.timeout}"
+                       forkmode="perTest" showoutput="true"
+                       exclude="**/*.java" filelist="@{test.file.list}"
+                       maxmemory="8g">
+        <jvmarg line="${_simulator.jvmargs_concat}"/>
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
   <!-- To run them you'll need to:
          - `ant dtest-jar` on each version involved, including your current feature branch
