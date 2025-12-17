@@ -34,7 +34,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -49,6 +51,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.utils.UUIDs;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.types.DataType;
@@ -58,6 +61,10 @@ import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -76,6 +83,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1518,6 +1526,75 @@ public abstract class CQLSSTableWriterTest
         // no indexes built due to withBuildIndexes set to false
         assertFalse(indexDescriptor.isPerColumnIndexBuildComplete(new IndexIdentifier(keyspace, table, "idx1")));
         assertFalse(indexDescriptor.isPerColumnIndexBuildComplete(new IndexIdentifier(keyspace, table, "idx2")));
+    }
+
+    @Test
+    public void testWritingVectorData() throws Exception
+    {
+        testWritingVectorData(CQL3Type.Native.FLOAT, FloatType.instance, (i) -> (float) i, (i, vector) -> {
+            assertThat(vector).allMatch(val -> val instanceof Float);
+            assertThat(vector).allMatch(val -> (float) val == (float) i);
+        });
+
+        perTestSetup();
+
+        testWritingVectorData(CQL3Type.Native.DATE, SimpleDateType.instance, LocalDate::fromDaysSinceEpoch, (i, vector) -> {
+            assertThat(vector).allMatch(val -> val instanceof Integer);
+            assertThat(vector).allMatch(val -> {
+                int days = (int) val - Integer.MIN_VALUE; // signed to unsigned conversion
+                return days == i;
+            });
+        });
+
+        perTestSetup();
+
+        testWritingVectorData(CQL3Type.Native.TIME, TimeType.instance, (i) -> (long) i, (i, vector) -> {
+            assertThat(vector).allMatch(val -> val instanceof Long);
+            assertThat(vector).allMatch(val -> (long) val == (long) i);
+        });
+    }
+
+    private void testWritingVectorData(CQL3Type.Native cqlType, AbstractType<?> subType, Function<Integer, ?> valueFactory,
+                                       BiConsumer<Integer, List<?>> checkFunction) throws Exception
+    {
+        final int dimensions = 5;
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 VECTOR<" + cqlType.name() + ", " + dimensions + ">,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + keyspace + "." + table + " (k, v1) " +
+                                                         "VALUES (?, ?)").build();
+
+        for (int i = 0; i < 100; i++)
+        {
+            List<Object> vector = new ArrayList<>(dimensions);
+            for (int j = 0; j < dimensions; j++)
+            {
+                vector.add(valueFactory.apply(i));
+            }
+            writer.addRow(i, vector);
+        }
+
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
+
+        assertEquals(resultSet.size(), 100);
+        int cnt = 0;
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            assertEquals(cnt, row.getInt("k"));
+            List<?> vector = row.getVector("v1", subType, dimensions);
+            assertThat(vector).hasSize(dimensions);
+            checkFunction.accept(cnt, vector);
+            cnt++;
+        }
     }
 
     protected void loadSSTables(File dataDir, String ksName)

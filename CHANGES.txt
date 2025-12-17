@@ -1,4 +1,5 @@
 5.0.7
+ * Fix CQLSSTableWriter serialization of vector of date and time (CASSANDRA-20979)
  * Correctly calculate default for FailureDetector max interval (CASSANDRA-21025)
  * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)

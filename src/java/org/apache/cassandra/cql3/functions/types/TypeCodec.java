@@ -1788,12 +1788,6 @@ public abstract class TypeCodec<T>
         }
 
         @Override
-        public int serializedSize()
-        {
-            return 8;
-        }
-
-        @Override
         public LocalDate parse(String value)
         {
             if (value == null || value.isEmpty() || value.equalsIgnoreCase("NULL")) return null;
@@ -1874,6 +1868,13 @@ public abstract class TypeCodec<T>
         private TimeCodec()
         {
             super(DataType.time());
+        }
+
+        @Override
+        public int serializedSize()
+        {
+            // matching behavior of TimeType, which is not declared as fixed length
+            return VARIABLE_LENGTH;
         }
 
         @Override
