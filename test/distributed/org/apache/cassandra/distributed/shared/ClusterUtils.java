@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 
 import accord.topology.EpochReady;
@@ -805,7 +804,7 @@ public class ClusterUtils
     public static Map<String, Epoch> getPeerEpochs(IInvokableInstance requester)
     {
         Map<String, Long> map = requester.callOnInstance(() -> {
-            ImmutableList<InetAddressAndPort> peers = ClusterMetadata.current().directory.allAddresses();
+            Set<InetAddressAndPort> peers = ClusterMetadata.current().directory.allAddresses();
             CountDownLatch latch = CountDownLatch.newCountDownLatch(peers.size());
             Map<String, Long> epochs = new ConcurrentHashMap<>(peers.size());
             peers.forEach(peer -> {

@@ -2158,6 +2158,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     Gossiper.instance.markDead(endpoint, epState);
                 });
             }
+            else if (Gossiper.isLeft(value))
+            {
+                long expireTime = Gossiper.extractExpireTime(value.splitValue());
+                logger.info("Node state LEFT detected, setting or updating expire time {}", expireTime);
+                Gossiper.instance.addExpireTimeForEndpoint(endpoint, expireTime);
+            }
         }
 
         if (epState == null || Gossiper.instance.isDeadState(epState))
@@ -2207,7 +2213,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     updateNetVersion(endpoint, value);
                     break;
                 case STATUS_WITH_PORT:
-                    String[] pieces = splitValue(value);
+                    String[] pieces = value.splitValue();
                     String moveName = pieces[0];
                     if (moveName.equals(VersionedValue.SHUTDOWN))
                         logger.info("Node {} state jump to shutdown", endpoint);
@@ -2224,11 +2230,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Ignoring application state {} from {} because it is not a member in token metadata",
                          state, endpoint);
         }
-    }
-
-    private static String[] splitValue(VersionedValue value)
-    {
-        return value.value.split(VersionedValue.DELIMITER_STR, -1);
     }
 
     public static void updateIndexStatus(InetAddressAndPort endpoint, VersionedValue versionedValue)

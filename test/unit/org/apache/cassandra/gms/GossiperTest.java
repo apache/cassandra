@@ -47,6 +47,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -122,6 +123,8 @@ public class GossiperTest
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -169,6 +172,8 @@ public class GossiperTest
 
         SimpleStateChangeListener stateChangeListener = null;
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -329,6 +334,9 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
+
         SimpleStateChangeListener stateChangeListener = null;
         try
         {

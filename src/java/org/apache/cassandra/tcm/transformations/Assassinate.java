@@ -18,8 +18,12 @@
 
 package org.apache.cassandra.tcm.transformations;
 
+import java.util.Collection;
+
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -64,8 +68,10 @@ public class Assassinate extends PrepareLeave
         ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
 
         NodeId nodeId = metadata.directory.peerId(endpoint);
-        ClusterMetadataService.instance().commit(new Assassinate(nodeId,
-                                                                 ClusterMetadataService.instance().placementProvider()));
+        Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);
+        ClusterMetadataService.instance()
+                              .commit(new Assassinate(nodeId, ClusterMetadataService.instance().placementProvider()));
+        Gossiper.instance.unsafeBroadcastLeftStatus(endpoint, tokens, metadata.directory.allJoinedEndpoints());
     }
 
     @Override

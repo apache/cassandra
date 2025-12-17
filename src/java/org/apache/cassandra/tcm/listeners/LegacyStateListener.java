@@ -65,8 +65,7 @@ public class LegacyStateListener implements ChangeListener.Async
             next.tokenMap.lastModified().equals(prev.tokenMap.lastModified()))
             return;
 
-        Set<InetAddressAndPort> removedAddr = Sets.difference(new HashSet<>(prev.directory.allAddresses()),
-                                                              new HashSet<>(next.directory.allAddresses()));
+        Set<InetAddressAndPort> removedAddr = Sets.difference(prev.directory.allAddresses(), next.directory.allAddresses());
 
         Set<NodeId> changed = new HashSet<>();
         for (NodeId node : next.directory.peerIds())

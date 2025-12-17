@@ -159,6 +159,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         return value.getBytes(ISO_8859_1);
     }
 
+    public String[] splitValue()
+    {
+        return value.split(DELIMITER_STR, -1);
+    }
+
     private static String versionString(String... args)
     {
         return StringUtils.join(args, VersionedValue.DELIMITER);
