@@ -165,6 +165,12 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
+    public long getTotalRows()
+    {
+        return 0;
+    }
+
+    @Override
     public TableId getTableId()
     {
         return metadata.id;

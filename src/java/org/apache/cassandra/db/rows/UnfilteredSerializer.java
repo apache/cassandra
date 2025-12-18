@@ -242,31 +242,15 @@ public class UnfilteredSerializer
         if ((flags & HAS_ALL_COLUMNS) == 0)
             Columns.serializer.serializeSubset(row.columns(), headerColumns, out);
 
-        SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.iterator(isStatic);
+        SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.header.columnsMayChanged() ? helper.iterator(isStatic) : null;
 
+        helper.flags = flags;
+        helper.pkLiveness = pkLiveness;
+        helper.out = out;
+        helper.si = si;
         try
         {
-            row.apply(cd -> {
-                // We can obtain the column for data directly from data.column(). However, if the cell/complex data
-                // originates from a sstable, the column we'll get will have the type used when the sstable was serialized,
-                // and if that type have been recently altered, that may not be the type we want to serialize the column
-                // with. So we use the ColumnMetadata from the "header" which is "current". Also see #11810 for what
-                // happens if we don't do that.
-                ColumnMetadata column = si.next(cd.column());
-                assert column != null : cd.column.toString();
-
-                try
-                {
-                    if (cd.column.isSimple())
-                        Cell.serializer.serialize((Cell<?>) cd, column, out, pkLiveness, header);
-                    else
-                        writeComplexColumn((ComplexColumnData) cd, column, hasComplexDeletion(flags), pkLiveness, header, out);
-                }
-                catch (IOException e)
-                {
-                    throw new WrappedException(e);
-                }
-            });
+            row.apply(UnfilteredSerializer::serializeColumnData, helper);
         }
         catch (WrappedException e)
         {
@@ -277,7 +261,25 @@ public class UnfilteredSerializer
         }
     }
 
-    private void writeComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out)
+    private static void serializeColumnData(SerializationHelper helper, ColumnData cd)
+    {
+        ColumnMetadata column = helper.header.columnsMayChanged() ? helper.si.next(cd.column()) : cd.column();
+        assert column != null : cd.column.toString();
+
+        try
+        {
+            if (cd.column.isSimple())
+                Cell.serializer.serialize((Cell<?>) cd, column, helper.out, helper.pkLiveness, helper.header);
+            else
+                writeComplexColumn((ComplexColumnData) cd, column, hasComplexDeletion(helper.flags), helper.pkLiveness, helper.header, helper.out);
+        }
+        catch (IOException e)
+        {
+            throw new WrappedException(e);
+        }
+    }
+
+    private static void writeComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out)
     throws IOException
     {
         if (hasComplexDeletion)

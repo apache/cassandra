@@ -81,6 +81,11 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         return writer.getEstimatedOnDiskBytesWritten();
     }
 
+    public long getTotalRows()
+    {
+        return writer.getTotalRows();
+    }
+
     public TableId getTableId()
     {
         return writer.metadata().id;

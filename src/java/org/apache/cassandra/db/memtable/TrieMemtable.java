@@ -737,7 +737,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         @Override
         public UnfilteredRowIterator unfilteredIterator()
         {
-            return unfilteredIterator(ColumnFilter.selection(super.columns()), Slices.ALL, false);
+            return unfilteredIterator(ColumnFilter.all(super.columns()), Slices.ALL, false);
         }
 
         @Override

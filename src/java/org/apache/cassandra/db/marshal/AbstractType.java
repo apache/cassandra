@@ -586,6 +586,25 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         }
     }
 
+    public  <V> void writeValue(IndexedValueHolder<V> valueHolder, int i, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
+    {
+        assert !valueHolder.isNull(i) : "bytes should not be null for type " + this;
+        int expectedValueLength = valueLengthIfFixed();
+        if (expectedValueLength >= 0)
+        {
+            int actualValueLength = valueHolder.size(i);
+            if (actualValueLength == expectedValueLength)
+                accessor.write(valueHolder, i, out);
+            else
+                throw new IOException(String.format("Expected exactly %d bytes, but was %d",
+                                                    expectedValueLength, actualValueLength));
+        }
+        else
+        {
+            accessor.writeWithVIntLength(valueHolder, i, out);
+        }
+    }
+
     public long writtenLength(ByteBuffer value)
     {
         return writtenLength(value, ByteBufferAccessor.instance);
@@ -597,6 +616,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return valueLengthIfFixed() >= 0
                ? accessor.size(value) // if the size is wrong, this will be detected in writeValue
                : accessor.sizeWithVIntLength(value);
+    }
+
+    public <V> long writtenLength(IndexedValueHolder<V> valueHolder, int i, ValueAccessor<V> accessor)
+    {
+        assert !valueHolder.isNull(i) : "bytes should not be null for type " + this;
+        return valueLengthIfFixed() >= 0
+               ? valueHolder.size(i) // if the size is wrong, this will be detected in writeValue
+               : accessor.sizeWithVIntLength(valueHolder, i);
     }
 
     public ByteBuffer readBuffer(DataInputPlus in) throws IOException

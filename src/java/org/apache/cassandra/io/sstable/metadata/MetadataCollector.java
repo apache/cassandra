@@ -26,6 +26,8 @@ import java.util.UUID;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundOrBoundary;
@@ -39,7 +41,9 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -246,10 +250,39 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public void update(Cell<?> cell)
     {
         ++currentPartitionCells;
-        updateTimestamp(cell.timestamp());
-        updateTTL(cell.ttl());
-        updateLocalDeletionTime(cell.localDeletionTime());
-        if (!cell.isLive(nowInSec))
+        long timestamp;
+        int ttl;
+        long localDeletionTime;
+        // This method may process several implementations of Cell.
+        // To improve inlining of Cell method calls, we split the call sites.
+        // This is a very hot path, invoked for every cell (potentially millions of times per second),
+        // so this micro-optimization is justified.
+        // The type check is executed once per 3 Cell method calls, so it amortized.
+        Class<?> cellClass = cell.getClass();
+        if (cellClass == NativeCell.class)
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        else if (cellClass == ArrayCell.class)
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        else
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        updateTimestamp(timestamp);
+        updateTTL(ttl);
+        updateLocalDeletionTime(localDeletionTime);
+
+        // isLive(nowInSec) is not used to avoid additional non-monomorphic calls of Cell methods
+        if (!cell.isLive(nowInSec, localDeletionTime, ttl))
             updateTombstoneCount();
     }
 
@@ -406,6 +439,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
+    public long getTotalRows()
+    {
+        return totalRows;
+    }
+
     public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header, ByteBuffer firstKey, ByteBuffer lastKey)
     {
         assert minClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || minClustering.kind().isStart();
@@ -478,6 +516,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
             this.defaultMax = defaultMax;
         }
 
+        @Inline
         public void update(long value)
         {
             if (!isSet)
@@ -525,6 +564,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
             this.defaultMax = defaultMax;
         }
 
+        @Inline
         public void update(int value)
         {
             if (!isSet)
