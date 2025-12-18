@@ -107,6 +107,12 @@ public class SSTableTxnSingleStreamWriter implements SSTableMultiWriter
     }
 
     @Override
+    public long getTotalRows()
+    {
+        return writer.getTotalRows();
+    }
+
+    @Override
     public TableId getTableId()
     {
         return writer.getTableId();

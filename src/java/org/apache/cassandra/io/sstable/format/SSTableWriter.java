@@ -215,6 +215,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return getOnDiskFilePointer();
     }
 
+    public long getTotalRows()
+    {
+        return metadataCollector.getTotalRows();
+    }
+
     /**
      * Reset the data file to the marked position (see {@link #mark()}) and truncate the rest of the file.
      */

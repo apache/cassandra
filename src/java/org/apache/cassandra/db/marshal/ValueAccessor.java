@@ -125,6 +125,12 @@ public interface ValueAccessor<V>
         return TypeSizes.sizeofUnsignedVInt(size) + size;
     }
 
+    default int sizeWithVIntLength(IndexedValueHolder<V> valueHolder, int i)
+    {
+        int size = valueHolder.size(i);
+        return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
     /** serialized size including a short length prefix */
     default int sizeWithShortLength(V value)
     {
@@ -173,10 +179,22 @@ public interface ValueAccessor<V>
      */
     void write(V value, DataOutputPlus out) throws IOException;
 
+    default void write(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        write(valueHolder.get(i), out);
+    }
+
+
     default void writeWithVIntLength(V value, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt32(size(value));
         write(value, out);
+    }
+
+    default void writeWithVIntLength(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(valueHolder.size(i));
+        write(valueHolder.get(i), out);
     }
 
     /**

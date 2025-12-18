@@ -354,7 +354,8 @@ public class BTreeRow extends AbstractRow
             if (!inclusionTester.test(column))
                 return null;
 
-            DroppedColumn dropped = droppedColumns.get(column.name.bytes);
+            // we check isEmpty here to avoid bytes.hashCode calculation if it is not needed
+            DroppedColumn dropped = droppedColumns.isEmpty() ? null : droppedColumns.get(column.name.bytes);
             if (column.isComplex())
                 return ((ComplexColumnData) cd).filter(filter, mayHaveShadowed ? activeDeletion : DeletionTime.LIVE, dropped, rowLiveness);
 
@@ -402,6 +403,8 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplexDeletion()
     {
+        if (minLocalDeletionTime == Cell.MAX_DELETION_TIME || !hasComplex())
+            return false;
         long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : STOP_SENTINEL_VALUE,
                                  COLUMN_COMPARATOR, isStatic() ? FIRST_COMPLEX_STATIC : FIRST_COMPLEX_REGULAR, 0L);
         return result == STOP_SENTINEL_VALUE;

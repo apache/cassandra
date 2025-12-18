@@ -136,6 +136,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      */
     private final long comparisonOrder;
 
+    private final boolean isCounterColumn;
+
     /**
      * Masking function used to dynamically mask the contents of this column.
      */
@@ -289,6 +291,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
+        this.isCounterColumn = isCounterColumn(type);
         this.mask = mask;
         this.columnConstraints = columnConstraints;
         this.columnConstraints.setColumnName(name);
@@ -730,6 +733,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      * Check if column is counter type.
      */
     public boolean isCounterColumn()
+    {
+        return isCounterColumn;
+    }
+
+    private static boolean isCounterColumn(AbstractType<?> type)
     {
         if (type instanceof CollectionType) // Possible with, for example, supercolumns
             return ((CollectionType) type).valueComparator().isCounter();

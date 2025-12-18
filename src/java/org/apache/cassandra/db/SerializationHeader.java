@@ -63,6 +63,8 @@ public class SerializationHeader
 
     private final Map<ByteBuffer, AbstractType<?>> typeMap;
 
+    private final boolean columnsMayChanged;
+
     private SerializationHeader(boolean isForSSTable,
                                 AbstractType<?> keyType,
                                 List<AbstractType<?>> clusteringTypes,
@@ -70,12 +72,24 @@ public class SerializationHeader
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
     {
+        this(isForSSTable, keyType, clusteringTypes, columns, stats, typeMap, true);
+    }
+
+    private SerializationHeader(boolean isForSSTable,
+                                AbstractType<?> keyType,
+                                List<AbstractType<?>> clusteringTypes,
+                                RegularAndStaticColumns columns,
+                                EncodingStats stats,
+                                Map<ByteBuffer, AbstractType<?>> typeMap,
+                                boolean columnsMayChanged)
+    {
         this.isForSSTable = isForSSTable;
         this.keyType = keyType;
         this.clusteringTypes = clusteringTypes;
         this.columns = columns;
         this.stats = stats;
         this.typeMap = typeMap;
+        this.columnsMayChanged = columnsMayChanged;
     }
 
     public static SerializationHeader makeWithoutStats(TableMetadata metadata)
@@ -121,6 +135,21 @@ public class SerializationHeader
     public SerializationHeader(boolean isForSSTable,
                                TableMetadata metadata,
                                RegularAndStaticColumns columns,
+                               EncodingStats stats,
+                               boolean columnsMayChanged)
+    {
+        this(isForSSTable,
+             metadata.partitionKeyType,
+             metadata.comparator.subtypes(),
+             columns,
+             stats,
+             null,
+             columnsMayChanged);
+    }
+
+    public SerializationHeader(boolean isForSSTable,
+                               TableMetadata metadata,
+                               RegularAndStaticColumns columns,
                                EncodingStats stats)
     {
         this(isForSSTable,
@@ -128,7 +157,8 @@ public class SerializationHeader
              metadata.comparator.subtypes(),
              columns,
              stats,
-             null);
+             null,
+             true);
     }
 
     public RegularAndStaticColumns columns()
@@ -144,6 +174,11 @@ public class SerializationHeader
     public boolean isForSSTable()
     {
         return isForSSTable;
+    }
+
+    public boolean columnsMayChanged()
+    {
+        return columnsMayChanged;
     }
 
     public EncodingStats stats()

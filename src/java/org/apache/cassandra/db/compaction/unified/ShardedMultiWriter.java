@@ -205,6 +205,14 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         return bytesWritten;
     }
 
+    public long getTotalRows()
+    {
+        long totalRows = 0;
+        for (int i = 0; i <= currentWriter; ++i)
+            totalRows += writers[i].getTotalRows();
+        return totalRows;
+    }
+
     @Override
     public TableId getTableId()
     {
