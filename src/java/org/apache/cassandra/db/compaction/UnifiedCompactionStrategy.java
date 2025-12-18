@@ -534,7 +534,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * are currently undergoing compaction. This is used only for table stats so we can have a consistent
      * snapshot of the levels.
      */
-    @VisibleForTesting
     List<Level> getLevelsSnapshot()
     {
         Set<SSTableReader> sstables = getSSTables();
@@ -565,6 +564,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return formLevels(suitable);
     }
 
+    /**
+     * Returns the density of the SSTable
+     */
     public double getDensity(SSTableReader sstable)
     {
         return shardManager.density(sstable);

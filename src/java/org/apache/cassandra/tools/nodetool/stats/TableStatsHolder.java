@@ -304,13 +304,13 @@ public class TableStatsHolder implements StatsHolder
                     }
                 }
 
-                double[] ucsSsTableAvgSize = table.getPerLevelAvgSize();
-                if (ucsSsTableAvgSize != null)
+                double[] ucsSSTableAvgSize = table.getPerLevelAvgSize();
+                if (ucsSSTableAvgSize != null)
                 {
                     statsTable.isUCSSstable = true;
-                    for (int level = 0; level < ucsSsTableAvgSize.length; level++)
+                    for (int level = 0; level < ucsSSTableAvgSize.length; level++)
                     {
-                        statsTable.sstableAvgSizeInEachLevel.add(String.format("%.03f", ucsSsTableAvgSize[level]));
+                        statsTable.sstableAvgSizeInEachLevel.add(String.format("%.03f", ucsSSTableAvgSize[level]));
                     }
                 }
 

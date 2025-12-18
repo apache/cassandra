@@ -28,6 +28,7 @@ import java.io.IOException;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.junit.Assert.assertTrue;
 
 public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
 {
@@ -56,9 +57,9 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
             double[] perLevelAvgTokenSpace = cfs.getPerLevelAvgTokenSpace();
-            assert(perLevelAvgTokenSpace.length > 0);
+            assertTrue(perLevelAvgTokenSpace.length > 0);
             for (int i = 0; i < perLevelAvgTokenSpace.length; i++)
-                Assert.assertTrue(perLevelAvgTokenSpace[i] > 0);
+                assertTrue(perLevelAvgTokenSpace[i] > 0);
         });
     }
 
@@ -67,7 +68,7 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
     {
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
-            Assert.assertTrue(cfs.getPerLevelMaxDensityThreshold().length > 0);
+            assertTrue(cfs.getPerLevelMaxDensityThreshold().length > 0);
         });
     }
 
@@ -77,9 +78,9 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
             double[] perLevelAvgSize = cfs.getPerLevelAvgSize();
-            assert(perLevelAvgSize.length > 0);
+            assertTrue(perLevelAvgSize.length > 0);
             for (int i = 0; i < perLevelAvgSize.length; i++)
-                Assert.assertTrue(perLevelAvgSize[i] > 0);
+                assertTrue(perLevelAvgSize[i] > 0);
         });
     }
 
@@ -89,9 +90,9 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
             double[] perLevelAvgDensity = cfs.getPerLevelAvgDensity();
-            assert(perLevelAvgDensity.length > 0);
+            assertTrue(perLevelAvgDensity.length > 0);
             for (int i = 0; i < perLevelAvgDensity.length; i++)
-                Assert.assertTrue(perLevelAvgDensity[i] > 0);
+                assertTrue(perLevelAvgDensity[i] > 0);
         });
     }
 
@@ -101,11 +102,11 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
             double[] perLevelAvgDensityMaxDensityThresholdRatio = cfs.getPerLevelAvgDensityMaxDensityThresholdRatio();
-            assert(perLevelAvgDensityMaxDensityThresholdRatio.length > 0);
+            assertTrue(perLevelAvgDensityMaxDensityThresholdRatio.length > 0);
             for (int i = 0; i < perLevelAvgDensityMaxDensityThresholdRatio.length; i++)
             {
-                Assert.assertTrue(0 <= perLevelAvgDensityMaxDensityThresholdRatio[i]);
-                Assert.assertTrue(perLevelAvgDensityMaxDensityThresholdRatio[i] < 1);
+                assertTrue(0 <= perLevelAvgDensityMaxDensityThresholdRatio[i]);
+                assertTrue(perLevelAvgDensityMaxDensityThresholdRatio[i] < 1);
             }
         });
     }
@@ -116,10 +117,10 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("cf");
             double[] perLevelMaxDensityMaxDensityThresholdRatio = cfs.getPerLevelMaxDensityMaxDensityThresholdRatio();
-            assert(perLevelMaxDensityMaxDensityThresholdRatio.length > 0);
+            assertTrue(perLevelMaxDensityMaxDensityThresholdRatio.length > 0);
             for (int i = 0; i < perLevelMaxDensityMaxDensityThresholdRatio.length; i++) {
-                Assert.assertTrue(0 <= perLevelMaxDensityMaxDensityThresholdRatio[i]);
-                Assert.assertTrue(perLevelMaxDensityMaxDensityThresholdRatio[i] < 1);
+                assertTrue(0 <= perLevelMaxDensityMaxDensityThresholdRatio[i]);
+                assertTrue(perLevelMaxDensityMaxDensityThresholdRatio[i] < 1);
             }
         });
     }
