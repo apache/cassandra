@@ -1,4 +1,5 @@
 Unreleased
+ * Replace blocking wait with non-blocking delay in paxos repair (CASSANDRA-20983)
 4.1.10.3
  * [CAAS-111] Code refactor and include the old node being replaced to be ignored
  * [CAAS-479] Add logs and metrics for Counter mutation
