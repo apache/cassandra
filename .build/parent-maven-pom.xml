@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.12.13</bytebuddy.version>
     <byteman.version>4.0.20</byteman.version>
-    <netty.version>4.1.125.Final</netty.version>
+    <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
@@ -295,9 +295,9 @@
         <version>1.1.10.4</version>
       </dependency>
       <dependency>
-        <groupId>org.lz4</groupId>
+        <groupId>at.yawk.lz4</groupId>
         <artifactId>lz4-java</artifactId>
-        <version>1.8.0</version>
+        <version>1.10.1</version>
       </dependency>
       <dependency>
         <groupId>com.github.luben</groupId>
