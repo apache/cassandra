@@ -53,6 +53,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
     private final AtomicReference<Runnable> currentTask = new AtomicReference<>();
 
+    private String lastUsedExecutorName;
+
     SEPWorker(ThreadGroup threadGroup, Long workerId, Work initialState, SharedExecutorPool pool)
     {
         this.pool = pool;
@@ -129,8 +131,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned = get().assigned;
                 if (assigned == null)
                     continue;
-                if (SET_THREAD_NAME)
+                if (SET_THREAD_NAME && assigned.name != lastUsedExecutorName) // .equals is not used intentionally
+                {
                     Thread.currentThread().setName(assigned.name + workerIdThreadSuffix);
+                    lastUsedExecutorName = assigned.name;
+                }
 
                 task = assigned.tasks.poll();
                 currentTask.lazySet(task);
