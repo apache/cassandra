@@ -536,7 +536,7 @@ public enum CassandraRelevantProperties
      */
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
     SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR("cassandra.serialization.emptytype.nonempty_behavior"),
-    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
+    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "false"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIMULATOR_ITERATIONS("simulator.iterations", "3"),
     SIMULATOR_SEED("cassandra.simulator.seed"),
