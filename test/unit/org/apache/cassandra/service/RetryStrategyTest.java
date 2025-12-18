@@ -18,12 +18,19 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.RandomTestRunner;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.repair.SharedContext;
+import org.assertj.core.api.Assertions;
 
 public class RetryStrategyTest
 {
@@ -62,6 +69,33 @@ public class RetryStrategyTest
                                     new TestLatencySourceFactory());
             }
         });
+    }
+
+    @Test
+    public void testSeededWaitRandomizer()
+    {
+        RetrySpec spec = new RetrySpec(new RetrySpec.MaxAttempt(10),
+                                       new DurationSpec.LongMillisecondsBound("200ms"),
+                                       new DurationSpec.LongMillisecondsBound("1000ms"));
+        long wait1 = RetrySpec.toStrategy(sharedContext(100), spec).computeWait(1, TimeUnit.MILLISECONDS);
+        long wait2 = RetrySpec.toStrategy(sharedContext(100), spec).computeWait(1, TimeUnit.MILLISECONDS);
+        long wait3 = RetrySpec.toStrategy(sharedContext(200), spec).computeWait(1, TimeUnit.MILLISECONDS);
+        Assertions.assertThat(wait1).isEqualTo(wait2);
+        Assertions.assertThat(wait1).isNotEqualTo(wait3);
+    }
+
+    private static SharedContext sharedContext(long seed)
+    {
+        return new SharedContext.ForwardingSharedContext(SharedContext.Global.instance)
+        {
+            private final Random seededRandom = new Random(seed);
+
+            @Override
+            public Supplier<Random> random()
+            {
+                return () -> seededRandom;
+            }
+        };
     }
 
     private static class TestLatencySourceFactory implements TimeoutStrategy.LatencySourceFactory

@@ -22,11 +22,14 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import accord.utils.RandomSource;
 import org.apache.cassandra.config.DurationSpec.LongMillisecondsBound;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.service.WaitStrategy;
+
+import static org.apache.cassandra.service.RetryStrategy.randomizers;
 
 public class RetrySpec
 {
@@ -161,7 +164,9 @@ public class RetrySpec
     {
         if (!spec.isEnabled())
             return WaitStrategy.None.INSTANCE;
-        return RetryStrategy.parse(spec.baseSleepTime.toMilliseconds() + "ms * 2^attempts <= " + spec.maxSleepTime.toMilliseconds() + "ms,retries=" + (spec.maxAttempts.value - 1), LatencySourceFactory.none());
+        RandomSource randomSource = RandomSource.wrap(ctx.random().get());
+        RetryStrategy.WaitRandomizer randomizer = randomizers(randomSource).uniform();
+        return RetryStrategy.parse((int) (0.5 * spec.baseSleepTime.toMilliseconds())  + "ms * 2^attempts ... " + (int) (1.5 * spec.baseSleepTime.toMilliseconds()) + "ms * 2^attempts <= " + spec.maxSleepTime.toMilliseconds() + "ms,retries=" + (spec.maxAttempts.value - 1), LatencySourceFactory.none(), randomizer);
     }
 
     @Override
