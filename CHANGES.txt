@@ -271,6 +271,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix CQLSSTableWriter serialization of vector of date and time (CASSANDRA-20979)
  * Correctly calculate default for FailureDetector max interval (CASSANDRA-21025)
  * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)
