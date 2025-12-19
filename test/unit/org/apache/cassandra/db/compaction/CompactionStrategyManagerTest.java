@@ -430,7 +430,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
     }
 
     @Test
-    public void testAverageFinalizer()
+    public void testAverageArrayFinalizer()
     {
         CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
         Random random = new Random();

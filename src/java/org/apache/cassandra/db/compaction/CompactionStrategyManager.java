@@ -700,7 +700,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                     data.sum[data.levelIndex] += data.sstable.tokenSpaceCoverage();
                     data.count[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageFinalizer
+                CompactionStrategyManager::averageArrayFinalizer
         );
     }
 
@@ -721,7 +721,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                     data.sum[data.levelIndex] += data.sstable.onDiskLength();
                     data.count[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageFinalizer
+                CompactionStrategyManager::averageArrayFinalizer
         );
     }
 
@@ -732,7 +732,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                     data.sum[data.levelIndex] += data.strategy.getDensity(data.sstable);
                     data.count[data.levelIndex]++;
                 },
-                CompactionStrategyManager::averageFinalizer
+                CompactionStrategyManager::averageArrayFinalizer
         );
     }
 
@@ -837,7 +837,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     @VisibleForTesting
-    static double[] averageFinalizer(CompactionStatsMetricsData data)
+    static double[] averageArrayFinalizer(CompactionStatsMetricsData data)
     {
         double[] res = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
