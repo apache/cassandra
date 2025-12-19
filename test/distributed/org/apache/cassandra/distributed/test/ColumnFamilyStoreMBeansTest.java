@@ -51,6 +51,13 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
         CLUSTER.get(1).nodetool("flush");
     }
 
+    @AfterClass
+    public static void teardownCluster() throws Exception
+    {
+        if (CLUSTER != null)
+            CLUSTER.close();
+    }
+
     @Test
     public void testPerLevelAverageTokenSpace() throws Throwable
     {
