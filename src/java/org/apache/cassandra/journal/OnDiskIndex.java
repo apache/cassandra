@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -370,9 +371,9 @@ final class OnDiskIndex<K> extends Index<K>
         return keySupport.compareWithKeyAt(key, buffer, offset, descriptor.userVersion);
     }
 
-    static <K> OnDiskIndex<K> rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit)
+    static <K> OnDiskIndex<K> rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport, int fsyncedLimit, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
-        try (InMemoryIndex<K> index = InMemoryIndex.rebuild(descriptor, keySupport, fsyncedLimit))
+        try (InMemoryIndex<K> index = InMemoryIndex.rebuild(descriptor, keySupport, fsyncedLimit, crcFailurePolicy))
         {
             index.persist(descriptor);
         }

@@ -375,7 +375,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
 
         public ByteBuffer serialize(TokenKey key)
         {
-            int size = key.table.serializedCompactComparableSize() + serializedSizeWithoutPrefix(key);
+            int size = key.table.serializedCompactComparableSize() + serializedSizeWithoutPrefixOrLength(key);
             ByteBuffer result = ByteBuffer.allocate(size);
             result.position(key.table.serializeCompactComparable(result, ByteBufferAccessor.instance, 0));
             serializeWithoutPrefixOrLength(key, result);
@@ -417,7 +417,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         }
 
         @Override
-        public int serializedSizeWithoutPrefix(TokenKey key)
+        public int serializedSizeWithoutPrefixOrLength(TokenKey key)
         {
             return 2 + key.token.getPartitioner().accordSerializedSize(key.token);
         }
@@ -445,7 +445,7 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         public ByteBuffer serializeWithoutPrefixOrLength(TokenKey key)
         {
             IPartitioner partitioner = key.token.getPartitioner();
-            ByteBuffer result = ByteBuffer.allocate(serializedSizeWithoutPrefix(key));
+            ByteBuffer result = ByteBuffer.allocate(serializedSizeWithoutPrefixOrLength(key));
             serializeWithoutPrefixOrLength(key, result, partitioner);
             result.flip();
             return result;

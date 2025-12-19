@@ -408,8 +408,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         return () -> {
             for (Keyspace keyspace : Keyspace.all())
+            {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    if (SchemaConstants.ACCORD_KEYSPACE_NAME.equals(cfs.keyspace.getName()))
+                        continue;
+
                     CompactionManager.instance.submitBackground(cfs);
+                }
+            }
+
         };
     }
 
@@ -1142,6 +1150,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
+    }
+
+    public Future<Void> waitForPriorFlushes()
+    {
+        return postFlushExecutor.submit(() -> null);
     }
 
     public CommitLogPosition forceBlockingFlush(FlushReason reason)

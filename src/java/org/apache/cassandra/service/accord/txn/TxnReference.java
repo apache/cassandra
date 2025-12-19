@@ -58,7 +58,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
-import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.columnMetadataSerializer;
 
 public abstract class TxnReference
 {

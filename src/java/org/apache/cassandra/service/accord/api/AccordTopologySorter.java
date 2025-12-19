@@ -35,11 +35,11 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NodeProximity;
-import org.apache.cassandra.service.accord.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Sortable;
 
-import static org.apache.cassandra.service.accord.AccordEndpointMapper.NodeStatus.HEALTHY;
+import static org.apache.cassandra.service.accord.topology.AccordEndpointMapper.NodeStatus.HEALTHY;
 
 public class AccordTopologySorter implements TopologySorter
 {

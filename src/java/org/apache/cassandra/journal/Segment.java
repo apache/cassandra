@@ -44,7 +44,8 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
 
         public final void tidy()
         {
-            executor.execute(this);
+            if (executor != null) executor.execute(this);
+            else onUnreferenced();
         }
     }
 

@@ -157,6 +157,9 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     public static boolean unsupportedMetadata(TableMetadata metadata)
     {
+        if (metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME))
+            return true;
+
         if (!metadata.partitioner.supportsReusableKeys())
         {
             if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Incompatible partitioner, does not support reusable keys:" + metadata.partitioner.getClass().getSimpleName());

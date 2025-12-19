@@ -59,7 +59,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.clusteringSerializer;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;

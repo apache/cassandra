@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -936,7 +936,7 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> onDurablyFlushed)
+            public <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> onDurablyFlushed)
             {
                 return null;
             }

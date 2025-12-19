@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -171,7 +173,7 @@ public abstract class DebugTxnGraph<T, P>
 
     protected AsyncChain<TxnInfos<T>> visitRoot(SafeCommandStore safeStore, Command command, P param)
     {
-        return visitParent(safeStore, command, param, new HashMap<>(), 0);
+        return visitParent(safeStore, command, param, new HashMap<>(), new HashSet<>(), 0);
     }
 
     void visit(long deadlineNanos) throws TimeoutException
@@ -227,17 +229,18 @@ public abstract class DebugTxnGraph<T, P>
         }).flatMap(i -> i);
     }
 
-    private AsyncChain<TxnInfos<T>> submitParent(CommandStore commandStore, TxnId txnId, P param, Map<TxnId, SaveInfo> infos, int depth)
+    private AsyncChain<TxnInfos<T>> submitParent(CommandStore commandStore, TxnId txnId, P param, Map<TxnId, SaveInfo> infos, Set<TxnId> visitedParent, int depth)
     {
+
         return commandStore.chain(PreLoadContext.contextFor(txnId, "Populate txn_graph"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             if (command == null || command.saveStatus() == SaveStatus.Uninitialised)
                 return AsyncChains.<TxnInfos<T>>success(null);
-            return visitParent(safeStore, command, param, infos, depth);
+            return visitParent(safeStore, command, param, infos, visitedParent, depth);
         }).flatMap(i -> i);
     }
 
-    private AsyncChain<TxnInfos<T>> visitParent(SafeCommandStore safeStore, Command command, P param, Map<TxnId, SaveInfo> infos, int depth)
+    private AsyncChain<TxnInfos<T>> visitParent(SafeCommandStore safeStore, Command command, P param, Map<TxnId, SaveInfo> infos, Set<TxnId> visitedParent, int depth)
     {
         CommandStore commandStore = safeStore.commandStore();
         if (depth < maxDepth)
@@ -296,7 +299,8 @@ public abstract class DebugTxnGraph<T, P>
                                 if (!next.saveStatus.hasBeen(Status.Committed) || next.saveStatus.hasBeen(Status.Truncated))
                                     return;
 
-                                queued.add(submitParent(commandStore, next.txnId, param, infos, depth + 1));
+                                if (visitedParent.add(next.txnId))
+                                    queued.add(submitParent(commandStore, next.txnId, param, infos, visitedParent, depth + 1));
                             });
                             callback.accept(build(commandStore, depth, command, list, intersecting, param), null);
                             return null;

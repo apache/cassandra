@@ -30,7 +30,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 
 public final class KeyspaceAttributes extends PropertyDefinitions
 {

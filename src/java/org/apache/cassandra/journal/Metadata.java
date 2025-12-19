@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy;
 import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
@@ -132,11 +133,11 @@ final class Metadata
         }
     }
 
-    static <K> Metadata rebuild(Descriptor descriptor, KeySupport<K> keySupport)
+    static <K> Metadata rebuild(Descriptor descriptor, KeySupport<K> keySupport, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
         int recordsCount = 0;
         int fsyncLimit = 0;
-        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, Integer.MAX_VALUE))
+        try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, Integer.MAX_VALUE, crcFailurePolicy))
         {
             while (reader.advance())
                 ++recordsCount;
@@ -152,9 +153,9 @@ final class Metadata
         return new Metadata(recordsCount, fsyncLimit);
     }
 
-    static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport)
+    static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport, RecoverableCrcFailurePolicy crcFailurePolicy)
     {
-        Metadata metadata = rebuild(descriptor, keySupport);
+        Metadata metadata = rebuild(descriptor, keySupport, crcFailurePolicy);
         metadata.persist(descriptor);
         return metadata;
     }

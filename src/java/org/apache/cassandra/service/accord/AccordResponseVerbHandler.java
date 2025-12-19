@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;

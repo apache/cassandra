@@ -909,7 +909,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         schemaChange(query, true);
     }
 
-    private void schemaChange(String query, boolean ignoreStoppedInstances)
+    public void schemaChange(String query, boolean ignoreStoppedInstances)
     {
         I instance = ignoreStoppedInstances ? getFirstRunningInstance() : get(1);
         schemaChange(query, ignoreStoppedInstances, instance);

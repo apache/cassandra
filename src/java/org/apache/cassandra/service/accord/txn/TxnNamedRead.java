@@ -301,9 +301,12 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
                     TxnData result = new TxnData();
                     if (iterator.hasNext())
                     {
-                        TxnDataKeyValue value = new TxnDataKeyValue(iterator.next());
-                        if (value.hasRows() || command.selectsFullPartition())
-                            result.put(name, value);
+                        try (RowIterator row = iterator.next())
+                        {
+                            TxnDataKeyValue value = new TxnDataKeyValue(row);
+                            if (value.hasRows() || command.selectsFullPartition())
+                                result.put(name, value);
+                        }
                     }
                     return result;
                 }
