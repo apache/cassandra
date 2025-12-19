@@ -32,12 +32,13 @@ import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL
 import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.in_memory;
 
+// TODO (expected): rename to AccordConf?
 public class AccordSpec
 {
     public volatile boolean enabled = false;
 
+    // TODO (expected): move to JournalSpec
     public volatile String journal_directory;
-
     public volatile boolean enable_journal_compaction = true;
 
     /**
@@ -180,7 +181,7 @@ public class AccordSpec
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
     public boolean ephemeralReadEnabled = true;
-    public boolean state_cache_listener_jfr_enabled = true;
+    public boolean state_cache_listener_jfr_enabled = false;
 
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
@@ -188,6 +189,7 @@ public class AccordSpec
     // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
     public boolean catchup_on_start_exit_on_failure = false;
     public boolean catchup_on_start = true;
+    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
@@ -203,16 +205,57 @@ public class AccordSpec
 
     public static class JournalSpec implements Params
     {
+        public enum ReplayMode
+        {
+            /**
+             * Replay all journal entries and erase local state such as CommandsForKey that can be recreated
+             */
+            RESET,
+            /**
+             * Replay all journal entries
+             */
+            ALL,
+
+            /**
+             * Replay journal entries for commands that intersect a non-durable range.
+             * Ordinarily it should be necessary to only replay commands that do not intersect any durable ranges.
+             */
+            PART_NON_DURABLE,
+
+            /**
+             * Replay journal entries for commands that are not durable to the data or command stores.
+             * THIS MODE IS NOT YET SAFE TO RUN
+             */
+            NON_DURABLE
+        }
+
+        // TODO (required): add REBOOTSTRAP
+        public enum StopMarkerFailurePolicy
+        {
+            /**
+             * If the start marker exceeds the stop marker exit, since we cannot guarantee our consensus log is complete.
+             */
+            EXIT,
+
+            /**
+             * If the start marker exceeds the stop marker startup, assuming the consensus log has been determined complete externally.
+             * Note this is VERY UNSAFE if you care about isolation guarantees.
+             */
+            UNSAFE_STARTUP
+        }
+
         public int segmentSize = 32 << 20;
         public int compactMaxSegments = 32;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
-        public ReplayMode replayMode = ReplayMode.ONLY_NON_DURABLE;
+        public ReplayMode replayMode = ReplayMode.PART_NON_DURABLE;
+        public StopMarkerFailurePolicy stopMarkerFailurePolicy = StopMarkerFailurePolicy.EXIT;
         public FlushMode flushMode = FlushMode.PERIODIC;
         public volatile DurationSpec flushPeriod; // pulls default from 'commitlog_sync_period'
         public DurationSpec periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
         public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("60000ms");
         private volatile long flushCombinedBlockPeriod = Long.MIN_VALUE;
         public Version version = Version.DOWNGRADE_SAFE_VERSION;
+        public int save_points = 2;
 
         public JournalSpec setFlushPeriod(DurationSpec newFlushPeriod)
         {
@@ -243,12 +286,6 @@ public class AccordSpec
         public FailurePolicy failurePolicy()
         {
             return failurePolicy;
-        }
-
-        @Override
-        public ReplayMode replayMode()
-        {
-            return replayMode;
         }
 
         @Override

@@ -18,22 +18,30 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import accord.primitives.SaveStatus;
+import accord.primitives.Status;
+
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +53,9 @@ import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractReplayer;
+import accord.impl.AbstractReplayer.Mode;
 import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
+import accord.impl.DefaultLocalListeners;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -64,14 +74,18 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults.CountingResult;
 
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -81,12 +95,26 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
+import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
+import static accord.primitives.Status.Durability.HasOutcome.Universal;
 import static accord.utils.Invariants.require;
-import static org.apache.cassandra.journal.Params.ReplayMode.ONLY_NON_DURABLE;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
+import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readList;
+import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readOne;
+import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.writeList;
+import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.writeOne;
+import static org.apache.cassandra.service.accord.AccordJournal.saveDirectory;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxConflicts;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxDecidedRX;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.progressLogState;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.rejectBefore;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.txnListener;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -154,18 +182,23 @@ public class AccordCommandStore extends CommandStore
 
     static final AtomicReferenceFieldUpdater<AccordCommandStore, SafeRedundantBefore> safeRedundantBeforeUpdater
         = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, SafeRedundantBefore.class, "safeRedundantBefore");
+    static final AtomicReferenceFieldUpdater<AccordCommandStore, Condition> terminatedUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Condition.class, "terminated");
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
+
+    private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
 
     public final String loggingId;
     public final Journal journal;
     private final AccordExecutor sharedExecutor;
     final AccordExecutor.SequentialExecutor exclusiveExecutor;
     private final ExclusiveCaches caches;
-    private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final RangeIndex rangeIndex;
     private final TableId tableId;
     private TableMetadataRef metadata;
+
     volatile SafeRedundantBefore safeRedundantBefore;
+    volatile Condition terminated;
 
     private AccordSafeCommandStore current;
     LogLinearDecayingHistograms.Buffer metricsBuffer;
@@ -198,7 +231,7 @@ public class AccordCommandStore extends CommandStore
 
         this.exclusiveExecutor = sharedExecutor.executor(id);
         {
-            AccordSpec.RangeIndexMode mode = DatabaseDescriptor.getAccord().range_index_mode;
+            AccordSpec.RangeIndexMode mode = getAccord().range_index_mode;
             switch (mode)
             {
                 default: throw new UnhandledEnum(mode);
@@ -329,8 +362,8 @@ public class AccordCommandStore extends CommandStore
         if (cfk == null)
             return null;
         RedundantBefore.QuickBounds bounds = safeGetRedundantBefore().get(key);
-        if (bounds == null)
-            return cfk; // TODO (required): I don't think this should be possible? but we hit it on some test
+        if (!Invariants.expect(bounds != null, "No RedundantBefore information found when loading key %s", key))
+            return cfk;
         return cfk.withGcBeforeAtLeast(bounds.gcBefore, false);
     }
 
@@ -351,8 +384,7 @@ public class AccordCommandStore extends CommandStore
 
     public long nextSystemTimestampMicros()
     {
-        lastSystemTimestampMicros = Math.max(TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis()), lastSystemTimestampMicros + 1);
-        return lastSystemTimestampMicros;
+        return lastSystemTimestampMicros.accumulateAndGet(node.now(), (a, b) -> Math.max(a + 1, b));
     }
     @Override
     public <T> AsyncChain<T> chain(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
@@ -416,6 +448,74 @@ public class AccordCommandStore extends CommandStore
     @Override
     public void shutdown()
     {
+        shutdownAsync();
+    }
+
+    public AsyncResult<Void> shutdownAsync()
+    {
+        terminatedUpdater.compareAndSet(this, null, Condition.newOneTimeCondition());
+        progressLog.stop();
+        return execute((PreLoadContext.Empty)() -> "Shutdown", safeStore -> {
+            exclusiveExecutor.stop();
+            logger.info("{} stopping. Durably applied: {}, waiting: {}", this,
+                        DurablyAppliedTo.summarise(safeStore.redundantBefore(), DurablyAppliedTo::isDone),
+                        DurablyAppliedTo.summarise(safeStore.redundantBefore(), DurablyAppliedTo::isNotDone));
+            maybeTerminated();
+        });
+    }
+
+    @Override
+    protected void upsertedRedundantBefore(SafeCommandStore safeStore, RedundantBefore added)
+    {
+        super.upsertedRedundantBefore(safeStore, added);
+        maybeTerminated();
+    }
+
+    @Override
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges durableRanges, Status.Durability.HasOutcome durability)
+    {
+        super.markShardDurable(safeStore, globalSyncId, durableRanges, durability);
+        if (durability == Universal)
+            rangeIndex.prune(globalSyncId, durableRanges, safeStore.redundantBefore());
+    }
+
+    @Override
+    protected void markExclusiveSyncPointLocallyApplied(SafeCommandStore safeStore, TxnId syncId, Ranges ranges, SaveStatus prevStatus)
+    {
+        super.markExclusiveSyncPointLocallyApplied(safeStore, syncId, ranges, prevStatus);
+        rangeIndex.prune(syncId, ranges, safeStore.redundantBefore());
+    }
+
+    private void maybeTerminated()
+    {
+        if (terminated != null)
+        {
+            boolean durable = unsafeGetRedundantBefore().foldl((b, v, p2, p3) -> {
+                return v && (b == null || b.maxBound(LOCALLY_APPLIED).compareTo(b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE)) <= 0);
+            }, true, null, null, ignore -> false);
+            boolean stopped = exclusiveExecutor.stopped();
+            if (durable && stopped)
+            {
+                logger.debug("{} Signalling termination", this);
+                terminated.signalAll();
+            }
+            else
+            {
+                logger.debug("{} Not signalling termination with waiting: {} ({}), stopped: {}", this, DurablyAppliedTo.summarise(unsafeGetRedundantBefore(), DurablyAppliedTo::isNotDone), durable, stopped);
+            }
+        }
+    }
+
+    public boolean awaitTerminationUntil(long deadlineNanos)
+    {
+        if (terminated == null)
+            throw new IllegalStateException("Not shutdown");
+        return terminated.awaitUntilThrowUncheckedOnInterrupt(deadlineNanos);
+    }
+
+    public boolean isTerminated()
+    {
+        return terminated != null && terminated.isSignalled();
     }
 
     public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
@@ -483,10 +583,29 @@ public class AccordCommandStore extends CommandStore
 
     public AccordCommandStoreReplayer replayer()
     {
-        boolean replayOnlyNonDurable = true;
+        Mode mode;
         if (journal instanceof AccordJournal)
-            replayOnlyNonDurable = ((AccordJournal)journal).configuration().replayMode() == ONLY_NON_DURABLE;
-        return new AccordCommandStoreReplayer(this, replayOnlyNonDurable);
+        {
+            ReplayMode replayMode = getAccord().journal.replayMode;
+            switch (replayMode)
+            {
+                default: throw new UnhandledEnum(replayMode);
+                case NON_DURABLE:
+                    mode = Mode.NON_DURABLE;
+                    throw new UnsupportedOperationException("Not yet safe to use NON_DURABLE ReplayMode");
+                case PART_NON_DURABLE:
+                    mode = Mode.PART_NON_DURABLE;
+                    break;
+                case ALL:
+                case RESET:
+                    mode = Mode.ALL;
+            }
+        }
+        else
+        {
+            mode = Mode.ALL;
+        }
+        return new AccordCommandStoreReplayer(this, mode);
     }
 
     static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
@@ -533,12 +652,7 @@ public class AccordCommandStore extends CommandStore
                     logger.debug("{}: waiting for CommandsForKey to flush ({})", this, reportId);
                     ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.commandsForKey;
 
-                    AccordDurableOnFlush onFlush = null;
-                    while (onFlush == null)
-                        onFlush = cfs.getCurrentMemtable().ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
-
-                    if (!onFlush.add(id, onCommandStoreDurable))
-                        AccordDurableOnFlush.notify(cfs.metadata(), this, onCommandStoreDurable);
+                    AccordDurableOnFlush.notifyOnDurable(cfs, this, onCommandStoreDurable);
                 }
             });
             ready.decrement();
@@ -561,26 +675,25 @@ public class AccordCommandStore extends CommandStore
     public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
         private final AccordCommandStore commandStore;
-        private final boolean onlyNonDurable;
 
-        private AccordCommandStoreReplayer(AccordCommandStore commandStore, boolean onlyNonDurable)
+        private AccordCommandStoreReplayer(AccordCommandStore commandStore, Mode mode)
         {
-            super(commandStore, null);
+            super(commandStore, mode, null);
             this.commandStore = commandStore;
-            this.onlyNonDurable = onlyNonDurable;
         }
 
         @Override
         public AsyncChain<Route> replay(TxnId txnId)
         {
-            if (onlyNonDurable && !maybeShouldReplay(txnId))
+            if (!maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
 
             return commandStore.chain(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
-                if (onlyNonDurable && !shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
+                Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
+                if (replay == Replay.NONE)
                     return null;
 
-                initialiseState(safeStore, txnId);
+                replay(safeStore, txnId, replay);
                 return safeStore.unsafeGet(txnId).current().route();
             });
         }
@@ -620,6 +733,118 @@ public class AccordCommandStore extends CommandStore
     {
         if (rangesForEpoch != null)
             loadRangesForEpoch(rangesForEpoch);
+    }
+
+    AsyncChain<Boolean> saveState(Descriptor descriptor)
+    {
+        return chain((AccordExecutor.Unstoppable)() -> "Save State", safeStore -> {
+            File storeDir = storeSaveDir();
+
+            {
+                File[] tmpDirs = listTmpSaveDirs(storeDir);
+                if (tmpDirs != null)
+                {
+                    logger.info("Cleaning up incomplete save points: {}", Arrays.toString(tmpDirs));
+                    for (File dir : tmpDirs)
+                        dir.tryDeleteRecursive();
+                }
+            }
+
+            File[] sortedSaveDirs = listSortedSaveDirs(storeDir);
+            File tmpSaveDir = new File(storeDir, "tmp" + descriptor.timestamp);
+            File saveDir = new File(storeDir, "" + descriptor.timestamp);
+            if (sortedSaveDirs != null && Long.parseLong(sortedSaveDirs[sortedSaveDirs.length - 1].name()) >= descriptor.timestamp)
+            {
+                logger.error("There already exists a save point {} >= {}; aborting.", sortedSaveDirs[sortedSaveDirs.length - 1].name(), descriptor.timestamp);
+                return false;
+            }
+
+            try
+            {
+                logger.info("{}: Saving state to {}", this, saveDir);
+                tmpSaveDir.createDirectoriesIfNotExists();
+                writeOne(new File(tmpSaveDir, "max_decidedrx"), unsafeGetMaxDecidedRX(), maxDecidedRX);
+                writeOne(new File(tmpSaveDir, "max_conflicts"), unsafeGetMaxConflicts(), maxConflicts);
+                writeOne(new File(tmpSaveDir, "reject_before"), unsafeGetRejectBefore(), rejectBefore);
+                writeList(new File(tmpSaveDir, "listeners"), ((DefaultLocalListeners)listeners).snapshot(), txnListener);
+                writeList(new File(tmpSaveDir, "progress_log"), ((DefaultProgressLog)progressLog).snapshot(), progressLogState);
+                rangeIndex.save(new File(tmpSaveDir, "range_index"));
+                tmpSaveDir.move(saveDir);
+            }
+            catch (IOException e)
+            {
+                logger.error("{}: Failed to save replay state {}", this, saveDir);
+                tmpSaveDir.tryDeleteRecursive();
+                saveDir.tryDeleteRecursive();
+                return false;
+            }
+
+            if (sortedSaveDirs != null)
+            {
+                int delete = (sortedSaveDirs.length + 1) - getAccord().journal.save_points;
+                if (delete > 0)
+                {
+                    sortedSaveDirs = Arrays.copyOf(sortedSaveDirs, delete);
+                    logger.debug("Deleting old save points: {}", Arrays.toString(sortedSaveDirs));
+                    for (File dir : sortedSaveDirs)
+                        dir.tryDeleteRecursive();
+                }
+            }
+
+            return true;
+        });
+    }
+
+    private File storeSaveDir()
+    {
+        return new File(saveDirectory(), String.format("%s_%d", tableId().toShortString(""), id()));
+    }
+
+    private static File[] listSortedSaveDirs(File storeDir)
+    {
+        File[] savePoints = storeDir.tryList(f -> f.isDirectory() && f.name().matches("[0-9]+"));
+        if (savePoints == null || savePoints.length == 0)
+            return null;
+
+        Arrays.sort(savePoints, Comparator.comparingLong(f -> Long.parseLong(f.name())));
+        return savePoints;
+    }
+
+    private static File[] listTmpSaveDirs(File storeDir)
+    {
+        File[] tmpDirs = storeDir.tryList(f -> f.isDirectory() && f.name().matches("tmp[0-9]+"));
+        if (tmpDirs == null || tmpDirs.length == 0)
+            return null;
+        return tmpDirs;
+    }
+
+    AsyncChain<Map.Entry<Integer, Long>> restoreState()
+    {
+        return chain((AccordExecutor.Unstoppable)() -> "Restore State", safeStore -> {
+            File storeDir = storeSaveDir();
+            File[] savePoints = listSortedSaveDirs(storeDir);
+            if (savePoints == null)
+                return null;
+
+            File savePoint = savePoints[savePoints.length - 1];
+            try
+            {
+                long segment = Long.parseLong(savePoint.name());
+                logger.info("{}: Restoring state from {}", this, savePoint);
+                unsafeSetMaxDecidedRX(readOne(new File(savePoint, "max_decidedrx"), maxDecidedRX));
+                unsafeSetMaxConflicts(readOne(new File(savePoint, "max_conflicts"), maxConflicts));
+                unsafeSetRejectBefore(readOne(new File(savePoint, "reject_before"), rejectBefore));
+                ((DefaultLocalListeners) listeners).restore(readList(new File(savePoint, "listeners"), txnListener));
+                ((DefaultProgressLog) progressLog).restore(safeStore, readList(new File(savePoint, "progress_log"), progressLogState));
+                rangeIndex.restore(new File(savePoint, "range_index"));
+                return Map.entry(id, segment + 1);
+            }
+            catch (IOException e)
+            {
+                logger.warn("{}: Could not replay save point {}", this, savePoint);
+                return null;
+            }
+        });
     }
 
     // TODO (expected): handle journal failures, and consider how we handle partial failures.
@@ -663,7 +888,70 @@ public class AccordCommandStore extends CommandStore
         if (metadata != null)
             sb.append(metadata).append('|');
         sb.append(tableId);
-        sb.append('|').append(id).append(',').append(node.id().id).append(']');
+        sb.append('|').append(id).append(',').append(executor().executorId).append(']');
         return sb.toString();
+    }
+
+    public static class DurablyAppliedTo
+    {
+        final TxnId journal, commandStore, dataStore;
+
+        public DurablyAppliedTo(RedundantBefore.Bounds bounds)
+        {
+            this(bounds.maxBound(LOCALLY_APPLIED), bounds.maxBound(LOCALLY_DURABLE_TO_COMMAND_STORE), bounds.maxBound(LOCALLY_DURABLE_TO_DATA_STORE));
+        }
+
+        public DurablyAppliedTo(TxnId journal, TxnId commandStore, TxnId dataStore)
+        {
+            this.journal = journal;
+            this.commandStore = commandStore;
+            this.dataStore = dataStore;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "journal:" + journal + ", commandStore:" + commandStore + ", dataStore:" + dataStore;
+        }
+
+        public boolean isDone()
+        {
+            return journal.compareTo(TxnId.min(commandStore, dataStore)) <= 0;
+        }
+
+        public boolean isNotDone()
+        {
+            return !isDone();
+        }
+
+        @Override
+        public boolean equals(Object that)
+        {
+            return that instanceof DurablyAppliedTo && equals((DurablyAppliedTo) that);
+        }
+
+        public boolean equals(DurablyAppliedTo that)
+        {
+            return this.journal.equals(that.journal)
+                   && this.commandStore.equals(that.commandStore)
+                   && this.dataStore.equals(that.dataStore);
+        }
+
+        public static ReducingRangeMap<DurablyAppliedTo> summarise(RedundantBefore redundantBefore)
+        {
+            return redundantBefore.map(b -> b == null ? null : new DurablyAppliedTo(b), DurablyAppliedTo[]::new);
+        }
+
+        public static ReducingRangeMap<DurablyAppliedTo> summarise(RedundantBefore redundantBefore, Predicate<DurablyAppliedTo> include)
+        {
+            return redundantBefore.map(b -> {
+                if (b == null)
+                    return null;
+                DurablyAppliedTo result = new DurablyAppliedTo(b);
+                if (!include.test(result))
+                    return null;
+                return result;
+            }, DurablyAppliedTo[]::new);
+        }
     }
 }

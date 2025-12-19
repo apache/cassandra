@@ -122,6 +122,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     @Override
     public Object shutdownNow()
     {
+        logger.debug("Shutting down " + executor);
         return executor.shutdownNow();
     }
 

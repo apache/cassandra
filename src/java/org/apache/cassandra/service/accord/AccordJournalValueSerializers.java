@@ -173,6 +173,7 @@ public class AccordJournalValueSerializers
             {
                 if (entry == RedundantBefore.EMPTY)
                 {
+                    // I think this branch was to paper over a bug in the RedundantBefore serializer; it should now be defunct
                     out.writeInt(0);
                     return;
                 }

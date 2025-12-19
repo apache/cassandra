@@ -23,20 +23,13 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
-import accord.local.Command;
-import accord.local.CommandSummaries;
-import accord.local.LoadKeysFor;
-import accord.local.MaxDecidedRX;
-import accord.local.RedundantBefore;
-import accord.primitives.Routable;
-import accord.primitives.Timestamp;
-import accord.primitives.Txn;
-import accord.primitives.TxnId;
-import accord.primitives.Unseekables;
+import accord.local.*;
+import accord.primitives.*;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.api.Journal.Load.MINIMAL;
@@ -135,6 +128,9 @@ public interface RangeIndex
     }
 
     Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges);
-    void update(Command prev, Command updated, boolean force);
-    void postReplay();
+    default void update(Command prev, Command updated, boolean force) {}
+    default void postReplay() {}
+    default void prune(TxnId syncId, Ranges ranges, RedundantBefore redundantBefore) {}
+    default void save(File file) throws IOException {}
+    default void restore(File file) throws IOException {}
 }

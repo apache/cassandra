@@ -18,16 +18,16 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -39,6 +39,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
+import org.agrona.collections.Long2LongHashMap;
+import org.apache.cassandra.io.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,17 +69,10 @@ import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
-import org.apache.cassandra.concurrent.Shutdownable;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.journal.Compactor;
+import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordPointer;
@@ -95,7 +90,8 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static accord.api.Journal.Load.ALL;
@@ -115,7 +111,9 @@ import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.AccordService.toFuture;
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Accumulator;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind;
@@ -123,7 +121,7 @@ import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.T
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.newTopology;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
-public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.Supplier, Shutdownable
+public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.Supplier
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
@@ -140,7 +138,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
 
     public AccordJournal(Params params)
     {
-        this(params, new File(DatabaseDescriptor.getAccordJournalDirectory()), Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL));
+        this(params, new File(getAccordJournalDirectory()), Keyspace.open(AccordKeyspace.metadata().name).getColumnFamilyStore(AccordKeyspace.JOURNAL));
     }
 
     @VisibleForTesting
@@ -216,34 +214,25 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         return journal.compactor();
     }
 
-    @Override
     public boolean isTerminated()
     {
         return status == Status.TERMINATED;
     }
 
-    @Override
-    public void shutdown()
+    public Descriptor shutdown()
     {
         Invariants.require(status == Status.REPLAY || status == Status.STARTED, "%s", status);
         status = Status.TERMINATING;
-        journal.shutdown();
+        Descriptor lastSegment = journal.shutdown();
         status = Status.TERMINATED;
+        return lastSegment;
     }
 
-    @Override
-    public Object shutdownNow()
-    {
-        shutdown();
-        return null;
-    }
-
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    public boolean awaitTerminationUntil(long deadlineNanos) throws InterruptedException
     {
         try
         {
-            ExecutorUtils.awaitTermination(timeout, units, Collections.singletonList(journal));
+            journal.awaitTerminationUntil(deadlineNanos);
             return true;
         }
         catch (TimeoutException e)
@@ -384,7 +373,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         {
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(topologyUpdateKey(0L),
                                                                                                  topologyUpdateKey(Timestamp.MAX_EPOCH),
-                                                                                                 true);
+                                                                                                 true, 0);
             TopologyImage prev = null;
 
             @Override
@@ -589,14 +578,14 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         journalTable.forceCompaction();
     }
 
-    public void forEach(Consumer<JournalKey> consumer, boolean includeActive)
+    public void forEach(Consumer<JournalKey> consumer, boolean includeActive, long minSegment)
     {
-        forEach(consumer, null, null, includeActive);
+        forEach(consumer, null, null, includeActive, minSegment);
     }
 
-    public void forEach(Consumer<JournalKey> consumer, @Nullable JournalKey min, @Nullable JournalKey max, boolean includeActive)
+    public void forEach(Consumer<JournalKey> consumer, @Nullable JournalKey min, @Nullable JournalKey max, boolean includeActive, long minSegment)
     {
-        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(min, max, includeActive))
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(min, max, includeActive, minSegment))
         {
             while (iter.hasNext())
             {
@@ -606,18 +595,37 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         }
     }
 
+    private Long2LongHashMap restoreToMarkers(CommandStores commandStores)
+    {
+        Long2LongHashMap result = new Long2LongHashMap(0);
+        Future<List<Map.Entry<Integer, Long>>> future = toFuture(((AccordCommandStores)commandStores).restoreState());
+        future.awaitThrowUncheckedOnInterrupt();
+        List<Map.Entry<Integer, Long>> success = future.getNow();
+        if (success != null)
+        {
+            for (Map.Entry<Integer, Long> e : success)
+            {
+                if (e != null && e.getValue() > 0)
+                    result.put(e.getKey(), e.getValue());
+            }
+        }
+
+        return result;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public boolean replay(CommandStores commandStores)
     {
+        final Long2LongHashMap minSegments = restoreToMarkers(commandStores);
+
         // TODO (expected): make the parallelisms configurable
-        // Replay is performed in parallel, where at most X commands can be in flight, accross at most Y commands stores.
+        // Replay is performed in parallel, where at most X commands can be in flight, across at most Y commands stores.
         // That is, you can limit replay parallelism to 1 command store at a time, but load multiple commands within that data store,
         // _or_ have multiple commands being loaded accross multiple data stores.
         final Semaphore commandParallelism = Semaphore.newSemaphore(getAvailableProcessors());
         final int commandStoreParallelism = Math.max(Math.max(1, Math.min(getAvailableProcessors(), 4)), getAvailableProcessors() / 4);
         final AtomicBoolean abort = new AtomicBoolean();
-        // TODO (expected): balance work submission by AccordExecutor
         final IntArrayList activeCommandStoreIds = new IntArrayList();
         final ReplayQueue pendingCommandStores = new ReplayQueue(commandStores.all());
 
@@ -628,12 +636,14 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter;
             JournalKey prev;
 
-            public ReplayStream(CommandStore commandStore)
+            public ReplayStream(CommandStore commandStore, long minSegment)
             {
                 this.commandStore = commandStore;
                 this.replayer = (AbstractReplayer) commandStore.replayer();
                 // Keys in the index are sorted by command store id, so index iteration will be sequential
-                this.iter = journalTable.keyIterator(new JournalKey(replayer.minReplay.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false);
+                this.iter = journalTable.keyIterator(new JournalKey(replayer.minReplay.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false, minSegment);
+                logger.info("Beginning replay of {} with min={}, {}", commandStore, replayer.minReplay,
+                            replayer.redundantBefore.map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
             }
 
             boolean replay()
@@ -706,7 +716,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                         CommandStore next = pendingCommandStores.next();
                         int id = next.id();
                         activeCommandStoreIds.add(id);
-                        replayStreams.put(id, new ReplayStream(next));
+                        replayStreams.put(id, new ReplayStream(next, minSegments.getOrDefault(id, 0)));
                     }
                     else if (activeCommandStoreIds.isEmpty()) break;
                     else cur = 0;
@@ -734,7 +744,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                         CommandStore next = pendingCommandStores.next(streamId(replayStream.commandStore));
                         id = next.id();
                         activeCommandStoreIds.set(cur, id);
-                        replayStreams.put(id, new ReplayStream(next));
+                        replayStreams.put(id, new ReplayStream(next, minSegments.getOrDefault(id, 0)));
                     }
 
                     replayStream = replayStreams.get(id);
@@ -1249,5 +1259,82 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                     break;
             }
         }
+    }
+
+    public static File startMarker()
+    {
+        return new File(getAccordJournalDirectory(), "started");
+    }
+
+    public static File stopMarker()
+    {
+        return new File(getAccordJournalDirectory(), "stopped");
+    }
+
+    void writeStartMarker()
+    {
+        writeMarker(startMarker(), journal.peekSegmentId());
+    }
+
+    void writeStopMarker()
+    {
+        writeMarker(stopMarker(), journal.peekSegmentId());
+    }
+
+    static void writeMarker(File file, long timestamp)
+    {
+        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        {
+            out.writeBytes(Long.toString(timestamp));
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+        trySyncJournalDirectory();
+    }
+
+    static long readStartMarker()
+    {
+        return readMarker(startMarker());
+    }
+
+    static long readStopMarker()
+    {
+        return readMarker(stopMarker());
+    }
+
+    static long readMarker(File file)
+    {
+        if (!file.exists())
+            return -1L;
+
+        try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+        {
+            StringBuilder sb = new StringBuilder(8);
+            for (int b = in.read(); b >= 0 ; b = in.read())
+                sb.append((char)b);
+            return Long.parseLong(sb.toString());
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void trySyncJournalDirectory()
+    {
+        trySyncDirectory(getAccordJournalDirectory());
+    }
+
+    private static void trySyncDirectory(String path)
+    {
+        int fd = NativeLibrary.tryOpenDirectory(path);
+        NativeLibrary.trySync(fd);
+    }
+
+    public static File saveDirectory()
+    {
+        return new File(getAccordJournalDirectory(), "save_state");
     }
 }

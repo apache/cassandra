@@ -46,7 +46,7 @@ public class CommandStoreSerializersTest
         qt().forAll(Gens.random(), AccordGenerators.partitioner()).check((rs, partitioner) -> {
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
             RedundantBefore.Bounds entry = AccordGenerators.redundantBeforeEntry(partitioner).next(rs);
-            Serializers.testSerde(buffer, CommandStoreSerializers.redundantBeforeEntry, entry);
+            Serializers.testSerde(buffer, CommandStoreSerializers.redundantBeforeShortBounds, entry);
         });
     }
 

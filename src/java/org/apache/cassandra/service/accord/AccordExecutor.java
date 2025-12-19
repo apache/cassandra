@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -941,6 +942,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         abstract void submitExclusive(AccordExecutor owner);
     }
 
+    public interface Unstoppable extends PreLoadContext.Empty
+    {
+    }
+
     static class SequentialQueueTask extends Task
     {
         private final SequentialExecutor queue;
@@ -991,6 +996,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         private Task task;
         private volatile Thread owner, waiting;
         private boolean running;
+        private boolean stopped;
+        private volatile boolean visibleStopped;
+        private boolean shutdown;
 
         SequentialExecutor()
         {
@@ -1021,7 +1029,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                     LockSupport.park();
                 waiting = null;
             }
-            task.runInternal();
+            if (stopped && (shutdown || !(task instanceof AccordTask && ((AccordTask<?>) task).preLoadContext() instanceof Unstoppable)))
+                task.fail(new RejectedExecutionException());
+            else
+                task.runInternal();
         }
 
         void failTask(Throwable t)
@@ -1103,6 +1114,24 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public boolean inExecutor()
         {
             return owner == Thread.currentThread();
+        }
+
+        public boolean stopped()
+        {
+            return visibleStopped;
+        }
+
+        void stop()
+        {
+            Invariants.require(inExecutor());
+            this.stopped = true;
+            this.visibleStopped = true;
+        }
+
+        void shutdown()
+        {
+            Invariants.require(inExecutor());
+            this.shutdown = this.stopped = true;
         }
 
         @Override
@@ -1607,8 +1636,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             }
             catch (Throwable t)
             {
+                // shouldn't throw exceptions
                 agent.onException(t);
-                return;
             }
         }
 

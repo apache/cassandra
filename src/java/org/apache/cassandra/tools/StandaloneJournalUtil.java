@@ -274,7 +274,7 @@ public class StandaloneJournalUtil implements Runnable
 
             Map<Integer, RedundantBefore> cache = new HashMap<>();
             journal.start(null);
-            journal.forEach(key -> processKey(cache, journal, key, txnId, sinceTimestamp, untilTimestamp, skipAllErrors, skipExceptionTypes), false);
+            journal.forEach(key -> processKey(cache, journal, key, txnId, sinceTimestamp, untilTimestamp, skipAllErrors, skipExceptionTypes), false, 0);
         }
 
         private void processKey(Map<Integer, RedundantBefore> redundantBeforeCache, AccordJournal journal, JournalKey key, Timestamp txnId, Timestamp minTimestamp, Timestamp maxTimestamp, boolean skipAllErrors, Set<String> skipExceptionTypes)

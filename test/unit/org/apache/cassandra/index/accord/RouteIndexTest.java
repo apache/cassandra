@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -106,6 +108,8 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.config.AccordSpec.JournalSpec.StopMarkerFailurePolicy.UNSAFE_STARTUP;
+import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
@@ -131,6 +135,8 @@ public class RouteIndexTest extends CQLTester
         DatabaseDescriptor.setAccordTransactionsEnabled(true);
         // disable journal compaction so the test can control when it happens
         DatabaseDescriptor.getAccord().enable_journal_compaction = false;
+        DatabaseDescriptor.getAccord().journal.stopMarkerFailurePolicy = UNSAFE_STARTUP;
+        DatabaseDescriptor.getAccord().range_index_mode = journal_sai;
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
         DatabaseDescriptor.setAutoSnapshot(false);
 
@@ -613,10 +619,10 @@ public class RouteIndexTest extends CQLTester
             accordService.shutdown();
         }
 
-        private void restartAccord()
+        private void restartAccord() throws InterruptedException, TimeoutException
         {
             accordService.journal().closeCurrentSegmentForTestingIfNonEmpty();
-            accordService.shutdown();
+            accordService.shutdownAndWait(2L, TimeUnit.MINUTES);
             accordService = startAccord();
         }
     }

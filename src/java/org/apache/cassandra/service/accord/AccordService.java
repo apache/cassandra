@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
+import accord.utils.UnhandledEnum;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
@@ -84,10 +85,12 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
@@ -98,8 +101,10 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordKeyspace.AccordColumnFamilyStores;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -129,6 +134,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -136,8 +142,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
-import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
-import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -145,14 +149,13 @@ import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
-import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.JOB;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
+import static org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode.RESET;
+import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
-import static org.apache.cassandra.journal.Params.ReplayMode.RESET;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
@@ -253,7 +256,7 @@ public class AccordService implements IAccordService, Shutdownable
         ProtocolModifiers.Toggles.setDataStoreDetectsFutureReads(true);
     }
 
-    private enum State { INIT, STARTED, SHUTTING_DOWN, SHUTDOWN }
+    private enum State { INIT, STARTING, STARTED, STOPPED, SHUTTING_DOWN, SHUTDOWN }
 
     private final Node node;
     private final AccordMessageSink messageSink;
@@ -268,6 +271,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     @GuardedBy("this")
     private volatile State state = State.INIT;
+    private final Condition isShutdown = Condition.newOneTimeCondition();
 
     private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
 
@@ -275,17 +279,19 @@ public class AccordService implements IAccordService, Shutdownable
     //  tests can specify a DelegatingService if they want to override
     private static IAccordService instance;
     private static IAccordService unsafeInstance;
+    private static volatile IAccordService requestInstance;
+    private static volatile IAccordService replyInstance;
 
     @VisibleForTesting
     public static void unsafeSetNewAccordService(IAccordService service)
     {
-        unsafeInstance = instance = service;
+        unsafeInstance = instance = requestInstance = replyInstance = service;
     }
 
     @VisibleForTesting
     public static void unsafeSetNoop()
     {
-        unsafeInstance = instance = NOOP_SERVICE;
+        unsafeInstance = instance = requestInstance = replyInstance = NOOP_SERVICE;
     }
 
     public static IAccordService tryGetUnsafe()
@@ -317,14 +323,16 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
     {
-        if (instance == null) return ignore -> {};
-        return instance.requestHandler();
+        IAccordService accord = requestInstance;
+        if (accord == null) return ignore -> {};
+        return accord.requestHandler();
     }
 
     public static IVerbHandler<? extends Reply> responseHandlerOrNoop()
     {
-        if (unsafeInstance == null) return ignore -> {};
-        return unsafeInstance.responseHandler();
+        IAccordService accord = replyInstance;
+        if (accord == null) return ignore -> {};
+        return accord.responseHandler();
     }
 
     @VisibleForTesting
@@ -333,12 +341,12 @@ public class AccordService implements IAccordService, Shutdownable
         Invariants.require(instance == null);
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
-            unsafeInstance = instance = NOOP_SERVICE;
+            unsafeSetNoop();
         }
         else
         {
             AccordService as = new AccordService(tcmIdToAccord(tcmId));
-            unsafeInstance = as;
+            unsafeInstance = replyInstance = as;
             as.localStartup();
         }
     }
@@ -349,11 +357,11 @@ public class AccordService implements IAccordService, Shutdownable
             return null;
 
         AccordService as = (AccordService) unsafeInstance;
-        if (as.state != State.INIT)
+        if (as.state != State.STARTING)
             return as;
 
         as.distributedStartupInternal();
-        instance = as;
+        instance = requestInstance = as;
 
         AccordReplicaMetrics.touch();
         AccordSystemMetrics.touch();
@@ -367,7 +375,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         logger.info("Starting journal replay.");
         long start = nanoTime();
-        if (as.journalConfiguration().replayMode() == RESET)
+        if (getAccord().journal.replayMode == RESET)
             AccordKeyspace.truncateCommandsForKey();
 
         as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
@@ -449,12 +457,28 @@ public class AccordService implements IAccordService, Shutdownable
         if (state != State.INIT)
             return;
 
+        {
+            long startMarker = AccordJournal.readStartMarker();
+            long stopMarker = AccordJournal.readStopMarker();
+            if (stopMarker < startMarker)
+            {
+                switch (getAccord().journal.stopMarkerFailurePolicy)
+                {
+                    default: throw new UnhandledEnum(getAccord().journal.stopMarkerFailurePolicy);
+                    case EXIT:
+                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarker + '<' + startMarker + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
+                    case UNSAFE_STARTUP:
+                        logger.warn("Stop marker is older than start marker ({}<{}) , so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarker, startMarker);
+                }
+            }
+        }
+
+        state = State.STARTING;
         node.unsafeSetReplaying(true);
         try
         {
             journal.start(node);
             node.load();
-
 
             ClusterMetadata metadata = ClusterMetadata.current();
             endpointMapper.updateMapping(metadata);
@@ -494,6 +518,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
         // start the progress log on command store initialisation (so creates a synchronisation point)
+        journal.writeStartMarker();
         state = State.STARTED;
         node.commandStores().forAll("", safeStore -> safeStore.progressLog().start());
 
@@ -978,14 +1003,15 @@ public class AccordService implements IAccordService, Shutdownable
         return scheduler.isTerminated();
     }
 
+    static class FlushingCacheEntries extends AsyncResults.CountingResult implements Runnable
+    {
+        public FlushingCacheEntries() { super(1); }
+        @Override public void run() { decrement(); }
+    }
+
     public synchronized Future<Void> flushCaches()
     {
-        class Ready extends AsyncResults.CountingResult implements Runnable
-        {
-            public Ready() { super(1); }
-            @Override public void run() { decrement(); }
-        }
-        Ready ready = new Ready();
+        FlushingCacheEntries flushing = new FlushingCacheEntries();
         AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
         commandStores.forAllUnsafe(unsafeStore -> {
             AccordCommandStore commandStore = (AccordCommandStore)unsafeStore;
@@ -994,34 +1020,81 @@ public class AccordService implements IAccordService, Shutdownable
                 caches.commandsForKeys().forEach(entry -> {
                     if (entry.isModified())
                     {
-                        ready.increment();
-                        caches.global().saveWhenReadyExclusive(entry, ready);
+                        flushing.increment();
+                        caches.global().saveWhenReadyExclusive(entry, flushing);
                     }
                 });
             }
         });
-        ready.decrement();
-        AsyncPromise<Void> result = new AsyncPromise<>();
-        ready.invoke((success, fail) -> {
-            if (fail != null) result.tryFailure(fail);
-            else result.trySuccess(null);
-        });
-        return result;
+        flushing.decrement();
+        return toFuture(flushing);
     }
 
-    public synchronized void markShuttingDown()
+    public synchronized void stop()
     {
-        state = State.SHUTTING_DOWN;
+        if (state == State.INIT)
+            return;
+
+        requestInstance = replyInstance = null;
+        node.durability().stop();
+        // TODO (expected): stop TopologyManager from reporting new topologies
+        topologyService.shutdown();
+        scheduler.shutdownNow();
+        AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
+        Set<TableId> tableIds = commandStores.shutdownStores();
+        commandStores.waitForQuiescence();
+        journal.writeStopMarker();
+        toFuture(flushCaches()).map(ignore -> {
+            return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
+        });
+        for (TableId tableId : tableIds)
+        {
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
+            if (cfs != null)
+                cfs.forceFlush(DRAIN);
+        }
+        state = State.STOPPED;
     }
 
     @Override
     public synchronized void shutdown()
     {
-        if (state != State.STARTED && state != State.SHUTTING_DOWN)
+        if (state.compareTo(State.SHUTDOWN) >= 0)
             return;
+
+        if (state.compareTo(State.STOPPED) < 0)
+            stop();
+
         state = State.SHUTTING_DOWN;
-        shutdownAndWait(1, TimeUnit.MINUTES);
-        state = State.SHUTDOWN;
+        long deadlineNanos = nanoTime() + DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos();
+        executorFactory().startThread("ShutdownAccord", () -> {
+            AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
+            boolean safeShutdown = commandStores.awaitStoreTermination(deadlineNanos);
+            if (!safeShutdown)
+                logger.warn("Cannot write safe shutdown marker as not all command stores terminated promptly");
+
+            commandStores.waitForQuiescence();
+            Descriptor lastSegment = journal.shutdown();
+            if (lastSegment == null && safeShutdown)
+                logger.warn("Cannot write safe shutdown marker as no segment descriptor reported by journal");
+
+            if (safeShutdown && lastSegment != null)
+            {
+                Future<Boolean> save = toFuture(commandStores.saveState(lastSegment));
+                if (!save.awaitUntilThrowUncheckedOnInterrupt(deadlineNanos))
+                    logger.error("Timeout waiting to write safe replay markers");
+                else if (save.cause() != null)
+                    logger.error("Failed to write some safe replay markers", save.cause());
+                else if (!save.getNow())
+                    logger.error("Failed to write some safe replay markers");
+                else
+                    logger.info("Written safe replay markers to {}", save);
+            }
+
+            commandStores.shutdownExecutors();
+            state = State.SHUTDOWN;
+            isShutdown.signalAll();
+        }, DAEMON, JOB);
     }
 
     @Override
@@ -1034,32 +1107,18 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
-        try
-        {
-            ExecutorUtils.awaitTermination(timeout, units, shutdownableSubsystems());
-            return true;
-        }
-        catch (TimeoutException e)
-        {
-            return false;
-        }
-    }
-
-    private List<Shutdownable> shutdownableSubsystems()
-    {
-        return Arrays.asList((AccordCommandStores)node.commandStores(), journal, topologyService, scheduler);
+        long deadlineNanos = nanoTime() + units.toNanos(timeout);
+        boolean success = isShutdown.awaitUntil(deadlineNanos);
+        try { ExecutorUtils.awaitTerminationUntil(deadlineNanos, Arrays.asList(scheduler, node.commandStores())); }
+        catch (InterruptedException | TimeoutException e) { success = false; }
+        return success && journal.awaitTerminationUntil(deadlineNanos);
     }
 
     @VisibleForTesting
     @Override
-    public void shutdownAndWait(long timeout, TimeUnit unit)
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        if (!ExecutorUtils.shutdownThenWait(shutdownableSubsystems(), timeout, unit))
-            logger.error("One or more subsystems did not shut down cleanly.");
-
-        node.commandStores().forAllUnsafe(commandStore -> {
-            logger.info("{} stopping with durability: {}", commandStore, commandStore.unsafeGetRedundantBefore().map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
-        });
+        ExecutorUtils.shutdownAndWait(timeout, unit, this);
     }
 
     @Override

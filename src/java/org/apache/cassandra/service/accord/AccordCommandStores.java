@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
@@ -32,12 +39,20 @@ import accord.local.NodeCommandStoreService;
 import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.utils.RandomSource;
+import accord.utils.Reduce;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordSpec.QueueShardModel;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.journal.Descriptor;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordCommandStore.DurablyAppliedTo;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_PER_SHARD;
@@ -46,10 +61,13 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmi
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.constant;
+import static org.apache.cassandra.service.accord.AccordJournal.saveDirectory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordCommandStores extends CommandStores implements CacheSize, Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommandStores.class);
+
     private final AccordExecutor[] executors;
     private final int mask;
 
@@ -216,12 +234,47 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
         return Stream.of(executors).allMatch(AccordExecutor::isTerminated);
     }
 
-    @Override
-    public synchronized void shutdown()
+    public Set<TableId> shutdownStores()
     {
-        super.shutdown();
+        markShuttingDown();
+        Set<TableId> tableIds = new HashSet<>();
+        List<AsyncResult<Void>> async = new ArrayList<>();
+        for (ShardHolder shard : current())
+        {
+            AccordCommandStore commandStore = (AccordCommandStore) shard.store;
+            tableIds.add(commandStore.tableId());
+            async.add(commandStore.shutdownAsync());
+        }
+        if (!async.isEmpty())
+            AccordService.getBlocking(AsyncResults.reduce(async, Reduce.toNull()));
+        return tableIds;
+    }
+
+    public boolean awaitStoreTermination(long deadlineNanos)
+    {
+        for (ShardHolder shard : current())
+        {
+            AccordCommandStore commandStore = (AccordCommandStore) shard.store;
+            if (!commandStore.awaitTerminationUntil(deadlineNanos))
+            {
+                logger.warn("{}: timeout awaiting durability: {}", commandStore, DurablyAppliedTo.summarise(commandStore.unsafeGetRedundantBefore()));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void shutdownExecutors()
+    {
         for (AccordExecutor executor : executors)
             executor.shutdown();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        shutdownStores();
+        shutdownExecutors();
     }
 
     @Override
@@ -242,5 +295,28 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
                 return false;
         }
         return true;
+    }
+
+    public AsyncChain<Boolean> saveState(Descriptor descriptor)
+    {
+        saveDirectory().createDirectoriesIfNotExists();
+        List<AsyncChain<Boolean>> chains = new ArrayList<>();
+        for (ShardHolder shard : current())
+        {
+            AccordCommandStore commandStore = (AccordCommandStore)shard.store;
+            chains.add(commandStore.saveState(descriptor));
+        }
+        return AsyncChains.reduce(chains, Boolean::logicalAnd, true);
+    }
+
+    public AsyncChain<List<Map.Entry<Integer, Long>>> restoreState()
+    {
+        List<AsyncChain<Map.Entry<Integer, Long>>> chains = new ArrayList<>();
+        for (ShardHolder shard : current())
+        {
+            AccordCommandStore commandStore = (AccordCommandStore)shard.store;
+            chains.add(commandStore.restoreState());
+        }
+        return AsyncChains.allOf(chains);
     }
 }

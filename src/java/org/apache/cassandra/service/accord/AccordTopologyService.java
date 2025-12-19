@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -42,7 +41,6 @@ import accord.utils.async.AsyncResults.SettableByCallback;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
@@ -57,7 +55,7 @@ import org.apache.cassandra.utils.Simulate;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 @Simulate(with=MONITORS)
-public class AccordTopologyService implements TopologyService, Shutdownable, TopologyListener
+public class AccordTopologyService implements TopologyService, TopologyListener
 {
     public static final Logger logger = LoggerFactory.getLogger(AccordTopologyService.class);
 
@@ -100,31 +98,9 @@ public class AccordTopologyService implements TopologyService, Shutdownable, Top
         syncPropagator.onNodesRemoved(removed);
     }
 
-    @Override
-    public synchronized boolean isTerminated()
-    {
-        return state == State.SHUTDOWN;
-    }
-
-    @Override
     public synchronized void shutdown()
     {
-        if (isTerminated())
-            return;
         state = State.SHUTDOWN;
-    }
-
-    @Override
-    public Object shutdownNow()
-    {
-        shutdown();
-        return null;
-    }
-
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
-    {
-        return isTerminated();
     }
 
     @Override

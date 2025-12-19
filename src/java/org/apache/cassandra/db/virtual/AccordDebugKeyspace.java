@@ -1565,7 +1565,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 }
             }
 
-            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true);
+            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true, 0);
         }
 
         abstract void collect(PartitionsCollector collector, AccordService accord, JournalKey key);

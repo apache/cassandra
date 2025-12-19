@@ -19,7 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import org.agrona.collections.Int2ObjectHashMap;
 import org.slf4j.Logger;
@@ -27,12 +27,15 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
-class AccordDurableOnFlush implements Consumer<TableMetadata>
+class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDurableOnFlush.class);
 
@@ -51,7 +54,7 @@ class AccordDurableOnFlush implements Consumer<TableMetadata>
     }
 
     @Override
-    public void accept(TableMetadata metadata)
+    public void accept(Long memtableId, TableMetadata metadata)
     {
         Int2ObjectHashMap<RedundantBefore> notify;
         synchronized (this)
@@ -63,15 +66,53 @@ class AccordDurableOnFlush implements Consumer<TableMetadata>
         for (Map.Entry<Integer, RedundantBefore> e : notify.entrySet())
         {
             RedundantBefore durable = e.getValue();
-            notify(metadata, commandStores.forId(e.getKey()), durable);
+            notifyInOrder(memtableId, metadata, commandStores.forId(e.getKey()), durable);
         }
     }
 
-    static void notify(TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
+    public static void notifyOnDurable(ColumnFamilyStore cfs, CommandStore commandStore, RedundantBefore onDurable)
+    {
+        View view = cfs.getTracker().getView();
+        for (int i = view.liveMemtables.size() - 1; i >= 0 ; --i)
+        {
+            Memtable candidate = view.liveMemtables.get(i);
+            if (candidate.isClean())
+                continue;
+
+            AccordDurableOnFlush onFlush = candidate.ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+            if (onFlush != null && onFlush.add(commandStore.id(), onDurable))
+                return;
+        }
+
+        for (int i = view.flushingMemtables.size() - 1; i >= 0 ; --i)
+        {
+            Memtable candidate = view.flushingMemtables.get(i);
+            AccordDurableOnFlush onFlush = candidate.ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+            if (onFlush != null && onFlush.add(commandStore.id(), onDurable))
+                return;
+        }
+
+        notifyNow(cfs.metadata(), commandStore, onDurable);
+    }
+
+    static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        View view = cfs.getTracker().getView();
+        boolean notifyNow = true;
+        for (Memtable memtable : view.liveMemtables)
+            notifyNow &= memtable.getMemtableId() > memtableId;
+        for (Memtable memtable : view.flushingMemtables)
+            notifyNow &= memtable.getMemtableId() > memtableId;
+        if (notifyNow) notifyNow(metadata, commandStore, report);
+        else cfs.waitForPriorFlushes().addListener(() -> notifyNow(metadata, commandStore, report));
+    }
+
+    static void notifyNow(TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
     {
         logger.debug("Reporting flush of {}/{}; reporting {} to {}", metadata.id, metadata, report, commandStore);
-        commandStore.execute((PreLoadContext.Empty) () -> "Report Durable", safeStore -> {
+        commandStore.execute((AccordExecutor.Unstoppable) () -> "Report Durable", safeStore -> {
             safeStore.upsertRedundantBefore(report);
-        });
+        }, commandStore.agent());
     }
 }

@@ -99,7 +99,6 @@ import org.apache.cassandra.service.accord.serializers.AwaitSerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
 import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
-import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.GetDurableBeforeSerializers;
 import org.apache.cassandra.service.accord.serializers.GetEphmrlReadDepsSerializers;
@@ -110,6 +109,7 @@ import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializer;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
+import org.apache.cassandra.service.accord.serializers.SimpleReplySerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
@@ -320,7 +320,7 @@ public enum Verb
     DATA_MOVEMENT_EXECUTED_REQ  (817, P1, rpcTimeout, MISC, () -> DataMovement.Status.serializer,   () -> DataMovements.instance,           DATA_MOVEMENT_EXECUTED_RSP  ),
 
     // accord
-    ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(SimpleReplySerializer.reply),          AccordService::responseHandlerOrNoop                                           ),
     ACCORD_PRE_ACCEPT_RSP           (120, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(PreacceptSerializers.reply),           AccordService::responseHandlerOrNoop                                           ),
     ACCORD_PRE_ACCEPT_REQ           (121, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(PreacceptSerializers.request),         AccordService::requestHandlerOrNoop, ACCORD_PRE_ACCEPT_RSP                     ),
     ACCORD_ACCEPT_RSP               (122, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AcceptSerializers.reply),              AccordService::responseHandlerOrNoop                                           ),
@@ -357,10 +357,10 @@ public enum Verb
     ACCORD_GET_MAX_CONFLICT_REQ     (153, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(GetMaxConflictSerializers.request),    AccordService::requestHandlerOrNoop, ACCORD_GET_MAX_CONFLICT_RSP),
     ACCORD_GET_DURABLE_BEFORE_RSP   (154, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(GetDurableBeforeSerializers.reply),    AccordService::responseHandlerOrNoop                                           ),
     ACCORD_GET_DURABLE_BEFORE_REQ   (155, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(GetDurableBeforeSerializers.request),  AccordService::requestHandlerOrNoop, ACCORD_GET_DURABLE_BEFORE_RSP             ),
-    ACCORD_SET_SHARD_DURABLE_REQ    (156, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(SetDurableSerializers.shardDurable),   AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
-    ACCORD_SET_GLOBALLY_DURABLE_REQ (157, P2, rpcTimeout,   IMMEDIATE,          () -> accordEmbedded(SetDurableSerializers.globallyDurable),AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
+    ACCORD_SET_SHARD_DURABLE_REQ    (156, P2, rpcTimeout,   MISC,               () -> accordEmbedded(SetDurableSerializers.shardDurable),   AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
+    ACCORD_SET_GLOBALLY_DURABLE_REQ (157, P2, rpcTimeout,   MISC,               () -> accordEmbedded(SetDurableSerializers.globallyDurable),AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
 
-    ACCORD_SYNC_NOTIFY_RSP          (158, P2, writeTimeout, MISC,               () -> accordEmbedded(EnumSerializer.simpleReply),           RESPONSE_HANDLER),
+    ACCORD_SYNC_NOTIFY_RSP          (158, P2, writeTimeout, MISC,               () -> accordEmbedded(SimpleReplySerializer.reply),          RESPONSE_HANDLER),
     ACCORD_SYNC_NOTIFY_REQ          (159, P2, writeTimeout, MISC,               () -> accordEmbedded(Notification.serializer),              () -> AccordSyncPropagator.verbHandler,       ACCORD_SYNC_NOTIFY_RSP             ),
 
     CONSENSUS_KEY_MIGRATION         (160, P1, writeTimeout,  MISC,              () -> accordEmbedded(ConsensusKeyMigrationFinished.serializer),() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),

@@ -122,7 +122,7 @@ public interface IAccordService
     void localStartup();
 
     Future<Void> flushCaches();
-    void markShuttingDown();
+    void stop();
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
     AccordScheduler scheduler();
@@ -289,7 +289,7 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
         }
 
@@ -498,9 +498,9 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
-            delegate.markShuttingDown();
+            delegate.stop();
         }
 
         @Override

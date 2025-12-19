@@ -334,7 +334,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                              private TreeMap<JournalKey, Command> read(CommandStores commandStores)
                              {
                                  TreeMap<JournalKey, Command> result = new TreeMap<>(JournalKey.SUPPORT::compare);
-                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null, false))
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null, false, 0))
                                  {
                                      JournalKey prev = null;
                                      while (iter.hasNext())

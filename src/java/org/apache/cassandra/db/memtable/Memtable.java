@@ -19,7 +19,7 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -424,7 +424,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     }
 
     // returns null if already flushed
-    <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
+    <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
     void notifyFlushed();
 
     /**

@@ -120,3 +120,4 @@ memtable:
             class_name: TrieMemtable
 # Note: keep the memtable configuration at the end of the file, so that the default mapping can be changed without
 # duplicating the whole section above.
+accord.shutdown_grace_period: 60s

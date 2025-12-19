@@ -997,6 +997,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+            error = parallelRun(error, executor,
+                    // If an index build completes as shutting down, setIndexBuild may trigger
+                    // a CFS.forceBlockingFlush
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES)
+            );
+
+            error = parallelRun(error, executor, () -> {
+                if (AccordService.isSetupOrStarting())
+                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
+            });
 
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
@@ -1007,7 +1017,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamManager.instance.stop(),
-                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
@@ -1039,10 +1048,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> {
-                if (AccordService.isSetupOrStarting())
-                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
-            });
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it and
+            // before CommitLog, as any thread calling executeInternal could wait indefinitely
+            // on commitlog allocator (e.g. SSTableReader tidier on non-periodic calling
+            // SystemKeyspace.clearSSTableReadMeter)
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)

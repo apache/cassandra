@@ -1144,6 +1144,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
     }
 
+    public Future<Void> waitForPriorFlushes()
+    {
+        return postFlushExecutor.submit(() -> null);
+    }
+
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
     {
         return FBUtilities.waitOnFuture(forceFlush(reason));
@@ -1410,7 +1415,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 }
             }
             cfs.replaceFlushed(memtable, sstables);
-            memtable.notifyFlushed();
             reclaim(memtable);
             cfs.compactionStrategyManager.compactionLogger.flush(sstables);
             logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",

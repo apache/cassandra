@@ -78,7 +78,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
-import org.apache.cassandra.journal.Segment;
 import org.apache.cassandra.journal.Segments;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.RetryStrategy;
@@ -502,11 +501,11 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max, boolean includeActive)
+    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max, boolean includeActive, long minSegment)
     {
         try (OpOrder.Group readOrder = cfs.readOrdering.start())
         {
-            return new JournalAndTableKeyIterator(min, max, includeActive);
+            return new JournalAndTableKeyIterator(min, max, includeActive, minSegment);
         }
     }
 
@@ -515,14 +514,17 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         private final UnfilteredPartitionIterator mergeIterator;
         private final RefViewFragment view;
 
-        private TableIterator(JournalKey min, JournalKey max)
+        private TableIterator(JournalKey min, JournalKey max, long minSegment)
         {
             Invariants.require((min != null && max != null) || min == max);
             view = cfs.selectAndReference(View.select(SSTableSet.LIVE, r -> (max == null || JournalKey.SUPPORT.compare(getJournalKey(r.getFirst()), max) <= 0)
-                                                                         && (min == null || JournalKey.SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)));
+                                                                         && (min == null || JournalKey.SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)
+                                                                         && (r.getSSTableMetadata().coveredClustering.end().isArtificial() || LongType.instance.compose(r.getSSTableMetadata().coveredClustering.end().bufferAt(0)) >= minSegment)
+            ));
             List<ISSTableScanner> scanners = new ArrayList<>();
             for (SSTableReader sstable : view.sstables)
             {
+
                 if (min == null) scanners.add(sstable.getScanner());
                 else scanners.add(sstable.getScanner(new Bounds(JournalColumns.decorate(min), JournalColumns.decorate(max))));
             }
@@ -565,7 +567,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         final Journal<K, V>.SegmentKeyIterator journalIterator;
         final TableIterator tableIterator;
 
-        private JournalAndTableKeyIterator(K min, K max, boolean includeActive)
+        private JournalAndTableKeyIterator(K min, K max, boolean includeActive, long minSegment)
         {
             // We must initialise journal reader first, else we may race with segment->table compaction and miss some data
             // that is, the following sequence could happen:
@@ -573,8 +575,8 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
             //  - Segments compacted; segments removed and sstables added
             //  - Segment iterator created
             // TODO (expected): segments should be sstables on creation
-            this.journalIterator = journal.segmentKeyIterator(min, max, includeActive ?  ignore -> true : Segment::isStatic);
-            this.tableIterator = new TableIterator(min, max);
+            this.journalIterator = journal.segmentKeyIterator(min, max, segment -> segment.id() >= minSegment && (includeActive || segment.isStatic()));
+            this.tableIterator = new TableIterator(min, max, minSegment);
         }
 
         K prevFromTable = null;

@@ -26,13 +26,11 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
 import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 
@@ -47,46 +45,12 @@ public class AccordDataStore implements DataStore
      */
     public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
     {
-        if (commandStore.node().isReplaying())
+        if (commandStore.node().isReplaying() || ranges.isEmpty())
             return;
 
         logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
-        ColumnFamilyStore prev = null;
-        for (Range range : ranges)
-        {
-            ColumnFamilyStore cfs;
-            if (prev != null && prev.metadata().id.equals(range.prefix())) cfs = prev;
-            else cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) range.prefix());
-            if (cfs == null)
-            {
-                // TODO (expected): should we record this as durable?
-                continue;
-            }
-
-            while (true)
-            {
-                Memtable memtable = cfs.getCurrentMemtable();
-                // If RX came when after a quiet period or if it raced with a previous memtable flush
-                if (memtable.isClean())
-                {
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
-
-                AccordDurableOnFlush onFlush = memtable.ensureFlushListener(FlushListenerKey.KEY, AccordDurableOnFlush::new);
-                if (onFlush != null && onFlush.add(commandStore.id(), reportOnSuccess))
-                    break;
-
-                if (cfs == prev)
-                {
-                    // we must already have a successful notify, so just propagate
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
-            }
-
-            prev = cfs;
-        }
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) ranges.get(0).prefix());
+        AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, reportOnSuccess);
     }
 
     @Override
