@@ -49,9 +49,10 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
@@ -274,7 +275,7 @@ public class StandaloneJournalUtil implements Runnable
 
             Map<Integer, RedundantBefore> cache = new HashMap<>();
             journal.start(null);
-            journal.forEach(key -> processKey(cache, journal, key, txnId, sinceTimestamp, untilTimestamp, skipAllErrors, skipExceptionTypes), false);
+            journal.forEach(key -> processKey(cache, journal, key, txnId, sinceTimestamp, untilTimestamp, skipAllErrors, skipExceptionTypes), false, 0);
         }
 
         private void processKey(Map<Integer, RedundantBefore> redundantBeforeCache, AccordJournal journal, JournalKey key, Timestamp txnId, Timestamp minTimestamp, Timestamp maxTimestamp, boolean skipAllErrors, Set<String> skipExceptionTypes)
@@ -301,7 +302,7 @@ public class StandaloneJournalUtil implements Runnable
 
                         output.out.println("Individual entries:");
                         journal.forEachEntry(key, (in, userVersion) -> {
-                            AccordJournal.Builder builder = new AccordJournal.Builder(key.id, ALL);
+                            CommandChanges builder = new CommandChanges(key.id, ALL);
                             builder.deserializeNext(in, userVersion);
                             output.out.println(String.format("\t%s", builder.toString("\n\t\t")));
                             counter.getAndIncrement();
@@ -309,7 +310,7 @@ public class StandaloneJournalUtil implements Runnable
 
                         if (construct)
                         {
-                            AccordJournal.Builder builder = new AccordJournal.Builder(key.id, ALL);
+                            CommandChanges builder = new CommandChanges(key.id, ALL);
                             journal.forEachEntry(key, builder::deserializeNext);
                             output.out.println("Reconstructed\n\t\t" + builder.construct(redundantBeforeCache.computeIfAbsent(key.commandStoreId, k -> journal.loadRedundantBefore(key.commandStoreId))));
                         }

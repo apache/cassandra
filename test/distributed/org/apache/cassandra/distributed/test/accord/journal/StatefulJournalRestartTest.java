@@ -73,7 +73,7 @@ import static org.apache.cassandra.service.accord.AccordService.getBlocking;
  * 	at accord.utils.Invariants.createIllegalState(Invariants.java:77)
  * 	at accord.utils.Invariants.illegalState(Invariants.java:82)
  * 	at accord.utils.Invariants.require(Invariants.java:272)
- * 	at org.apache.cassandra.service.accord.AccordJournal.replay(AccordJournal.java:452)
+ * 	at org.apache.cassandra.service.accord.journal.AccordJournal.replay(AccordJournal.java:452)
  * 	at org.apache.cassandra.service.accord.AccordService.replayJournal(AccordService.java:246)
  * 	at org.apache.cassandra.service.accord.AccordService.startup(AccordService.java:235)
  * 	at org.apache.cassandra.distributed.impl.Instance.partialStartup(Instance.java:878)

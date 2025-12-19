@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy.FAIL;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -113,7 +114,7 @@ public class SegmentTest
 
         activeSegment.close(null);
 
-        StaticSegment<TimeUUID, ByteBuffer> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE);
+        StaticSegment<TimeUUID, ByteBuffer> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE, FAIL);
 
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
@@ -167,7 +168,7 @@ public class SegmentTest
         tidier.await.issue();
         activeSegment.close(null);
 
-        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, activeSegment.metadata.fsyncLimit());
+        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, activeSegment.metadata.fsyncLimit(), FAIL);
 
         // read all 4 entries sequentially and compare with originals
         assertTrue(reader.advance());

@@ -28,6 +28,7 @@ import accord.local.CommandSummaries;
 import accord.local.LoadKeysFor;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
+import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -37,6 +38,8 @@ import accord.utils.Invariants;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.api.Journal.Load.MINIMAL;
@@ -52,12 +55,12 @@ public interface RangeIndex
             super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
         }
 
-        abstract AccordCommandStore commandStore();
+        protected abstract AccordCommandStore commandStore();
 
-        abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
-        abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
-        abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
-        abstract void cleanupExclusive(AccordCommandStore.Caches caches);
+        protected abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
+        protected abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
+        protected abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
+        protected abstract void cleanupExclusive(AccordCommandStore.Caches caches);
 
         protected CommandSummaries.Summary loadFromDisk(TxnId txnId)
         {
@@ -110,7 +113,7 @@ public interface RangeIndex
                 return ifRelevant((Command) command);
 
             Invariants.require(command instanceof ByteBuffer);
-            AccordJournal.Builder builder = new AccordJournal.Builder(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
+            CommandChanges builder = new CommandChanges(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
             ByteBuffer buffer = (ByteBuffer) command;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
@@ -135,6 +138,10 @@ public interface RangeIndex
     }
 
     Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges);
-    void update(Command prev, Command updated, boolean force);
-    void postReplay();
+    default void update(Command prev, Command updated, boolean force) {}
+    default void postReplay() {}
+    default void prune(TxnId syncId, Ranges ranges, RedundantBefore redundantBefore) {}
+    default void save(File file) throws IOException {}
+    default Object load(File file) throws IOException { return null; }
+    default void restore(Object loaded) {}
 }

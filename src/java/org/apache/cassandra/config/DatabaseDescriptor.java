@@ -5689,8 +5689,7 @@ public class DatabaseDescriptor
             case THREAD_PER_SHARD_SYNC_QUEUE:
                 return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
             case THREAD_POOL_PER_SHARD:
-                int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
-                return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
+                return conf.accord.queue_shard_count.or(DatabaseDescriptor.getAvailableProcessors()/4);
         }
     }
 

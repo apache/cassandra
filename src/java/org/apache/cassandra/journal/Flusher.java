@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.journal;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
@@ -102,17 +105,22 @@ final class Flusher<K, V>
         flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
     }
 
-    void shutdown() throws InterruptedException
+    void shutdown()
     {
-        logger.debug("Shutting down " + flushExecutor + " and awaiting termination");
+        logger.debug("Shutting down " + flushExecutor);
         flushExecutor.shutdown();
-        flushExecutor.awaitTermination(1, MINUTES);
         if (fsyncExecutor != null)
         {
-            logger.debug("Shutting down " + fsyncExecutor + " and awaiting termination");
-            fsyncExecutor.shutdownNow(); // `now` to interrupt potentially parked runnable
-            fsyncExecutor.awaitTermination(1, MINUTES);
+            logger.debug("Shutting down " + fsyncExecutor);
+            fsyncExecutor.shutdown(); // `now` to interrupt potentially parked runnable
         }
+    }
+
+    List<Interruptible> executors()
+    {
+        if (fsyncExecutor != null)
+            return Arrays.asList(flushExecutor, fsyncExecutor);
+        return Collections.singletonList(flushExecutor);
     }
 
     @Simulate(with={MONITORS,GLOBAL_CLOCK,LOCK_SUPPORT})
@@ -139,6 +147,10 @@ final class Flusher<K, V>
                 try
                 {
                     doRun(state);
+                }
+                catch (InterruptedException t)
+                {
+                    throw t;
                 }
                 catch (Throwable t)
                 {
@@ -189,8 +201,8 @@ final class Flusher<K, V>
 
             public void doRun(Interruptible.State state) throws InterruptedException
             {
-                if (state == NORMAL) awaitWork();
-                else if (!hasWork()) return;
+                if (state == NORMAL)
+                    awaitWork();
 
                 if (fsyncing == null)
                     fsyncing = journal.oldestActiveSegment();
@@ -259,6 +271,10 @@ final class Flusher<K, V>
             try
             {
                 doRun(state);
+            }
+            catch (InterruptedException t)
+            {
+                throw t;
             }
             catch (Throwable t)
             {
@@ -534,14 +550,32 @@ final class Flusher<K, V>
             {
                 signal.awaitThrowUncheckedOnInterrupt();
 
-                Journal.State state = journal.state.get();
-                Invariants.require(state == Journal.State.NORMAL,
+                Journal.State state = journal.getState();
+                Invariants.require(state.compareTo(Journal.State.STOPPED_READABLE) < 0,
                                       "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
             }
             else
                 signal.cancel();
         }
         while (fsyncFinishedFor < flushTime);
+    }
+
+    void awaitFsync(ActiveSegment<K, V> segment, int fsyncedTo)
+    {
+        while (true)
+        {
+            Journal.State state = journal.getState();
+            Invariants.require(state.compareTo(Journal.State.STOPPED_READABLE) < 0,
+                               "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
+
+            WaitQueue.Signal signal = fsyncComplete.register();
+            if (segment.fsyncedTo() >= fsyncedTo)
+            {
+                signal.cancel();
+                break;
+            }
+            signal.awaitThrowUncheckedOnInterrupt();
+        }
     }
 
     private long flushPeriodNanos()

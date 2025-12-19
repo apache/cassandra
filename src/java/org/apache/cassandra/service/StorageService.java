@@ -163,7 +163,6 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -178,7 +177,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.service.accord.AccordKeyspace.AccordColumnFamilyStores;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
@@ -190,7 +188,6 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -249,6 +246,7 @@ import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -260,7 +258,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
-import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -3189,27 +3186,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task);
     }
 
-    public RepairCoordinator repairAccordKeyspace(String keyspace, Collection<Range<Token>> ranges)
+    public RepairCoordinator newRepairCoordinator(String keyspace, RepairOption options)
     {
         int cmd = nextRepairCommand.incrementAndGet();
-        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, // parallelism
-                                                false,                       // primaryRange
-                                                false,                      // incremental
-                                                false,                      // trace
-                                                5,                          // jobThreads
-                                                ranges,                     // ranges
-                                                true,                       // pullRepair
-                                                true,                       // forceRepair
-                                                PreviewKind.NONE,           // previewKind
-                                                false,                      // optimiseStreams
-                                                true,                       // ignoreUnreplicatedKeyspaces
-                                                true,                       // repairData
-                                                false,                      // repairPaxos
-                                                true,                       // dontPurgeTombstones
-                                                false,                      // repairAccord
-                                                false                       // permit no quorum
-        );
-
         return new RepairCoordinator(this, cmd, options, keyspace);
     }
 
@@ -3889,7 +3868,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             if (AccordService.isSetupOrStarting())
-                AccordService.unsafeInstance().markShuttingDown();
+                AccordService.unsafeInstance().stop();
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3907,12 +3886,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (AccordService.isSetupOrStarting())
             {
-                logger.info("Flushing Accord caches");
-                if (!AccordService.unsafeInstance().flushCaches().awaitUninterruptibly(1, MINUTES))
-                    logger.error("Could not flush Accord caches promptly");
-                if (AccordColumnFamilyStores.commandsForKey != null)
-                    AccordColumnFamilyStores.commandsForKey.forceBlockingFlush(INTERNALLY_FORCED);
-                AccordService.unsafeInstance().shutdownAndWait(1, MINUTES);
+                try
+                {
+                    AccordService.unsafeInstance().shutdownAndWait(DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos(), NANOSECONDS);
+                }
+                catch (Throwable t)
+                {
+                    logger.error("AccordService exception shutting down", t);
+                }
             }
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
