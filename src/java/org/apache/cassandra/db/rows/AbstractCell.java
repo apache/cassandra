@@ -150,9 +150,10 @@ public abstract class AbstractCell<V> extends Cell<V>
     public int dataSize()
     {
         CellPath path = path();
-        return TypeSizes.sizeof(timestamp())
-               + TypeSizes.sizeof(ttl())
-               + TypeSizes.sizeof(localDeletionTime())
+        // NOTE: TypeSizes.sizeof(localDeletionTime()) - method call like this is not eliminated by JIT in case of a megamorphic call
+        return TypeSizes.LONG_SIZE // timestamp()
+               + TypeSizes.INT_SIZE // ttl()
+               + TypeSizes.LONG_SIZE // localDeletionTime()
                + valueSize()
                + (path == null ? 0 : path.dataSize());
     }

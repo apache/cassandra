@@ -197,10 +197,9 @@ public abstract class AbstractMemtable implements Memtable
 
         public void update(RegularAndStaticColumns columns)
         {
-            for (ColumnMetadata s : columns.statics)
-                update(s);
-            for (ColumnMetadata r : columns.regulars)
-                update(r);
+            if (!columns.statics.isEmpty())
+                columns.statics.apply(this::update);
+            columns.regulars.apply(this::update);
         }
 
         public void update(ColumnsCollector other)
@@ -254,6 +253,8 @@ public abstract class AbstractMemtable implements Memtable
             {
                 EncodingStats current = stats.get();
                 EncodingStats updated = current.mergeWith(newStats);
+                if (current == updated)
+                    return;
                 if (stats.compareAndSet(current, updated))
                     return;
             }

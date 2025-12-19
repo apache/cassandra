@@ -528,8 +528,8 @@ public class BTreeRow extends AbstractRow
     @Override
     public Row clone(Cloner cloner)
     {
-        Object[] tree = BTree.<ColumnData, ColumnData>transform(btree, c -> c.clone(cloner));
-        return BTreeRow.create(cloner.clone(clustering), primaryKeyLivenessInfo, deletion, tree);
+        Object[] tree = BTree.<ColumnData, Cloner,ColumnData>transform(btree, ColumnData::clone, cloner);
+        return BTreeRow.create(cloner.clone(clustering), primaryKeyLivenessInfo, deletion, tree, minLocalDeletionTime);
     }
 
     public int dataSize()

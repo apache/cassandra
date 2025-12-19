@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AddressBasedNativeData;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.NativeAccessor;
@@ -198,6 +199,16 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
         return NativeEndianMemoryUtil.getInt(peer + LENGTH);
     }
 
+    public int dataSize()
+    {
+        // NOTE: TypeSizes.sizeof(localDeletionTime()) - method calls like these are not eliminated by JIT in case of a megamorphic call
+        return TypeSizes.LONG_SIZE   // timestamp()
+               + TypeSizes.INT_SIZE  // ttl()
+               + TypeSizes.LONG_SIZE // localDeletionTime()
+               + valueSize()
+               + (hasPath() ? pathDataSize() : 0);
+    }
+
     public CellPath path()
     {
         if (!hasPath())
@@ -206,6 +217,12 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
         long offset = getAddress() + valueSize();
         int size = NativeEndianMemoryUtil.getInt(offset);
         return CellPath.create(MemoryUtil.getByteBuffer(offset + 4, size, ByteOrder.BIG_ENDIAN));
+    }
+
+    private int pathDataSize()
+    {
+        long offset = getAddress() + valueSize();
+        return NativeEndianMemoryUtil.getInt(offset);
     }
 
     public Cell<?> withUpdatedValue(ByteBuffer newValue)
