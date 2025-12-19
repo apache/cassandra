@@ -1273,6 +1273,7 @@ public class BTree
      * The result of any transformation must sort identically as their originals, wrt other results.
      * <p>
      * If no modifications are made, the original is returned.
+     * NOTE: codewise *identical* to {@link #transform(Object[], BiFunction, Object)}
      */
     public static <I, O> Object[] transform(Object[] tree, Function<? super I, ? extends O> function)
     {
@@ -1316,6 +1317,55 @@ public class BTree
         return result;
     }
 
+    /**
+     * Takes a tree and transforms it using the provided function.
+     * The result of any transformation must sort identically as their originals, wrt other results.
+     * <p>
+     * If no modifications are made, the original is returned.
+     * NOTE: codewise *identical* to {@link #transform(Object[], Function)}
+     */
+    public static <I, I2, O> Object[] transform(Object[] tree, BiFunction<? super I, ? super I2, ? extends O> function, I2 param)
+    {
+        if (isEmpty(tree)) // isEmpty determined by identity; must return input
+            return tree;
+
+        if (isLeaf(tree)) // escape hatch for fast leaf transformation
+            return transformLeaf(tree, function, param);
+
+        Object[] result = tree; // optimistically assume we'll return our input unmodified
+        int keyCount = shallowSizeOfBranch(tree);
+        for (int i = 0; i < keyCount; ++i)
+        {
+            // operate on a pair of (child,key) each loop
+            Object[] curChild = (Object[]) tree[keyCount + i];
+            Object[] updChild = transform(curChild, function, param);
+            Object curKey = tree[i];
+            Object updKey = function.apply((I) curKey, param);
+            if (result == tree)
+            {
+                if (curChild == updChild && curKey == updKey)
+                    continue; // if output still same as input, loop
+
+                // otherwise initialise output to a copy of input up to this point
+                result = transformCopyBranchHelper(tree, keyCount, i, i);
+            }
+            result[keyCount + i] = updChild;
+            result[i] = updKey;
+        }
+        // final unrolled copy of loop for last child only (unbalanced with keys)
+        Object[] curChild = (Object[]) tree[2 * keyCount];
+        Object[] updChild = transform(curChild, function, param);
+        if (result == tree)
+        {
+            if (curChild == updChild)
+                return tree;
+            result = transformCopyBranchHelper(tree, keyCount, keyCount, keyCount);
+        }
+        result[2 * keyCount] = updChild;
+        result[2 * keyCount + 1] = tree[2 * keyCount + 1]; // take the original sizeMap, as we are exactly the same shape
+        return result;
+    }
+
     // create a copy of a branch, with the exact same size, copying the specified number of keys and children
     private static Object[] transformCopyBranchHelper(Object[] branch, int keyCount, int copyKeyCount, int copyChildCount)
     {
@@ -1326,6 +1376,7 @@ public class BTree
     }
 
     // an efficient transformAndFilter implementation suitable for a tree consisting of a single leaf root
+    // NOTE: codewise *identical* to {@link #transformLeaf(Object[], BiFunction, Object)}
     private static <I, O> Object[] transformLeaf(Object[] leaf, Function<? super I, ? extends O> apply)
     {
         Object[] result = leaf; // optimistically assume we'll return our input unmodified
@@ -1334,6 +1385,30 @@ public class BTree
         {
             Object current = leaf[i];
             Object updated = apply.apply((I) current);
+            if (result == leaf)
+            {
+                if (current == updated)
+                    continue; // if output still same as input, loop
+
+                // otherwise initialise output to a copy of input up to this point
+                result = new Object[leaf.length];
+                System.arraycopy(leaf, 0, result, 0, i);
+            }
+            result[i] = updated;
+        }
+        return result;
+    }
+
+    // an efficient transformAndFilter implementation suitable for a tree consisting of a single leaf root
+    // NOTE: codewise *identical* to {@link #transformLeaf(Object[], Function)}
+    private static <I, I2, O> Object[] transformLeaf(Object[] leaf, BiFunction<? super I, ? super I2, ? extends O> apply, I2 param)
+    {
+        Object[] result = leaf; // optimistically assume we'll return our input unmodified
+        int size = sizeOfLeaf(leaf);
+        for (int i = 0; i < size; ++i)
+        {
+            Object current = leaf[i];
+            Object updated = apply.apply((I) current, param);
             if (result == leaf)
             {
                 if (current == updated)

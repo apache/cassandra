@@ -257,7 +257,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     @Override
     public ColumnData clone(Cloner cloner)
     {
-        return transform(c -> cloner.clone(c));
+        return transform(cloner::clone);
     }
 
     public int estimateCloneSize(Cloner cloner)
