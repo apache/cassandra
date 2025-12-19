@@ -240,7 +240,7 @@ public class AccordKeyspace
 
         public static ByteBuffer makeSystemTableKeyBytes(int commandStore, TokenKey key)
         {
-            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefix(key));
+            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefixOrLength(key));
             result.putInt(commandStore);
             TokenKey.serializer.serializeWithoutPrefixOrLength(key, result);
             result.flip();

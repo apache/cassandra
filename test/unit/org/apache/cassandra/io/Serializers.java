@@ -21,6 +21,7 @@ package org.apache.cassandra.io;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 
 import org.assertj.core.api.Assertions;
 
@@ -37,12 +38,26 @@ public class Serializers
 
     public static <T> void testSerde(DataOutputBuffer output, AsymmetricUnversionedSerializer<T, T> serializer, T input) throws IOException
     {
-        testSerde(output, serializer, input, (actual, expected) -> Assertions.assertThat(actual)
-                                                                             .describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(actual, input).toString()))
-                                                                             .isEqualTo(expected));
+        testSerde(output, serializer, input, (expected, actual) -> {
+            Assertions.assertThat(expected)
+                      .describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(actual, input).toString()))
+                      .isEqualTo(actual);
+        });
     }
 
     public static <T> void testSerde(DataOutputBuffer output, AsymmetricUnversionedSerializer<T, T> serializer, T input, BiConsumer<T, T> testEqual) throws IOException
+    {
+        testSerde(output, serializer, input, serializer, testEqual);
+    }
+
+    public static <T1, T2> void testSerde(DataOutputBuffer output, AsymmetricUnversionedSerializer<T1, T1> serializer, T1 input, AsymmetricUnversionedSerializer<T2, T2> deserializer, BiPredicate<T1, T2> equals) throws IOException
+    {
+        testSerde(output, serializer, input, deserializer, (expected, actual) -> {
+            Assertions.assertThat(equals.test(expected, actual)).isTrue();
+        });
+    }
+
+    public static <T1, T2> void testSerde(DataOutputBuffer output, AsymmetricUnversionedSerializer<T1, T1> serializer, T1 input, AsymmetricUnversionedSerializer<T2, T2> deserializer, BiConsumer<T1, T2> testEqual) throws IOException
     {
         output.clear();
         long expectedSize = serializer.serializedSize(input);
@@ -50,12 +65,12 @@ public class Serializers
         Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
         ByteBuffer buffer = output.unsafeGetBufferAndFlip();
         DataInputBuffer in = new DataInputBuffer(buffer, false);
-        T read = serializer.deserialize(in);
-        testEqual.accept(read, input);
+        T2 read = deserializer.deserialize(in);
+        testEqual.accept(input, read);
         Assertions.assertThat(buffer.remaining()).describedAs("deserialize did not consume all the serialized input").isEqualTo(0);
         buffer.flip();
         buffer.mark();
-        serializer.skip(in);
+        deserializer.skip(in);
         Assertions.assertThat(buffer.remaining()).describedAs("skip did not consume all the serialized input").isEqualTo(0);
         boolean testByteBufferMethods;
         try
@@ -70,8 +85,8 @@ public class Serializers
         if (testByteBufferMethods)
         {
             ByteBuffer serialized2 = serializer.serialize(input);
-            T read2 = serializer.deserialize(serialized2);
-            Assertions.assertThat(read2).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read2, input).toString())).isEqualTo(input);
+            T2 read2 = deserializer.deserialize(serialized2);
+            testEqual.accept(input, read2);
         }
     }
 

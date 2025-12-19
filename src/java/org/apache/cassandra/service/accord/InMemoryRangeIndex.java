@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.function.BooleanSupplier;
 
 import javax.annotation.Nullable;
 
+import accord.impl.cfr.IdEntry;
 import accord.impl.cfr.InMemoryRangeSummaryIndex;
 import accord.impl.cfr.LoadListener;
 import accord.local.Command;
@@ -40,6 +42,12 @@ import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.async.Cancellable;
+
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
+
+import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readList;
+import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.writeList;
 
 public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements RangeIndex
 {
@@ -122,7 +130,7 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
         }
 
         @Override
-        AccordCommandStore commandStore()
+        protected AccordCommandStore commandStore()
         {
             return owner.commandStore;
         }
@@ -151,5 +159,23 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
     private RangeIndex.Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
     {
         return new Loader(this, redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, loadKeysFor);
+    }
+
+    @Override
+    public void save(File file) throws IOException
+    {
+        writeList(file, snapshot(), CommandStoreSerializers.rangeIndexIdEntry);
+    }
+
+    @Override
+    public List<IdEntry> load(File file) throws IOException
+    {
+        return readList(file, CommandStoreSerializers.rangeIndexIdEntry);
+    }
+
+    @Override
+    public void restore(Object loaded)
+    {
+        restore((List<IdEntry>)loaded);
     }
 }

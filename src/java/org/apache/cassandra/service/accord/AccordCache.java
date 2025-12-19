@@ -68,6 +68,8 @@ import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -532,7 +534,7 @@ public class AccordCache implements CacheSize
 
                 AccordCacheEntry<K, V> node = cache.get(key);
 
-                require(!safeRef.invalidated());
+                require(!safeRef.isUnsafe());
                 require(safeRef.global() != null, "safeRef node is null for %s", key);
                 require(safeRef.global() == node, "safeRef node not in map: %s != %s", safeRef.global(), node);
                 require(node.references() > 0, "references (%d) are zero for %s (%s)", node.references(), key, node);
@@ -561,7 +563,7 @@ public class AccordCache implements CacheSize
                 {
                     evict = node.is(LOADED) && node.isNull();
                 }
-                safeRef.invalidate();
+                safeRef.markUnsafe();
 
                 if (node.decrement() == 0)
                 {
@@ -1298,7 +1300,7 @@ public class AccordCache implements CacheSize
 
             try
             {
-                return AccordJournal.asSerializedChange(null, value, Version.LATEST);
+                return CommandChangeWriter.asSerializedChange(null, value, Version.LATEST);
             }
             catch (IOException e)
             {
@@ -1314,7 +1316,7 @@ public class AccordCache implements CacheSize
                 Invariants.expect(value.saveStatus().compareTo(SaveStatus.ReadyToExecute) < 0);
 
             // TODO (expected): improve heuristics and consider transaction size
-            if (SHRINK_WITHOUT_LOCK < 0 || value.partialDeps() == null || value.partialDeps().txnIds().size() < SHRINK_WITHOUT_LOCK)
+            if (SHRINK_WITHOUT_LOCK <= 0 || value.partialDeps() == null || value.partialDeps().txnIds().size() <= SHRINK_WITHOUT_LOCK)
                 return Shrink.DONE;
 
             return Shrink.PERFORM_WITHOUT_LOCK;
@@ -1323,7 +1325,7 @@ public class AccordCache implements CacheSize
         @Override
         public @Nullable Command inflate(AccordCommandStore commandStore, TxnId key, Object serialized)
         {
-            AccordJournal.Builder builder = new AccordJournal.Builder(key);
+            CommandChanges builder = new CommandChanges(key);
             ByteBuffer buffer = (ByteBuffer) serialized;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))

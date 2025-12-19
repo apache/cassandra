@@ -28,17 +28,18 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+import static org.apache.cassandra.config.AccordSpec.CatchupMode.NORMAL;
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.in_memory;
 
+// TODO (expected): rename to AccordConf?
 public class AccordSpec
 {
     public volatile boolean enabled = false;
 
+    // TODO (expected): move to JournalSpec
     public volatile String journal_directory;
-
-    public volatile boolean enable_journal_compaction = true;
 
     /**
      * Enables the virtual Accord debug-only keyspace with tables
@@ -92,6 +93,8 @@ public class AccordSpec
 
         /**
          * The queue workers only require ownership of the lock, submissions happens fully asynchronously.
+         *
+         * NOTE: EXPERIMENTAL
          */
         ASYNC,
 
@@ -136,16 +139,16 @@ public class AccordSpec
     public DurationSpec.IntMillisecondsBound repair_timeout = new DurationSpec.IntMillisecondsBound("10m");
     public String recover_txn = "5s*attempts <= 60s";
     public StringRetryStrategy recover_syncpoint = new StringRetryStrategy("60s <= 30s*attempts...60s*attempts <= 600s");
-    public String fetch_txn = "1s*attempts";
-    public String fetch_syncpoint = "5s*attempts";
-    public String expire_txn = "5s*attempts";
+    public String fetch_txn = "2s*attempts <= 60s";
+    public String fetch_syncpoint = "5s*attempts <= 60s";
+    public String expire_txn = "5s*attempts <= 60s";
     public String expire_syncpoint = "60s*attempts<=300s";
     public String expire_epoch_wait = "10s";
     // we don't want to wait ages for durability as it blocks other durability progress; even this might be too long, as we can always retry
     public String expire_durability = "10s*attempts <= 30s";
     public String slow_syncpoint_preaccept = "10s";
-    public String slow_txn_preaccept = "30ms <= p50*2 <= 100ms";
-    public String slow_read = "30ms <= p50*2 <= 100ms";
+    public String slow_txn_preaccept = "30ms <= p50*2 <= 1000ms";
+    public String slow_read = "30ms <= p50*2 <= 1000ms";
     public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempt <= 600s");
@@ -156,8 +159,8 @@ public class AccordSpec
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
-    public volatile int shard_durability_target_splits = 16;
-    public volatile int shard_durability_max_splits = 128;
+    public volatile int shard_durability_target_splits = 8;
+    public volatile int shard_durability_max_splits = 64;
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
@@ -175,19 +178,39 @@ public class AccordSpec
      */
     public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
 
+    public enum RebootstrapMode
+    {
+        full_repair, truncate_and_stream
+    }
+
+    public enum CatchupMode
+    {
+        DISABLED,
+        NORMAL,
+        FALLBACK_TO_HARD,
+        HARD
+    }
+
     /**
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
     public boolean ephemeralReadEnabled = true;
-    public boolean state_cache_listener_jfr_enabled = true;
+    public boolean state_cache_listener_jfr_enabled = false;
+
+    public float hard_reject_ratio = 0.5f;
+    public int min_soft_reject_count = 10;
+    public int max_soft_reject_count = 100;
+    public DurationSpec.LongMicrosecondsBound soft_reject_age = new DurationSpec.LongMicrosecondsBound("10s");
+    public DurationSpec.LongMicrosecondsBound soft_reject_cumulative_age = new DurationSpec.LongMicrosecondsBound("60s");
 
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
     public int catchup_on_start_max_attempts = 5;
     // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
     public boolean catchup_on_start_exit_on_failure = false;
-    public boolean catchup_on_start = true;
+    public CatchupMode catchup_on_start = NORMAL;
+    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
@@ -203,16 +226,68 @@ public class AccordSpec
 
     public static class JournalSpec implements Params
     {
+        public enum ReplayMode
+        {
+            /**
+             * Replay all journal entries and erase local state such as CommandsForKey that can be recreated
+             */
+            RESET,
+
+            /**
+             * Replay all journal entries
+             */
+            ALL,
+
+            /**
+             * Replay journal entries for commands that intersect a non-durable range.
+             * Ordinarily it should be necessary to only replay commands that do not intersect any durable ranges.
+             */
+            PART_NON_DURABLE,
+
+            /**
+             * Replay journal entries for commands that are not durable to the data or command stores.
+             * THIS MODE IS NOT YET SAFE TO RUN
+             */
+            NON_DURABLE
+        }
+
+        public enum ReplaySavePoint
+        {
+            NO,
+            LATEST
+        }
+
+        public enum StopMarkerFailurePolicy
+        {
+            /**
+             * If the start marker exceeds the stop marker then exit, since we cannot guarantee our consensus log is complete.
+             */
+            EXIT,
+
+            /**
+             * If the start marker exceeds the stop marker startup, assuming the consensus log has been determined complete externally.
+             * Note this is VERY UNSAFE if you care about isolation guarantees.
+             */
+            UNSAFE_STARTUP,
+
+            REBOOTSTRAP
+        }
+
         public int segmentSize = 32 << 20;
         public int compactMaxSegments = 32;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
-        public ReplayMode replayMode = ReplayMode.ONLY_NON_DURABLE;
+        public ReplayMode replay = ReplayMode.PART_NON_DURABLE;
+        public ReplaySavePoint replaySavePoint = ReplaySavePoint.LATEST;
+        public int retainSavePoints = 2;
+        public StopMarkerFailurePolicy stopMarkerFailurePolicy = StopMarkerFailurePolicy.EXIT;
+        public RecoverableCrcFailurePolicy crcFailureOnRebuildPolicy = RecoverableCrcFailurePolicy.FAIL;
         public FlushMode flushMode = FlushMode.PERIODIC;
         public volatile DurationSpec flushPeriod; // pulls default from 'commitlog_sync_period'
         public DurationSpec periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
         public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("60000ms");
         private volatile long flushCombinedBlockPeriod = Long.MIN_VALUE;
         public Version version = Version.DOWNGRADE_SAFE_VERSION;
+        public boolean enable_compaction = true;
 
         public JournalSpec setFlushPeriod(DurationSpec newFlushPeriod)
         {
@@ -246,9 +321,9 @@ public class AccordSpec
         }
 
         @Override
-        public ReplayMode replayMode()
+        public RecoverableCrcFailurePolicy crcFailureOnRebuildPolicy()
         {
-            return replayMode;
+            return crcFailureOnRebuildPolicy;
         }
 
         @Override
@@ -260,7 +335,7 @@ public class AccordSpec
         @Override
         public boolean enableCompaction()
         {
-            return DatabaseDescriptor.getAccord().enable_journal_compaction;
+            return enable_compaction;
         }
 
         @Override

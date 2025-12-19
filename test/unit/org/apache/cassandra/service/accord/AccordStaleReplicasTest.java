@@ -31,6 +31,7 @@ import accord.utils.SortedArrays.SortedArrayList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
 import org.apache.cassandra.tcm.serialization.Version;
