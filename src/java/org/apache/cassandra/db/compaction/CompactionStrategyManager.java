@@ -839,7 +839,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         double[] res = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
-            res[i] = data.count[i] == 0 ? 0 : data.sum[i] / data.numberOfLevels;
+            res[i] = data.count[i] == 0 ? 0 : data.sum[i] / data.count[i];
         return res;
     }
 
