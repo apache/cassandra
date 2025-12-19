@@ -210,7 +210,7 @@ public interface SingleNodeSequences
             throw new IllegalStateException(msg);
         }
         StorageService.instance.clearTransientMode();
-        InProgressSequences.finishInProgressSequences(self);
+        org.apache.cassandra.tcm.sequences.InProgressSequences.finishInProgressSequences(self);
     }
 
     static void abortMove(String nodeId)

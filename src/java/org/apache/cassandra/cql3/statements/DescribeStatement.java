@@ -42,6 +42,9 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -93,6 +96,15 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("keyspace_name", true), UTF8Type.instance),
                              new ColumnSpecification(KS, CF, new ColumnIdentifier("type", true), UTF8Type.instance),
                              new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance));
+
+    /**
+     * The columns returned by service config queries
+     */
+    private static final List<ColumnSpecification> SERVICE_CONFIG_METADATA =
+            ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("keyspace_name", true), UTF8Type.instance),
+                             new ColumnSpecification(KS, CF, new ColumnIdentifier("type", true), UTF8Type.instance),
+                             new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance),
+                             new ColumnSpecification(KS, CF, new ColumnIdentifier("create_statement", true), UTF8Type.instance));
 
     /**
      * The columns returned by the describe queries that returns the CREATE STATEMENT for the different elements (e.g. DESCRIBE KEYSPACE, DESCRIBE TABLE ...)
@@ -331,6 +343,139 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     public static DescribeStatement<SchemaElement> aggregates()
     {
         return new Listing(ks -> ks.userFunctions.udas());
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE DATA_SOURCES}.
+     */
+    public static DescribeStatement<SchemaElement> dataSources()
+    {
+        return new DescribeStatement<SchemaElement>()
+        {
+            @Override
+            protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
+            {
+                return getServiceConfigElements("DATA_SOURCE");
+            }
+
+            @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                return SERVICE_CONFIG_METADATA;
+            }
+
+            @Override
+            protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+            {
+                return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.elementType().toString()),
+                                        bytes(element.elementNameQuotedIfNeeded()),
+                                        bytes(element.toCqlString(true, withInternals, false)));
+            }
+        };
+    }
+
+    /**
+     * Creates a {@link DescribeStatement} for {@code DESCRIBE DATA_SINKS}.
+     */
+    public static DescribeStatement<SchemaElement> dataSinks()
+    {
+        return new DescribeStatement<SchemaElement>()
+        {
+            @Override
+            protected Stream<? extends SchemaElement> describe(ClientState state, Keyspaces keyspaces)
+            {
+                return getServiceConfigElements("DATA_SINK");
+            }
+
+            @Override
+            protected List<ColumnSpecification> metadata(ClientState state)
+            {
+                return SERVICE_CONFIG_METADATA;
+            }
+
+            @Override
+            protected List<ByteBuffer> toRow(SchemaElement element, boolean withInternals)
+            {
+                return ImmutableList.of(bytes(element.elementKeyspaceQuotedIfNeeded()),
+                                        bytes(element.elementType().toString()),
+                                        bytes(element.elementNameQuotedIfNeeded()),
+                                        bytes(element.toCqlString(true, withInternals, false)));
+            }
+        };
+    }
+
+    private static Stream<SchemaElement> getServiceConfigElements(String type)
+    {
+        try
+        {
+            // Query all entries and filter by type in code to avoid ALLOW FILTERING
+            String query = format("SELECT service, type, config FROM %s.%s",
+                                 SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                 "service_configs");
+
+            UntypedResultSet results = QueryProcessor.execute(query, ConsistencyLevel.ONE);
+
+            return StreamSupport.stream(results.spliterator(), false)
+                                .filter(row -> type.equals(row.getString("type")))
+                                .map(row -> new ServiceConfigElement(
+                                    row.getString("service"),
+                                    row.getString("config"),
+                                    type));
+        }
+        catch (Exception e)
+        {
+            return Stream.empty();
+        }
+    }
+
+    /**
+     * SchemaElement implementation for service configs (DATA_SOURCE/DATA_SINK)
+     */
+    private static class ServiceConfigElement implements SchemaElement
+    {
+        private final String service;
+        private final String config;
+        private final String type;
+
+        public ServiceConfigElement(String service, String config, String type)
+        {
+            this.service = service;
+            this.config = config;
+            this.type = type;
+        }
+
+        @Override
+        public String elementKeyspace()
+        {
+            return SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
+        }
+
+        @Override
+        public String elementName()
+        {
+            return service;
+        }
+
+        @Override
+        public SchemaElementType elementType()
+        {
+            // For now, treat data sources/sinks as a custom type
+            // We could add new enum values to SchemaElementType if needed
+            return SchemaElementType.TABLE; // Placeholder - could be extended
+        }
+
+        @Override
+        public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
+        {
+            // Return map of service: [type, config]
+            return new StringBuilder()
+                   .append('{')
+                   .append(service).append(": [")
+                   .append(type).append(", ")
+                   .append(config).append("]}")
+                   .toString();
+        }
     }
 
     /**

@@ -197,10 +197,10 @@ public final class SchemaConstants
     {
         return ImmutableSet.<String>builder()
                            .addAll(SystemKeyspace.TABLE_NAMES)
-                           .addAll(SchemaKeyspaceTables.ALL)
+                           .addAll(org.apache.cassandra.schema.SchemaKeyspaceTables.ALL)
                            .addAll(TraceKeyspace.TABLE_NAMES)
                            .addAll(AuthKeyspace.TABLE_NAMES)
-                           .addAll(SystemDistributedKeyspace.TABLE_NAMES)
+                           .addAll(org.apache.cassandra.schema.SystemDistributedKeyspace.TABLE_NAMES)
                            .addAll(AccordKeyspace.TABLE_NAMES)
                            .build();
     }

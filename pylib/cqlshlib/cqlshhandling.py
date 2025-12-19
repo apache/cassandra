@@ -96,6 +96,8 @@ cqlsh_describe_cmd_syntax_rules = r'''
                                   | "CLUSTER"
                                   | "TYPES"
                                   | "TYPE" ut=<userTypeName>
+                                  | "DATA_SOURCES"
+                                  | "DATA_SINKS"
                                   | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>)
                                   ) ("WITH" "INTERNALS")?
                                 )
