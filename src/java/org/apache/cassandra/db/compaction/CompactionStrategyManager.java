@@ -32,7 +32,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,7 +82,6 @@ import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.TriFunction;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy.Level;
 
 import static org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
@@ -695,90 +695,69 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public double[] getPerLevelAvgTokenSpace()
     {
-        return avgUCSHelper((ucs, sstable) ->
-                sstable.tokenSpaceCoverage());
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.sstable.tokenSpaceCoverage();
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageFinalizer
+        );
     }
 
     public double[] getPerLevelMaxDensityThreshold()
     {
-        return perLevelUCSHelper((level, sstable, acc) -> Math.max(acc, level.max));
+        return computeUCSMetric(
+                data -> {
+                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
+                },
+                CompactionStrategyManager::maxArrayFinalizer
+        );
     }
 
     public double[] getPerLevelAvgSize()
     {
-        return avgUCSHelper((ucs, sstable) -> (double) sstable.onDiskLength());
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.sstable.onDiskLength();
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageFinalizer
+        );
     }
 
     public double[] getPerLevelAvgDensity()
     {
-        return avgUCSHelper(UnifiedCompactionStrategy::getDensity);
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.strategy.getDensity(data.sstable);
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageFinalizer
+        );
     }
 
     public double[] getPerLevelAvgDensityMaxDensityThresholdRatio()
     {
-        readLock.lock();
-        try
-        {
-            if (repaired.first() instanceof UnifiedCompactionStrategy)
-            {
-                double[] avgDensityPerLevel = getPerLevelAvgDensity();
-                double[] maxDensityThresholdPerLevel = getPerLevelMaxDensityThreshold();
-
-                double[] res = new double[avgDensityPerLevel.length];
-
-                for (int i = 0; i < avgDensityPerLevel.length; i++)
-                {
-                    res[i] = avgDensityPerLevel[i] / maxDensityThresholdPerLevel[i];
-                }
-
-                return res;
-            }
+        double[] avgDensity = getPerLevelAvgDensity();
+        if (avgDensity == null)
             return null;
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+
+        double[] maxThreshold = getPerLevelMaxDensityThreshold();
+        double[] res = new double[avgDensity.length];
+        for (int i = 0; i < avgDensity.length; i++)
+            res[i] = avgDensity[i] / maxThreshold[i];
+        return res;
     }
 
     public double[] getPerLevelMaxDensityMaxDensityThresholdRatio()
     {
-        readLock.lock();
-        try
-        {
-            if (repaired.first() instanceof UnifiedCompactionStrategy)
-            {
-
-                double[] maxDensityThresholdPerLevel = getPerLevelMaxDensityThreshold();
-                double[] maxDensityPerLevel = new double[maxDensityThresholdPerLevel.length];
-                double[] res = new double[maxDensityThresholdPerLevel.length];
-
-                for (AbstractCompactionStrategy strategy : getAllStrategies())
-                {
-                    UnifiedCompactionStrategy ucsStrategy = (UnifiedCompactionStrategy) strategy;
-                    List<Level> levels = ucsStrategy.getLevelsSnapshot();
-                    for (int i = 0; i < levels.size(); i++)
-                    {
-                        for (SSTableReader sstable : levels.get(i).getSSTables())
-                        {
-                            maxDensityPerLevel[i] = Math.max(maxDensityPerLevel[i], ucsStrategy.getDensity(sstable));
-                        }
-                    }
-                }
-
-                for (int i = 0; i < maxDensityThresholdPerLevel.length; i++)
-                {
-                    res[i] = maxDensityPerLevel[i] / maxDensityThresholdPerLevel[i];
-                }
-
-                return res;
-            }
-            return null;
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] = Math.max(data.sum[data.levelIndex], data.strategy.getDensity(data.sstable));
+                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
+                },
+                CompactionStrategyManager::ratioArrayFinalizer
+        );
     }
 
     public boolean isLeveledCompaction()
@@ -793,83 +772,87 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    double[] avgUCSHelper(BiFunction<UnifiedCompactionStrategy, SSTableReader, Double> fn)
+    /**
+     * Data class for accumulating UCS metrics computation state.
+     * Holds intermediate values during metric calculation across all strategies and levels.
+     */
+    private static class CompactionStatsMetricsData
+    {
+        final double[] sum = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final int[] count = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] max = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        int numberOfLevels = 0;
+
+        int levelIndex;
+        Level level;
+        SSTableReader sstable;
+        UnifiedCompactionStrategy strategy;
+    }
+
+    /**
+     * Generic helper to compute UCS metrics across all strategies and levels.
+     * Reduces code duplication for per-level metric calculations.
+     *
+     * @param accumulator processes each sstable and updates the metrics data state
+     * @param finalizer computes the final result array from the accumulated metrics data
+     * @return computed metric array, one value per level, or null if not using UCS
+     */
+    private double[] computeUCSMetric(Consumer<CompactionStatsMetricsData> accumulator, Function<CompactionStatsMetricsData, double[]> finalizer)
     {
         readLock.lock();
         try
         {
             if (repaired.first() instanceof UnifiedCompactionStrategy)
             {
-                int numberOfLevels = 0;
-
-                double[] sum = new double[UnifiedCompactionStrategy.MAX_LEVELS];
-                int[] count = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+                CompactionStatsMetricsData data = new CompactionStatsMetricsData();
 
                 for (AbstractCompactionStrategy strategy : getAllStrategies())
                 {
                     UnifiedCompactionStrategy ucsStrategy = (UnifiedCompactionStrategy) strategy;
                     List<Level> levels = ucsStrategy.getLevelsSnapshot();
-                    numberOfLevels = Math.max(numberOfLevels, levels.size());
+
+                    data.numberOfLevels = Math.max(data.numberOfLevels, levels.size());
+                    data.strategy = ucsStrategy;
+
                     for (int i = 0; i < levels.size(); i++)
                     {
+                        data.levelIndex = i;
+                        data.level = levels.get(i);
                         for (SSTableReader sstable : levels.get(i).getSSTables())
                         {
-                            sum[i] += fn.apply(ucsStrategy, sstable);
-                            count[i] += 1;
+                            data.sstable = sstable;
+                            accumulator.accept(data);
                         }
                     }
                 }
 
-                double[] res = new double[numberOfLevels];
-                for (int i = 0; i < numberOfLevels; i++)
-                    res[i] = count[i] == 0 ? 0 : sum[i] / count[i];
-
-                return res;
+                return finalizer.apply(data);
             }
             return null;
         }
-        finally
-        {
+        finally {
             readLock.unlock();
         }
     }
 
-    double[] perLevelUCSHelper(TriFunction<Level, SSTableReader, Double, Double> fn)
+    private static double[] averageFinalizer(CompactionStatsMetricsData data)
     {
-        readLock.lock();
-        try
-        {
-            if (repaired.first() instanceof UnifiedCompactionStrategy)
-            {
-                int numberOfLevels = 0;
+        double[] res = new double[data.numberOfLevels];
+        for (int i = 0; i < data.numberOfLevels; i++)
+            res[i] = data.count[i] == 0 ? 0 : data.sum[i] / data.numberOfLevels;
+        return res;
+    }
 
-                double[] tmp = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+    private static double[] maxArrayFinalizer(CompactionStatsMetricsData data)
+    {
+        return Arrays.copyOf(data.max, data.numberOfLevels);
+    }
 
-                for (AbstractCompactionStrategy strategy : getAllStrategies())
-                {
-                    UnifiedCompactionStrategy ucsStrategy = (UnifiedCompactionStrategy) strategy;
-                    List<Level> levels = ucsStrategy.getLevelsSnapshot();
-                    numberOfLevels = Math.max(numberOfLevels, levels.size());
-                    for (int i = 0; i < levels.size(); i++)
-                    {
-                        for (SSTableReader sstable : levels.get(i).getSSTables())
-                        {
-                            tmp[i] = fn.apply(levels.get(i), sstable, tmp[i]);
-                        }
-                    }
-                }
-
-                double[] res = new double[numberOfLevels];
-                System.arraycopy(tmp, 0, res, 0, numberOfLevels);
-
-                return res;
-            }
-            return null;
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+    private static double[] ratioArrayFinalizer(CompactionStatsMetricsData data) {
+        double[] res = new double[data.numberOfLevels];
+        for (int i = 0; i < data.numberOfLevels; i++)
+            res[i] = data.sum[i] / data.max[i];
+        return res;
     }
 
     public int[] getSSTableCountPerTWCSBucket()
