@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 """
-VoyageAI Multimodal Embeddings (voyage-multimodal-3) + Apache Cassandra Vector Search
+VoyageAI Multimodal Embeddings (voyage-multimodal-3.5) + Apache Cassandra Vector Search
 
-This example demonstrates REAL multimodal vector search using VoyageAI's voyage-multimodal-3:
-1. Embedding text and images together using voyage-multimodal-3
-2. Storing multimodal vectors in Cassandra (same vector space for text and images)
+This example demonstrates REAL multimodal vector search using VoyageAI's multimodal models:
+1. Embedding text, images, and video together in a shared vector space
+2. Storing multimodal vectors in Cassandra (same vector space for all modalities)
 3. Cross-modal similarity search (text query -> image results, image query -> text results)
 4. Hybrid search combining text, images, and metadata filters
 
 Prerequisites:
 - Python 3.8+
-- pip install voyageai cassandra-driver pillow requests
+- pip install 'voyageai>=0.3.6' cassandra-driver pillow requests
 - VoyageAI API key (set as VOYAGE_API_KEY environment variable)
 - Apache Cassandra 5.0+ with vector search support
 - Sample images (or URLs) for demonstration
 
-Key Features of voyage-multimodal-3:
-- Supports interleaved text and images in same vector space
-- 1024-dimensional embeddings for both text and images
+Supported Multimodal Models:
+
+voyage-multimodal-3.5 (Preview - Default):
+- Supports text, images, AND video in same vector space
+- Variable dimensions: 256, 512, 1024 (default), 2048
 - 32,000 token context length
 - Images: max 16 million pixels, max 20MB
-- Cross-modal search enabled (text finds images, images find text)
+- Video: max 20MB (requires voyageai >= 0.3.6)
+- Token pricing: 560 image pixels = 1 token, 1120 video pixels = 1 token
+
+voyage-multimodal-3:
+- Supports text and images (no video)
+- Fixed 1024-dimensional embeddings
+- 32,000 token context length
+- Images: max 16 million pixels, max 20MB
+
+Cross-modal search enabled (text finds images/video, images find text)
 
 Author: Apache Cassandra Documentation Team
 License: Apache 2.0
@@ -55,8 +66,11 @@ class Config:
 
     # VoyageAI settings
     VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
-    MULTIMODAL_MODEL = "voyage-multimodal-3"
-    EMBEDDING_DIMENSION = 1024  # voyage-multimodal-3 produces 1024-dim vectors
+    # Model options: voyage-multimodal-3 (fixed 1024D), voyage-multimodal-3.5 (256/512/1024/2048D)
+    MULTIMODAL_MODEL = "voyage-multimodal-3.5"
+    # Dimension options for voyage-multimodal-3.5: 256, 512, 1024 (default), 2048
+    # Note: voyage-multimodal-3 only supports fixed 1024D
+    EMBEDDING_DIMENSION = 1024
 
     # Cassandra settings
     CASSANDRA_HOSTS = os.getenv("CASSANDRA_HOSTS", "127.0.0.1").split(",")
@@ -138,27 +152,41 @@ SAMPLE_MEDIA_ITEMS = [
 
 class VoyageMultimodalEmbedder:
     """
-    Handles multimodal embedding generation using VoyageAI's voyage-multimodal-3.
+    Handles multimodal embedding generation using VoyageAI's multimodal models.
 
-    This model embeds both text and images into the same 1024-dimensional vector space,
-    enabling cross-modal similarity search.
+    Supported models:
+    - voyage-multimodal-3.5: Text + Images + Video, variable dimensions (256/512/1024/2048)
+    - voyage-multimodal-3: Text + Images only, fixed 1024-dimensional vectors
+
+    Both models embed content into the same vector space, enabling cross-modal similarity search.
     """
 
-    def __init__(self, api_key: str, model: str = "voyage-multimodal-3"):
+    def __init__(self, api_key: str, model: str = "voyage-multimodal-3.5", dimension: int = 1024):
         """
         Initialize VoyageAI multimodal client.
 
         Args:
             api_key: VoyageAI API key
-            model: Model name (voyage-multimodal-3)
+            model: Model name (voyage-multimodal-3.5 or voyage-multimodal-3)
+            dimension: Output dimension (256, 512, 1024, 2048). Only for voyage-multimodal-3.5.
+                       voyage-multimodal-3 always produces 1024-dim vectors.
         """
         self.client = voyageai.Client(api_key=api_key)
         self.model = model
-        self.dimension = 1024  # voyage-multimodal-3 always produces 1024-dim vectors
+
+        # voyage-multimodal-3 only supports 1024D, voyage-multimodal-3.5 supports variable
+        if model == "voyage-multimodal-3":
+            self.dimension = 1024
+            if dimension != 1024:
+                print(f"  Note: voyage-multimodal-3 only supports 1024D (ignoring {dimension}D)")
+        else:
+            self.dimension = dimension
+
+        modalities = "Text + Images + Video" if "3.5" in model else "Text + Images"
         print(f"✓ VoyageAI multimodal client initialized")
         print(f"  Model: {model}")
         print(f"  Dimension: {self.dimension}")
-        print(f"  Supports: Text + Images in same vector space")
+        print(f"  Supports: {modalities} in same vector space")
 
     def load_image_from_url(self, url: str) -> Image.Image:
         """
@@ -181,32 +209,37 @@ class VoyageMultimodalEmbedder:
 
     def embed_text(self, text: str, input_type: str = "document") -> List[float]:
         """
-        Embed text using voyage-multimodal-3.
+        Embed text using VoyageAI multimodal model.
 
         Args:
             text: Text to embed
             input_type: "document" or "query"
 
         Returns:
-            1024-dimensional embedding vector
+            Embedding vector (dimension depends on model/config)
         """
-        result = self.client.multimodal_embed(
-            inputs=[[text]],  # List of multimodal inputs
-            model=self.model,
-            input_type=input_type
-        )
+        # Build kwargs - only add output_dimension for voyage-multimodal-3.5
+        kwargs = {
+            "inputs": [[text]],
+            "model": self.model,
+            "input_type": input_type
+        }
+        if "3.5" in self.model:
+            kwargs["output_dimension"] = self.dimension
+
+        result = self.client.multimodal_embed(**kwargs)
         return result.embeddings[0]
 
     def embed_image(self, image: Image.Image, caption: Optional[str] = None) -> List[float]:
         """
-        Embed image (optionally with caption) using voyage-multimodal-3.
+        Embed image (optionally with caption) using VoyageAI multimodal model.
 
         Args:
             image: PIL Image object
             caption: Optional text caption to embed with image
 
         Returns:
-            1024-dimensional embedding vector
+            Embedding vector (dimension depends on model/config)
         """
         if caption:
             # Embed image with caption (interleaved)
@@ -215,11 +248,16 @@ class VoyageMultimodalEmbedder:
             # Embed image only
             inputs = [[image]]
 
-        result = self.client.multimodal_embed(
-            inputs=inputs,
-            model=self.model,
-            input_type="document"
-        )
+        # Build kwargs - only add output_dimension for voyage-multimodal-3.5
+        kwargs = {
+            "inputs": inputs,
+            "model": self.model,
+            "input_type": "document"
+        }
+        if "3.5" in self.model:
+            kwargs["output_dimension"] = self.dimension
+
+        result = self.client.multimodal_embed(**kwargs)
         return result.embeddings[0]
 
     def embed_multimodal_item(self, item: Dict[str, Any]) -> List[float]:
@@ -233,7 +271,7 @@ class VoyageMultimodalEmbedder:
             item: Item dictionary with description and optional image_url
 
         Returns:
-            1024-dimensional embedding vector
+            Embedding vector (dimension depends on model/config)
         """
         if item.get("has_visual") and item.get("image_url"):
             # Load image
@@ -251,13 +289,13 @@ class VoyageMultimodalEmbedder:
         """
         Embed a search query.
 
-        Can be used to find both text and image content.
+        Can be used to find both text, image, and video content.
 
         Args:
             query: Search query text
 
         Returns:
-            1024-dimensional query embedding
+            Query embedding vector (dimension depends on model/config)
         """
         return self.embed_text(query, input_type="query")
 
@@ -484,7 +522,7 @@ def main():
     """Main application demonstrating multimodal vector search."""
 
     print("\n" + "="*80)
-    print("VoyageAI Multimodal (voyage-multimodal-3) + Cassandra Vector Search")
+    print(f"VoyageAI Multimodal ({Config.MULTIMODAL_MODEL}) + Cassandra Vector Search")
     print("="*80 + "\n")
 
     # Validate configuration
@@ -500,7 +538,8 @@ def main():
 
     embedder = VoyageMultimodalEmbedder(
         api_key=Config.VOYAGE_API_KEY,
-        model=Config.MULTIMODAL_MODEL
+        model=Config.MULTIMODAL_MODEL,
+        dimension=Config.EMBEDDING_DIMENSION
     )
 
     vector_store = MultimodalVectorStore(
@@ -524,7 +563,7 @@ def main():
         )
 
         # Generate and store embeddings
-        print("\n3. Generating multimodal embeddings with voyage-multimodal-3...")
+        print(f"\n3. Generating multimodal embeddings with {Config.MULTIMODAL_MODEL}...")
         print("-" * 80)
 
         for item in SAMPLE_MEDIA_ITEMS:
@@ -627,17 +666,21 @@ def main():
         print("="*80)
 
         print("\nKey Features Demonstrated:")
-        print("✓ Real VoyageAI voyage-multimodal-3 integration")
-        print("✓ Text and images embedded in same 1024-dim vector space")
+        print(f"✓ Real VoyageAI {Config.MULTIMODAL_MODEL} integration")
+        print(f"✓ Text and images embedded in same {Config.EMBEDDING_DIMENSION}-dim vector space")
         print("✓ Cross-modal search (text queries find images, vice versa)")
         print("✓ Single vector column for both modalities")
         print("✓ Content-type filtering for hybrid search")
         print("✓ COSINE similarity for normalized embeddings")
+        if "3.5" in Config.MULTIMODAL_MODEL:
+            print("✓ Variable dimensions (256, 512, 1024, 2048)")
+            print("✓ Video embedding support (requires voyageai >= 0.3.6)")
 
         print("\nProduction Use Cases:")
         print("- E-commerce: Text search returns product images")
         print("- Media libraries: Find photos by description")
         print("- Document search: Images in PDFs/slides/documents")
+        print("- Video retrieval: Find video content by text query")
         print("- Visual Q&A: Natural language queries for visual content")
 
         return 0

@@ -112,7 +112,8 @@ VoyageAI supports batch embedding generation with these limits:
 ** voyage-3.5-lite: 1M tokens
 ** voyage-3.5: 320K tokens
 ** voyage-context-3: 32K tokens
-** voyage-multimodal-3: 120K tokens
+** voyage-multimodal-3: 32K tokens
+** voyage-multimodal-3.5: 32K tokens
 
 ===== Simple Count-Based Batching
 
@@ -150,7 +151,8 @@ VOYAGE_TOKEN_LIMITS = {
     "voyage-3.5-lite": 1_000_000,
     "voyage-3.5": 320_000,
     "voyage-context-3": 32_000,
-    "voyage-multimodal-3": 120_000,
+    "voyage-multimodal-3": 32_000,
+    "voyage-multimodal-3.5": 32_000,
 }
 
 class TokenAwareBatchProcessor:
@@ -430,6 +432,11 @@ Set `input_type="document"` when embedding content to be stored, and `input_type
 |1024 (fixed)
 |Multimodal search
 
+|voyage-multimodal-3.5
+|Text + Image + Video embeddings (cross-modal)
+|256, 512, 1024, 2048
+|Latest multimodal
+
 |voyage-context-3
 |Contextual chunk embeddings for RAG
 |1024 (default)
@@ -680,18 +687,50 @@ os.environ['VOYAGE_API_KEY'] = 'your-api-key-here'
 
 == Advanced Use Cases
 
-=== Multimodal Embeddings with voyage-multimodal-3
+=== Multimodal Embeddings with voyage-multimodal-3 / voyage-multimodal-3.5
 
-VoyageAI's `voyage-multimodal-3` model enables embedding both text and images in the same 1024-dimensional vector space, enabling powerful cross-modal search capabilities.
+VoyageAI's multimodal models enable embedding text, images, and video in the same vector space, enabling powerful cross-modal search capabilities.
+
+==== Model Comparison
+
+[cols="1,2,2"]
+|===
+|Feature |voyage-multimodal-3 |voyage-multimodal-3.5 (Preview)
+
+|**Modalities**
+|Text + Images
+|Text + Images + Video
+
+|**Dimensions**
+|1024 (fixed)
+|256, 512, 1024 (default), 2048
+
+|**Context Length**
+|32,000 tokens
+|32,000 tokens
+
+|**Image Limits**
+|16M pixels, 20MB
+|16M pixels, 20MB
+
+|**Video Limits**
+|Not supported
+|20MB (requires voyageai >= 0.3.6)
+
+|**Status**
+|Stable
+|Preview
+|===
 
 ==== Model Capabilities
 
-* **Unified Vector Space**: Text and images share the same embedding space
-* **Cross-Modal Search**: Text queries can find images, image queries can find text
+* **Unified Vector Space**: Text, images, and video share the same embedding space
+* **Cross-Modal Search**: Text queries can find images/video, image queries can find text
 * **Interleaved Content**: Support for documents with mixed text and images
 * **Context Length**: 32,000 tokens
 * **Image Constraints**: Max 16 million pixels, max 20MB per image
-* **Pixel Pricing**: Every 560 pixels counts as one token
+* **Video Constraints**: Max 20MB (voyage-multimodal-3.5 only)
+* **Pixel Pricing**: Every 560 image pixels = 1 token, 1120 video pixels = 1 token
 
 ==== Python API Usage
 
@@ -702,30 +741,41 @@ from PIL import Image
 
 vo = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
 
-# Embed text
+# Using voyage-multimodal-3.5 with variable dimensions
 text_result = vo.multimodal_embed(
     inputs=[["Apache Cassandra is a distributed database"]],
-    model="voyage-multimodal-3",
-    input_type="document"
+    model="voyage-multimodal-3.5",
+    input_type="document",
+    output_dimension=1024  # Options: 256, 512, 1024, 2048
 )
-text_embedding = text_result.embeddings[0]  # 1024-dim vector
+text_embedding = text_result.embeddings[0]
 
-# Embed image
+# Embed image with voyage-multimodal-3.5
 image = Image.open("diagram.jpg")
 image_result = vo.multimodal_embed(
     inputs=[[image]],
-    model="voyage-multimodal-3",
-    input_type="document"
+    model="voyage-multimodal-3.5",
+    input_type="document",
+    output_dimension=1024
 )
-image_embedding = image_result.embeddings[0]  # 1024-dim vector
+image_embedding = image_result.embeddings[0]
 
 # Embed image with caption (interleaved)
 captioned_result = vo.multimodal_embed(
     inputs=[["Database architecture diagram", image]],
+    model="voyage-multimodal-3.5",
+    input_type="document",
+    output_dimension=1024
+)
+combined_embedding = captioned_result.embeddings[0]
+
+# Using voyage-multimodal-3 (fixed 1024D, no output_dimension parameter)
+legacy_result = vo.multimodal_embed(
+    inputs=[["Apache Cassandra is a distributed database"]],
     model="voyage-multimodal-3",
     input_type="document"
 )
-combined_embedding = captioned_result.embeddings[0]
+legacy_embedding = legacy_result.embeddings[0]  # Always 1024-dim
 ----
 
 ==== Image Input Formats
@@ -1602,7 +1652,7 @@ Integrating VoyageAI with Apache Cassandra provides a powerful, scalable solutio
 VoyageAI offers multiple model families optimized for different use cases:
 
 * **Text Embeddings** (`voyage-3.5`, `voyage-3.5-lite`): Standard semantic search with improved performance
-* **Multimodal Embeddings** (`voyage-multimodal-3`): Cross-modal search with text and images
+* **Multimodal Embeddings** (`voyage-multimodal-3`, `voyage-multimodal-3.5`): Cross-modal search with text, images, and video
 * **Contextual Embeddings** (`voyage-context-3`): RAG applications with document context
 * **Reranking Models** (`rerank-2.5`, `rerank-2.5-lite`): Two-stage retrieval for improved accuracy
 
