@@ -457,9 +457,8 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         Random random = new Random();
         data.numberOfLevels = random.nextInt(32);
 
-        for (int i = 0; i < data.numberOfLevels; i++) {
+        for (int i = 0; i < data.numberOfLevels; i++)
             data.max[i] = random.nextInt(250);
-        }
 
         double[] res = CompactionStrategyManager.maxArrayFinalizer(data);
         assertEquals(res.length, data.numberOfLevels);
