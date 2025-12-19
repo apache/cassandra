@@ -488,10 +488,16 @@ public class AccordService implements IAccordService, Shutdownable
         finishTopologyInitialization();
         WatermarkCollector.fetchAndReportWatermarksAsync(topology());
 
-        catchup();
-
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+
+        // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
+        // start the progress log on command store initialisation (so creates a synchronisation point)
+        state = State.STARTED;
+        node.commandStores().forAll("", safeStore -> safeStore.progressLog().start());
+
+        // trigger catchup only after our progress mechanisms are initialised
+        catchup();
 
         node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
@@ -499,10 +505,6 @@ public class AccordService implements IAccordService, Shutdownable
         node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
         // Only enable durability scheduling and progress logs _after_ we have fully replayed journal
         node.durability().start();
-        // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
-        // start the progress log on command store initialisation (so creates a synchronisation point)
-        state = State.STARTED;
-        node.commandStores().forAll("", safeStore -> safeStore.progressLog().start());
     }
 
     void catchup()

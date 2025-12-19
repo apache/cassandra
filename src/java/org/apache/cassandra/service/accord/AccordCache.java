@@ -1254,6 +1254,7 @@ public class AccordCache implements CacheSize
         private static int SHRINK_WITHOUT_LOCK = -1;
 
         public static final CommandAdapter COMMAND_ADAPTER = new CommandAdapter();
+
         private CommandAdapter() {}
 
         @Override

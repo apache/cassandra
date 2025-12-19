@@ -184,7 +184,8 @@ public class AccordSpec
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
     public int catchup_on_start_max_attempts = 5;
-    public boolean catchup_on_start_exit_on_failure = true;
+    // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
+    public boolean catchup_on_start_exit_on_failure = false;
     public boolean catchup_on_start = true;
 
     public final JournalSpec journal = new JournalSpec();
