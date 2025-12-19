@@ -19,11 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -431,6 +427,62 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
             CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
                 Collections.emptyMap(),
                 Collections.emptyMap()), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+    }
+
+    @Test
+    public void testAverageFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++) {
+            data.sum[i] = random.nextInt(250);
+            data.count[i] = random.nextInt(10);
+        }
+
+        double[] res = CompactionStrategyManager.averageFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            if (data.count[i] == 0)
+                assertEquals(0, res[i], 0.0);
+            else
+                assertEquals(data.sum[i] / data.count[i], res[i], 0.1);
+    }
+
+    @Test
+    public void testMaxArrayFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++) {
+            data.max[i] = random.nextInt(250);
+        }
+
+        double[] res = CompactionStrategyManager.maxArrayFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            assertEquals(data.max[i], res[i], 0.0);
+    }
+
+    @Test
+    public void testRatioArrayFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++) {
+            data.sum[i] = random.nextInt(250);
+            data.max[i] = 250 + random.nextInt(500);
+        }
+
+        double[] res = CompactionStrategyManager.ratioArrayFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            assertEquals(data.sum[i] / data.max[i], res[i], 0.1);
     }
 
     private MockCFS createJBODMockCFS(int disks)

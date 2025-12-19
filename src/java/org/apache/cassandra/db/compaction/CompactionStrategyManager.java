@@ -776,7 +776,8 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Data class for accumulating UCS metrics computation state.
      * Holds intermediate values during metric calculation across all strategies and levels.
      */
-    private static class CompactionStatsMetricsData
+    @VisibleForTesting
+    static class CompactionStatsMetricsData
     {
         final double[] sum = new double[UnifiedCompactionStrategy.MAX_LEVELS];
         final int[] count = new int[UnifiedCompactionStrategy.MAX_LEVELS];
@@ -835,7 +836,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    private static double[] averageFinalizer(CompactionStatsMetricsData data)
+    @VisibleForTesting
+    static double[] averageFinalizer(CompactionStatsMetricsData data)
     {
         double[] res = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
@@ -843,12 +845,14 @@ public class CompactionStrategyManager implements INotificationConsumer
         return res;
     }
 
-    private static double[] maxArrayFinalizer(CompactionStatsMetricsData data)
+    @VisibleForTesting
+    static double[] maxArrayFinalizer(CompactionStatsMetricsData data)
     {
         return Arrays.copyOf(data.max, data.numberOfLevels);
     }
 
-    private static double[] ratioArrayFinalizer(CompactionStatsMetricsData data) {
+    @VisibleForTesting
+    static double[] ratioArrayFinalizer(CompactionStatsMetricsData data) {
         double[] res = new double[data.numberOfLevels];
         for (int i = 0; i < data.numberOfLevels; i++)
             res[i] = data.sum[i] / data.max[i];
