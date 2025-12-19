@@ -25,9 +25,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 
 import java.io.IOException;
-
-import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertTrue;
 
 public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
@@ -37,9 +34,8 @@ public class ColumnFamilyStoreMBeansTest extends TestBaseImpl
     @BeforeClass
     public static void setup() throws IOException
     {
-        CLUSTER = init(Cluster.build(1).withConfig(c ->
-                        c.with(GOSSIP, NETWORK))
-                .start());
+        CLUSTER = init(Cluster.build(1)
+                              .start());
 
         CLUSTER.schemaChange(withKeyspace("DROP KEYSPACE %s"));
         CLUSTER.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"));
