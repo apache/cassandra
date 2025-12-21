@@ -28,9 +28,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.Session;
@@ -38,10 +35,15 @@ import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import com.datastax.driver.core.exceptions.OverloadedException;
 import com.datastax.driver.core.exceptions.ReadTimeoutException;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.distributed.Cluster;

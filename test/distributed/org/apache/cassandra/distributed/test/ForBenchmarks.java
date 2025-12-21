@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
-
-import java.io.IOException;
 
 public class ForBenchmarks extends TestBaseImpl {
     public static void main(String[] args) throws IOException, InterruptedException {

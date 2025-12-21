@@ -32,16 +32,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Throwables;
-import org.apache.cassandra.gms.FailureDetector;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Invalidated;
 import accord.coordinate.Preempted;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.distributed.Cluster;
@@ -49,6 +51,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionPlan;

@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Txn;

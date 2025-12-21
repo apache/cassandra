@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.db.Clusterable;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.Clusterable;
 
 /**
  * Unfiltered is the common class for the main constituent of an unfiltered partition.

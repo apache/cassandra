@@ -30,20 +30,21 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.CoordinatedRepairResult;
 import org.apache.cassandra.repair.RepairSessionResult;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -60,7 +61,6 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FIN
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARING;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
-
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CoordinatorSessionTest extends AbstractRepairTest

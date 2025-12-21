@@ -39,6 +39,7 @@ import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,9 +64,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JmxInvocationListener;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
-
 import static org.apache.cassandra.audit.AuditLogEntryType.JMX;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Central location for managing the logging of client/user-initated actions (like queries, log in commands, and so on).

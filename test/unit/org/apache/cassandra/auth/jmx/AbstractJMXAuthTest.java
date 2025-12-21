@@ -23,6 +23,7 @@ import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
+
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -36,6 +37,8 @@ import javax.security.auth.login.LoginException;
 import javax.security.auth.spi.LoginModule;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -57,7 +60,6 @@ import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.utils.JMXServerUtils;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;

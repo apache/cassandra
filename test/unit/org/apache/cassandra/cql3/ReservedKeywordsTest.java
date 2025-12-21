@@ -20,12 +20,11 @@ package org.apache.cassandra.cql3;
 
 import java.lang.reflect.Modifier;
 
+import org.assertj.core.api.SoftAssertions;
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
-
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.assertj.core.api.SoftAssertions;
 
 public class ReservedKeywordsTest
 {

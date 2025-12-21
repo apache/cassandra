@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.metrics;
 
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 
 /**
  * AutoRepair metrics manager holding all the auto-repair related metrics.

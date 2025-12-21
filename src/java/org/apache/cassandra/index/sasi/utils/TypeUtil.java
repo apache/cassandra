@@ -19,7 +19,12 @@ package org.apache.cassandra.index.sasi.utils;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.serializers.MarshalException;
 
 public class TypeUtil

@@ -21,11 +21,13 @@ package org.apache.cassandra.distributed.test.accord;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.async.AsyncResult;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
@@ -43,7 +45,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.service.accord.AccordService.toFuture;
 

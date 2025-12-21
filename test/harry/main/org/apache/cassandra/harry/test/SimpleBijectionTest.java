@@ -18,16 +18,18 @@
 
 package org.apache.cassandra.harry.test;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import accord.utils.Invariants;
+
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.gen.InvertibleGenerator;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 import static org.apache.cassandra.harry.gen.InvertibleGenerator.MAX_ENTROPY;

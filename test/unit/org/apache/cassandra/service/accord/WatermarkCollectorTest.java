@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.agrona.collections.Long2LongHashMap;
 import org.junit.Test;
 
 import accord.local.Node;
@@ -30,7 +31,7 @@ import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
-import org.agrona.collections.Long2LongHashMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.Serializers;

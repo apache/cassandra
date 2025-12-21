@@ -26,13 +26,14 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)")
 public class UpgradeSSTable extends AbstractCommand

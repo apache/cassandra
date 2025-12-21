@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,12 +35,12 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;

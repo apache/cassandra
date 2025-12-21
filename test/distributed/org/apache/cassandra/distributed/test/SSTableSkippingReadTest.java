@@ -26,9 +26,9 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 
 public class SSTableSkippingReadTest extends TestBaseImpl
 {

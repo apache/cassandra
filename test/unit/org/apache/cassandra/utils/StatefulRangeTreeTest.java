@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.api.RoutingKey;
@@ -36,8 +37,8 @@ import accord.utils.Gens;
 import accord.utils.Property.Command;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.service.accord.RangeTreeRangeAccessor;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

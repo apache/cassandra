@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Set;
+
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -25,10 +29,6 @@ import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Set;
 
 class IteratorCompactionPipeline extends AbstractCompactionPipeline {
     final CompactionIterator ci;

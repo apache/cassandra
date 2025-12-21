@@ -26,14 +26,15 @@ import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.CoordinatorEventListener;
 import accord.api.OwnershipEventListener;
-import accord.api.ReplicaEventListener;
 import accord.api.ProgressLog.BlockedUntil;
+import accord.api.ReplicaEventListener;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
@@ -63,6 +64,7 @@ import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
@@ -96,8 +98,8 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryJoinBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
-import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 // TODO (expected): merge with AccordService

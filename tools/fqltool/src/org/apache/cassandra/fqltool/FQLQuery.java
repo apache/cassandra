@@ -24,15 +24,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
-import com.google.common.primitives.Longs;
-
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
-import org.apache.cassandra.fql.FullQueryLogger;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Longs;
+
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.binlog.BinLog;

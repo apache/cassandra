@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;

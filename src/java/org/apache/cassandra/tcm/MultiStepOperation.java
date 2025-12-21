@@ -25,15 +25,15 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.DropAccordTable;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.Move;
+import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.SequenceState;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
-import org.apache.cassandra.tcm.sequences.DropAccordTable;
 
 /**
  * Represents a multi-step process performed in order to transition the cluster to some state.

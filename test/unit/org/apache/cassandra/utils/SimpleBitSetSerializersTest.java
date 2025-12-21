@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.utils;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Gen;
@@ -25,9 +26,9 @@ import accord.utils.Gens;
 import accord.utils.LargeBitSet;
 import accord.utils.SimpleBitSet;
 import accord.utils.SmallBitSet;
+
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import com.datastax.driver.core.ResultSet;
 
 import static java.lang.String.format;
 

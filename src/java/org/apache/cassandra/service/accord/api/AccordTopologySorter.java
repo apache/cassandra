@@ -30,6 +30,7 @@ import accord.topology.ShardSelection;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.utils.SortedList;
+
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;

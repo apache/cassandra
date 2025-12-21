@@ -32,14 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.cql3.statements.schema.TableAttributes;
-import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.service.StorageService;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -47,27 +39,34 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.metrics.AutoRepairMetrics;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.AutoRepairService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressEventType;
-import org.apache.cassandra.utils.progress.ProgressListener;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
+
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.TableAttributes;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.metrics.AutoRepairMetrics;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.ProgressListener;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;

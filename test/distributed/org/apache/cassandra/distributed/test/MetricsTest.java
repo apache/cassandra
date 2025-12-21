@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Test;
 

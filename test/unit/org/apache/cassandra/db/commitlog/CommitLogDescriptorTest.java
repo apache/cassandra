@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +42,6 @@ import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
-import org.assertj.core.api.Assertions;
 
 public class CommitLogDescriptorTest
 {

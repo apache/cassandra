@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.journal;
 
+import org.agrona.collections.Int2ObjectHashMap;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,7 +30,7 @@ import accord.topology.Topology;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
-import org.agrona.collections.Int2ObjectHashMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;

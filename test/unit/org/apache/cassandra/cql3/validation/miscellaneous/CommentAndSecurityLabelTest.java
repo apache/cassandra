@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;

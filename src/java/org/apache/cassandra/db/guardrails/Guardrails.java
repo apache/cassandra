@@ -22,13 +22,15 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;

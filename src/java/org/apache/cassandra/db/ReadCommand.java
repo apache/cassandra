@@ -28,18 +28,20 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Seekable;
 import accord.utils.Invariants;
-import io.netty.util.concurrent.FastThreadLocal;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
@@ -73,20 +75,20 @@ import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.exceptions.UnknownTableException;
-import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.net.MessageFlag;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParamType;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -106,6 +108,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.any;

@@ -25,10 +25,12 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -49,7 +51,6 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;

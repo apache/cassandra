@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils.caching;
 
 import accord.utils.Invariants;
+
 import io.netty.util.concurrent.FastThreadLocal;
 
 public class TinyThreadLocalPool<V> extends FastThreadLocal<TinyThreadLocalPool.TinyPool<V>>

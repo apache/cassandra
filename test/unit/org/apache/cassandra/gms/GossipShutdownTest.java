@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.io.IOException;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,7 +33,6 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
-import org.assertj.core.api.Assertions;
 
 public class GossipShutdownTest
 {

@@ -24,8 +24,10 @@ import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
-import accord.utils.Invariants;
 import org.agrona.collections.Long2ObjectHashMap;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.service.accord.AccordExecutor.Mode;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskRunner;

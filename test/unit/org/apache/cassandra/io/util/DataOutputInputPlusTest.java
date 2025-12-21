@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.io.util;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Gens;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

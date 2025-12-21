@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -31,7 +32,6 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
-import org.awaitility.Awaitility;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.setProgressBarrierMinConsistencyLevel;

@@ -24,9 +24,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.Test;
+import org.quicktheories.WithQuickTheories;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.quicktheories.WithQuickTheories;
 
 public class LengthFctsTest extends CQLTester implements WithQuickTheories
 {

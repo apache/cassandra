@@ -24,12 +24,12 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.utils.MD5Digest;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.utils.MD5Digest;
 
 import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 

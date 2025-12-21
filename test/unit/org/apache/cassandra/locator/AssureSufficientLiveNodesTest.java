@@ -32,7 +32,9 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.schema.*;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -46,11 +48,14 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;

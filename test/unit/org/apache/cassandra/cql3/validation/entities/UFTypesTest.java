@@ -28,10 +28,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 
+import com.datastax.driver.core.Row;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;

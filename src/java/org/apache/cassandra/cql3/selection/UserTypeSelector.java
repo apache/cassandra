@@ -27,13 +27,11 @@ import java.util.Map.Entry;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
@@ -41,6 +39,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 

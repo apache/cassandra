@@ -22,15 +22,15 @@ import java.util.List;
 
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.tools.NodeProbe;
-
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
-import picocli.CommandLine.Parameters;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
 public class GarbageCollect extends AbstractCommand

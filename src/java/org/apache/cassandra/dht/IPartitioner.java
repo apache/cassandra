@@ -25,14 +25,14 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.function.Function;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
-import javax.annotation.Nullable;
 
 public interface IPartitioner
 {

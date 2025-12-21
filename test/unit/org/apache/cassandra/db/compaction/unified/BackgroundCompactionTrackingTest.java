@@ -27,6 +27,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -39,9 +42,6 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

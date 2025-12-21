@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 import accord.utils.Invariants;
 

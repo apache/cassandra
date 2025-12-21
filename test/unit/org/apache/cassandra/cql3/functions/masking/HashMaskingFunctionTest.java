@@ -20,12 +20,13 @@ package org.apache.cassandra.cql3.functions.masking;
 
 import java.nio.ByteBuffer;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;

@@ -27,8 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import accord.utils.Invariants;
 import org.agrona.collections.IntHashSet;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;

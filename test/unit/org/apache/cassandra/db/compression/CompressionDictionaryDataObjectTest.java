@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compression;
 
 import java.util.function.Consumer;
+
 import javax.management.openmbean.CompositeData;
 
 import org.junit.Test;

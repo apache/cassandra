@@ -21,12 +21,14 @@ package org.apache.cassandra.db.guardrails;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
 import javax.annotation.Nonnull;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.passay.CharacterRule;
 import org.passay.EnglishCharacterData;
 import org.passay.PasswordGenerator;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PASSWORD_GENERATOR_ATTEMTPS;
 import static org.passay.EnglishCharacterData.Digit;

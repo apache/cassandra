@@ -30,7 +30,14 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntIntMap;
+import com.carrotsearch.hppc.IntSet;
+import com.carrotsearch.hppc.cursors.IntCursor;
+
+import org.assertj.core.api.AbstractThrowableAssert;
+import org.assertj.core.api.Assertions;
 import org.junit.Assume;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -40,15 +47,9 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntIntHashMap;
-import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.IntCursor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.utils.Clock;
-import org.assertj.core.api.AbstractThrowableAssert;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.commons.lang3.ArrayUtils.add;
 import static org.apache.commons.lang3.ArrayUtils.swap;

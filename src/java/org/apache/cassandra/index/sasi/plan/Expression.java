@@ -22,24 +22,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.cassandra.schema.ColumnMetadata;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterators;
+
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex;
 import org.apache.cassandra.index.sasi.utils.TypeUtil;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterators;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class Expression
 {

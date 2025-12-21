@@ -39,7 +39,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.openhft.chronicle.core.util.ThrowingBiConsumer;
+
 import org.apache.commons.lang3.ArrayUtils;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.Before;
@@ -49,7 +54,6 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -97,8 +101,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;

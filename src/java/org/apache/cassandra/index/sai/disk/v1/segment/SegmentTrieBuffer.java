@@ -20,7 +20,11 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
+
 import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.tries.InMemoryTrie;
@@ -28,8 +32,6 @@ import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 /**
  * On-heap buffer for values that provides a sorted view of itself as an {@link Iterator}.

@@ -18,14 +18,19 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.db.marshal.SimpleDateType;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.List;
+import java.util.TimeZone;
+
+import org.junit.Test;
+
+import org.apache.cassandra.db.marshal.SimpleDateType;
 
 public class SimpleDateSerializerTest
 {

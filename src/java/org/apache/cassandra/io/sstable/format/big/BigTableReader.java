@@ -31,9 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.utils.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +47,20 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.Downsampling;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.KeyReader;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -66,6 +76,9 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.OutputHandler;
 
 import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOrNull;
 

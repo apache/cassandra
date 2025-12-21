@@ -24,15 +24,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
 import javax.management.JMX;
 import javax.management.ObjectName;
+
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 

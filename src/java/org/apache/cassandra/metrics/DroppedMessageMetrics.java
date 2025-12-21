@@ -19,11 +19,10 @@ package org.apache.cassandra.metrics;
 
 import java.util.EnumMap;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.net.Verb;
 

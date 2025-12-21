@@ -22,10 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Interface for training compression dictionaries from sample data.

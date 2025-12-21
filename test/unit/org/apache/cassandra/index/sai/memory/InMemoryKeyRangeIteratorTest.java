@@ -21,8 +21,8 @@ import java.util.Arrays;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 public class InMemoryKeyRangeIteratorTest extends AbstractInMemoryKeyRangeIteratorTester
 {

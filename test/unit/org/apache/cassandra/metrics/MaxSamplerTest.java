@@ -20,10 +20,11 @@ package org.apache.cassandra.metrics;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.metrics.Sampler.Sample;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import org.apache.cassandra.metrics.Sampler.Sample;
 
 public class MaxSamplerTest extends SamplerTest
 {

@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -27,7 +28,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
-import org.awaitility.Awaitility;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

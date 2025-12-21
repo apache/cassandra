@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,6 +33,7 @@ import accord.coordinate.tracking.RequestStatus;
 import accord.local.Node;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -48,7 +50,12 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.AccordTopologyUtils.*;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.ID1;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.ID2;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.ID3;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.NODE_SET;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.configureCluster;
+import static org.apache.cassandra.service.accord.AccordTopologyUtils.range;
 
 public class RequiredResponseTrackerTest
 {

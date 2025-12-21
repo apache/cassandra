@@ -18,9 +18,11 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.util.concurrent.atomic.AtomicLong;
+
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

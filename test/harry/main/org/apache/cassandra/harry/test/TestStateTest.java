@@ -27,8 +27,8 @@ import static org.apache.cassandra.harry.ColumnSpec.booleanType;
 import static org.apache.cassandra.harry.ColumnSpec.int64Type;
 import static org.apache.cassandra.harry.ColumnSpec.int8Type;
 import static org.apache.cassandra.harry.ColumnSpec.regularColumn;
-import static org.apache.cassandra.harry.gen.InvertibleGenerator.MAX_ENTROPY;
 import static org.apache.cassandra.harry.SchemaSpec.cumulativeEntropy;
+import static org.apache.cassandra.harry.gen.InvertibleGenerator.MAX_ENTROPY;
 
 public class TestStateTest
 {

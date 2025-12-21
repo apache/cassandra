@@ -32,13 +32,13 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.MockedStatic;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
-import org.mockito.MockedStatic;
 
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;

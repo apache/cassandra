@@ -25,8 +25,9 @@ import java.util.concurrent.locks.LockSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;

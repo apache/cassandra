@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -49,6 +50,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,8 +109,8 @@ import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;

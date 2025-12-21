@@ -41,6 +41,7 @@ import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Throwables;
 

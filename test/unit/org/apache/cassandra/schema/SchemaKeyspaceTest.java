@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -45,7 +47,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;

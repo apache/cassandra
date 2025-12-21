@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.db;
 
-import org.junit.Test;
-
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
 public class PartitionRangeReadCommandCQLTest extends ReadCommandCQLTester<PartitionRangeReadCommand>
 {

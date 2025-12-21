@@ -20,9 +20,9 @@ package org.apache.cassandra.service.reads;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.codahale.metrics.Snapshot;
 import com.google.common.base.Objects;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.SnapshottingTimer;
 import org.apache.cassandra.schema.TableParams;

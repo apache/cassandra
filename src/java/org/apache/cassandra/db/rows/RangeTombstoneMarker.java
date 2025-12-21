@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
+import java.util.Arrays;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**

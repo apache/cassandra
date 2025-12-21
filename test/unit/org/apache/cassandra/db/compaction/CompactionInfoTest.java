@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.ArrayList;
 import java.util.UUID;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -28,7 +29,6 @@ import org.apache.cassandra.db.repair.AbstractPendingAntiCompactionTest;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.TimeUUID;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 

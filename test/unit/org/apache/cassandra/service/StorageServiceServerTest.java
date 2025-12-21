@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -63,7 +65,6 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.transformations.Startup;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;

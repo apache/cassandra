@@ -22,15 +22,16 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.List;
 
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tools.Util;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
 
 
 @State(Scope.Benchmark)

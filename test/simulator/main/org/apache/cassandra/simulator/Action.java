@@ -29,15 +29,25 @@ import java.util.Queue;
 
 import com.google.common.base.Preconditions;
 
-import io.netty.util.internal.DefaultPriorityQueue;
-import io.netty.util.internal.PriorityQueue;
-import io.netty.util.internal.PriorityQueueNode;
 import org.apache.cassandra.simulator.Ordered.StrictlyOrdered;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Throwables;
 
+import io.netty.util.internal.DefaultPriorityQueue;
+import io.netty.util.internal.PriorityQueue;
+import io.netty.util.internal.PriorityQueueNode;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
-import static org.apache.cassandra.simulator.Action.Modifier.*;
+import static org.apache.cassandra.simulator.Action.Modifier.DAEMON;
+import static org.apache.cassandra.simulator.Action.Modifier.ORPHAN;
+import static org.apache.cassandra.simulator.Action.Modifier.ORPHAN_TO_GRANDPARENT;
+import static org.apache.cassandra.simulator.Action.Modifier.PSEUDO_ORPHAN;
+import static org.apache.cassandra.simulator.Action.Modifier.RELIABLE;
+import static org.apache.cassandra.simulator.Action.Modifier.STRICT_CHILD_OF_PARENT_ORDER;
+import static org.apache.cassandra.simulator.Action.Modifier.STRICT_CHILD_ORDER;
+import static org.apache.cassandra.simulator.Action.Modifier.THREAD_SIGNAL;
+import static org.apache.cassandra.simulator.Action.Modifier.WAKEUP;
+import static org.apache.cassandra.simulator.Action.Modifier.WITHHOLD;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Phase.CANCELLED;
 import static org.apache.cassandra.simulator.Action.Phase.CONSEQUENCE;
@@ -49,8 +59,8 @@ import static org.apache.cassandra.simulator.Action.Phase.WITHHELD;
 import static org.apache.cassandra.simulator.Action.RegisteredType.CHILD;
 import static org.apache.cassandra.simulator.Action.RegisteredType.LISTENER;
 import static org.apache.cassandra.simulator.ActionListener.Before.DROP;
-import static org.apache.cassandra.simulator.ActionListener.Before.INVALIDATE;
 import static org.apache.cassandra.simulator.ActionListener.Before.EXECUTE;
+import static org.apache.cassandra.simulator.ActionListener.Before.INVALIDATE;
 import static org.apache.cassandra.simulator.utils.CompactLists.append;
 import static org.apache.cassandra.simulator.utils.CompactLists.remove;
 import static org.apache.cassandra.simulator.utils.CompactLists.safeForEach;

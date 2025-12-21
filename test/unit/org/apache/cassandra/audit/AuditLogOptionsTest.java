@@ -20,11 +20,11 @@ package org.apache.cassandra.audit;
 
 import java.util.Collections;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.assertj.core.api.Assertions;
 
 public class AuditLogOptionsTest
 {

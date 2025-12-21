@@ -22,14 +22,14 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.schema.TableMetadata;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * Unit tests for {@link org.apache.cassandra.schema.SystemDistributedKeyspace}

@@ -21,16 +21,16 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+
+import org.agrona.collections.IntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.github.jbellis.jvector.util.Bits;
-import io.github.jbellis.jvector.util.SparseFixedBitSet;
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -51,6 +51,9 @@ import org.apache.cassandra.index.sai.utils.AtomicRatio;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.tracing.Tracing;
+
+import io.github.jbellis.jvector.util.Bits;
+import io.github.jbellis.jvector.util.SparseFixedBitSet;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;

@@ -21,10 +21,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Lists;
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Snapshot;
+import com.google.common.collect.Lists;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 

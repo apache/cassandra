@@ -23,12 +23,12 @@ import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;

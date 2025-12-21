@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord.interop;
 
 import javax.annotation.Nullable;
 
+import org.agrona.collections.Int2ObjectHashMap;
+
 import accord.api.LocalListeners;
 import accord.api.Result;
 import accord.coordinate.ExecuteFlag.ExecuteFlags;
@@ -44,7 +46,7 @@ import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Int2ObjectHashMap;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;

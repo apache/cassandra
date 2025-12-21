@@ -25,6 +25,7 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.jimfs.Jimfs;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -35,9 +36,9 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;

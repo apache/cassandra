@@ -18,19 +18,21 @@
 
 package org.apache.cassandra.io.compress;
 
-import com.github.luben.zstd.Zstd;
-import com.github.luben.zstd.ZstdDictTrainer;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
+
+import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdDictTrainer;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;

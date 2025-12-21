@@ -23,6 +23,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,8 +43,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThat;

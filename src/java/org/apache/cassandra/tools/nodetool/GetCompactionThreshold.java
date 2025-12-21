@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "getcompactionthreshold", description = "Print min and max compaction thresholds for a given table")
 public class GetCompactionThreshold extends AbstractCommand

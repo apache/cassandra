@@ -22,13 +22,14 @@ import java.util.List;
 import java.util.Random;
 
 import org.junit.Test;
+import org.quicktheories.impl.JavaRandom;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.db.monitoring.MonitoringTask;
 import org.apache.cassandra.db.monitoring.MonitoringTask.Operation;
 import org.apache.cassandra.utils.Generators;
-import org.quicktheories.impl.JavaRandom;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOGS_SLOW_QUERIES_VIRTUAL_TABLE_MAX_ROWS;
 import static org.apache.cassandra.db.virtual.SlowQueriesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS;

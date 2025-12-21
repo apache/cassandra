@@ -26,12 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.virtual.model.CollectionEntry;
 import org.apache.cassandra.db.virtual.model.CollectionEntryTestRow;

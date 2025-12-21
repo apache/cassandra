@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,9 +31,6 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 /**
  * Parameterized tests for schema metadata virtual tables.

@@ -26,14 +26,15 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.UDTValue;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;

@@ -39,10 +39,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.commons.lang3.time.DurationFormatUtils;
-
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.HistogramLogWriter;
+import org.apache.commons.lang3.time.DurationFormatUtils;
+
 import org.apache.cassandra.stress.StressAction.Consumer;
 import org.apache.cassandra.stress.StressAction.MeasurementSink;
 import org.apache.cassandra.stress.StressAction.OpMeasurement;

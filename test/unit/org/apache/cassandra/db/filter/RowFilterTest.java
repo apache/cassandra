@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;

@@ -21,11 +21,11 @@ package org.apache.cassandra.tools.nodetool.mock;
 import java.util.List;
 import java.util.Map;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.tools.ToolRunner;
-import org.assertj.core.api.Assertions;
 
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;

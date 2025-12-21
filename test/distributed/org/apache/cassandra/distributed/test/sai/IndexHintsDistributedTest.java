@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.distributed.test.sai;
 
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;

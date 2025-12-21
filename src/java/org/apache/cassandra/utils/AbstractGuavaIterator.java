@@ -22,9 +22,9 @@ package org.apache.cassandra.utils;
 
 import java.util.NoSuchElementException;
 
-import com.google.common.collect.PeekingIterator;
-
 import javax.annotation.concurrent.NotThreadSafe;
+
+import com.google.common.collect.PeekingIterator;
 
 import static com.google.common.base.Preconditions.checkState;
 

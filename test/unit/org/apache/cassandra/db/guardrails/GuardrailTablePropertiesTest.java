@@ -27,8 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
+
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 

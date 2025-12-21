@@ -18,13 +18,14 @@
 
 package org.apache.cassandra.tcm.membership;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+import org.junit.Test;
+
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
 

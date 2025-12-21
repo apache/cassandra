@@ -26,17 +26,19 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelId;
-import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Server.ConnectionTracker;
-import org.mockito.Mockito;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelId;
+import io.netty.channel.embedded.EmbeddedChannel;
 
 import static org.junit.Assert.assertEquals;
 

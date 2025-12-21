@@ -22,18 +22,19 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.io.util.File;
-import org.junit.Test;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.ActiveCompactions;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.streaming.StreamManager;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;

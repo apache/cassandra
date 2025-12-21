@@ -27,16 +27,17 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.quicktheories.generators.SourceDSL;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.Generators;
-import org.quicktheories.generators.SourceDSL;
 
 @RunWith(Parameterized.class)
 public class AllTypesSimpleEqTest extends AbstractSimpleEqTestBase

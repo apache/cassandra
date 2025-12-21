@@ -22,8 +22,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Function;
 
 import org.agrona.concurrent.UnsafeBuffer;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
+
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * In-memory trie built for fast modification and reads executing concurrently with writes from a single mutator thread.

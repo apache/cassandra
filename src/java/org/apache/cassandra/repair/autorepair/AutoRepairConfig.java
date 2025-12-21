@@ -35,9 +35,9 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * Defines configurations for AutoRepair.

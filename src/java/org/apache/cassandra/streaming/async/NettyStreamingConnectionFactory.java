@@ -26,10 +26,6 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoop;
-import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.net.ConnectionCategory;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result;
@@ -37,11 +33,16 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSucc
 import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.StreamingChannel;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+
 import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
 import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStreaming;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType.SERVER_CONFIG;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStreaming;
 
 public class NettyStreamingConnectionFactory implements StreamingChannel.Factory
 {

@@ -28,9 +28,8 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
-
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class StreamingVirtualTable extends AbstractVirtualTable
 {

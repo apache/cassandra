@@ -24,16 +24,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import org.junit.BeforeClass;
-
 import org.junit.Test;
-
-import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

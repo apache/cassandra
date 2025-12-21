@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.TreeMap;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -32,7 +35,6 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.assertj.core.api.Assertions;
 
 public class ValidatingClusterMetadataService extends StubClusterMetadataService
 {

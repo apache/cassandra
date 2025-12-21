@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -65,15 +66,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.assertCommandIssued;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.makeRow;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.partition;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CompactionIteratorTest extends CQLTester
 {

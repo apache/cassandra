@@ -30,10 +30,11 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
+import net.nicoulaj.compilecommand.annotations.Exclude;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,8 +43,8 @@ import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.journal.Params.FailurePolicy;
-import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;

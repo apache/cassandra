@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.distributed.test.sai;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import org.junit.Test;
+
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -25,13 +33,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils.Range;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 
 public class PartialWritesWithRepairTest extends TestBaseImpl
 {

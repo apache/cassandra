@@ -21,7 +21,11 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.DistributionFactory;

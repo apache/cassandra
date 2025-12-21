@@ -22,16 +22,19 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
+
 import javax.annotation.Nullable;
+
+import org.agrona.collections.IntArrayList;
+import org.assertj.core.api.Assertions;
 
 import accord.utils.Gen;
 import accord.utils.Property;
-import org.agrona.collections.IntArrayList;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.SAITester;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

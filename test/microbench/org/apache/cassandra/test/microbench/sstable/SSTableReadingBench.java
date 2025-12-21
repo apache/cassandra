@@ -21,17 +21,18 @@ package org.apache.cassandra.test.microbench.sstable;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.tools.Util;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.tools.Util;
 
 @State(Scope.Benchmark)
 public class SSTableReadingBench extends SSTableAbstractBench

@@ -19,7 +19,13 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Field;
+
 import javax.annotation.Nullable;
+
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 
 import accord.api.CoordinatorEventListener;
 import accord.api.Result;
@@ -28,10 +34,7 @@ import accord.local.Node;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.TxnId;
-import com.codahale.metrics.Counting;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Timer;
+
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.tracing.Tracing;
 

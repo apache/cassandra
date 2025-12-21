@@ -26,12 +26,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,12 +64,12 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
 
-import static java.lang.String.format;
-import static java.util.Collections.emptyList;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;

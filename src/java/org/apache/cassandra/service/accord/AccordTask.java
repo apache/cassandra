@@ -32,9 +32,12 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.agrona.collections.Object2ObjectHashMap;
+import org.agrona.collections.ObjectHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,8 +60,7 @@ import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
-import org.agrona.collections.Object2ObjectHashMap;
-import org.agrona.collections.ObjectHashSet;
+
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;

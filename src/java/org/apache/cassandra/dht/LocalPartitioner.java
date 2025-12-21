@@ -26,14 +26,15 @@ import java.util.Random;
 import java.util.function.Function;
 
 import accord.primitives.Ranges;
+
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.HeapCloner;
 
 public class LocalPartitioner implements IPartitioner

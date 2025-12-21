@@ -26,15 +26,15 @@ import java.util.function.LongUnaryOperator;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.io.UnversionedSerializer;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;

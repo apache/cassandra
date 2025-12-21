@@ -21,12 +21,13 @@ package org.apache.cassandra.cql3;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 @Ignore

@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.concurrent;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
+
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.AsyncFunction;
@@ -28,8 +29,10 @@ import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit
 
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
-import io.netty.util.concurrent.GenericFutureListener;
+
 import org.apache.cassandra.utils.concurrent.ListenerList.Waiting;
+
+import io.netty.util.concurrent.GenericFutureListener;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 

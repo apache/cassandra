@@ -21,6 +21,7 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;
 import org.apache.cassandra.service.accord.AccordExecutor;
 

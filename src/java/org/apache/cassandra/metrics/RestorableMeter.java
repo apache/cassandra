@@ -22,8 +22,9 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static java.lang.Math.exp;
 import com.codahale.metrics.Clock;
+
+import static java.lang.Math.exp;
 
 /**
  * A meter metric which measures mean throughput as well as fifteen-minute and two-hour

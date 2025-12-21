@@ -18,26 +18,30 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnsExpression;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.IndexHints;
-import org.apache.cassandra.db.marshal.TupleType;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
-
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.Arrays.asList;

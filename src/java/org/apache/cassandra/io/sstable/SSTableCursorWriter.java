@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import com.google.common.primitives.Ints;
 
 import org.agrona.collections.IntArrayList;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DecoratedKey;
@@ -57,7 +58,12 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-import static org.apache.cassandra.db.rows.UnfilteredSerializer.*;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.HAS_ALL_COLUMNS;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.HAS_DELETION;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.HAS_TIMESTAMP;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.HAS_TTL;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.IS_MARKER;
+import static org.apache.cassandra.db.rows.UnfilteredSerializer.isExtended;
 
 public class SSTableCursorWriter implements AutoCloseable
 {

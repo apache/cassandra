@@ -24,12 +24,11 @@ import org.junit.Test;
 import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.cql3.CQLTester;
 
-import static org.assertj.core.api.Assertions.withPrecision;
-
 import static org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import static org.apache.cassandra.tools.ToolRunner.ToolResult;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.withPrecision;
 
 /**
  * Tests for {@code nodetool setstreamthroughput} and {@code nodetool getstreamthroughput}.

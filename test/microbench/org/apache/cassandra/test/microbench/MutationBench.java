@@ -24,20 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputBufferFixed;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaTestUtil;
-import org.apache.cassandra.schema.TableMetadata;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -55,6 +41,21 @@ import org.openjdk.jmh.results.RunResult;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
+
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableMetadata;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

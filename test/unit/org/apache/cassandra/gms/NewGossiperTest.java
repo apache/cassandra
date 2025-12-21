@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
@@ -40,7 +41,11 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.gms.ApplicationState.*;
+import static org.apache.cassandra.gms.ApplicationState.DC;
+import static org.apache.cassandra.gms.ApplicationState.HOST_ID;
+import static org.apache.cassandra.gms.ApplicationState.RACK;
+import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
+import static org.apache.cassandra.gms.ApplicationState.TOKENS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

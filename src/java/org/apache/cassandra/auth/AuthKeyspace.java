@@ -23,13 +23,13 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 
 import static java.lang.String.format;

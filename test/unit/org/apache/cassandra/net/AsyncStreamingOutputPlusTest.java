@@ -26,12 +26,13 @@ import java.util.Random;
 
 import org.junit.Test;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.embedded.EmbeddedChannel;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

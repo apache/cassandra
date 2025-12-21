@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
@@ -60,7 +62,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
-import org.apache.cassandra.utils.LoggingCommand;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -72,6 +73,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
+import org.apache.cassandra.utils.LoggingCommand;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

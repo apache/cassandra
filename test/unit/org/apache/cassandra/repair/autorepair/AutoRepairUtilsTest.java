@@ -25,25 +25,24 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.CurrentRepairStatus;
-
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;

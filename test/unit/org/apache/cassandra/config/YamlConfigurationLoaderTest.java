@@ -32,20 +32,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
-import com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Test;
-
-import org.apache.cassandra.distributed.shared.WithEnvironment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.collect.ImmutableMap;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+import org.yaml.snakeyaml.error.YAMLException;
+
+import org.apache.cassandra.distributed.shared.WithEnvironment;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.assertj.core.api.Assertions;
-import org.yaml.snakeyaml.error.YAMLException;
+import org.apache.cassandra.service.StartupChecks;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -54,7 +55,6 @@ import static org.apache.cassandra.config.YamlConfigurationLoader.ENVIRONMENT_VA
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

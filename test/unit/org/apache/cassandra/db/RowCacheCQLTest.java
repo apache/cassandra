@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.service.CacheService;
+
 import static org.junit.Assert.assertEquals;
 
 public class RowCacheCQLTest extends CQLTester

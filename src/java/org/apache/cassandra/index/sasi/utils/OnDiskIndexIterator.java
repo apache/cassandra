@@ -20,9 +20,9 @@ package org.apache.cassandra.index.sasi.utils;
 import java.io.IOException;
 import java.util.Iterator;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex.DataTerm;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 public class OnDiskIndexIterator extends RangeIterator<DataTerm, CombinedTerm>
 {

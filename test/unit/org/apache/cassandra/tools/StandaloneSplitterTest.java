@@ -21,14 +21,13 @@ package org.apache.cassandra.tools;
 import java.util.Arrays;
 
 import org.apache.commons.lang3.tuple.Pair;
-
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

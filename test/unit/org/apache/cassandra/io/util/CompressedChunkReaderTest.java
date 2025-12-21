@@ -18,8 +18,17 @@
 
 package org.apache.cassandra.io.util;
 
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
@@ -28,14 +37,6 @@ import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.memory.MemoryUtil;
-import org.assertj.core.api.Assertions;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static accord.utils.Property.qt;
 

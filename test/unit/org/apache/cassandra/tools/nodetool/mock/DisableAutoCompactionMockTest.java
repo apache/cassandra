@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool.mock;
 
-import org.apache.cassandra.service.StorageServiceMBean;
+import java.io.IOException;
+import java.util.List;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import java.io.IOException;
-import java.util.List;
+import org.apache.cassandra.service.StorageServiceMBean;
 
 import static org.mockito.Mockito.when;
 

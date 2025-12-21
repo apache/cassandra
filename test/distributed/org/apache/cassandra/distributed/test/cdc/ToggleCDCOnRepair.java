@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.test.cdc;
 
 import java.util.function.Consumer;
 
-
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.distributed.Cluster;

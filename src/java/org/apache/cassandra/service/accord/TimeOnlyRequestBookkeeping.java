@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import org.apache.cassandra.metrics.LatencyMetrics;
+
 import static org.apache.cassandra.service.accord.RequestBookkeeping.ThrowsExceptionType.READ;
 
 public abstract class TimeOnlyRequestBookkeeping extends RequestBookkeeping

@@ -18,7 +18,10 @@
 package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
@@ -28,11 +31,12 @@ import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 

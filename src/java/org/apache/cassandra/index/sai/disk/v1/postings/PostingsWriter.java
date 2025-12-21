@@ -20,21 +20,23 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 
 import java.io.Closeable;
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.LongArrayList;
-import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
+
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.max;

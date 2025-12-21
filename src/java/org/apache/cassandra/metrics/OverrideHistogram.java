@@ -19,6 +19,7 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Snapshot;
+
 import org.agrona.UnsafeAccess;
 
 public class OverrideHistogram extends com.codahale.metrics.Histogram

@@ -19,15 +19,16 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.Closeable;
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
 import org.apache.cassandra.io.tries.IncrementalTrieWriter;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;

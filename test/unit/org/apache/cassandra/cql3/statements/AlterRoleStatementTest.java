@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -18,11 +18,11 @@
  */
 package org.apache.cassandra.serializers;
 
+import java.math.BigDecimal;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-
-import java.math.BigDecimal;
 
 public class DecimalSerializerTest
 {

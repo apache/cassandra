@@ -23,11 +23,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Clock;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.codahale.metrics.Clock;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;

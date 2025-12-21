@@ -19,6 +19,8 @@
 package org.apache.cassandra.cql3.functions;
 
 import org.junit.Test;
+import org.quicktheories.WithQuickTheories;
+
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.util.List.of;
@@ -31,7 +33,6 @@ import static org.apache.cassandra.cql3.CQL3Type.Native.TINYINT;
 import static org.apache.cassandra.cql3.CQL3Type.Native.VARINT;
 import static org.apache.cassandra.cql3.functions.FormatFcts.format;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import org.quicktheories.WithQuickTheories;
 
 public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuickTheories
 {

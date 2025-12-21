@@ -29,6 +29,7 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -40,7 +41,6 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runners.MethodSorters;
 
-import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Keyspace;
@@ -52,6 +52,8 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.Glove;
+
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;

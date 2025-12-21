@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.UUID;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Ignore;
 
 import org.apache.cassandra.auth.CassandraRoleManager;
@@ -33,7 +34,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
-import org.assertj.core.api.Assertions;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;

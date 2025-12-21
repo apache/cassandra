@@ -20,16 +20,18 @@ package org.apache.cassandra.streaming.compress;
 
 import java.io.IOException;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 
 public class StreamCompressionInputStream extends RebufferingInputStream implements AutoCloseable
 {

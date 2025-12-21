@@ -38,6 +38,8 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,9 +49,9 @@ import accord.api.MessageSink;
 import accord.api.TopologyListener;
 import accord.api.TopologySorter;
 import accord.impl.TestAgent;
+import accord.impl.basic.MonitoredPendingQueue;
 import accord.impl.basic.Pending;
 import accord.impl.basic.PendingQueue;
-import accord.impl.basic.MonitoredPendingQueue;
 import accord.impl.basic.RandomDelayQueue;
 import accord.impl.basic.SimulatedDelayedExecutorService;
 import accord.impl.mock.MockCluster;
@@ -64,6 +66,7 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.SortedListSet;
+
 import org.apache.cassandra.concurrent.AdaptingScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -81,7 +84,6 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.simulator.RandomSource.Choices.choose;

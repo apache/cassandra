@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.collect.Maps;
-
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.ResultSet;
@@ -33,6 +31,8 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.ReadFailureException;
 import com.datastax.driver.core.exceptions.WriteFailureException;
+import com.google.common.collect.Maps;
+
 import org.apache.cassandra.cql3.ast.Statement;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;

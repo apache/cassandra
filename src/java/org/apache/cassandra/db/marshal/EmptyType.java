@@ -24,9 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
-import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.EmptySerializer;
@@ -34,9 +34,9 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;

@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.util.List;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.mockito.Mockito;
 
 import static org.mockito.Mockito.when;
 

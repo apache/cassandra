@@ -23,10 +23,10 @@ package org.apache.cassandra.metrics;
 import java.util.Map;
 import java.util.UUID;
 
+import com.google.common.collect.Iterators;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -37,8 +37,8 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.junit.Assert.assertEquals;
 
 public class HintedHandOffMetricsTest
 {

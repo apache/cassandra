@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.PrintStream;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 import static java.lang.String.format;

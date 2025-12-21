@@ -30,10 +30,10 @@ import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionExceptio
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Generators;
 
+import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static accord.utils.Property.qt;
 import static org.quicktheories.generators.SourceDSL.doubles;
 import static org.quicktheories.generators.SourceDSL.integers;
 

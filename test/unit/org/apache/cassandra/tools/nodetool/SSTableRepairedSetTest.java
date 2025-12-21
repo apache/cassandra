@@ -25,11 +25,11 @@ import java.util.Arrays;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;

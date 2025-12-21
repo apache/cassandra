@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
+
+import static com.google.common.base.Preconditions.checkState;
 
 
 @Command(name = "join", description = "Join the ring")

@@ -21,23 +21,15 @@ package org.apache.cassandra.transport;
 import java.net.SocketAddress;
 import java.security.cert.CertificateException;
 import java.util.List;
+
 import javax.net.ssl.SSLException;
 
 import com.google.common.base.Predicate;
+
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.handler.codec.MessageToMessageEncoder;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -49,6 +41,17 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.RATE_LIMITER_DELAY_UNIT;
 import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;

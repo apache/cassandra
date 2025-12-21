@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.db.streaming.ComponentContext;
+
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -47,6 +47,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.streaming.ComponentContext;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -77,9 +78,9 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 

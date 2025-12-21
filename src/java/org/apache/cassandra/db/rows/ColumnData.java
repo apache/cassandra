@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.Comparator;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;

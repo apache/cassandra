@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -30,15 +32,18 @@ import org.junit.Test;
 import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordFastPath.Status;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
-import static org.apache.cassandra.service.accord.AccordTestUtils.*;
+import static org.apache.cassandra.service.accord.AccordTestUtils.id;
+import static org.apache.cassandra.service.accord.AccordTestUtils.idList;
+import static org.apache.cassandra.service.accord.AccordTestUtils.idSet;
+import static org.apache.cassandra.service.accord.AccordTestUtils.token;
 
 public class AccordFastPathCoordinatorTest 
 {

@@ -31,9 +31,12 @@ import java.util.Enumeration;
 import java.util.function.Consumer;
 
 import com.google.common.base.Throwables;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.MockedStatic;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.shared.WithProperties;
@@ -42,8 +45,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
-import org.assertj.core.api.Assertions;
-import org.mockito.MockedStatic;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;

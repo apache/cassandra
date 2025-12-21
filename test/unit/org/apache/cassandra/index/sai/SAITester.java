@@ -41,12 +41,20 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 import javax.management.AttributeNotFoundException;
 import javax.management.ObjectName;
 
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import com.datastax.driver.core.QueryTrace;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Session;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+
+import org.apache.lucene.codecs.CodecUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -55,11 +63,6 @@ import org.junit.rules.TestRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.datastax.driver.core.QueryTrace;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -80,11 +83,11 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
@@ -109,7 +112,6 @@ import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.codecs.CodecUtil;
 
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;

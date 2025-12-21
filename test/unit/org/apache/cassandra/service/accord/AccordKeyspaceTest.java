@@ -30,7 +30,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import accord.api.RoutingKey;
 import accord.local.Command;
@@ -50,6 +54,7 @@ import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -66,9 +71,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import static accord.local.Command.Committed.committed;
 import static accord.utils.Property.qt;

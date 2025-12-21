@@ -20,12 +20,14 @@ package org.apache.cassandra.distributed.test.auth;
 
 import java.util.function.Consumer;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.ConstantReconnectionPolicy;
 import com.datastax.driver.core.policies.ReconnectionPolicy;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
+
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.RoleOptions;
@@ -39,7 +41,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.StorageService;
-import org.assertj.core.api.Assertions;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;

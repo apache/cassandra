@@ -31,8 +31,8 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 

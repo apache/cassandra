@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 

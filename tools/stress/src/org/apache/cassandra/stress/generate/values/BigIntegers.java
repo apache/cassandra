@@ -20,9 +20,9 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import org.apache.cassandra.db.marshal.IntegerType;
-
 import java.math.BigInteger;
+
+import org.apache.cassandra.db.marshal.IntegerType;
 
 public class BigIntegers extends Generator<BigInteger>
 {

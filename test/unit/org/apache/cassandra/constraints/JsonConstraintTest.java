@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.constraints;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -28,7 +29,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 import static java.util.List.of;
 import static org.apache.cassandra.cql3.constraints.JsonConstraint.FUNCTION_NAME;

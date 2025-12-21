@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.CassandraWriteContext;

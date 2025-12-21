@@ -29,10 +29,10 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.apache.cassandra.db.ConsistencyLevel;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;

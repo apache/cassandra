@@ -18,10 +18,15 @@
 */
 package org.apache.cassandra.utils.memory;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

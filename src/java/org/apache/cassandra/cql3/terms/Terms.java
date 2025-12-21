@@ -18,18 +18,22 @@
 package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term.NonTerminal;
 import org.apache.cassandra.cql3.terms.Term.Terminal;
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**

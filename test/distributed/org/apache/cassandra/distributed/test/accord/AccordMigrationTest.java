@@ -29,9 +29,12 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -39,8 +42,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.PaxosVariant;
@@ -96,7 +99,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.PojoToString;
-import org.yaml.snakeyaml.Yaml;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;

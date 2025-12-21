@@ -22,20 +22,21 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.tools.SSTableExport;
-import org.apache.cassandra.tools.ToolRunner;
-import org.apache.cassandra.utils.Pair;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.tools.SSTableExport;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertFalse;

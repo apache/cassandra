@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,7 +38,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 

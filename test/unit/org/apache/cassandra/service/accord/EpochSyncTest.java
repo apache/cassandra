@@ -44,18 +44,21 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.description.Description;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.Utils;
 import accord.api.MessageSink;
-import accord.impl.TestAgent;
-import accord.impl.mock.MockCluster;
-import accord.local.ShardDistributor;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.TestAgent;
+import accord.impl.mock.MockCluster;
 import accord.local.Node;
+import accord.local.ShardDistributor;
 import accord.local.TimeService;
 import accord.primitives.Ranges;
 import accord.topology.EpochReady;
@@ -70,6 +73,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
+
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -109,8 +113,6 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.description.Description;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

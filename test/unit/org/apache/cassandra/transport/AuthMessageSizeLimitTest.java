@@ -18,19 +18,20 @@
 
 package org.apache.cassandra.transport;
 
+import com.datastax.driver.core.Authenticator;
+import com.datastax.driver.core.EndPoint;
+import com.datastax.driver.core.PlainTextAuthProvider;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Authenticator;
-import com.datastax.driver.core.EndPoint;
-import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.QueryMessage;
-import org.assertj.core.api.Assertions;
 
 public class AuthMessageSizeLimitTest extends NativeProtocolLimitsTestBase
 {

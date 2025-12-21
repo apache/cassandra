@@ -20,10 +20,14 @@
  */
 package org.apache.cassandra.db.transform;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 

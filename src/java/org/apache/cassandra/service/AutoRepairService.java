@@ -17,15 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
-import org.apache.cassandra.utils.MBeanWrapper;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +26,15 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * Implement all the MBeans for AutoRepair.

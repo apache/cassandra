@@ -39,18 +39,20 @@ import java.util.function.Predicate;
 
 import com.google.common.collect.Range;
 import com.google.common.collect.Sets;
-import org.apache.commons.lang3.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import accord.utils.DefaultRandom;
-import accord.utils.RandomSource;
-import org.apache.cassandra.cql3.ReservedKeywords;
+import org.apache.commons.lang3.ArrayUtils;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 import org.quicktheories.impl.JavaRandom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.utils.DefaultRandom;
+import accord.utils.RandomSource;
+
+import org.apache.cassandra.cql3.ReservedKeywords;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BLOB_SHARED_SEED;
 

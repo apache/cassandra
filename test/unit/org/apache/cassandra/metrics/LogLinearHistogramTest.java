@@ -22,12 +22,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.codahale.metrics.Snapshot;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.RandomTestRunner;
-import com.codahale.metrics.Snapshot;
+
 import static org.junit.Assert.assertEquals;
 
 public class LogLinearHistogramTest

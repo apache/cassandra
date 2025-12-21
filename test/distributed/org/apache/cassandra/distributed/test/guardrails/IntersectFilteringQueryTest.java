@@ -21,23 +21,23 @@ package org.apache.cassandra.distributed.test.guardrails;
 import java.io.IOException;
 import java.util.List;
 
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class IntersectFilteringQueryTest extends GuardrailTester
 {

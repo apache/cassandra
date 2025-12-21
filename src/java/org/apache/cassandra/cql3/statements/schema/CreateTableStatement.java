@@ -28,9 +28,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.audit.AuditLogContext;
@@ -39,14 +41,14 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.constraints.ColumnConstraint;
-import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.constraints.NotNullConstraint;
 import org.apache.cassandra.cql3.constraints.UnaryFunctionColumnConstraint;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;

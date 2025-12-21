@@ -19,26 +19,39 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ProtocolOptions;
+import com.datastax.driver.core.ResultSetFuture;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.*;
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;

@@ -23,10 +23,9 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundOrBoundary;
@@ -38,9 +37,11 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;

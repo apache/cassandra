@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.auth;
 import java.io.IOException;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;

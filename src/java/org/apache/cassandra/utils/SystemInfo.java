@@ -24,13 +24,15 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import com.vdurmont.semver4j.Semver;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import oshi.PlatformEnum;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+
+import oshi.PlatformEnum;
 
 import static java.lang.String.format;
 import static java.util.Optional.empty;

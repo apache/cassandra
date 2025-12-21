@@ -26,12 +26,13 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED;
 

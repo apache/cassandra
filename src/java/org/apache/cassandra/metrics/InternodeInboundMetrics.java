@@ -18,9 +18,10 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
+import org.apache.cassandra.net.InboundMessageHandlers;
 
 /**
  * Metrics for internode connections.

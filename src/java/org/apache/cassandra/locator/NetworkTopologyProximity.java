@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Sortable;
-
-import java.util.Comparator;
 
 public class NetworkTopologyProximity extends BaseProximity
 {

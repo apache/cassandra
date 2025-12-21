@@ -18,15 +18,15 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 /**
  * A ReplicaCollection where all Replica are required to cover a range that fully contains the token() defined in the builder().

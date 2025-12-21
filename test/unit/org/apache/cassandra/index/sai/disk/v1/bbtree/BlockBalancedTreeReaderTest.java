@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.apache.lucene.index.PointValues.Relation;
+import org.apache.lucene.util.NumericUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -34,8 +36,8 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
@@ -43,8 +45,6 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.index.PointValues.Relation;
-import org.apache.lucene.util.NumericUtils;
 
 import static org.apache.lucene.index.PointValues.Relation.CELL_CROSSES_QUERY;
 import static org.apache.lucene.index.PointValues.Relation.CELL_INSIDE_QUERY;

@@ -28,24 +28,20 @@ import java.util.function.LongPredicate;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
-import org.apache.cassandra.dht.ReusableDecoratedKey;
-import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
-import org.apache.cassandra.io.sstable.PartitionDescriptor;
-import org.apache.cassandra.db.ReusableLivenessInfo;
-import org.apache.cassandra.io.sstable.SSTableCursorReader;
-import org.apache.cassandra.io.sstable.SSTableCursorWriter;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
@@ -57,7 +53,12 @@ import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
+import org.apache.cassandra.dht.ReusableDecoratedKey;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.PartitionDescriptor;
+import org.apache.cassandra.io.sstable.SSTableCursorReader;
+import org.apache.cassandra.io.sstable.SSTableCursorWriter;
+import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
@@ -71,6 +72,12 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_START_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_START_BOUND;
 import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.COMPARE;
 import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.LEFT;
 import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.RIGHT;
@@ -78,19 +85,13 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
-import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.TOMBSTONE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_BOUND;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_START_BOUND;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_BOUND;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY;
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_START_BOUND;
 
 /**
  * Compacts the contents of 1..n sstables into a 1..m sstables. The compaction is driven one output partition at a time

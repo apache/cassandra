@@ -57,6 +57,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
+
 import oshi.PlatformEnum;
 
 public class TableSnapshot

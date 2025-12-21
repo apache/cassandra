@@ -29,10 +29,11 @@ import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit
 
 import accord.api.AsyncExecutor;
 import accord.utils.async.AsyncResult;
-import io.netty.util.concurrent.GenericFutureListener;
 
-import io.netty.util.internal.PlatformDependent;
 import org.apache.cassandra.utils.Shared;
+
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.internal.PlatformDependent;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;

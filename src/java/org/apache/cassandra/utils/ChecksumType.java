@@ -18,9 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
-import java.util.zip.Checksum;
-import java.util.zip.CRC32;
 import java.util.zip.Adler32;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import io.netty.util.concurrent.FastThreadLocal;
 

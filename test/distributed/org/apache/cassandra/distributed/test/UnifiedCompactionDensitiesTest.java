@@ -21,8 +21,8 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.LongSummaryStatistics;
 
+import org.hamcrest.Matchers;
 import org.junit.Test;
-
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -31,7 +31,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hamcrest.Matchers;
 
 import static org.apache.cassandra.cql3.TombstonesWithIndexedSSTableTest.makeRandomString;
 import static org.junit.Assert.assertThat;

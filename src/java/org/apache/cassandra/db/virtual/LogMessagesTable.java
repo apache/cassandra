@@ -24,7 +24,6 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -32,6 +31,8 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 /**
  * Virtual table for holding Cassandra logs. Entries to this table are added via log appender.

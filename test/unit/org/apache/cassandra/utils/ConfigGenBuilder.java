@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -28,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.dht.IPartitioner;

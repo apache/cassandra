@@ -28,7 +28,11 @@ import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -38,10 +42,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.ClusteringPrefix;
-import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.service.ClientState;
 
 /**

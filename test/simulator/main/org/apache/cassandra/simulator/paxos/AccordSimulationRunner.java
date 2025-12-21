@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
+
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 

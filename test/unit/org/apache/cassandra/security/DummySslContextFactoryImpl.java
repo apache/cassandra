@@ -20,12 +20,14 @@ package org.apache.cassandra.security;
 
 import java.util.List;
 import java.util.Map;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
+import org.apache.cassandra.config.EncryptionOptions;
+
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
-import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * TEST ONLY Class. DON'T use it for anything else.

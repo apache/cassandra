@@ -22,15 +22,16 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.commons.math3.util.Precision;
-
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 import com.codahale.metrics.Snapshot;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.commons.math3.util.Precision;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;

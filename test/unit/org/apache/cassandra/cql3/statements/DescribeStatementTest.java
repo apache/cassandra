@@ -22,15 +22,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang3.ArrayUtils;
-import org.junit.Test;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang3.ArrayUtils;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.CqlBuilder;
@@ -45,12 +46,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
@@ -59,6 +54,12 @@ import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class DescribeStatementTest extends CQLTester
 {

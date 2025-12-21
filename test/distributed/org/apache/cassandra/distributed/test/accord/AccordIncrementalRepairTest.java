@@ -22,7 +22,18 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.annotation.Nullable;
+
+import com.google.common.collect.Iterables;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.StoreParticipants;
@@ -37,7 +48,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
-import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -60,13 +71,6 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.test.accord.AccordTestBase.executeWithRetry;

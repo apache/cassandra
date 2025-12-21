@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;

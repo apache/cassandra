@@ -24,7 +24,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.testing.*;
+import com.google.common.collect.testing.MapTestSuiteBuilder;
+import com.google.common.collect.testing.TestStringMapGenerator;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.testers.MapEntrySetTester;
 

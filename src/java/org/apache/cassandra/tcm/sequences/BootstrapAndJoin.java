@@ -27,13 +27,15 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.topology.EpochReady;
 import accord.local.Node;
+import accord.topology.EpochReady;
 import accord.utils.async.AsyncResult;
-import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -72,10 +74,10 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.tcm.MultiStepOperation.Kind.JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_JOIN;
-import static org.apache.cassandra.tcm.MultiStepOperation.Kind.JOIN;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 import static org.apache.cassandra.tcm.sequences.SequenceState.halted;

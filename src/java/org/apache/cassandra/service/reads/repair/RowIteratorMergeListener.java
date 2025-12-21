@@ -23,11 +23,12 @@ import java.util.BitSet;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.DecoratedKey;

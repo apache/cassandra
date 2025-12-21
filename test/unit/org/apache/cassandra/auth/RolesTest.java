@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,7 +33,6 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;

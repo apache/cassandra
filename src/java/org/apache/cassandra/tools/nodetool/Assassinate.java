@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.net.UnknownHostException;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 

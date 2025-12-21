@@ -28,22 +28,23 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.tools.NodeProbe;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link org.apache.cassandra.tools.nodetool.SetAutoRepairConfig}

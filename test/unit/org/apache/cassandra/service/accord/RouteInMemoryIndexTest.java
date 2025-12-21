@@ -25,6 +25,9 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.LongArrayList;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,8 +41,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongArrayList;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -48,7 +50,6 @@ import org.apache.cassandra.index.accord.TxnRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

@@ -25,13 +25,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.UncheckedExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Keys;
 import accord.primitives.Txn;
-import com.codahale.metrics.Meter;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;

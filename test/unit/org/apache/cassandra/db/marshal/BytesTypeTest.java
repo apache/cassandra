@@ -21,10 +21,11 @@ package org.apache.cassandra.db.marshal;
 
 import java.util.Arrays;
 
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

@@ -24,11 +24,11 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.util.concurrent.Future;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,11 +43,15 @@ import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import io.netty.util.concurrent.Future;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
-import static org.apache.cassandra.streaming.messages.StreamMessage.Type.*;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.COMPLETE;
+import static org.apache.cassandra.streaming.messages.StreamMessage.Type.PREPARE_SYNACK;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.generateRangesAtEndpoint;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.setLocalTokens;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;

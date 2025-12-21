@@ -21,17 +21,25 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.*;
-
-import com.google.common.net.HostAndPort;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.datastax.driver.core.Host;
+import com.google.common.net.HostAndPort;
+
 import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsNode implements Serializable

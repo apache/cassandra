@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
+
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -76,7 +78,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
-import org.assertj.core.api.Assertions;
 
 import static java.util.Collections.emptySet;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;

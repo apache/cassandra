@@ -28,6 +28,7 @@ import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsTableComparator;
 import org.apache.cassandra.tools.nodetool.stats.TableStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.TableStatsPrinter;
+
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;

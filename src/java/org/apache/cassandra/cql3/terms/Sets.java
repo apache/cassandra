@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.terms;
 
-import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +44,8 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for sets.

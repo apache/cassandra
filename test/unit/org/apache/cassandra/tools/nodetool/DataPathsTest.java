@@ -18,12 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class DataPathsTest extends CQLTester

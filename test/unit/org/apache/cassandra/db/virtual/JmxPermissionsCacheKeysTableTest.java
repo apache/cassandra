@@ -21,9 +21,11 @@ package org.apache.cassandra.db.virtual;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+
 import javax.security.auth.Subject;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

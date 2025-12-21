@@ -29,7 +29,10 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
+
 import javax.annotation.Nullable;
+
+import org.assertj.core.api.Assertions;
 
 import accord.api.AsyncExecutor;
 import accord.api.Journal;
@@ -78,6 +81,7 @@ import accord.topology.TopologyManager;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncResult;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
@@ -94,7 +98,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;

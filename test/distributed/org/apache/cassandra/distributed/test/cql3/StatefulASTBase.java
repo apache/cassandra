@@ -30,18 +30,23 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SocketOptions;
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
+import org.quicktheories.generators.SourceDSL;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SocketOptions;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -85,8 +90,6 @@ import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;

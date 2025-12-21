@@ -24,15 +24,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.core.Gen;
-import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.quicktheories.QuickTheory.qt;

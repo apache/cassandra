@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.compaction.OperationType;

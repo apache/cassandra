@@ -35,6 +35,7 @@ import accord.utils.CheckpointIntervalArray;
 import accord.utils.CheckpointIntervalArrayBuilder;
 import accord.utils.CheckpointIntervalArrayBuilder.Accessor;
 import accord.utils.SortedArrays;
+
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.util.ChecksumedRandomAccessReader;
 import org.apache.cassandra.io.util.ChecksumedSequentialWriter;

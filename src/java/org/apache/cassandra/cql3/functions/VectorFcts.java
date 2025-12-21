@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
+
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 public class VectorFcts

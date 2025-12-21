@@ -26,7 +26,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ObjectArrays;
-import org.apache.cassandra.cql3.CQLTester;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,6 +35,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -42,15 +44,14 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexBuilder;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.schema.Schema;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;

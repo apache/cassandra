@@ -21,13 +21,16 @@ package org.apache.cassandra.service.accord.journal;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import org.agrona.collections.Int2ObjectHashMap;
+
 import accord.api.Journal;
 import accord.local.CommandStores;
 import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Int2ObjectHashMap;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;

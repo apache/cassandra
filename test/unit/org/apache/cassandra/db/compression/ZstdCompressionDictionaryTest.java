@@ -29,12 +29,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.github.luben.zstd.ZstdDictCompress;
+import com.github.luben.zstd.ZstdDictDecompress;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.github.luben.zstd.ZstdDictCompress;
-import com.github.luben.zstd.ZstdDictDecompress;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;

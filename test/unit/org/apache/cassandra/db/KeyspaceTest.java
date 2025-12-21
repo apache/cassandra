@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -46,7 +47,6 @@ import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

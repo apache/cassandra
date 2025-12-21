@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.fqltool.commands.Dump;
 import org.apache.cassandra.fqltool.commands.Replay;
+
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 

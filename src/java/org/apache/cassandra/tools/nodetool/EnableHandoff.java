@@ -18,6 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "enablehandoff", description = "Reenable future hints storing on the current node")

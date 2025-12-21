@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.transactions;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;

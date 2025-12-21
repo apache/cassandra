@@ -20,11 +20,11 @@ package org.apache.cassandra.transport.messages;
 import java.util.List;
 import java.util.Map;
 
-import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Message to indicate that the server is ready to receive requests.

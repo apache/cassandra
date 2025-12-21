@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.LongType;

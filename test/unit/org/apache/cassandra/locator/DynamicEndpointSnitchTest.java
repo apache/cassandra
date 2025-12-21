@@ -19,7 +19,8 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;

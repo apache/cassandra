@@ -44,13 +44,13 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.Tables.TablesDiff;
+import org.apache.cassandra.schema.Types.TypesDiff;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
+import org.apache.cassandra.schema.Views.ViewsDiff;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.schema.Tables.TablesDiff;
-import org.apache.cassandra.schema.Types.TypesDiff;
-import org.apache.cassandra.schema.Views.ViewsDiff;
 
 import static com.google.common.collect.Iterables.any;
 import static java.lang.String.format;

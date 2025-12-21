@@ -20,14 +20,20 @@ package org.apache.cassandra.transport.messages;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Compressor;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.ServerConnection;
 import org.apache.cassandra.utils.CassandraVersion;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;

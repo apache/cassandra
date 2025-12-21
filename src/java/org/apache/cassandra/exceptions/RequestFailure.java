@@ -19,6 +19,7 @@
 package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -31,7 +32,6 @@ import org.apache.cassandra.tcm.NotCMSException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.exceptions.ExceptionSerializer.nullableRemoteExceptionSerializer;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 
 /**
  * Allow inclusion of a serialized exception in failure response messages

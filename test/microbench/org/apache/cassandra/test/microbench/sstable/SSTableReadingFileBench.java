@@ -23,16 +23,6 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.tools.Util;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -46,6 +36,17 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.tools.Util;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 

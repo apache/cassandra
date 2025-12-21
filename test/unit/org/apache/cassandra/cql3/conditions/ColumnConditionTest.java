@@ -27,12 +27,15 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.quicktheories.generators.SourceDSL;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnsExpression;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -70,8 +73,6 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.qt;
 import static java.util.Arrays.asList;

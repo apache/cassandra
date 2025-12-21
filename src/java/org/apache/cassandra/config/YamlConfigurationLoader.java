@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,13 +38,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.JsonUtils;
-import org.apache.cassandra.utils.LocalizeString;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
@@ -60,6 +57,11 @@ import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.parser.ParserImpl;
 import org.yaml.snakeyaml.representer.Representer;
 import org.yaml.snakeyaml.resolver.Resolver;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.JsonUtils;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static org.apache.cassandra.config.CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;

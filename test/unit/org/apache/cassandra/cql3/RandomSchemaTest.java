@@ -27,8 +27,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.JavaRandom;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,10 +52,6 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Generators;
-import org.quicktheories.core.Gen;
-import org.quicktheories.core.RandomnessSource;
-import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.junit.Assert.assertNotNull;

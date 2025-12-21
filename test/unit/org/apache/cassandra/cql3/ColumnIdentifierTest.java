@@ -21,13 +21,14 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.junit.Assert.assertEquals;
 
 public class ColumnIdentifierTest

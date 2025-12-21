@@ -35,8 +35,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.distributed.shared.WithProperties;

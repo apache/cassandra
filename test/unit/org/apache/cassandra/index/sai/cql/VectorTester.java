@@ -24,18 +24,20 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import io.github.jbellis.jvector.graph.GraphIndexBuilder;
-import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.vector.VectorEncoding;
-import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.utils.Glove;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
-import org.junit.Before;
-import org.junit.BeforeClass;
+
+import io.github.jbellis.jvector.graph.GraphIndexBuilder;
+import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.vector.VectorEncoding;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 public class VectorTester extends SAITester
 {

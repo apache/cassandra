@@ -20,16 +20,17 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.datastax.shaded.netty.channel.socket.SocketChannel;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;

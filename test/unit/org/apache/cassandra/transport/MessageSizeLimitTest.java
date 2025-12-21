@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -31,7 +32,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.QueryMessage;
-import org.assertj.core.api.Assertions;
 
 public class MessageSizeLimitTest extends NativeProtocolLimitsTestBase
 {

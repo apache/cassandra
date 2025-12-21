@@ -26,11 +26,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.harry.MagicConstants;
-import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.execution.VisitExecutor;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 
-import static org.apache.cassandra.harry.op.Operations.*;
+import static org.apache.cassandra.harry.op.Operations.DeleteColumnsOp;
+import static org.apache.cassandra.harry.op.Operations.DeleteRange;
+import static org.apache.cassandra.harry.op.Operations.DeleteRow;
 import static org.apache.cassandra.harry.op.Operations.Kind.INSERT;
+import static org.apache.cassandra.harry.op.Operations.Operation;
+import static org.apache.cassandra.harry.op.Operations.WriteOp;
 
 class PartitionStateBuilder extends VisitExecutor
 {

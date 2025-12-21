@@ -24,12 +24,6 @@ import java.util.Comparator;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.btree.BTreeSearchIterator;
-import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.BTree.Dir;
-import org.apache.cassandra.utils.btree.FullBTreeSearchIterator;
-import org.apache.cassandra.utils.btree.LeafBTreeSearchIterator;
-import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,6 +37,13 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.BTree.Dir;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
+import org.apache.cassandra.utils.btree.FullBTreeSearchIterator;
+import org.apache.cassandra.utils.btree.LeafBTreeSearchIterator;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)

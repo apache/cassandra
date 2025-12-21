@@ -19,8 +19,8 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 public interface DynamicEndpointSnitchMBean 
 {

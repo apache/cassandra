@@ -20,7 +20,6 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
-
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;

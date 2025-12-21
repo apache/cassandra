@@ -21,21 +21,21 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
+import org.apache.lucene.store.IndexInput;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.disk.ArrayPostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.metrics.QueryEventListener;
-import org.apache.cassandra.index.sai.disk.ArrayPostingList;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.lucene.store.IndexInput;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

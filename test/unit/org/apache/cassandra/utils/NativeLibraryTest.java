@@ -19,10 +19,10 @@
 package org.apache.cassandra.utils;
 
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class NativeLibraryTest

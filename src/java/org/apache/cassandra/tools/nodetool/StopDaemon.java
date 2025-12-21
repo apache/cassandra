@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "stopdaemon", description = "Stop cassandra daemon")

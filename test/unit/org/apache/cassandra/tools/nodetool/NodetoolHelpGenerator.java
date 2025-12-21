@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.File; //checkstyle: permit this import
-import java.io.FileWriter; //checkstyle: permit this import
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

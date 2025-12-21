@@ -22,8 +22,9 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.mindrot.jbcrypt.BCrypt;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 

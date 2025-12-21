@@ -30,15 +30,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
+import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
+
+import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-import com.codahale.metrics.Timer.Context;
+
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -58,7 +64,6 @@ import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.jctools.queues.MpscUnboundedArrayQueue;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;

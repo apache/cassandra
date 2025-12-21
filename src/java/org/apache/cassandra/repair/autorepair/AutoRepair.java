@@ -38,25 +38,24 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.utils.Clock;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;

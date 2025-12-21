@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.cql;
 import java.math.BigDecimal;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Before;
 import org.junit.Test;

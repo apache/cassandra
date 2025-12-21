@@ -28,8 +28,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
-import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
+import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 public class AccordOperations implements AccordOperationsMBean

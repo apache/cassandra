@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import io.netty.buffer.ByteBuf;
 
 public class EventMessage extends Message.Response
 {

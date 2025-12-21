@@ -26,9 +26,9 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import org.junit.Test;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class TypeCompareTest
 {

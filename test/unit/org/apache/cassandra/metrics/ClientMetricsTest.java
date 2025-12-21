@@ -20,15 +20,16 @@ package org.apache.cassandra.metrics;
 
 import javax.net.ssl.SSLException;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.Session;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;

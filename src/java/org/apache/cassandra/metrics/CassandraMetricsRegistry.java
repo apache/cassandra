@@ -32,13 +32,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -48,6 +45,10 @@ import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.db.virtual.model.CounterMetricRow;

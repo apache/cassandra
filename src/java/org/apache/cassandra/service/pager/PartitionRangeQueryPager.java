@@ -17,10 +17,18 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**

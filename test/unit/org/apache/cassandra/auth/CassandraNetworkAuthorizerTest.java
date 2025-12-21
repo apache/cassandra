@@ -22,7 +22,9 @@ import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.RandomStringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,7 +40,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;

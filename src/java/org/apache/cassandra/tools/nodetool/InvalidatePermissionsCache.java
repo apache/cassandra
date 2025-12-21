@@ -28,9 +28,10 @@ import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine.Parameters;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 

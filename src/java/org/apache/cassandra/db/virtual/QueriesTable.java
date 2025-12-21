@@ -30,7 +30,6 @@ import org.apache.cassandra.service.accord.AccordService;
 
 import static java.lang.Long.max;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**

@@ -29,15 +29,16 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
-import org.junit.Test;
 
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.tools.Util;
-
 
 import static org.psjava.util.AssertStatus.assertTrue;
 

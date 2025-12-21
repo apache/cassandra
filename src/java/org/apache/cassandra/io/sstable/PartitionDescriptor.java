@@ -22,11 +22,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
 import org.apache.cassandra.dht.ReusableDecoratedKey;
-import org.apache.cassandra.io.util.ResizableByteBuffer;
-import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.ResizableByteBuffer;
 
 public final class PartitionDescriptor extends ResizableByteBuffer
 {

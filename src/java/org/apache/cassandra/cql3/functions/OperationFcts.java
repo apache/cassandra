@@ -21,9 +21,26 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.TemporalType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.OperationExecutionException;
+import org.apache.cassandra.schema.SchemaConstants;
 
 /**
  * Operation functions (Mathematics).

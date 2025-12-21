@@ -24,8 +24,8 @@ import java.net.InetSocketAddress;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.StreamingChannel;
-import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
 

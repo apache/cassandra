@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "pausehandoff", description = "Pause hints delivery process")

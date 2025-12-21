@@ -26,9 +26,14 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
+import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
+import org.reflections.util.ConfigurationBuilder;
 
 import accord.utils.Gen;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
@@ -51,9 +56,6 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Generators;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
 
 import static accord.utils.Property.qt;
 

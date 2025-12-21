@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.consensus.migration;
 
 import java.io.IOException;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.TypeSizes;

@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+
 import javax.annotation.Nullable;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +38,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -44,7 +47,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

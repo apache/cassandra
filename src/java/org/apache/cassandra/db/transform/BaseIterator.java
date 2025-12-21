@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;

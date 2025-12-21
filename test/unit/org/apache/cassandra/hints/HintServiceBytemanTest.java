@@ -23,6 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,11 +41,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.awaitility.Awaitility;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
-
 import org.apache.cassandra.utils.MockFailureDetector;
+
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
 import static org.junit.Assert.assertEquals;
 

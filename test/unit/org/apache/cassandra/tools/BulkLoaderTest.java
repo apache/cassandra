@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.tools;
 
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
+
+import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.tcm;
 import java.io.IOException;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;

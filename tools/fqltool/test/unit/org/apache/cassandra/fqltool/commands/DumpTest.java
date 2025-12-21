@@ -23,16 +23,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.mockito.Mockito;
 
 public class DumpTest
 {

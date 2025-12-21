@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
 import accord.utils.Invariants;
+
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;

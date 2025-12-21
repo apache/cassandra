@@ -21,17 +21,18 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.Arrays;
 
-import accord.utils.Gens;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Gen;
+import accord.utils.Gens;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

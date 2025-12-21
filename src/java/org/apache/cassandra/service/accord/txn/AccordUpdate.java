@@ -19,10 +19,12 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
+
 import javax.annotation.Nullable;
 
 import accord.api.Data;
 import accord.api.Update;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

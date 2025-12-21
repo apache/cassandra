@@ -21,7 +21,6 @@ package org.apache.cassandra.service.reads;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;

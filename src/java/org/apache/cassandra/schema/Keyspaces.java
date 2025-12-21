@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.tcm.ClusterMetadata;

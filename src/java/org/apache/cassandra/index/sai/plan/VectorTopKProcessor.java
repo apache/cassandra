@@ -23,9 +23,11 @@ import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+
 import org.apache.commons.lang3.tuple.Triple;
 
 import org.apache.cassandra.cql3.Operator;

@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
+
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;

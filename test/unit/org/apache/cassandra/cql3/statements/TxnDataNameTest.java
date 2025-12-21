@@ -19,11 +19,11 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.junit.Test;
-
-import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+
+import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 
 import static org.apache.cassandra.service.accord.txn.TxnData.TXN_DATA_NAME_INDEX_MAX;
 import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;

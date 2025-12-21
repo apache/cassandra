@@ -23,11 +23,11 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 
 public abstract class AbstractCompactionTask extends WrappedRunnable
 {

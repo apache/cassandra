@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.util.function.Function;
 
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,7 +34,6 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.utils.AssertionUtils;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;

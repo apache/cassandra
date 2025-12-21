@@ -19,8 +19,8 @@ package org.apache.cassandra.index.sasi.sa;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 
 public class ByteTerm extends Term<ByteBuffer>
 {

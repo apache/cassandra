@@ -27,18 +27,13 @@ import java.rmi.server.RMISocketFactory;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.PreparedStatement;
@@ -48,7 +43,16 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.SyntaxError;
+
 import net.openhft.chronicle.queue.RollCycles;
+
+import org.assertj.core.api.Assertions;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthorizer;
@@ -66,7 +70,6 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JMXServerUtils;
-import org.assertj.core.api.Assertions;
 
 import static com.datastax.driver.core.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;

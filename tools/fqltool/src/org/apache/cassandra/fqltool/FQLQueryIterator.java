@@ -21,6 +21,7 @@ package org.apache.cassandra.fqltool;
 import java.util.PriorityQueue;
 
 import net.openhft.chronicle.queue.ExcerptTailer;
+
 import org.apache.cassandra.utils.AbstractIterator;
 
 public class FQLQueryIterator extends AbstractIterator<FQLQuery>

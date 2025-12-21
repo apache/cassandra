@@ -30,9 +30,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.api.Assertions;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
+import org.mockito.invocation.InvocationOnMock;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -57,11 +63,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.Matchers;
-import org.mockito.Mockito;
-import org.mockito.internal.stubbing.answers.AnswersWithDelay;
-import org.mockito.invocation.InvocationOnMock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;

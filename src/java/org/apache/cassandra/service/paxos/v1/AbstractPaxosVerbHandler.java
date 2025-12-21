@@ -24,13 +24,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public abstract class AbstractPaxosVerbHandler implements IVerbHandler<Commit>

@@ -23,12 +23,13 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "disableautocompaction", description = "Disable autocompaction for the given keyspace and table")
 public class DisableAutoCompaction extends AbstractCommand

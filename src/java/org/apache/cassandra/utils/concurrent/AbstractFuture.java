@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -35,8 +36,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
 import accord.utils.async.AsyncResult;
-import io.netty.util.concurrent.GenericFutureListener;
-import io.netty.util.internal.ThrowableUtil;
+
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackBiConsumerListener;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackLambdaListener;
 import org.apache.cassandra.utils.concurrent.ListenerList.CallbackListener;
@@ -44,6 +44,9 @@ import org.apache.cassandra.utils.concurrent.ListenerList.CallbackListenerWithEx
 import org.apache.cassandra.utils.concurrent.ListenerList.GenericFutureListenerList;
 import org.apache.cassandra.utils.concurrent.ListenerList.RunnableWithExecutor;
 import org.apache.cassandra.utils.concurrent.ListenerList.RunnableWithNotifyExecutor;
+
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.internal.ThrowableUtil;
 
 import static java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater;
 import static org.apache.cassandra.utils.concurrent.ListenerList.notifyListener;

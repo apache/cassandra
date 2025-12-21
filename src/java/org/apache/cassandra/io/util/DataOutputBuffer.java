@@ -27,9 +27,10 @@ import java.nio.charset.StandardCharsets;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_DOUBLING_THRESHOLD_MB;

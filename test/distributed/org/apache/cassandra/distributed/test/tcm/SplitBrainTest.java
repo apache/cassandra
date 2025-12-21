@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,7 +48,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.log.LogState;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;

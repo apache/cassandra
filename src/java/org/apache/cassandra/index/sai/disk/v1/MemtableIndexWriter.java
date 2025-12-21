@@ -22,11 +22,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
+import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.base.Stopwatch;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;

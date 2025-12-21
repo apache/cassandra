@@ -26,9 +26,9 @@ import javax.management.openmbean.TabularDataSupport;
 import javax.management.openmbean.TabularType;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.gms.FailureDetectorMBean;
-import org.mockito.Mockito;
 
 import static org.mockito.Mockito.when;
 

@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -50,10 +51,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Txn;
+
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;

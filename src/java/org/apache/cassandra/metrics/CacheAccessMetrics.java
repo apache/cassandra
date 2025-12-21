@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Meter;
+import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 

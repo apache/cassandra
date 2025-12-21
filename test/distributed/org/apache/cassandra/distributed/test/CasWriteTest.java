@@ -33,6 +33,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -67,8 +70,6 @@ import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;

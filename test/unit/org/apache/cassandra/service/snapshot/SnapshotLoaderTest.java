@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -39,7 +40,6 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Clock;
-import org.assertj.core.util.Lists;
 
 import static org.apache.cassandra.service.snapshot.SnapshotLoader.SNAPSHOT_DIR_PATTERN;
 import static org.assertj.core.api.Assertions.assertThat;

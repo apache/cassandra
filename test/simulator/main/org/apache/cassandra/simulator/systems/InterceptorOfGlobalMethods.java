@@ -25,10 +25,11 @@ import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
 
+import net.openhft.chronicle.core.util.WeakIdentityHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.WeakIdentityHashMap;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;

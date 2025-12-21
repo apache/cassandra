@@ -27,11 +27,11 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.BeforeClass;
 import org.junit.After;
+import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
