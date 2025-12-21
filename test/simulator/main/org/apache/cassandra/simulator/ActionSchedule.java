@@ -31,17 +31,19 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.internal.DefaultPriorityQueue;
-import io.netty.util.internal.PriorityQueue;
 import org.apache.cassandra.simulator.OrderOn.OrderOnId;
 import org.apache.cassandra.simulator.Ordered.Sequence;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.SafeCollections;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
+
+import io.netty.util.internal.DefaultPriorityQueue;
+import io.netty.util.internal.PriorityQueue;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 import static org.apache.cassandra.simulator.Action.Modifier.DAEMON;
@@ -54,8 +56,8 @@ import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_POST_SCHEDUL
 import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_PRE_SCHEDULED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
-import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
+import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 /**
  * TODO (feature): support total stalls on specific nodes

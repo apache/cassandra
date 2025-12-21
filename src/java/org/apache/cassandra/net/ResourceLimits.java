@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.net;
 
-import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
-
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 
 public abstract class ResourceLimits
 {

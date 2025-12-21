@@ -21,8 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
+
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "altertopology", description = "Modify the datacenter and/or rack of one or more nodes")

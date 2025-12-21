@@ -28,8 +28,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.Test;
 
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +37,7 @@ import accord.local.Node;
 import accord.primitives.Ranges;
 import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
+
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;

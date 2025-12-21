@@ -23,17 +23,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Test;
 
 import accord.local.Node;
-import org.apache.cassandra.tcm.ClusterMetadata;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
-
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getNodeId;
+import static org.junit.Assert.assertEquals;
 
 public class AccordNodetoolTest extends TestBaseImpl
 {

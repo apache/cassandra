@@ -29,14 +29,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.google.common.net.InetAddresses;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.channel.EventLoop;
-import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
@@ -49,6 +48,9 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSucc
 import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+
+import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.Future;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;

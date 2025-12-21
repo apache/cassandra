@@ -20,8 +20,8 @@ package org.apache.cassandra.service.accord;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCache.Type;
+import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 
 public class AccordCacheEntryTest
 {

@@ -26,10 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.InterceptedWait.InterceptedConditionWait;
 import org.apache.cassandra.utils.Clock;

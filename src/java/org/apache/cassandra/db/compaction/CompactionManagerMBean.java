@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.Map;
+
 import javax.management.openmbean.TabularData;
 
 public interface CompactionManagerMBean

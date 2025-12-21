@@ -23,10 +23,9 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 
-import static org.junit.Assert.assertEquals;
-
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Test read repair on rows with TTLs when the cluster nodes are on different versions.

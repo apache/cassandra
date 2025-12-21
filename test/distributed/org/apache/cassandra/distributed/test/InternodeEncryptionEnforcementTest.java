@@ -34,11 +34,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.awaitility.Awaitility;
+import org.junit.Test;
+
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -58,7 +61,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.awaitility.Awaitility;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static net.bytebuddy.matcher.ElementMatchers.named;

@@ -20,8 +20,8 @@ package org.apache.cassandra.harry.model;
 
 import java.util.List;
 
-import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.execution.ResultSetRow;
+import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 
 public interface Model

@@ -30,8 +30,10 @@ import accord.utils.AsymmetricComparator;
 import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.SortedArrays;
-import io.netty.util.concurrent.FastThreadLocal;
+
 import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static accord.utils.SortedArrays.Search.CEIL;
 import static accord.utils.SortedArrays.Search.FLOOR;

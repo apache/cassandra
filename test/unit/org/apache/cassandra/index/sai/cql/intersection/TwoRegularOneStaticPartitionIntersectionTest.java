@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.index.sai.cql.intersection;
 
+import java.util.LinkedList;
+import java.util.List;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import java.util.LinkedList;
-import java.util.List;
 
 import static org.apache.cassandra.index.sai.cql.intersection.RandomIntersectionTester.Mode.TWO_REGULAR_ONE_STATIC;
 

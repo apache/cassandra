@@ -21,11 +21,13 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
-import io.github.jbellis.jvector.util.RamUsageEstimator;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.io.util.SequentialWriter;
+
+import io.github.jbellis.jvector.util.RamUsageEstimator;
 
 @NotThreadSafe
 public class CompactionVectorValues implements RamAwareVectorValues

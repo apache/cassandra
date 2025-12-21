@@ -24,13 +24,13 @@ import java.util.Objects;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 public abstract class ApplyPlacementDeltas implements Transformation
 {

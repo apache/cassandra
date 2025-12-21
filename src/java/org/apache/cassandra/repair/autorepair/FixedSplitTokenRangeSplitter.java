@@ -28,10 +28,10 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.service.AutoRepairService;
-
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.AutoRepairService;
+
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
 /**

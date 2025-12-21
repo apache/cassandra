@@ -29,10 +29,10 @@ import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+import org.HdrHistogram.Histogram;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.HdrHistogram.Histogram;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;

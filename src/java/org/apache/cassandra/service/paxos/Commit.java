@@ -23,6 +23,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Objects;

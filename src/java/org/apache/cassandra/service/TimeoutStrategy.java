@@ -26,10 +26,11 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
+import com.codahale.metrics.Snapshot;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.utils.Invariants;
-import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySupplier.Constant;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySupplier.Percentile;

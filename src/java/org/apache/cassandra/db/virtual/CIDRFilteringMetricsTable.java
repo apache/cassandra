@@ -25,10 +25,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Snapshot;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.auth.CassandraAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;

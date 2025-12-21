@@ -32,6 +32,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
+
 import accord.local.MaxDecidedRX;
 import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Route;
@@ -40,8 +43,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import accord.utils.Invariants;
-import org.agrona.collections.Int2ObjectHashMap;
-import org.agrona.collections.Long2ObjectHashMap;
+
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.index.accord.RouteJournalIndex;

@@ -23,7 +23,10 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import org.junit.Test;
 
-import static org.apache.cassandra.service.paxos.PaxosPropose.*;
+import static org.apache.cassandra.service.paxos.PaxosPropose.ACCEPT_INCREMENT;
+import static org.apache.cassandra.service.paxos.PaxosPropose.FAILURE_INCREMENT;
+import static org.apache.cassandra.service.paxos.PaxosPropose.REFUSAL_INCREMENT;
+import static org.apache.cassandra.service.paxos.PaxosPropose.shouldSignal;
 
 public class PaxosProposeTest
 {

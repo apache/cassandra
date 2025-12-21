@@ -22,9 +22,11 @@ import java.util.Arrays;
 import java.util.function.IntFunction;
 import java.util.function.LongFunction;
 
-import accord.utils.Invariants;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 public interface CassandraReservoir extends Reservoir

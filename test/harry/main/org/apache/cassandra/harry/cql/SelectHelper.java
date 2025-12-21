@@ -28,10 +28,10 @@ import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.harry.ColumnSpec;
-import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.execution.CompiledStatement;
+import org.apache.cassandra.harry.op.Operations;
 
 public class SelectHelper
 {

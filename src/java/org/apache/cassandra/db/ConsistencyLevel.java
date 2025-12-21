@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;

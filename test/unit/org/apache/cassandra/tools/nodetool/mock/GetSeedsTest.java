@@ -21,10 +21,10 @@ package org.apache.cassandra.tools.nodetool.mock;
 import java.util.List;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.tools.ToolRunner;
-import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;

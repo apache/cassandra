@@ -19,6 +19,7 @@
 package org.apache.cassandra.gms;
 
 import java.io.IOException;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;

@@ -19,10 +19,10 @@ package org.apache.cassandra.service.accord;
 
 import java.util.function.Function;
 
+import org.agrona.concurrent.NoOpLock;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.agrona.concurrent.NoOpLock;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;

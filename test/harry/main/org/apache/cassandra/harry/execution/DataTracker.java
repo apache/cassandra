@@ -28,9 +28,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import accord.utils.Invariants;
-import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.op.Operations;
+
 import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Visit;
 
 import static org.apache.cassandra.harry.op.Operations.Kind.CUSTOM;
 import static org.apache.cassandra.harry.op.Operations.Kind.SELECT_CUSTOM;

@@ -19,6 +19,7 @@ package org.apache.cassandra.triggers;
  * under the License.
  *
  */
+
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -27,14 +28,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
-import static java.nio.file.Files.*;
+import static java.nio.file.Files.copy;
 
 /**
  * Custom class loader will load the classes from the class path, CCL will load

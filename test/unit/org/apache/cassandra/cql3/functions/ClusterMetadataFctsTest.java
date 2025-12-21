@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 
 import java.nio.charset.CharacterCodingException;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -27,7 +28,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.cql3.functions.ClusterMetadataFcts.transformationKind;
 import static org.junit.Assert.assertEquals;

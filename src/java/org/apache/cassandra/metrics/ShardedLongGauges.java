@@ -25,8 +25,10 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.LongBinaryOperator;
 import java.util.function.ToLongFunction;
 
-import accord.utils.Invariants;
 import com.codahale.metrics.Gauge;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.utils.Clock;
 
 public class ShardedLongGauges<S>

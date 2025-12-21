@@ -25,20 +25,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.annotation.Nullable;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.luben.zstd.Zstd;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
+import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.utils.concurrent.Ref;
-
-import javax.annotation.Nullable;
 
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {

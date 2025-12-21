@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.List;
-import java.util.Map;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -30,11 +28,14 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang3.RandomStringUtils;
 
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;

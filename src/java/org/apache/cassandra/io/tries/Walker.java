@@ -21,7 +21,10 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+
 import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.lucene.util.ArrayUtil;
 
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.PageAware;
@@ -29,7 +32,6 @@ import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.util.ArrayUtil;
 
 /**
  * Thread-unsafe trie walking helper. This is analogous to {@link org.apache.cassandra.io.util.RandomAccessReader} for

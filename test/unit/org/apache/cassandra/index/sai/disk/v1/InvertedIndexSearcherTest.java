@@ -21,9 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.carrotsearch.hppc.LongArrayList;
+
 import org.junit.Test;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ClusteringComparator;

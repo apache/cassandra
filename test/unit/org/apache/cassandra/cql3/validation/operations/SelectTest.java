@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.junit.Test;
 import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,7 +34,9 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 
 /**

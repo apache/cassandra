@@ -26,13 +26,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.math3.distribution.EnumeratedDistribution;
+import org.apache.commons.math3.util.Pair;
+
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.StressAction.MeasurementSink;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.DistributionFixed;
 import org.apache.cassandra.stress.report.Timer;
-import org.apache.commons.math3.distribution.EnumeratedDistribution;
-import org.apache.commons.math3.util.Pair;
 
 public abstract class SampledOpDistributionFactory<T> implements OpDistributionFactory
 {

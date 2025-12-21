@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -28,12 +29,13 @@ import javax.crypto.ShortBufferException;
 
 import com.google.common.base.Preconditions;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.commitlog.EncryptedSegment;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Encryption and decryption functions specific to the commit log.

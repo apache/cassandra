@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.harry.execution;
 
-import org.apache.cassandra.harry.gen.Bijections;
-import org.apache.cassandra.harry.gen.ValueGenerators;
-import org.apache.cassandra.harry.util.StringUtils;
-
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.IntFunction;
+
+import org.apache.cassandra.harry.gen.Bijections;
+import org.apache.cassandra.harry.gen.ValueGenerators;
+import org.apache.cassandra.harry.util.StringUtils;
 
 public class ResultSetRow
 {

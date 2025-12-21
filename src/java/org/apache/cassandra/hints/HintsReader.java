@@ -27,13 +27,13 @@ import javax.annotation.Nullable;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.exceptions.CoordinatorBehindException;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;

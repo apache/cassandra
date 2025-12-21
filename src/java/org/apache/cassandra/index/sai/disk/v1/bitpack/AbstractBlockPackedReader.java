@@ -19,11 +19,12 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
+
+import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
+import org.apache.cassandra.index.sai.disk.v1.LongArray;
 
 @NotThreadSafe
 public abstract class AbstractBlockPackedReader implements LongArray

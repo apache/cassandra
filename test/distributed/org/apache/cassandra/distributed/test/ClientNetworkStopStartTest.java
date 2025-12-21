@@ -20,9 +20,10 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 
+import com.datastax.driver.core.Session;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;

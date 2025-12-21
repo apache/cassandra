@@ -29,7 +29,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.ViewMetadata;
 
 /**
  * Helper methods to represent TableMetadata and related objects in CQL format

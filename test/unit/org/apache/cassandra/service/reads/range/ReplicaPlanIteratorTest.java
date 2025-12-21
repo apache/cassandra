@@ -21,7 +21,6 @@ package org.apache.cassandra.service.reads.range;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.schema.TableId;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,6 +36,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.Util.rp;
 import static org.apache.cassandra.Util.token;

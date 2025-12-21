@@ -21,6 +21,7 @@ package org.apache.cassandra.tools;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

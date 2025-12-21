@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.bytes.Bytes;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -39,10 +38,13 @@ import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.binlog.BinLog;
+
+import io.netty.buffer.Unpooled;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;

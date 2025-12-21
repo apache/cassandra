@@ -24,12 +24,12 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import com.codahale.metrics.Snapshot;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.utils.Invariants;
 import accord.utils.SortedArrays;
-import com.codahale.metrics.Snapshot;
 
 import static accord.utils.SortedArrays.Search.CEIL;
 

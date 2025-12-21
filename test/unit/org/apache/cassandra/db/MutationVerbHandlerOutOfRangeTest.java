@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -51,9 +52,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
@@ -61,6 +59,8 @@ import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelpe
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class MutationVerbHandlerOutOfRangeTest
 {

@@ -27,10 +27,12 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.UUID;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SchemaCQLHelper;
@@ -41,7 +43,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertTrue;
 

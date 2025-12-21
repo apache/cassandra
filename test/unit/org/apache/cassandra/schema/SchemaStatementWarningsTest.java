@@ -24,16 +24,16 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.assertj.core.api.Assertions;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.ClientWarn;
-import org.assertj.core.api.Assertions;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMRules;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 @RunWith(BMUnitRunner.class)
 public class SchemaStatementWarningsTest extends CQLTester

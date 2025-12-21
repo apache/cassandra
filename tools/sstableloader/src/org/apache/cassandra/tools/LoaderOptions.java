@@ -29,7 +29,10 @@ import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.PlainTextAuthProvider;
 import com.google.common.net.HostAndPort;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -40,8 +43,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.AuthProvider;
-import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.EncryptionOptions;

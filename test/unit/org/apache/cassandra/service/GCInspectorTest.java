@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;

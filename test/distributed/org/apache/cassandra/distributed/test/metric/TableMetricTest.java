@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServer;
@@ -34,6 +35,7 @@ import javax.management.ObjectName;
 import javax.management.QueryExp;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,14 +45,14 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGISTRATION_CLASS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 public class TableMetricTest extends TestBaseImpl
 {

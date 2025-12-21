@@ -31,6 +31,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.agrona.collections.IntArrayList;
+import org.agrona.collections.LongArrayList;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -48,10 +51,8 @@ import accord.utils.RandomSource;
 import accord.utils.SearchableRangeList;
 import accord.utils.SymmetricComparator;
 import accord.utils.btree.BTree;
-import org.agrona.collections.IntArrayList;
-import org.agrona.collections.LongArrayList;
+
 import org.apache.cassandra.utils.btree.IntervalBTree;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.endWithStart;

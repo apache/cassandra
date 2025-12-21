@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.metrics;
 
+import org.agrona.concurrent.NoOpLock;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.agrona.concurrent.NoOpLock;
 
 public class HitRateTest
 {

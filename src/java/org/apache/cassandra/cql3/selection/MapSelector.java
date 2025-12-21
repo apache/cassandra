@@ -28,9 +28,9 @@ import java.util.stream.Collectors;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.terms.Maps;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.terms.Maps;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;

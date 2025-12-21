@@ -26,10 +26,10 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import org.apache.cassandra.repair.messages.RepairOption;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import org.apache.cassandra.repair.messages.RepairOption;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;

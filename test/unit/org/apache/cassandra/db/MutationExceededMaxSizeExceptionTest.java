@@ -25,7 +25,7 @@ import java.util.List;
 import org.junit.Test;
 
 import static org.apache.cassandra.db.MutationExceededMaxSizeException.makeTopKeysString;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class MutationExceededMaxSizeExceptionTest
 {

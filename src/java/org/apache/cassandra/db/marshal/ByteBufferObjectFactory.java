@@ -20,7 +20,14 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractBufferClusteringPrefix;
+import org.apache.cassandra.db.BufferClustering;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.BufferClusteringBoundary;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundary;
+import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;

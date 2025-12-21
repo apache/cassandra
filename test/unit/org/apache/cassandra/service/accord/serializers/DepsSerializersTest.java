@@ -19,8 +19,10 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import accord.primitives.Deps;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -29,7 +31,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.utils.AccordGenerators;
-import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
 

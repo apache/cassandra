@@ -21,8 +21,8 @@ package org.apache.cassandra.service.reads.repair;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 

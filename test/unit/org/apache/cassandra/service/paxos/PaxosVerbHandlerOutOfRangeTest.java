@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -48,14 +49,13 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.junit.Assert.assertEquals;
-
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
+import static org.junit.Assert.assertEquals;
 
 public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 implements OOTR checks at the protocol level
 {

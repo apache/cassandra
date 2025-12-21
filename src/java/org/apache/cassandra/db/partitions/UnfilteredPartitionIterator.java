@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * An iterator over a number of unfiltered partitions (i.e. partitions containing deletion informations).

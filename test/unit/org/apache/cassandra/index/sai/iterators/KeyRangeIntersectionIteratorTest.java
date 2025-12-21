@@ -23,11 +23,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 

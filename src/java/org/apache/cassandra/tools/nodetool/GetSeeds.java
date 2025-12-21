@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "getseeds", description = "Get the currently in use seed node IP list excluding the node IP")

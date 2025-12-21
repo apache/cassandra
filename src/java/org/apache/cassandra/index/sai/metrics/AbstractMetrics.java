@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.metrics;
 
 import com.codahale.metrics.MetricRegistry;
+
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;

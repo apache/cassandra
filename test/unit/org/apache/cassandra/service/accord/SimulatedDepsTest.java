@@ -18,6 +18,16 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.Test;
+
 import accord.api.RoutingKey;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
@@ -28,22 +38,14 @@ import accord.primitives.Ranges;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
+
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.Generators;
-import org.junit.Test;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;

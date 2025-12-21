@@ -20,11 +20,11 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
 
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.not;

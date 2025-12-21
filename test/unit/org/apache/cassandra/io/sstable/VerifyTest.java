@@ -30,6 +30,7 @@ import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import com.google.common.base.Charsets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.junit.BeforeClass;

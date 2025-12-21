@@ -19,9 +19,9 @@
 package org.apache.cassandra.tools.nodetool.mock;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.mockito.Mockito;
 
 public class InvalidateKeyCacheMockTest extends AbstractNodetoolMock
 {

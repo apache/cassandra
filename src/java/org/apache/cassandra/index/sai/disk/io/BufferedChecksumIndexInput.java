@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.index.sai.disk.io;
 
-import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.IndexInput;
-
 import java.io.IOException;
 import java.util.zip.Checksum;
+
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.IndexInput;
 
 /**
  * This implementation of {@link ChecksumIndexInput} is based on {@link org.apache.lucene.store.BufferedChecksumIndexInput}

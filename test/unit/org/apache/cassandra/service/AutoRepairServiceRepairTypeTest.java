@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.service;
 
-import com.google.common.collect.ImmutableSet;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Set;
+import java.util.UUID;
 
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -30,10 +31,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Set;
-import java.util.UUID;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;

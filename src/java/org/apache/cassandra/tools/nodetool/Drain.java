@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "drain", description = "Drain the node (stop accepting writes and flush all tables)")

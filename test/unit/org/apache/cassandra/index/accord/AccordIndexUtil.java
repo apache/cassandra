@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 
 import accord.local.MaxDecidedRX;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 

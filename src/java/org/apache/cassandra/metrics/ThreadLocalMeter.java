@@ -27,9 +27,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.codahale.metrics.Clock;
 import com.google.common.annotations.VisibleForTesting;
 
-import com.codahale.metrics.Clock;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ReflectionUtils;

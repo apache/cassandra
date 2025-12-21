@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,23 +30,21 @@ import java.util.stream.IntStream;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.hints.HintsService;
-
 import org.apache.commons.lang3.ArrayUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.net.Verb;
-import org.assertj.core.api.Assertions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.net.Verb;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;

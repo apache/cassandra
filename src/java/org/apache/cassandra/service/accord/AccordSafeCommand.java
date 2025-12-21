@@ -26,6 +26,7 @@ import accord.api.Journal;
 import accord.local.Command;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.utils.concurrent.Ref;
 
 public class AccordSafeCommand extends SafeCommand implements AccordSafeState<TxnId, Command>

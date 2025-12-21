@@ -46,8 +46,8 @@ import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)
 public class CellSpecTest

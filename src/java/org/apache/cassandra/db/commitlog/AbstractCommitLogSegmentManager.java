@@ -29,12 +29,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
+import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
+
+import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer.Context;
-import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.config.Config.DiskAccessMode;

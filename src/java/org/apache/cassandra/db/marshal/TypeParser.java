@@ -30,6 +30,7 @@ import java.util.Map;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.dht.IPartitioner;

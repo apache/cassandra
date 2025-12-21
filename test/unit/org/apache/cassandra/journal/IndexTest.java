@@ -29,17 +29,19 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Maps;
+
+import org.agrona.collections.IntHashSet;
 import org.junit.Assert;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import accord.utils.Invariants;
-import org.agrona.collections.IntHashSet;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
-import org.quicktheories.core.Gen;
-import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.journal.Index.composeOffsetAndSize;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;

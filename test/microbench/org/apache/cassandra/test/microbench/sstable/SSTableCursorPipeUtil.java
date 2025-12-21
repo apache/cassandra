@@ -21,15 +21,24 @@ package org.apache.cassandra.test.microbench.sstable;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
-import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.SSTableCursorWriter;
 import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
 
-import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.*;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.TOMBSTONE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 
 public class SSTableCursorPipeUtil
 {

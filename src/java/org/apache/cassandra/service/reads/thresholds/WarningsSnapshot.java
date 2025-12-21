@@ -27,10 +27,10 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortException;
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
-import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class WarningsSnapshot

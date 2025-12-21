@@ -20,10 +20,14 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.cassandra.db.ArrayClusteringBoundary;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundary;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 

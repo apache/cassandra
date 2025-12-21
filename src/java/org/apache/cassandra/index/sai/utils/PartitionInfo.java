@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.util.Objects;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.DecoratedKey;

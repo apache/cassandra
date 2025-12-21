@@ -22,8 +22,8 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A tuple type.

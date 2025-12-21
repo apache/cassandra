@@ -26,11 +26,12 @@ import java.util.function.ToLongFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.InternodeInboundMetrics;
 import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.utils.Crc;
+
+import io.netty.channel.Channel;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;

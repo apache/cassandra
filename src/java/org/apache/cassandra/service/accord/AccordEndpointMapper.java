@@ -19,9 +19,11 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Map;
+
 import javax.annotation.Nullable;
 
 import accord.local.Node;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 

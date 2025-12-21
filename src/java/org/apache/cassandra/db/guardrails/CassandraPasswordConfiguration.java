@@ -20,9 +20,10 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.Arrays;
 
+import org.passay.IllegalSequenceRule;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
-import org.passay.IllegalSequenceRule;
 
 import static java.lang.String.format;
 

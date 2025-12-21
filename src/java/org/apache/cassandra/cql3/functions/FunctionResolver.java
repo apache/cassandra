@@ -25,10 +25,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.cql3.terms.Marker;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.terms.Marker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.UserFunctions;

@@ -19,8 +19,8 @@ package org.apache.cassandra.db.partitions;
 
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.schema.TableMetadata;
 
 public class SingletonUnfilteredPartitionIterator implements UnfilteredPartitionIterator
 {

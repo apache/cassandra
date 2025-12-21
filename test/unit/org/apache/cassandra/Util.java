@@ -58,11 +58,17 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import org.apache.commons.lang3.StringUtils;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ThrowingRunnable;
+import org.hamcrest.Matcher;
 import org.junit.Assume;
+import org.mockito.Mockito;
+import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -156,11 +162,6 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
-import org.awaitility.Awaitility;
-import org.awaitility.core.ThrowingRunnable;
-import org.hamcrest.Matcher;
-import org.mockito.Mockito;
-import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.hamcrest.MatcherAssert.assertThat;

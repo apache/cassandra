@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import static java.lang.String.format;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -27,15 +25,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import org.junit.Before;
+import org.junit.Test;
+
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.cql3.statements.schema.KeyspaceAttributes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.LocalizeString;
-import org.junit.Before;
-import org.junit.Test;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import static java.lang.String.format;
 
 /**
  * Tests the guardrail for keyspace properties, {@link Guardrails#keyspaceProperties}.

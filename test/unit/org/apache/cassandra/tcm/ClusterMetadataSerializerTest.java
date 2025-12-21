@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.tcm;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Gen;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -32,7 +34,6 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CassandraGenerators.ClusterMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

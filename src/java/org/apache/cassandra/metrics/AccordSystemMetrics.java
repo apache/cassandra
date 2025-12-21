@@ -21,6 +21,10 @@ package org.apache.cassandra.metrics;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Gauge;
+
 import accord.api.SystemEventListener;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.MaxDecidedRX;
@@ -28,9 +32,7 @@ import accord.local.RedundantBefore;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Counting;
-import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;

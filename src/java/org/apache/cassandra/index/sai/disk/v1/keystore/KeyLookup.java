@@ -19,10 +19,14 @@
 package org.apache.cassandra.index.sai.disk.v1.keystore;
 
 import java.io.IOException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
@@ -34,8 +38,6 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 
 /**
  * Provides read access to an on-disk sequence of partition or clustering keys written by {@link KeyStoreWriter}.

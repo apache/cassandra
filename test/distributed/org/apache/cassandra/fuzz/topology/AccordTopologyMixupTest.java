@@ -27,8 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
+import org.quicktheories.generators.SourceDSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +46,7 @@ import accord.utils.Invariants;
 import accord.utils.Property;
 import accord.utils.Property.Command;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
@@ -76,7 +79,6 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.Retry;
 import org.apache.cassandra.utils.Shared;
-import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;

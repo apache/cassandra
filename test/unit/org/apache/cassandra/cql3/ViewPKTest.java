@@ -20,16 +20,17 @@ package org.apache.cassandra.cql3;
 
 import java.util.HashSet;
 
+import com.datastax.driver.core.ResultSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertTrue;
 

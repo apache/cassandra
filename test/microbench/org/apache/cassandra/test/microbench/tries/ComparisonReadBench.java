@@ -34,14 +34,6 @@ import java.util.function.Consumer;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.marshal.DecimalType;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.tries.InMemoryTrie;
-import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.MemoryMeter;
 import org.github.jamm.MemoryMeter.Guess;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -57,6 +49,15 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.tries.InMemoryTrie;
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

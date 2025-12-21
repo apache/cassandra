@@ -24,8 +24,9 @@ import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.FutureCallback;
 
-import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.utils.Shared;
+
+import io.netty.util.concurrent.GenericFutureListener;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;

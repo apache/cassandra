@@ -22,12 +22,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import org.agrona.collections.IntHashSet;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;

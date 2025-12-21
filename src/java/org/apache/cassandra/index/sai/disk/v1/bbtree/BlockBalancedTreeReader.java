@@ -25,12 +25,19 @@ import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
+
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.PointValues.Relation;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
+import org.apache.lucene.util.packed.DirectWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.postings.FilteringPostingList;
@@ -39,17 +46,11 @@ import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.PointValues.Relation;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectReader;
-import org.apache.lucene.util.packed.DirectWriter;
 
 /**
  * Handles intersection of a point or point range with a block balanced tree previously written with

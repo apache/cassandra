@@ -21,8 +21,9 @@ package org.apache.cassandra.harry.gen.rng;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.harry.gen.EntropySource;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class SeedableEntropySource
 {

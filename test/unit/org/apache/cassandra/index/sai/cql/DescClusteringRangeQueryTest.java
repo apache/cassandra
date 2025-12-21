@@ -22,9 +22,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.index.sai.SAITester;
 
 public class DescClusteringRangeQueryTest extends SAITester

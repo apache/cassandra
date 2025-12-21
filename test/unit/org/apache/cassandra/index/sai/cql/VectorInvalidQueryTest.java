@@ -21,6 +21,10 @@ package org.apache.cassandra.index.sai.cql;
 import java.util.Collections;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -38,9 +42,6 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;

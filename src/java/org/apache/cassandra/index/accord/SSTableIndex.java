@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.SegmentSearcher;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.FSReadError;

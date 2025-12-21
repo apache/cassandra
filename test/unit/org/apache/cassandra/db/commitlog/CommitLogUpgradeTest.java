@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Properties;
 
 import com.google.common.base.Predicate;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;

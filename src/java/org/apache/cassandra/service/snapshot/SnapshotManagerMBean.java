@@ -20,6 +20,7 @@ package org.apache.cassandra.service.snapshot;
 
 import java.io.IOException;
 import java.util.Map;
+
 import javax.management.openmbean.TabularData;
 
 public interface SnapshotManagerMBean

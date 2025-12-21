@@ -22,9 +22,16 @@ import org.junit.Test;
 
 import org.apache.cassandra.tcm.membership.NodeState;
 
-import static org.apache.cassandra.tcm.listeners.ClientNotificationListener.ChangeType.*;
+import static org.apache.cassandra.tcm.listeners.ClientNotificationListener.ChangeType.JOIN;
+import static org.apache.cassandra.tcm.listeners.ClientNotificationListener.ChangeType.LEAVE;
+import static org.apache.cassandra.tcm.listeners.ClientNotificationListener.ChangeType.MOVE;
 import static org.apache.cassandra.tcm.listeners.ClientNotificationListener.fromNodeStateTransition;
-import static org.apache.cassandra.tcm.membership.NodeState.*;
+import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
+import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
+import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
+import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
+import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 

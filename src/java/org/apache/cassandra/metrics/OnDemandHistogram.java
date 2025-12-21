@@ -21,6 +21,7 @@ package org.apache.cassandra.metrics;
 import java.util.function.Supplier;
 
 import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
 
 import static org.apache.cassandra.metrics.CassandraReservoir.BucketStrategy.log_linear;

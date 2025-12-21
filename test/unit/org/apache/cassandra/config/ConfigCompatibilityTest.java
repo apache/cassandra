@@ -32,12 +32,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
@@ -51,8 +45,15 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
+
+import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
 
 import static org.apache.cassandra.db.virtual.SettingsTable.BACKWARDS_COMPATIBLE_NAMES;
 

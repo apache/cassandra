@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import javax.annotation.Nonnull;
 
 import accord.impl.AbstractAsyncExecutor;
+
 import org.apache.cassandra.service.accord.api.AccordAgent;
 
 public class ImmediateAsyncExecutor implements AbstractAsyncExecutor

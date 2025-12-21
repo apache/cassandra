@@ -28,7 +28,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.io.FileUtils;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -58,8 +61,6 @@ import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.TimeUUID;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Offset;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.Util.bulkLoadSSTables;

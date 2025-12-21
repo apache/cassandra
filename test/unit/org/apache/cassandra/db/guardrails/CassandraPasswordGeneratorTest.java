@@ -21,9 +21,8 @@ package org.apache.cassandra.db.guardrails;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Test;
-
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 import org.passay.CharacterRule;
 import org.passay.EnglishCharacterData;
 import org.passay.LengthRule;

@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "resetfullquerylog", description = "Stop the full query log and clean files in the configured full query log directory from cassandra.yaml as well as JMX")

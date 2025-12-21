@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.tools;
 
-import org.junit.Test;
-
 import org.hamcrest.CoreMatchers;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

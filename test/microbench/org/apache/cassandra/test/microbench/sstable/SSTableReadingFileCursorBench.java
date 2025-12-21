@@ -23,13 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.PartitionDescriptor;
-import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
-import org.apache.cassandra.io.sstable.SSTableCursorReader;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.File;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -44,8 +37,24 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.PartitionDescriptor;
+import org.apache.cassandra.io.sstable.SSTableCursorReader;
+import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
+import org.apache.cassandra.io.util.File;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.TOMBSTONE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

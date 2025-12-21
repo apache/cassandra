@@ -18,6 +18,21 @@
 
 package org.apache.cassandra.harry.model;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.function.IntFunction;
+import java.util.stream.LongStream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.gen.Bijections;
@@ -25,12 +40,6 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.harry.util.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.util.function.IntFunction;
-import java.util.stream.LongStream;
 
 public class PartitionState implements Iterable<PartitionState.RowState>
 {

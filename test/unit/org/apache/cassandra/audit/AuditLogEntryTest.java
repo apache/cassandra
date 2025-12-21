@@ -21,6 +21,7 @@ package org.apache.cassandra.audit;
 import java.net.InetSocketAddress;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;

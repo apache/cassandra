@@ -33,12 +33,16 @@ import java.util.function.Consumer;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.InetAddresses;
+
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
@@ -53,9 +57,6 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.core.Gen;
-import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;

@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,9 +35,19 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.auth.AuthTestUtils.*;
+import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_1;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_2;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_3;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_1;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_2;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_3;
+import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
+import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

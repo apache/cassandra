@@ -21,9 +21,9 @@ package org.apache.cassandra.tools.nodetool.mock;
 import java.io.IOException;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.mockito.Mockito;
 
 public class GetConcurrentCompactorsMockTest extends AbstractNodetoolMock
 {

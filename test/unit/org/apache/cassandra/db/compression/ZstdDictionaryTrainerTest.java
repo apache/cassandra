@@ -25,8 +25,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.utils.concurrent.Future;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -36,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import static org.assertj.core.api.Assertions.assertThat;

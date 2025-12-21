@@ -23,8 +23,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.AssumptionViolatedException;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -32,8 +34,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.AbstractCluster.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.FailingRunnable;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
 
 
 public class AbstractClusterTest

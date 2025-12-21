@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsPrinter;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

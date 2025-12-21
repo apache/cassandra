@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.concurrent;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /*
  * This class only knows about Tracing and ClientWarn, so if any different executor locals are added, it must be

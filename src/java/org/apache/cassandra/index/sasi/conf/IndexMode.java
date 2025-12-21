@@ -22,21 +22,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.apache.cassandra.schema.ColumnMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.NoOpAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.StandardAnalyzer;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class IndexMode
 {

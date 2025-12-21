@@ -34,14 +34,14 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS;

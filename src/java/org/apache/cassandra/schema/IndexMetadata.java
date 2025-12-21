@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,9 +55,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.schema.SchemaConstants.PATTERN_NON_WORD_CHAR;
 import static org.apache.cassandra.schema.SchemaConstants.isValidCharsName;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * An immutable representation of secondary index metadata.

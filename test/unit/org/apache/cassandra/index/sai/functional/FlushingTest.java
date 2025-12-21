@@ -20,13 +20,14 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 import static org.junit.Assert.assertEquals;

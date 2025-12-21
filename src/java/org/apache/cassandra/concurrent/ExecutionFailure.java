@@ -22,10 +22,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.utils.Closeable;

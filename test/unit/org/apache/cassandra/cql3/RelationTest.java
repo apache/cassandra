@@ -33,7 +33,10 @@ import org.apache.cassandra.cql3.terms.Tuples;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.cql3.Operator.EQ;
-import static org.apache.cassandra.cql3.Relation.*;
+import static org.apache.cassandra.cql3.Relation.mapElement;
+import static org.apache.cassandra.cql3.Relation.multiColumn;
+import static org.apache.cassandra.cql3.Relation.singleColumn;
+import static org.apache.cassandra.cql3.Relation.token;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.collectionElementCondition;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.udtFieldCondition;
 import static org.junit.Assert.assertEquals;

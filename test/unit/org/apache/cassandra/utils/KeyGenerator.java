@@ -18,14 +18,14 @@
 */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.Random;
+
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 public class KeyGenerator
 {

@@ -22,9 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 public abstract class SA<T extends Buffer>
 {

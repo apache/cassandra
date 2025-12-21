@@ -26,6 +26,7 @@ import org.junit.Test;
 import accord.local.Node;
 import accord.utils.RandomTestRunner;
 import accord.utils.SortedArrays.SortedArrayList;
+
 import org.apache.cassandra.service.accord.api.AccordAgent;
 
 import static java.util.concurrent.TimeUnit.SECONDS;

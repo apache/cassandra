@@ -21,12 +21,13 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
 
+import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
@@ -37,6 +38,7 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JsonUtils;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;

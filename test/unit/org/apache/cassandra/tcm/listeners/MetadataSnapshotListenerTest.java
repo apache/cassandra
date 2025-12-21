@@ -20,15 +20,14 @@ package org.apache.cassandra.tcm.listeners;
 
 import java.util.Random;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;

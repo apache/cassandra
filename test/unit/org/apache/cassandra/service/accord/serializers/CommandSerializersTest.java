@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,6 +32,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.io.Serializers;
@@ -40,7 +42,6 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;

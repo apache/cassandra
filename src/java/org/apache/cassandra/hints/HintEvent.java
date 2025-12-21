@@ -21,6 +21,7 @@ package org.apache.cassandra.hints;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.UUID;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.diag.DiagnosticEvent;

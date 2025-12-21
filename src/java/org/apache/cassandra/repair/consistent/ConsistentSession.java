@@ -31,8 +31,8 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -44,7 +44,6 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tools.nodetool.RepairAdmin;

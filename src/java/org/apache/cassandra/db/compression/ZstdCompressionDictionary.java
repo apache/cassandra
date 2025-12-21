@@ -22,12 +22,13 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.github.luben.zstd.ZstdDictCompress;
+import com.github.luben.zstd.ZstdDictDecompress;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.luben.zstd.ZstdDictCompress;
-import com.github.luben.zstd.ZstdDictDecompress;
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;

@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;

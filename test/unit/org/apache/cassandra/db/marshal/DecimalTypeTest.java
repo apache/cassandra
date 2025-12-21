@@ -18,14 +18,16 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import static org.junit.Assert.*;
-
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class DecimalTypeTest
 {

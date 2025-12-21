@@ -23,7 +23,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import org.junit.Test;
-
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 

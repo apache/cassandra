@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.debug;
 import java.util.function.Supplier;
 
 import org.agrona.collections.Long2LongHashMap;
+
 import org.apache.cassandra.simulator.RandomSource;
 
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;

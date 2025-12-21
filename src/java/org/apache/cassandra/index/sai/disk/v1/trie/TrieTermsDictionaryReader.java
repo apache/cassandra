@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.tries.SerializationNode;

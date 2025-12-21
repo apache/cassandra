@@ -28,15 +28,16 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.net.ssl.SSLException;
 
-import com.google.common.collect.ImmutableMap;
+import javax.net.ssl.SSLException;
 
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;

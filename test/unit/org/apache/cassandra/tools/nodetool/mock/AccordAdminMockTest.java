@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.tools.nodetool.mock;
 
-import org.apache.cassandra.service.accord.AccordOperationsMBean;
+import java.util.List;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import java.util.List;
+import org.apache.cassandra.service.accord.AccordOperationsMBean;
 
 /** Test for the nodetool 'accord admin' command. */
 public class AccordAdminMockTest extends AbstractNodetoolMock

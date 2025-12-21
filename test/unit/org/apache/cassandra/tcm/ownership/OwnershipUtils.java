@@ -41,8 +41,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.randomEndpoint;

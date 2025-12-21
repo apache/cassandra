@@ -28,9 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.passay.CharacterCharacteristicsRule;
 import org.passay.CharacterData;
 import org.passay.CharacterRule;
@@ -59,6 +59,8 @@ import org.passay.SequenceData;
 import org.passay.WhitespaceRule;
 import org.passay.dictionary.FileWordList;
 import org.passay.dictionary.WordListDictionary;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static java.util.Optional.empty;
 import static org.passay.EnglishCharacterData.Digit;

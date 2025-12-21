@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.Map;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.assertj.core.api.Condition;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,10 +40,9 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
-import org.assertj.core.api.Condition;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.lang.String.format;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)

@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import com.google.common.collect.Streams;
+
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.Feature;

@@ -19,11 +19,12 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+
+import static org.junit.Assert.assertEquals;
 
 public class SSTableReadLogsQueryTest extends TestBaseImpl
 {

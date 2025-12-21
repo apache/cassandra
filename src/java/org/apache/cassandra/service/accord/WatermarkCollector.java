@@ -35,6 +35,8 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
+import org.agrona.collections.Long2LongHashMap;
+
 import accord.api.TopologyListener;
 import accord.local.Node;
 import accord.primitives.Range;
@@ -43,7 +45,7 @@ import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
-import org.agrona.collections.Long2LongHashMap;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;

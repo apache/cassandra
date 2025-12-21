@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.ownership;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;

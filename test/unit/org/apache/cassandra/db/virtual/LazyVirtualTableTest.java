@@ -27,6 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
+import net.openhft.chronicle.core.util.IntBiPredicate;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Invariants;
@@ -34,7 +37,7 @@ import accord.utils.LargeBitSet;
 import accord.utils.RandomSource;
 import accord.utils.RandomTestRunner;
 import accord.utils.UnhandledEnum;
-import net.openhft.chronicle.core.util.IntBiPredicate;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -43,7 +46,6 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout.FAIL;
 import static org.apache.cassandra.db.virtual.LazyVirtualTableTest.Cmp.CMPS;

@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.io.IOException;
 
+import org.assertj.core.data.Offset;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -49,7 +50,6 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
-import org.assertj.core.data.Offset;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.assertj.core.api.Assertions.assertThat;

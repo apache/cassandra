@@ -17,10 +17,16 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
+import com.google.common.base.Strings;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -28,12 +34,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.marshal.UserType;
-
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-
-import com.google.common.base.Strings;
 
 /**
  * Abstract base class for virtual tables that expose metadata on schema elements.

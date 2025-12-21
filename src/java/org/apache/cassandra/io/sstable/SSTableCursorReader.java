@@ -22,12 +22,11 @@ import java.io.IOException;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.db.ReusableLivenessInfo;
-import org.apache.cassandra.io.util.ResizableByteBuffer;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
@@ -42,13 +41,25 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.ResizableByteBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.*;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.PARTITION_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.SEEK;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.STATIC_ROW_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.TOMBSTONE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
 
 public class SSTableCursorReader implements AutoCloseable
 {

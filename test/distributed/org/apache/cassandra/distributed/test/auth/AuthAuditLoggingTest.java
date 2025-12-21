@@ -26,7 +26,10 @@ import java.util.Collections;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
+import com.datastax.driver.core.SSLOptions;
+import com.datastax.driver.core.Session;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,8 +37,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.datastax.driver.core.SSLOptions;
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.InMemoryAuditLogger;

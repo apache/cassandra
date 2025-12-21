@@ -25,6 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
@@ -33,8 +36,6 @@ import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TestProcessor implements Processor
 {

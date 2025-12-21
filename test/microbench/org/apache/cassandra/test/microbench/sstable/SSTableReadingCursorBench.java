@@ -20,14 +20,15 @@ package org.apache.cassandra.test.microbench.sstable;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.sstable.SSTableCursorReader;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+
+import org.apache.cassandra.io.sstable.SSTableCursorReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 @State(Scope.Benchmark)
 public class SSTableReadingCursorBench extends SSTableAbstractBench

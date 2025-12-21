@@ -19,10 +19,12 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
+
 import javax.annotation.Nullable;
 
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;

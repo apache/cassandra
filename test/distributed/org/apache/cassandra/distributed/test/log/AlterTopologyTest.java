@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test.log;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -47,8 +49,6 @@ import org.apache.cassandra.tcm.sequences.SequencesUtils.ClearLockedRanges;
 import org.apache.cassandra.tcm.sequences.SequencesUtils.LockRanges;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
-import org.awaitility.Awaitility;
-import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;

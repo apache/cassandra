@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import com.google.common.primitives.Longs;
+
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.disk.ArrayPostingList;

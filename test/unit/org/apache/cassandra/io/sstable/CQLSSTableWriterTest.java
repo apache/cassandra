@@ -42,15 +42,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import com.datastax.driver.core.utils.UUIDs;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.datastax.driver.core.utils.UUIDs;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -80,7 +81,6 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
-import org.apache.cassandra.utils.CompressionDictionaryHelper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -91,6 +91,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CompressionDictionaryHelper;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaDriverUtils;
 import org.apache.cassandra.utils.OutputHandler;

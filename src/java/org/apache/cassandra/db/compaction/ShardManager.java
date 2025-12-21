@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 

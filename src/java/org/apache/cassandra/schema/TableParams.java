@@ -45,9 +45,9 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.BloomCalculations;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;

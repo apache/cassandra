@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.jmx;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 

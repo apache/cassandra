@@ -26,17 +26,18 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
-import org.apache.cassandra.io.util.File;
+
 import org.junit.Test;
 
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.MessagingService;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.fail;
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class HintsDescriptorTest
 {

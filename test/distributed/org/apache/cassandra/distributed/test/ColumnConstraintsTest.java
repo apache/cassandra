@@ -22,14 +22,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.junit.Test;
-
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
+import org.junit.Test;
+
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

@@ -20,22 +20,18 @@ package org.apache.cassandra.service.accord;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import accord.api.TopologySorter;
-import accord.api.TopologySorter.StaticSorter;
-import accord.impl.RequestCallbacks;
-import accord.messages.ReadData;
-import accord.messages.ReadData.CommitOrReadNack;
-import accord.topology.TopologyUtils;
-import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
-import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import accord.Utils;
+import accord.api.TopologySorter;
+import accord.api.TopologySorter.StaticSorter;
 import accord.impl.AbstractFetchCoordinator;
 import accord.impl.IntKey;
+import accord.impl.RequestCallbacks;
 import accord.local.Node;
+import accord.messages.ReadData;
+import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadTxnData;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -49,10 +45,14 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.topology.TopologyUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
+import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class AccordMessageSinkTest

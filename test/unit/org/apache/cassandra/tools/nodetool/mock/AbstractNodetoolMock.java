@@ -20,15 +20,16 @@ package org.apache.cassandra.tools.nodetool.mock;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationEmitter;
 import javax.management.StandardEmitterMBean;
 import javax.management.StandardMBean;
 
-import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.cql3.CQLTester;
@@ -43,11 +44,11 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.MBeanWrapper;
-import org.mockito.Mockito;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.getColumnFamilieMBeanName;
 

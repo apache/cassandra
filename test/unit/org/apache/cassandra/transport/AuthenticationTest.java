@@ -23,6 +23,10 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -32,10 +36,6 @@ import org.apache.cassandra.transport.messages.AuthSuccess;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
-
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getToken;
 import static org.apache.cassandra.transport.messages.StartupMessage.CQL_VERSION;

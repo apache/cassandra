@@ -24,9 +24,10 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 
-import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
+
+import io.github.jbellis.jvector.util.Bits;
 
 public class OnDiskOrdinalsMap implements AutoCloseable
 {

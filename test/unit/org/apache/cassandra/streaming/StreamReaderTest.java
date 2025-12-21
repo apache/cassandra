@@ -27,11 +27,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
+import net.jpountz.lz4.LZ4Factory;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -72,7 +73,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.emptyList;
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginJoin;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginMove;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.setLocalTokens;

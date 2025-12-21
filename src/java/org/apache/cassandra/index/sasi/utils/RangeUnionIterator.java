@@ -18,7 +18,10 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.FileUtils;

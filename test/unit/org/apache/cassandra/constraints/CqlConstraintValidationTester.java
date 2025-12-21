@@ -21,6 +21,7 @@ package org.apache.cassandra.constraints;
 import java.util.Map;
 
 import com.datastax.driver.core.ResultSet;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.schema.CompactionParams;

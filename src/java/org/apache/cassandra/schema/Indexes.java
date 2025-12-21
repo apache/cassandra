@@ -18,7 +18,9 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
@@ -28,9 +30,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-import static java.lang.String.format;
-
 import static com.google.common.collect.Iterables.filter;
+import static java.lang.String.format;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 /**

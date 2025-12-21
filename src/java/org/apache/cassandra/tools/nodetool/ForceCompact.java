@@ -23,12 +23,13 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.parsePartitionKeys;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parsePartitionKeys;
 
 @Command(name = "forcecompact", description = "Force a (major) compaction on a table")
 public class ForceCompact extends AbstractCommand

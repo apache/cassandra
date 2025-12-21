@@ -25,12 +25,11 @@ import java.io.File;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.StressProfile;

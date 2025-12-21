@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "getcolumnindexsize", description = "Print the granularity of the collation index of rows within a partition in KiB")

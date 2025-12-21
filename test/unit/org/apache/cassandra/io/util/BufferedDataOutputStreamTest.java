@@ -20,14 +20,15 @@
  */
 package org.apache.cassandra.io.util;
 
-import com.google.common.primitives.UnsignedBytes;
-import com.google.common.primitives.UnsignedLong;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CassandraUInt;
-import org.apache.cassandra.utils.vint.VIntCoding;
-import org.junit.Test;
-
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UTFDataFormatException;
 import java.lang.reflect.Field;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
@@ -36,9 +37,20 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.Random;
 
+import com.google.common.primitives.UnsignedBytes;
+import com.google.common.primitives.UnsignedLong;
+
+import org.junit.Test;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraUInt;
+import org.apache.cassandra.utils.vint.VIntCoding;
+
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class BufferedDataOutputStreamTest
 {

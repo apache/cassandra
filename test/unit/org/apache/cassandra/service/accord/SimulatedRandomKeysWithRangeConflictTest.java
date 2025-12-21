@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Arrays;
+
+import org.junit.Test;
+
 import accord.api.RoutingKey;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.FullRoute;
@@ -27,11 +31,9 @@ import accord.primitives.RoutingKeys;
 import accord.primitives.Txn;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FailingConsumer;
-import org.junit.Test;
-
-import java.util.Arrays;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;

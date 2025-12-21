@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,8 +34,8 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 
 public class SnapshotsTableTest extends CQLTester

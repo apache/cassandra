@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.TableMetadata;
-import org.assertj.core.api.Assertions;
 
 public class CQLFormatterPrettyPrintTest
 {

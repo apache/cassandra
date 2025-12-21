@@ -22,12 +22,18 @@ package org.apache.cassandra.concurrent;
 
 
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,11 +48,10 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FailingRunnable;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class DebuggableThreadPoolExecutorTest

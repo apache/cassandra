@@ -20,9 +20,10 @@ package org.apache.cassandra.distributed.upgrade;
 import java.io.File;
 import java.util.Arrays;
 
+import com.vdurmont.semver4j.Semver;
+
 import org.apache.commons.lang3.ArrayUtils;
 
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;

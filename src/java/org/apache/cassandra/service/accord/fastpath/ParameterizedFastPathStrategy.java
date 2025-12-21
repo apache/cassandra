@@ -31,6 +31,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
@@ -39,14 +41,13 @@ import accord.local.Node;
 import accord.topology.Shard;
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-
-import javax.annotation.Nonnull;
 
 public class ParameterizedFastPathStrategy implements FastPathStrategy
 {

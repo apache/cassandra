@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.cassandrastress;
 
 import java.util.Arrays;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -27,7 +28,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

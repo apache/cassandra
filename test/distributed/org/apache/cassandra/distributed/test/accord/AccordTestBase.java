@@ -32,11 +32,19 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.This;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -51,11 +59,7 @@ import accord.primitives.KeyRoute;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import net.bytebuddy.implementation.bind.annotation.This;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cql3.CQLStatement;

@@ -18,18 +18,21 @@
 package org.apache.cassandra.transport;
 
 import java.security.cert.Certificate;
+
 import javax.net.ssl.SSLPeerUnverifiedException;
+
+import com.codahale.metrics.Counter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import com.codahale.metrics.Counter;
-import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+
+import io.netty.channel.Channel;
+import io.netty.handler.ssl.SslHandler;
 
 public class ServerConnection extends Connection
 {

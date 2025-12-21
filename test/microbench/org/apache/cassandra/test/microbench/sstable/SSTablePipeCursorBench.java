@@ -20,17 +20,18 @@ package org.apache.cassandra.test.microbench.sstable;
 
 import java.io.File;
 
-import org.apache.cassandra.io.sstable.SSTableCursorReader;
-import org.apache.cassandra.io.sstable.SSTableCursorWriter;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.SSTableCursorReader;
+import org.apache.cassandra.io.sstable.SSTableCursorWriter;
+import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 
 
 @State(Scope.Benchmark)

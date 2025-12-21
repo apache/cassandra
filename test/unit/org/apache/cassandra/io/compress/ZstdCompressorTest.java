@@ -20,10 +20,10 @@ package org.apache.cassandra.io.compress;
 
 import java.util.Collections;
 
-import com.google.common.collect.ImmutableMap;
-import org.junit.Test;
-
 import com.github.luben.zstd.Zstd;
+import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 

@@ -27,6 +27,7 @@ import accord.local.Node.Id;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
@@ -36,7 +37,13 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.*;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
 
 public final class JournalKey
 {

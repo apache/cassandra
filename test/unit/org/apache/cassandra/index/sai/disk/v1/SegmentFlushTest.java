@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.base.Stopwatch;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,10 +43,10 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexEntry;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.io.sstable.Descriptor;

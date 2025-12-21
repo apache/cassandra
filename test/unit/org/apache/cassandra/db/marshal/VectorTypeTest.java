@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Test;
-
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 

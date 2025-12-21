@@ -24,8 +24,10 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -50,9 +52,16 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
-import org.mockito.Mockito;
 
-import static org.apache.cassandra.tcm.MetadataKeys.*;
+import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_FAST_PATH;
+import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_STALE_REPLICAS;
+import static org.apache.cassandra.tcm.MetadataKeys.CONSENSUS_MIGRATION_STATE;
+import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
+import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
+import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
+import static org.apache.cassandra.tcm.MetadataKeys.NODE_DIRECTORY;
+import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
+import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;

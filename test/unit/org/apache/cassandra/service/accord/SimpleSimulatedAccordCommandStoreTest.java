@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.local.PreLoadContext;
@@ -25,7 +26,6 @@ import accord.local.StoreParticipants;
 import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

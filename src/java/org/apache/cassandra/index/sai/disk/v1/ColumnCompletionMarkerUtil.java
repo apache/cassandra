@@ -20,12 +20,13 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 
 /**
  * Utility class for creating and reading the column completion marker, {@link IndexComponent#COLUMN_COMPLETION_MARKER}.

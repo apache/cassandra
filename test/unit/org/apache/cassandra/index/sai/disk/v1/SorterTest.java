@@ -19,11 +19,11 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.util.Arrays;
 
+import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.Sorter;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.lucene.util.IntroSorter;
-import org.apache.lucene.util.Sorter;
 
 import static org.junit.Assert.assertArrayEquals;
 

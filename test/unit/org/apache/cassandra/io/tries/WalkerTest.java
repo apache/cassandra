@@ -26,10 +26,10 @@ import java.util.function.LongSupplier;
 import java.util.function.LongToIntFunction;
 import java.util.stream.IntStream;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.DataOutputBuffer;

@@ -22,20 +22,21 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.test.ExecUtil;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.FetchCMSLog;
-import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.FetchCMSLog;
+import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.SystemKeyspace.SNAPSHOT_TABLE_NAME;

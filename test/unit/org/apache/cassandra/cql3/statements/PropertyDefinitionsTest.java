@@ -24,15 +24,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.function.BiConsumer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.assertj.core.api.Assertions;
-
-import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.cql3.statements.PropertyDefinitions.parseBoolean;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 

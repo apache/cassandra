@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.HdrHistogram.Histogram;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.HdrHistogram.Histogram;
 import org.apache.cassandra.index.sai.SAITester;
 
 /**

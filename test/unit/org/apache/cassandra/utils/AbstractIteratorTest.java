@@ -16,12 +16,12 @@
 
 package org.apache.cassandra.utils;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit test for {@code AbstractIterator}.

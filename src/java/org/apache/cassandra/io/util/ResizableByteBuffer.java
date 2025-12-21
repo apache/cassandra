@@ -21,8 +21,9 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.vint.VIntCoding;
 import org.jctools.util.Pow2;
+
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class ResizableByteBuffer
 {

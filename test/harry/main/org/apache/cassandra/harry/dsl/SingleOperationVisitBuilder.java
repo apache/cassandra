@@ -27,17 +27,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
+
+import org.apache.cassandra.harry.MagicConstants;
+import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.gen.IndexGenerators;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PureRng;
 import org.apache.cassandra.harry.gen.rng.SeedableEntropySource;
-import org.apache.cassandra.harry.MagicConstants;
-import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.BitSet;
 
-import static org.apache.cassandra.harry.dsl.HistoryBuilder.*;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.IndexedValueGenerators;
 import static org.apache.cassandra.harry.op.Operations.Kind;
 import static org.apache.cassandra.harry.op.Operations.Operation;
 import static org.apache.cassandra.harry.op.Operations.WriteOp;

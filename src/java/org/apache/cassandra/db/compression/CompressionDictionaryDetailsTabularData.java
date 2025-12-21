@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compression;
 
 import java.util.Arrays;
+
 import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
@@ -30,6 +31,7 @@ import javax.management.openmbean.TabularType;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.io.util.FileUtils;
 
