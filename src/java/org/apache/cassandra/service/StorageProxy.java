@@ -196,7 +196,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.primitives.Txn.Kind.Read;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.concat;
-import static java.util.Collections.singleton;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
@@ -965,71 +964,6 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Performs a coordinated write with mutation tracking.
-     * Assumes that local coordinator is a replica (forwarding implementation pending).
-     *
-     * @param mutation
-     * @param consistencyLevel
-     * @param requestTime
-     */
-    public static void mutateWithTracking(Mutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    {
-        try
-        {
-            TrackedWriteRequest.perform(mutation, consistencyLevel, requestTime).get();
-        }
-        catch (WriteTimeoutException|WriteFailureException ex)
-        {
-            if (consistencyLevel == ConsistencyLevel.ANY)
-            {
-                // TODO (expected): what exactly?
-            }
-            else
-            {
-                if (ex instanceof WriteFailureException)
-                {
-                    writeMetrics.failures.mark();
-                    writeMetricsForLevel(consistencyLevel).failures.mark();
-                    WriteFailureException fe = (WriteFailureException)ex;
-                    Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                                  fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                }
-                else
-                {
-                    writeMetrics.timeouts.mark();
-                    writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    WriteTimeoutException te = (WriteTimeoutException)ex;
-                    Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
-                }
-                throw ex;
-            }
-        }
-        catch (UnavailableException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            Tracing.trace("Overloaded");
-            throw e;
-        }
-        finally
-        {
-            // We track latency based on request processing time, since the amount of time that request spends in the queue
-            // is not a representative metric of replica performance.
-            long latency = nanoTime() - requestTime.startedAtNanos();
-            writeMetrics.addNano(latency);
-            writeMetricsForLevel(consistencyLevel).addNano(latency);
-            updateCoordinatorWriteLatencyTableMetric(singleton(mutation), latency);
-        }
-    }
-
-    /**
      * Use this method to have these Mutations applied
      * across all replicas. This method will take care
      * of the possibility of a replica being down and hint
@@ -1328,8 +1262,6 @@ public class StorageProxy implements StorageProxyMBean
         boolean isTracked = Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
         if (isTracked)
         {
-            if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
-                throw new InvalidRequestException("Mutation tracking is currently unsupported with counters");
             if (augmented != null)
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with triggers");
             if (mutateAtomically)
@@ -1372,7 +1304,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     for (IMutation trackedMutation : trackedMutations)
                     {
-                        trackedHandlers.add(TrackedWriteRequest.perform((Mutation) trackedMutation, consistencyLevel, requestTime));
+                        trackedHandlers.add(TrackedWriteRequest.perform(trackedMutation, consistencyLevel, requestTime));
                     }
                 }
 
