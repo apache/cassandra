@@ -41,24 +41,42 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.api.LocalListeners;
-import accord.api.RoutingKey;
 import accord.coordinate.AbstractCoordination;
 import accord.coordinate.Coordination;
 import accord.coordinate.Coordination.CoordinationKind;
+import accord.coordinate.PrepareRecovery;
+import accord.coordinate.tracking.AbstractTracker;
+import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
+import accord.local.Commands.NotifyWaitingOnPlus;
+import accord.local.cfk.CommandsForKey.TxnInfo;
+import accord.primitives.Ballot;
+import accord.primitives.Range;
+import accord.primitives.Ranges;
+import accord.primitives.Routable;
+import accord.primitives.RoutingKeys;
+import accord.topology.ActiveEpoch;
+import accord.topology.ActiveEpochs;
+import accord.topology.Shard;
+import accord.topology.Topology;
+import accord.utils.SortedListMap;
+import accord.utils.TinyEnumSet;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.api.RoutingKey;
 import accord.coordinate.FetchData;
 import accord.coordinate.FetchRoute;
 import accord.coordinate.MaybeRecover;
-import accord.coordinate.PrepareRecovery;
-import accord.coordinate.tracking.AbstractTracker;
 import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
-import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
 import accord.impl.progresslog.TxnStateKind;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -66,7 +84,6 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
-import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.Node;
@@ -76,27 +93,16 @@ import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
-import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.ShardDurability;
 import accord.primitives.FullRoute;
 import accord.primitives.Known;
 import accord.primitives.Participants;
 import accord.primitives.ProgressToken;
-import accord.primitives.Range;
-import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.Route;
-import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.topology.ActiveEpoch;
-import accord.topology.ActiveEpochs;
-import accord.topology.Shard;
-import accord.topology.Topology;
-import accord.utils.SortedListMap;
-import accord.utils.TinyEnumSet;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -109,17 +115,18 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.index.accord.NoOpIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -132,12 +139,15 @@ import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTracing;
-import org.apache.cassandra.service.accord.AccordTracing.BucketMode;
-import org.apache.cassandra.service.accord.AccordTracing.CoordinationKinds;
-import org.apache.cassandra.service.accord.AccordTracing.TracePattern;
-import org.apache.cassandra.service.accord.AccordTracing.TxnKindsAndDomains;
-import org.apache.cassandra.service.accord.DebugBlockedTxns;
+import org.apache.cassandra.service.accord.debug.AccordTracing;
+import org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode;
+import org.apache.cassandra.service.accord.debug.CoordinationKinds;
+import org.apache.cassandra.service.accord.debug.AccordTracing.TracePattern;
+import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
+import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
+import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
+import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.debug.DebugBlockedTxns;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -151,6 +161,8 @@ import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
+import static accord.impl.CommandChange.Field.ACCEPTED;
+import static accord.impl.CommandChange.Field.PROMISED;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
@@ -171,6 +183,7 @@ import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.ASC;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.SORTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.UNSORTED;
+import static org.apache.cassandra.schema.IndexMetadata.Kind.CUSTOM;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
 import static org.apache.cassandra.service.accord.AccordService.toFuture;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -199,6 +212,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String TXN                = "txn";
     public static final String TXN_CACHE          = "txn_cache";
     public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
+    public static final String TXN_GRAPH          = "txn_graph";
+    public static final String TXN_GRAPH_ALL      = "txn_graph_all";
     public static final String TXN_PATTERN_TRACE  = "txn_pattern_trace";
     public static final String TXN_PATTERN_TRACES = "txn_pattern_traces";
     public static final String TXN_TRACE          = "txn_trace";
@@ -206,7 +221,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String TXN_OPS            = "txn_ops";
     public static final String SHARD_EPOCHS       = "shard_epochs";
 
+    public static final String INTERSECTS_INDEX_NAME = "intersects";
+    public static final String KIND_INDEX_NAME = "kind";
+
     private static final Function<Object, String> TO_STRING = AccordDebugKeyspace::toStringOrNull;
+    private static final Function<Object, String> TO_BALLOT_STRING = b -> b == null ? null : b.equals(Ballot.MAX) ? "+Inf" : b.toString();
 
     public static final AccordDebugKeyspace instance = new AccordDebugKeyspace();
 
@@ -234,6 +253,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new TxnBlockedByTable(),
             new TxnTable(),
             new TxnCacheTable(),
+            new TxnGraphTable(),
+            new TxnGraphAllTable(),
             new TxnTraceTable(),
             new TxnTracesTable(),
             new TxnPatternTraceTable(),
@@ -1345,7 +1366,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                                     .add("bucket_seen", state.bucketSeen())
                                     .add("chance", state.pattern().chance)
                                     .add("current_size", state.currentSize())
-                                    .add("if_intersects", state.pattern().intersects, TxnPatternTraceTable::toString)
+                                    .add("if_intersects", state.pattern().intersects, AccordDebugKeyspace::toString)
                                     .add("if_kind", state.pattern().kinds, TO_STRING)
                                     .add("on_failure", state.pattern().traceFailures, TO_STRING)
                                     .add("on_new", state.pattern().traceNew, TO_STRING)
@@ -1425,49 +1446,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             }
 
             tracing().setPattern(id, pattern, newBucketMode, newBucketSeen, newBucketSize, newTraceBucketMode, newTraceBucketSize, newTraceBucketSubSize, newTraceEvents);
-        }
-
-        private static String toString(Participants<?> participants)
-        {
-            StringBuilder out = new StringBuilder();
-            for (Routable r : participants)
-            {
-                if (out.length() != 0)
-                    out.append('|');
-                out.append(r);
-            }
-            return out.toString();
-        }
-
-        private static Participants<?> parseParticipants(Object input)
-        {
-            if (input == null)
-                return null;
-
-            String[] vs = ((String)input).split("\\|");
-            if (vs.length == 0)
-                return RoutingKeys.EMPTY;
-
-            if (!vs[0].endsWith("]"))
-            {
-                RoutingKey[] keys = new RoutingKey[vs.length];
-                for (int i = 0 ; i < keys.length ; ++i)
-                {
-                    try { keys[i] = TokenKey.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
-                    catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
-                }
-                return RoutingKeys.of(keys);
-            }
-            else
-            {
-                TokenRange[] ranges = new TokenRange[vs.length];
-                for (int i = 0 ; i < ranges.length ; ++i)
-                {
-                    try { ranges[i] = TokenRange.parse(vs[0], DatabaseDescriptor.getPartitioner()); }
-                    catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
-                }
-                return Ranges.of(ranges);
-            }
         }
 
         @Override
@@ -1657,21 +1635,24 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         private static void addColumns(Command command, ColumnsCollector columns)
         {
             StoreParticipants participants = command.participants();
-            columns.add("save_status", command.saveStatus(), TO_STRING)
-                   .add("route", participants, StoreParticipants::route, TO_STRING)
+            columns.add("ballot_promised", command, Command::promised, TO_BALLOT_STRING)
+                   .add("ballot_accepted", command, Command::acceptedOrCommitted, TO_BALLOT_STRING)
+                   .add("deps", command, Command::partialDeps, TO_STRING)
+                   .add("durability", command, Command::durability, TO_STRING)
+                   .add("execute_at", command, Command::executeAt, TO_STRING)
+                   .add("executes_at_least", command, Command::executesAtLeast, TO_STRING)
                    .add("participants_owns", participants, p -> toStr(p, StoreParticipants::owns, StoreParticipants::stillOwns))
                    .add("participants_touches", participants, p -> toStr(p, StoreParticipants::touches, StoreParticipants::stillTouches))
                    .add("participants_has_touched", participants, StoreParticipants::hasTouched, TO_STRING)
                    .add("participants_executes", participants, p -> toStr(p, StoreParticipants::executes, StoreParticipants::stillExecutes))
                    .add("participants_waits_on", participants, p -> toStr(p, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                   .add("durability", command, Command::durability, TO_STRING)
-                   .add("execute_at", command, Command::executeAt, TO_STRING)
-                   .add("executes_at_least", command, Command::executesAtLeast, TO_STRING)
+                   .add("save_status", command.saveStatus(), TO_STRING)
+                   .add("result", command, Command::result, TO_STRING)
+                   .add("route", participants, StoreParticipants::route, TO_STRING)
                    .add("txn", command, Command::partialTxn, TO_STRING)
-                   .add("deps", command, Command::partialDeps, TO_STRING)
                    .add("waiting_on", command, Command::waitingOn, TO_STRING)
                    .add("writes", command, Command::writes, TO_STRING)
-                   .add("result", command, Command::result, TO_STRING);
+            ;
         }
     }
 
@@ -1747,20 +1728,21 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     StoreParticipants participants = b.participants() != null ? b.participants() : StoreParticipants.empty(key.id);
                     rows.add(e.segment, e.position)
                         .lazyCollect(columns -> {
-                            columns.add("save_status", b.saveStatus(), TO_STRING)
-                                   .add("route", participants, StoreParticipants::route, TO_STRING)
+                            columns.add("ballot_accepted", b.get(ACCEPTED), TO_BALLOT_STRING)
+                                   .add("ballot_promised", b.get(PROMISED), TO_BALLOT_STRING)
+                                   .add("deps", b.partialDeps(), TO_STRING)
+                                   .add("durability", b.durability(), TO_STRING)
+                                   .add("execute_at", b.executeAt(), TO_STRING)
+                                   .add("executes_at_least", b.executesAtLeast(), TO_STRING)
                                    .add("participants_owns", participants, p -> toStr(p, StoreParticipants::owns, StoreParticipants::stillOwns))
                                    .add("participants_touches", participants, p -> toStr(p, StoreParticipants::touches, StoreParticipants::stillTouches))
                                    .add("participants_has_touched", participants, StoreParticipants::hasTouched, TO_STRING)
                                    .add("participants_executes", participants, p -> toStr(p, StoreParticipants::executes, StoreParticipants::stillExecutes))
                                    .add("participants_waits_on", participants, p -> toStr(p, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                                   .add("durability", b.durability(), TO_STRING)
-                                   .add("execute_at", b.executeAt(), TO_STRING)
-                                   .add("executes_at_least", b.executesAtLeast(), TO_STRING)
+                                   .add("result", b.result(), TO_STRING)
+                                   .add("route", participants, StoreParticipants::route, TO_STRING)
                                    .add("txn", b.partialTxn(), TO_STRING)
-                                   .add("deps", b.partialDeps(), TO_STRING)
-                                   .add("writes", b.writes(), TO_STRING)
-                                   .add("result", b.result(), TO_STRING);
+                                   .add("writes", b.writes(), TO_STRING);
                         });
                 }
             });
@@ -2126,22 +2108,17 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         }
     }
 
-    public static class TxnBlockedByTable extends AbstractLazyVirtualTable
+
+    static abstract class AbstractTxnGraphTable extends AbstractLazyVirtualTable
     {
-        protected TxnBlockedByTable()
+        protected AbstractTxnGraphTable(TableMetadata metadata, OnTimeout onTimeout, Sorted sorted)
         {
-            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_BLOCKED_BY,
-                        "Accord Transactions Blocked By Table",
-                        "CREATE TABLE %s (\n" +
-                        "  txn_id 'TxnIdUtf8Type',\n" +
-                        "  command_store_id int,\n" +
-                        "  depth int,\n" +
-                        "  blocked_by_key text,\n" +
-                        "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
-                        "  save_status text,\n" +
-                        "  execute_at text,\n" +
-                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
-                        ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+            super(metadata, onTimeout, sorted);
+        }
+
+        protected AbstractTxnGraphTable(TableMetadata metadata, OnTimeout onTimeout, Sorted sorted, Sorted sortedByPartitionKey)
+        {
+            super(metadata, onTimeout, sorted, sortedByPartitionKey);
         }
 
         @Override
@@ -2154,24 +2131,165 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             FilterRange<Integer> depthRange = collector.filters("depth", Function.identity(), i -> i + 1, i -> i - 1);
             int maxDepth = depthRange.max == null ? Integer.MAX_VALUE : depthRange.max;
 
+            // TODO (expected): cleanly handle Timestamp.NONE / Timestamp.MAX
+            FilterRange<String> executeAtRange = collector.filters("execute_at", Function.identity(), i -> Timestamp.parse(i).next().toString(), i -> Timestamp.parse(i).prev().toString());
+            FilterRange<String> parentRange = collector.filters("parent", Function.identity(), i -> Timestamp.parse(i).next().toString(), i -> Timestamp.parse(i).prev().toString());
+            Timestamp min = Timestamp.nonNullOrMax(Timestamp.nonNullOrMax(executeAtRange == null ? null : executeAtRange.min == null ? null : Timestamp.tryParse(executeAtRange.min), parentRange == null ? null : parentRange.min == null ? null : Timestamp.tryParse(parentRange.min)), Timestamp.NONE);
+
+
+            TxnKindsAndDomains kinds;
+            Participants<?> intersects;
+            {
+                TxnKindsAndDomains tmpKinds = TxnKindsAndDomains.ALL;
+                Participants<?> tmpIntersects = null;
+                for (RowFilter.Expression expr : collector.rowFilter().getExpressions())
+                {
+                    if (expr.isCustom())
+                    {
+                        switch (((RowFilter.CustomExpression)expr).getTargetIndex().name)
+                        {
+                            default: continue;
+                            case KIND_INDEX_NAME:
+                                tmpKinds = TxnKindsAndDomains.parse(UTF8Type.instance.compose(expr.getIndexValue()));
+                                break;
+                            case INTERSECTS_INDEX_NAME:
+                                tmpIntersects = parseParticipants(UTF8Type.instance.compose(expr.getIndexValue()));
+                                break;
+                        }
+                    }
+                }
+                kinds = tmpKinds;
+                intersects = tmpIntersects;
+            }
+
+
             TxnId txnId = TxnId.parse((String) pks[0]);
             PartitionCollector partition = collector.partition(pks[0]);
             partition.collect(rows -> {
-                try
-                {
-                    DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
-                        String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
-                        String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
-                        rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
-                            .eagerCollect(columns -> {
-                                columns.add("save_status", txn.saveStatus, TO_STRING)
-                                       .add("execute_at", txn.executeAt, TO_STRING);
-                            });
+                try { collect(txnId, maxDepth, min, kinds, intersects, collector, rows); }
+                catch (TimeoutException e) { throw new InternalTimeoutException(); }
+            });
+        }
+
+        abstract void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException;
+    }
+
+    public static class TxnBlockedByTable extends AbstractTxnGraphTable
+    {
+        protected TxnBlockedByTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_BLOCKED_BY,
+                        "Accord Transactions Blocked By Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
+                        "  blocked_by_key text,\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
+                        ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
+                String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
+                String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
+                rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
+                    .eagerCollect(columns -> {
+                        columns.add("save_status", txn.saveStatus, TO_STRING)
+                               .add("execute_at", txn.executeAt, TO_STRING);
                     });
-                }
-                catch (TimeoutException e)
+            });
+        }
+    }
+
+    static class TxnGraphTable extends AbstractTxnGraphTable
+    {
+        final IndexRegistry indexes;
+        protected TxnGraphTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_GRAPH,
+                        "Accord Transaction Graph Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  parent_txn_id 'TxnIdUtf8Type',\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  child_txn_id 'TxnIdUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  via text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, parent_txn_id, execute_at, child_txn_id)" +
+                        ") WITH CLUSTERING ORDER BY (depth ASC, command_store_id ASC, parent_txn_id DESC, execute_at DESC, child_txn_id DESC)",
+                        TxnIdUtf8Type.instance)
+                  .unbuild()
+                  .indexes(Indexes.of(IndexMetadata.fromSchemaMetadata(INTERSECTS_INDEX_NAME, CUSTOM, ImmutableMap.of("class_name", NoOpIndex.class.getCanonicalName(), "target", "via")),
+                                      IndexMetadata.fromSchemaMetadata(KIND_INDEX_NAME, CUSTOM, ImmutableMap.of("class_name", NoOpIndex.class.getCanonicalName(), "target", "child_txn_id"))
+                  ))
+                  .build(), BEST_EFFORT, ASC);
+            indexes = indexes(new NoOpIndex(metadata().indexes.get(INTERSECTS_INDEX_NAME).get()),
+                              new NoOpIndex(metadata().indexes.get(KIND_INDEX_NAME).get()));
+        }
+
+        @Override
+        public IndexRegistry indexes()
+        {
+            return indexes;
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugTxnDepsOrdered.visit(AccordService.unsafeInstance(), txnId, kinds, intersecting, min, maxDepth, collector.deadlineNanos(), parent -> {
+                for (DebugTxnGraph.TxnInfo info : parent.infos)
                 {
-                    throw new InternalTimeoutException();
+                    rows.add(parent.depth, parent.commandStoreId, parent.parent.toString(), (info.executeAt == null ? "" : info.executeAt.toString()), info.txnId.toString())
+                        .eagerCollect(columns -> {
+                            columns.add("save_status", info.saveStatus, TO_STRING)
+                                   .add("via", info.via, TO_STRING);
+                        });
+                }
+            });
+        }
+    }
+
+    static class TxnGraphAllTable extends AbstractTxnGraphTable
+    {
+        protected TxnGraphAllTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_GRAPH_ALL,
+                        "Accord Transaction Graph All Table",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  depth int,\n" +
+                        "  command_store_id int,\n" +
+                        "  parent_txn_id 'TxnIdUtf8Type',\n" +
+                        "  execute_at 'TimestampUtf8Type',\n" +
+                        "  child_txn_id 'TxnIdUtf8Type',\n" +
+                        "  first_parent 'TxnIdUtf8Type',\n" +
+                        "  save_status text,\n" +
+                        "  via text,\n" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, parent_txn_id, execute_at, child_txn_id)" +
+                        ") WITH CLUSTERING ORDER BY (depth ASC, command_store_id ASC, parent_txn_id DESC, execute_at DESC, child_txn_id DESC)",
+                        TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
+        }
+
+        @Override
+        void collect(TxnId txnId, int maxDepth, Timestamp min, TxnKindsAndDomains kinds, Participants<?> intersecting, PartitionsCollector collector, RowsCollector rows) throws TimeoutException
+        {
+            DebugTxnDepsAll.visit(AccordService.unsafeInstance(), txnId, null, TxnKindsAndDomains.ALL, min, maxDepth, collector.deadlineNanos(), parent -> {
+                for (DebugTxnDepsAll.TxnInfo info : parent.infos)
+                {
+                    rows.add(parent.depth, parent.commandStoreId, parent.parent.toString(), (info.executeAt == null ? "" : info.executeAt.toString()), info.txnId.toString())
+                        .eagerCollect(columns -> {
+                            columns.add("save_status", info.saveStatus, TO_STRING)
+                                   .add("first_parent", info.firstParent, TO_STRING)
+                                   .add("via", info.via, TO_STRING);
+                        });
                 }
             });
         }
@@ -2328,11 +2446,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         return av + " (" + bv + ')';
     }
 
-    private static CoordinationKind parseEventType(String input)
-    {
-        return tryParse(input, false, CoordinationKind.class, CoordinationKind::valueOf);
-    }
-
     private static String toStringOrNull(Object o)
     {
         return toStringOrNull(o, Object::toString);
@@ -2431,5 +2544,49 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             return null;
 
         return TxnKindsAndDomains.parse((String) input);
+    }
+
+    public static Participants<?> parseParticipants(Object input)
+    {
+        if (input == null)
+            return null;
+
+        String str = (String) input;
+        if (str.isEmpty())
+            return RoutingKeys.EMPTY;
+
+        String[] vs = str.split("\\|");
+        if (!vs[0].endsWith("]"))
+        {
+            RoutingKey[] keys = new RoutingKey[vs.length];
+            for (int i = 0 ; i < keys.length ; ++i)
+            {
+                try { keys[i] = TokenKey.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
+                catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
+            }
+            return RoutingKeys.of(keys);
+        }
+        else
+        {
+            TokenRange[] ranges = new TokenRange[vs.length];
+            for (int i = 0 ; i < ranges.length ; ++i)
+            {
+                try { ranges[i] = TokenRange.parse(vs[i], DatabaseDescriptor.getPartitioner()); }
+                catch (Throwable t) { throw new InvalidRequestException("Could not parse TokenKey " + vs[0]); }
+            }
+            return Ranges.of(ranges);
+        }
+    }
+
+    public static String toString(Participants<?> participants)
+    {
+        StringBuilder out = new StringBuilder();
+        for (Routable r : participants)
+        {
+            if (out.length() != 0)
+                out.append('|');
+            out.append(r);
+        }
+        return out.toString();
     }
 }

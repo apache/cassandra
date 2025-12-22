@@ -1159,7 +1159,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         @Override
         public String description()
         {
-            return "Scanning range intersections for " + AccordTask.this;
+            return "Scanning range intersections for " + preLoadContext.reason() + ' ' + toBriefString();
         }
 
         @Override
