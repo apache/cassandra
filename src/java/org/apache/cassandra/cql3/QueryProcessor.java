@@ -649,8 +649,11 @@ public class QueryProcessor implements QueryHandler
                 return createResultMessage(hashWithKeyspace, cachedWithKeyspace);
             }
         }
-        else
+        else if (cachedWithoutKeyspace != null || cachedWithKeyspace != null)
         {
+            // only evict if we know one of the statements is cached
+            // This can happen during upgrade when switching prepared statement behaviour
+            // So only if one of the cache is missing then it means we need to re-prepare
             // Make sure the missing one is going to be eventually re-prepared
             evictPrepared(hashWithKeyspace);
             evictPrepared(hashWithoutKeyspace);
