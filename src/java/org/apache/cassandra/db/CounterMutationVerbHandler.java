@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -37,6 +38,15 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
     {
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
+
+        Keyspace keyspace = Keyspace.open(cm.getKeyspaceName());
+
+        if (keyspace.getMetadata().useMutationTracking())
+        {
+            logger.trace("Applying tracked forwarded counter mutation {}", cm);
+            ForwardedWrite.applyForwardedCounterMutation(cm, message);
+            return;
+        }
 
         String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
         // We should not wait for the result of the write in this thread,

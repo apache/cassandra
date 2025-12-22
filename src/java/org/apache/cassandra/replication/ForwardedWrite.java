@@ -59,9 +59,98 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
- * For a forwarded write there are 2 nodes involved in coordination, a coordinator and a leader. The coordinator is the
- * node that the client is communicating with, and the leader is the mutation replica that is handling the mutation
+ * Handles tracked writes where the coordinator is NOT a replica for the write.
+ *
+ * <p>For a forwarded write there are 2 nodes involved in coordination: a coordinator and a leader. The coordinator is
+ * the node that the client is communicating with, and the leader is the mutation replica that is handling the mutation
  * tracking for that write.
+ *
+ * <h2>Request/Response Flow</h2>
+ *
+ * <h3>Regular Writes (Mutation)</h3>
+ *
+ * <pre>
+ * Client                Coordinator           Leader Replica        Other Replicas
+ *   |                        |                       |                     |
+ *   |---Write Request------->|                       |                     |
+ *   |                        |                       |                     |
+ *   |                        |--FORWARD_WRITE_REQ--->|                     |
+ *   |                        |   (Mutation w/o ID)   |                     |
+ *   |                        |                       |                     |
+ *   |                        |                       |--Assign MutationId  |
+ *   |                        |                       |                     |
+ *   |                        |                       |--Apply locally----->|
+ *   |                        |                       |   (with ID)         |
+ *   |                        |                       |                     |
+ *   |                        |                       |--MUTATION_REQ------>|
+ *   |                        |                       |   (Mutation w/ ID + |
+ *   |                        |                       |    CoordinatorAck)  |
+ *   |                        |                       |                     |
+ *   |                        |                       |                     |--Apply locally
+ *   |                        |                       |                     |
+ *   |                        |<------MUTATION_RSP (for CL)-----------------|
+ *   |                        |                       |<-MUTATION_RSP (tracking)-|
+ *   |<--Write Response-------|                       |                     |
+ *   |  (when CL satisfied)   |                       |                     |
+ *   |                        |                       |--Mark witnessed---->|
+ * </pre>
+ *
+ * <p><b>Key Points:</b>
+ * <ul>
+ *   <li>Coordinator selects a leader replica based on proximity and liveness</li>
+ *   <li>Coordinator sends mutation WITHOUT an ID to the leader</li>
+ *   <li>Leader assigns a MutationId using {@link MutationTrackingService#nextMutationId}</li>
+ *   <li>Leader applies mutation locally and forwards to other replicas</li>
+ *   <li>All replicas respond to coordinator for consistency level (using CoordinatorAckInfo)</li>
+ *   <li>Other replicas also respond to leader for mutation tracking/witnessing</li>
+ *   <li>Coordinator waits for CL responses before responding to client</li>
+ * </ul>
+ *
+ * <h3>Counter Writes (CounterMutation)</h3>
+ *
+ * <pre>
+ * Client                Coordinator           Leader Replica        Other Replicas
+ *   |                        |                       |                     |
+ *   |---Counter Write------->|                       |                     |
+ *   |                        |                       |                     |
+ *   |                        |--COUNTER_MUTATION_REQ>|                     |
+ *   |                        |  (CounterMutation w/o |                     |
+ *   |                        |   ID)                 |                     |
+ *   |                        |                       |                     |
+ *   |                        |                       |--Assign MutationId  |
+ *   |                        |                       |                     |
+ *   |                        |                       |--Apply counter----->|
+ *   |                        |                       |  mutation (converts |
+ *   |                        |                       |  CounterMutation to |
+ *   |                        |                       |  Mutation w/ ID)    |
+ *   |                        |                       |                     |
+ *   |                        |                       |--MUTATION_REQ------>|
+ *   |                        |                       |  (Mutation result + |
+ *   |                        |                       |   CoordinatorAck)   |
+ *   |                        |                       |                     |
+ *   |                        |                       |                     |--Apply locally
+ *   |                        |                       |                     |
+ *   |                        |<------MUTATION_RSP (for CL)-----------------|
+ *   |                        |                       |<-MUTATION_RSP (tracking)-|
+ *   |<--Write Response-------|                       |                     |
+ *   |  (when CL satisfied)   |                       |                     |
+ *   |                        |                       |--Mark witnessed---->|
+ * </pre>
+ *
+ * <p><b>Key Points:</b>
+ * <ul>
+ *   <li>Coordinator selects a counter leader replica (prefers local DC)</li>
+ *   <li>Coordinator sends CounterMutation WITHOUT an ID to the leader</li>
+ *   <li>Leader assigns a MutationId using {@link MutationTrackingService#nextMutationId}</li>
+ *   <li>Leader applies counter mutation locally, which converts CounterMutation to a regular Mutation</li>
+ *   <li>Leader forwards the resulting Mutation (NOT CounterMutation) to other replicas</li>
+ *   <li>All replicas respond to coordinator for consistency level (using CoordinatorAckInfo)</li>
+ *   <li>Other replicas also respond to leader for mutation tracking/witnessing</li>
+ *   <li>Coordinator waits for CL responses before responding to client</li>
+ * </ul>
+ *
+ * @see TrackedWriteRequest for the flow when coordinator IS a replica
+ * @see MutationTrackingService for mutation ID assignment and witnessing
  */
 public class ForwardedWrite
 {
@@ -173,11 +262,8 @@ public class ForwardedWrite
                 {
                     if (remoteDCReplicas == null)
                         remoteDCReplicas = new HashMap<>();
-
-                    List<Replica> messages = remoteDCReplicas.get(dc);
-                    if (messages == null)
-                        messages = remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)); // most DCs will have <= 3 replicas
-                    messages.add(replica);
+                    remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)) // most DCs will have <= 3 replicas
+                                    .add(replica);
                 }
             }
 
@@ -239,6 +325,127 @@ public class ForwardedWrite
         MessagingService.instance().send(toLeader, leader.endpoint());
 
         return handler;
+    }
+
+    /**
+     * Forward a tracked counter mutation to a replica leader for processing.
+     * The leader will apply the counter mutation, assign a mutation ID, and replicate to other replicas.
+     */
+    public static AbstractWriteResponseHandler<Object> forwardCounterMutation(CounterMutation counterMutation,
+                                                                              ReplicaPlan.ForWrite plan,
+                                                                              AbstractReplicationStrategy strategy,
+                                                                              Dispatcher.RequestTime requestTime)
+    {
+        Preconditions.checkArgument(counterMutation.id().isNone(), "CounterMutation should not have an ID when forwarding");
+
+        ClusterMetadata cm = ClusterMetadata.current();
+        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
+
+        // Find the leader replica - prefer local DC replicas for counters
+        Replica leader;
+        try
+        {
+            leader = ReplicaPlans.findCounterLeaderReplica(cm, counterMutation.getKeyspaceName(),
+                                                           counterMutation.key(),
+                                                           localDataCenter,
+                                                           counterMutation.consistency());
+        }
+        catch (Exception e)
+        {
+            logger.error("Failed to find counter leader replica for tracked write", e);
+            throw e;
+        }
+
+        Preconditions.checkState(!leader.isSelf(), "Leader should not be self when forwarding counter mutation");
+        logger.trace("Forwarding tracked counter mutation to leader replica {}", leader);
+
+        // Create response handler for all replicas
+        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.COUNTER, null, requestTime);
+
+        // Add callbacks for all live replicas to respond directly to coordinator
+        Message<CounterMutation> forwardMessage = Message.outWithRequestTime(Verb.COUNTER_MUTATION_REQ, counterMutation, requestTime);
+        for (Replica replica : plan.contacts())
+        {
+            if (plan.isAlive(replica))
+            {
+                logger.trace("Adding forwarding callback for tracked counter response from {} id {}", replica, forwardMessage.id());
+                MessagingService.instance().callbacks.addWithExpiration(handler, forwardMessage, replica);
+            }
+            else
+            {
+                handler.expired();
+            }
+        }
+
+        // Send the counter mutation to the leader
+        MessagingService.instance().send(forwardMessage, leader.endpoint());
+
+        return handler;
+    }
+
+    /**
+     * Forward a mutation to a replica leader for processing.
+     * Dispatches to the appropriate method based on mutation type.
+     *
+     * @param mutation    the mutation to forward (can be Mutation or CounterMutation)
+     * @param plan        the replica plan
+     * @param strategy    the replication strategy
+     * @param requestTime the request time
+     * @return the write response handler
+     */
+    public static AbstractWriteResponseHandler<Object> forward(IMutation mutation,
+                                                               ReplicaPlan.ForWrite plan,
+                                                               AbstractReplicationStrategy strategy,
+                                                               Dispatcher.RequestTime requestTime)
+    {
+        if (mutation instanceof CounterMutation)
+            return forwardCounterMutation((CounterMutation) mutation, plan, strategy, requestTime);
+        else
+            return forwardMutation((Mutation) mutation, plan, strategy, requestTime);
+    }
+
+    /**
+     * Apply a forwarded tracked counter mutation on the leader replica.
+     * Called by CounterMutationVerbHandler when receiving a forwarded counter write.
+     * <p>
+     * This method:
+     * 1. Creates CoordinatorAckInfo from the incoming message
+     * 2. Creates a LeaderCallback to track responses from replicas
+     * 3. Applies counter mutation locally with generated mutation ID
+     * 4. Forwards result (Mutation not CounterMutation) to other replicas with CoordinatorAckInfo and LeaderCallback
+     * 5. Sends leader's response back to coordinator
+     *
+     * @param counterMutation the counter mutation to apply
+     * @param message the original message (contains coordinator address and message ID)
+     */
+    public static void applyForwardedCounterMutation(CounterMutation counterMutation, Message<CounterMutation> message)
+    {
+        CoordinatorAckInfo coordinatorAckInfo = CoordinatorAckInfo.toCoordinator(message.from(), message.id());
+
+        String keyspaceName = counterMutation.getKeyspaceName();
+        Token token = counterMutation.key().getToken();
+        Keyspace ks = Keyspace.open(keyspaceName);
+        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, counterMutation.consistency(), token, ReplicaPlans.writeAll);
+
+        MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+
+        logger.trace("Forwarded counter mutation {}: applying locally with ID and forwarding to other replicas", id);
+
+        // Create LeaderCallback to track when replicas respond, allowing the leader
+        // to mark the mutation ID as witnessed on each replica proactively
+        LeaderCallback leaderCallback = new LeaderCallback(id, coordinatorAckInfo);
+
+        // Apply counter mutation with ID to get result
+        Mutation result = counterMutation.applyCounterMutation(id);
+
+        // Apply locally using the leader callback
+        TrackedWriteRequest.applyMutationLocally(result, leaderCallback);
+
+        // Send result to other replicas with CoordinatorAckInfo and LeaderCallback
+        // Replicas will respond to both the leader (for witnessing) and the coordinator (for CL)
+        TrackedWriteRequest.sendToReplicas(result, plan, leaderCallback, coordinatorAckInfo);
+
+        logger.trace("Tracked counter mutation {} processed, local application and replication initiated", id);
     }
 
     public static final IVersionedSerializer<MutationRequest> serializer = new IVersionedSerializer<>()

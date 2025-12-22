@@ -161,7 +161,23 @@ public class CounterMutation implements IMutation
      */
     public Mutation applyCounterMutation() throws WriteTimeoutException
     {
-        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(id(), getKeyspaceName(), key());
+        return applyCounterMutation(null);
+    }
+
+    /**
+     * Applies the counter mutation with an optional mutation ID for tracked keyspaces.
+     *
+     * For tracked keyspaces, the mutation ID is assigned to the concrete result BEFORE
+     * it is applied, ensuring the concrete counter values (not the operation) are
+     * journaled and tracked with the ID.
+     *
+     * @param mutationId the mutation ID to assign to the concrete result, or null for non-tracked
+     * @return the applied resulting Mutation (with ID if provided)
+     */
+    public Mutation applyCounterMutation(MutationId mutationId) throws WriteTimeoutException
+    {
+        MutationId idToUse = (mutationId != null && !mutationId.isNone()) ? mutationId : id();
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(idToUse, getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
         List<Lock> locks = new ArrayList<>();
