@@ -281,6 +281,7 @@ public class ZstdDictionaryCompressorTest
     {
         ZstdDictionaryCompressor.invalidateCache();
         ZstdCompressionDictionary closedDict = createTestDictionary();
+        closedDict.initRefLazily();
         closedDict.close();
 
         // This should throw IllegalStateException

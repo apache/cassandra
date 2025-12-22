@@ -101,9 +101,10 @@ public class CompressionMetadataTest
         byte[] dictBytes = "sample dictionary data for compression".getBytes();
         ZstdCompressionDictionary dictionary = new ZstdCompressionDictionary(dictId, dictBytes);
 
-        assertThat(dictionary.selfRef().globalCount()).isOne();
+        assertThat(dictionary.selfRef()).isNull();
         CompressionDictionaryCache cache = new CompressionDictionaryCache();
         cache.add(dictionary);
+        assertThat(dictionary.selfRef().globalCount()).isOne();
 
         // Verify dictionary is in cache
         CompressionDictionary cachedDict = cache.get(dictId);
@@ -187,9 +188,11 @@ public class CompressionMetadataTest
         byte[] dictBytes = "shared dictionary data".getBytes();
         ZstdCompressionDictionary dictionary = new ZstdCompressionDictionary(dictId, dictBytes);
 
-        assertThat(dictionary.selfRef().globalCount()).isOne();
+        assertThat(dictionary.selfRef()).isNull();
         CompressionDictionaryCache cache = new CompressionDictionaryCache();
         cache.add(dictionary);
+
+        assertThat(dictionary.selfRef().globalCount()).isOne();
 
         // Create multiple CompressionMetadata instances (simulating multiple SSTables)
         Memory memory1 = Memory.allocate(100);
