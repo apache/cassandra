@@ -45,6 +45,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -161,6 +162,34 @@ public class SystemKeyspaceTest
         assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("broadcast_port"));
         assertEquals(FBUtilities.getJustLocalAddress(), row.getInetAddress("listen_address"));
         assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("listen_port"));
+    }
+
+    @Test
+    public void testCompactionHistory()
+    {
+        String ks = "test_ks";
+        String cf = "test_cf";
+        long now = System.currentTimeMillis();
+        Map<Integer, Long> rowsMerged = Collections.singletonMap(1, 100L);
+        Map<String, String> props = Collections.singletonMap("strategy", "STCS");
+        String compactionType = "TestMajor";
+
+        SystemKeyspace.updateCompactionHistory(
+            TimeUUID.Generator.nextTimeUUID(),
+            ks,
+            cf,
+            now,
+            1000,
+            500,
+            rowsMerged,
+            props,
+            compactionType
+        );
+
+        UntypedResultSet result = executeInternal("SELECT compaction_type FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING", ks, cf);
+
+        assertNotNull(result);
+        assertEquals(compactionType, result.one().getString("compaction_type"));
     }
 
     private String getOlderVersionString()

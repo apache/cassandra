@@ -284,8 +284,9 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
                                       + "columnfamily_name, "
                                       + "compacted_at, "
                                       + "keyspace_name, "
-                                      + "rows_merged) "
-                                      + " values ( ?, ?, ?, ?, ?, ?, ? )",
+                                      + "rows_merged, "
+                                      + "compaction_type) "
+                                      + " values ( ?, ?, ?, ?, ?, ?, ?, ? )",
                                       table);
         TimeUUID compactionId = TimeUUID.Generator.atUnixMillis(currentTimeMillis());
         Date compactAt  = Date.from(now());
@@ -297,7 +298,8 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
                 "table",
                 compactAt,
                 "keyspace",
-                rowsMerged);
+                rowsMerged,
+                "Major");
         SystemKeyspaceMigrator41.migrateCompactionHistory();
 
         int rowCount = 0;
@@ -312,6 +314,7 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             assertEquals("keyspace", row.getString("keyspace_name"));
             assertEquals(rowsMerged, row.getMap("rows_merged", Int32Type.instance, LongType.instance));
             assertEquals(ImmutableMap.of(), row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance));
+            assertEquals("Major", row.getString("compaction_type"));
         }
         assertEquals(1, rowCount);
         Keyspace.all().forEach(ks -> {

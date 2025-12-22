@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.Assert;
@@ -37,6 +38,7 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -92,7 +94,7 @@ public class CompactionTaskTest
             task.execute(CompactionManager.instance.active);
         }
 
-        UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id FROM system.%s where id = %s",
+        UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id, compaction_type, compaction_properties FROM system.%s where id = %s",
                                                                       SystemKeyspace.COMPACTION_HISTORY,
                                                                       id.toString()));
 
@@ -103,6 +105,12 @@ public class CompactionTaskTest
         TimeUUID persistedId = one.getTimeUUID("id");
 
         Assert.assertEquals(id, persistedId);
+
+        String type = one.getString("compaction_type");
+        Assert.assertEquals("Compaction", type);
+
+        Map<String, String> properties = one.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance);
+        Assert.assertTrue("Strategy missing in properties", properties.containsKey("strategy"));
     }
 
     @Test
