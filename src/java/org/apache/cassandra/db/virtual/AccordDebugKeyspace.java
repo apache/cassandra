@@ -1351,7 +1351,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  trace_bucket_sub_size int,\n" +
                         "  trace_events text,\n" +
                         "  PRIMARY KEY (id)" +
-                        ')', Int32Type.instance), FAIL, SORTED);
+                        ')', Int32Type.instance), FAIL, UNSORTED);
         }
 
         @Override
@@ -1465,7 +1465,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  id int,\n" +
                         "  txn_id 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (id, txn_id)" +
-                        ')', Int32Type.instance), FAIL, SORTED, SORTED);
+                        ')', Int32Type.instance), FAIL, UNSORTED, UNSORTED);
         }
 
         @Override
@@ -1593,21 +1593,23 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  command_store_id int,\n" +
                         "  txn_id 'TxnIdUtf8Type',\n" +
-                        "  save_status text,\n" +
-                        "  route text,\n" +
+                        "  ballot_accepted text,\n" +
+                        "  ballot_promised text,\n" +
+                        "  deps text,\n" +
                         "  durability text,\n" +
                         "  execute_at text,\n" +
                         "  executes_at_least text,\n" +
-                        "  txn text,\n" +
-                        "  deps text,\n" +
-                        "  waiting_on text,\n" +
-                        "  writes text,\n" +
-                        "  result text,\n" +
                         "  participants_owns text,\n" +
                         "  participants_touches text,\n" +
                         "  participants_has_touched text,\n" +
                         "  participants_executes text,\n" +
                         "  participants_waits_on text,\n" +
+                        "  result text,\n" +
+                        "  save_status text,\n" +
+                        "  route text,\n" +
+                        "  txn text,\n" +
+                        "  waiting_on text,\n" +
+                        "  writes text,\n" +
                         "  PRIMARY KEY ((command_store_id, txn_id))" +
                         ')', PK));
         }
@@ -1652,7 +1654,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                    .add("txn", command, Command::partialTxn, TO_STRING)
                    .add("waiting_on", command, Command::waitingOn, TO_STRING)
                    .add("writes", command, Command::writes, TO_STRING)
-            ;
+                   ;
         }
     }
 
@@ -1699,20 +1701,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  command_store_id int,\n" +
                         "  segment bigint,\n" +
                         "  segment_position int,\n" +
-                        "  save_status text,\n" +
-                        "  route text,\n" +
+                        "  ballot_accepted text,\n" +
+                        "  ballot_promised text,\n" +
+                        "  deps text,\n" +
                         "  durability text,\n" +
                         "  execute_at text,\n" +
                         "  executes_at_least text,\n" +
-                        "  txn text,\n" +
-                        "  deps text,\n" +
-                        "  writes text,\n" +
-                        "  result text,\n" +
                         "  participants_owns text,\n" +
                         "  participants_touches text,\n" +
                         "  participants_has_touched text,\n" +
                         "  participants_executes text,\n" +
                         "  participants_waits_on text,\n" +
+                        "  result text,\n" +
+                        "  route text,\n" +
+                        "  save_status text,\n" +
+                        "  txn text,\n" +
+                        "  writes text,\n" +
                         "  PRIMARY KEY ((command_store_id, txn_id), segment, segment_position)" +
                         ')', PK));
         }

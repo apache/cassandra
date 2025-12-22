@@ -238,8 +238,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         String id = loggingId;
         if (id == null)
         {
-            TxnId primaryTxnId = preLoadContext.primaryTxnId();
-            id = "0x" + Long.toHexString(nextLoggingId.incrementAndGet()) + (primaryTxnId != null ? '/' + primaryTxnId.toString() : "");
+            id = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
             if (!loggingIdUpdater.compareAndSet(this, null, id))
                 id = loggingId;
         }
@@ -249,12 +248,17 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     public String toString()
     {
-        return "AccordTask{" + state + "}-" + loggingId();
+        return preLoadContext.describe() + ' ' + toBriefString();
+    }
+
+    public String toBriefString()
+    {
+        return '{' + loggingId() + ',' + state + '}';
     }
 
     public String toDescription()
     {
-        return "AccordTask{" + state + "}-" + loggingId() + ": "
+        return toBriefString() + ": "
                + (queued == null ? "unqueued" : queued.kind)
                + ", primaryTxnId: " + preLoadContext.primaryTxnId()
                + ", waitingToLoad: " + summarise(waitingToLoad)
@@ -808,6 +812,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     public void cancelExclusive()
     {
         state(CANCELLED);
+        if (rangeScanner != null)
+            rangeScanner.cancelled = true;
         if (callback != null)
             callback.accept(null, new CancellationException());
     }
@@ -985,8 +991,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             this.commandsForKeyCache = commandsForKeyCache;
         }
 
-        boolean scanned;
-
         protected void runInternal()
         {
             for (Range range : ranges)
@@ -994,7 +998,11 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                 CommandsForKeyAccessor.findAllKeysBetween(commandStore.id(), commandStore.tableId(), getPartitioner(),
                                                           (TokenKey) range.start(), range.startInclusive(),
                                                           (TokenKey) range.end(), range.endInclusive(),
-                                                          intersectingKeys::add);
+                                                          key -> {
+                                                              if (cancelled)
+                                                                  throw new CancellationException();
+                                                              intersectingKeys.add(key);
+                                                          });
             }
             super.runInternal();
         }
@@ -1082,9 +1090,16 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         boolean scanned;
         Throwable failure;
 
+        volatile boolean cancelled;
+
         protected void runInternal()
         {
             loader.load(mutexSummaries, () -> cancelled);
+        }
+
+        PreLoadContext preLoadContext()
+        {
+            return preLoadContext;
         }
 
         @Override

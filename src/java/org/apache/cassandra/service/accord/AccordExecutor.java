@@ -71,6 +71,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms;
@@ -376,6 +377,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 // we have too much in memory already, and we have work waiting to run, so let that complete before queueing more
                 if (!loading.isEmpty() || !waitingToRun.isEmpty())
                 {
+                    AccordSystemMetrics.metrics.pausedExecutorLoading.inc();
                     hasPausedLoading = true;
                     return;
                 }
@@ -1722,6 +1724,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             if (task instanceof AccordTask)
                 return ((AccordTask<?>) task).preLoadContext();
+            if (task instanceof WrappedIOTask && ((WrappedIOTask) task).wrapped instanceof AccordTask.RangeTxnScanner)
+                return ((AccordTask<?>.RangeTxnScanner) ((WrappedIOTask) task).wrapped).preLoadContext();
             return null;
         }
 
