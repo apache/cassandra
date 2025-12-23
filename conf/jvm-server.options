@@ -156,6 +156,10 @@
 # Disable chronicle analytics. See CASSANDRA-19656
 -Dchronicle.analytics.disable=true
 
+# AsyncProfiler Flags
+#-Dcassandra.async_profiler.enabled=true|false
+#-Dcassandra.async_profiler.advanced_mode=true|false
+
 ### Debug options
 
 # uncomment to enable flight recorder

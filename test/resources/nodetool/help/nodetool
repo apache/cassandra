@@ -97,6 +97,7 @@ The most commonly used nodetool commands are:
     move                                Move node on the token ring to a new token
     netstats                            Print network information on provided host (connecting node by default)
     pausehandoff                        Pause hints delivery process
+    profile                             Run Async-Profiler on the cassandra process
     profileload                         Low footprint profiling of activity for a period of time
     proxyhistograms                     Print statistic histograms for network operations
     rangekeysample                      Shows the sampled keys held across all keyspaces

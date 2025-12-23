@@ -56,6 +56,7 @@
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
+    <property name="build.async-profiler" value="${basedir}/async-profiler"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${build.dir}/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
@@ -582,6 +583,7 @@
             <compilerarg line="${jdk11plus-javac-exports}"/>
             <classpath>
                 <path refid="cassandra.classpath"/>
+                <pathelement location="${build.lib}/async-profiler.jar" />
             </classpath>
         </javac>
     </target>
@@ -590,6 +592,7 @@
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
+        <antcall target="async-profiler"/>
         <antcall target="_build_java"/>
         <antcall target="_createVersionPropFile"/>
         <copy todir="${build.classes.main}">
@@ -828,7 +831,17 @@
             <fileset dir="${fqltool.build.classes}"/>
         </jar>
     </target>
-
+    <target name="async-profiler" description="Copy async-profiler artifacts into the build path">
+        <mkdir dir="${build.lib}/async-profiler"/>
+        <copy file="${build.async-profiler}/async-profiler.jar" tofile="${build.lib}/async-profiler.jar"/>
+        <copy todir="${build.lib}/async-profiler" failonerror="false">
+            <fileset dir="${build.async-profiler}">
+                <include name="libasyncProfiler.so"/>
+                <include name="libasyncProfiler.dylib"/>
+            </fileset>
+            <mapper type="glob" from="libasyncProfiler.*" to="asyncProfiler.*"/>
+        </copy>
+    </target>
     <target name="simulator-jars"
             depends="simulator-asm-build,simulator-bootstrap-build"
             description="Assemble Cassandra JAR files">
@@ -1102,6 +1115,7 @@
      encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath.test"/>
+        <pathelement location="${build.lib}/async-profiler.jar" />
         <pathelement location="${fqltool.build.classes}"/>
         <pathelement location="${sstableloader.build.classes}"/>
      </classpath>
@@ -1142,6 +1156,7 @@
             <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask">
                 <classpath>
                     <path refid="cassandra.classpath.test"/>
+                    <pathelement location="${build.lib}/async-profiler.jar" />
                     <pathelement location="${fqltool.build.classes}"/>
                     <pathelement location="${stress.build.classes}"/>
                     <pathelement location="${sstableloader.build.classes}"/>
@@ -1278,6 +1293,7 @@
           <pathelement location="${sstableloader.build.classes}"/>
           <pathelement location="${test.classes}"/>
           <path refid="cassandra.classpath.test" />
+          <pathelement location="${build.lib}/async-profiler.jar" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${sstableloader.test.classes}"/>
@@ -2123,6 +2139,7 @@
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
+  <classpathentry kind="lib" path="${java.home}/../lib/async-profiler.jar"/>
   <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
   ${eclipse-libs-list}
 </classpath>
