@@ -441,7 +441,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
             data.count[i] = random.nextInt(10);
         }
 
-        double[] res = CompactionStrategyManager.averageFinalizer(data);
+        double[] res = CompactionStrategyManager.averageArrayFinalizer(data);
         assertEquals(res.length, data.numberOfLevels);
         for (int i = 0; i < data.numberOfLevels; i++)
             if (data.count[i] == 0)
