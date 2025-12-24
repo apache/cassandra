@@ -45,10 +45,11 @@ can be discarded.
 
 Transient replication is not enabled by default. Transient replication
 must be enabled on each node in a cluster separately by setting the
-following configuration property in `cassandra.yaml`.
+following configuration property in `cassandra.yaml`. Transient nodes are not allowed with multiple tokens
 
 ....
 transient_replication_enabled: true
+num_tokens: 1
 ....
 
 Transient replication may be configured with both `SimpleStrategy` and
@@ -59,7 +60,7 @@ As an example, create a keyspace with replication factor (RF) 3.
 
 ....
 CREATE KEYSPACE CassandraKeyspaceSimple WITH replication = {'class': 'SimpleStrategy',
-'replication_factor' : 4/1};
+'replication_factor' : '4/1'};
 ....
 
 As another example, `some_keysopace keyspace` will have 3 replicas in
@@ -68,11 +69,20 @@ transient:
 
 ....
 CREATE KEYSPACE some_keysopace WITH replication = {'class': 'NetworkTopologyStrategy',
-'DC1' : '3/1'', 'DC2' : '5/2'};
+'DC1' : '3/1', 'DC2' : '5/2'};
 ....
 
 Transiently replicated keyspaces only support tables with `read_repair`
 set to `NONE`.
+
+....
+CREATE TABLE users (
+    user_id varchar PRIMARY KEY,
+    first varchar,
+    last varchar,
+    age int
+) WITH read_repair = 'NONE';
+....
 
 Important Restrictions:
 
@@ -124,7 +134,7 @@ quorum write will be upgraded to include transient replicas.
 
 Pending ranges refers to the movement of token ranges between transient
 replicas. When a transient range is moved, there will be a period of
-time where both transient replicas would need to receive any write
+time when both transient replicas would need to receive any write
 intended for the logical transient replica so that after the movement
 takes effect a read quorum is able to return a response. Nodes are _not_
 temporarily transient replicas during expansion. They stream data like a

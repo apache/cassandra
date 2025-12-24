@@ -186,7 +186,7 @@ public class ReplicaPlans
                         total += dcCount.allReplicas();
                     }
                     if (totalFull < blockForFullReplicas)
-                        throw UnavailableException.create(consistencyLevel, blockFor, total, blockForFullReplicas, totalFull);
+                        throw UnavailableException.create(consistencyLevel, blockFor, blockForFullReplicas, total, totalFull);
                     break;
                 }
                 // Fallthough on purpose for SimpleStrategy
@@ -812,7 +812,8 @@ public class ReplicaPlans
         });
     }
 
-    private static <E extends Endpoints<E>> E contactForRead(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
+    @VisibleForTesting
+    public static <E extends Endpoints<E>> E contactForRead(Locator locator, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
     {
         /*
          * If we are doing an each quorum query, we have to make sure that the endpoints we select
@@ -823,6 +824,7 @@ public class ReplicaPlans
          *
          * TODO: this is still very inconistently managed between {LOCAL,EACH}_QUORUM and other consistency levels - should address this in a follow-up
          */
+        candidates = reorderWithOneFullReplicaFirst(candidates);
         if (consistencyLevel == EACH_QUORUM && replicationStrategy instanceof NetworkTopologyStrategy)
             return contactForEachQuorumRead(locator, (NetworkTopologyStrategy) replicationStrategy, candidates);
 
@@ -830,6 +832,37 @@ public class ReplicaPlans
         return candidates.subList(0, Math.min(count, candidates.size()));
     }
 
+    /**
+     * Reorders the provided list of replicas such that, if any transient replicas are present,
+     * a single full replica (if available) is placed first. The remaining replicas retain their original order(order by NodeProximity),
+     *
+     * @param endpoints the original set of replicas
+     * @param <E> a subtype of Endpoints
+     * @return the same set if there are no transient replicas or no full replica is found,
+     *         otherwise a reordered set with the first full replica placed first
+     */
+    private static <E extends Endpoints<E>> E reorderWithOneFullReplicaFirst(E endpoints) {
+        boolean hasTransient = false;
+        Replica firstFull = null;
+
+        for (Replica r : endpoints) {
+            if (r.isTransient()) hasTransient = true;
+            if (firstFull == null && r.isFull()) firstFull = r;
+        }
+
+        if (!hasTransient || firstFull == null)
+            return endpoints;
+
+        ReplicaCollection.Builder<E> builder = endpoints.newBuilder(endpoints.size());
+        builder.add(firstFull);
+        for (Replica r : endpoints) {
+            if (!r.equals(firstFull)) {
+                builder.add(r);
+            }
+        }
+
+        return builder.build();
+    }
 
     /**
      * Construct a plan for reading from a single node - this permits no speculation or read-repair
