@@ -25,10 +25,10 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.math.IntMath;
-
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.utils.CassandraUInt;
 
 /**
  * Histogram that can be constructed from streaming of data.
@@ -59,7 +59,6 @@ import org.apache.cassandra.db.rows.Cell;
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
  *     Spool can not resize => when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>Bin is organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
- *     <li>To use existing Arrays.binarySearch <i>{point, values}</i> in bin pairs is packed in one long</li>
  * </ol>
  * <p>
  * The original algorithm is taken from following paper:
@@ -102,6 +101,8 @@ public class StreamingTombstoneHistogramBuilder
     public void update(long point, int value)
     {
         assert spool != null: "update is being called after releaseBuffers. This could be functionally okay, but this assertion is a canary to alert about unintended use before it is necessary.";
+        // ceilKey always calls saturatingCastToMaxDeletionTime so all points fit an unsigned int
+        // and also don't collide with DataHolder.EMPTY
         point = ceilKey(point, roundSeconds);
 
         if (spool.capacity > 0)
@@ -115,7 +116,7 @@ public class StreamingTombstoneHistogramBuilder
         }
         else
         {
-            flushValue(point, value);
+            flushValue(CassandraUInt.fromLong(point), value);
         }
     }
 
@@ -142,9 +143,9 @@ public class StreamingTombstoneHistogramBuilder
        spool = null;
     }
 
-    private void flushValue(long key, int spoolValue)
+    private void flushValue(int pointUnsigned, int spoolValue)
     {
-        bin.addValue(key, spoolValue);
+        bin.addValue(pointUnsigned, spoolValue);
 
         if (bin.isFull())
         {
@@ -169,14 +170,15 @@ public class StreamingTombstoneHistogramBuilder
      */
     static class DataHolder
     {
-        private static final long EMPTY = Long.MAX_VALUE;
-        private final long[] points;
-        private final int[] values;
+        static final int EMPTY = CassandraUInt.MAX_VALUE_UINT;
+        final int[] points;
+        final int[] values;
+
         private final int roundSeconds;
 
         DataHolder(int maxCapacity, int roundSeconds)
         {
-            points = new long[maxCapacity];
+            points = new int[maxCapacity];
             values = new int[maxCapacity];
             Arrays.fill(points, EMPTY);
             Arrays.fill(values, 0);
@@ -191,14 +193,14 @@ public class StreamingTombstoneHistogramBuilder
         }
 
         @VisibleForTesting
-        int getValue(long point)
+        int getValue(int pointUnsigned)
         {
-            int index = Arrays.binarySearch(points, point);
+            int index = unsignedBinarySearch(points, pointUnsigned);
             if (index < 0)
                 index = -index - 1;
             if (index >= points.length)
                 return -1; // not-found sentinel
-            if (points[index] != point)
+            if (points[index] != pointUnsigned)
                 return -2; // not-found sentinel
             return values[index];
         }
@@ -208,36 +210,55 @@ public class StreamingTombstoneHistogramBuilder
          *
          * @return {@code true} if inserted, {@code false} if accumulated
          */
-        boolean addValue(long point, int delta)
+        boolean addValue(int pointUnsigned, int delta)
         {
-            int index = Arrays.binarySearch(points, point);
+            int index = unsignedBinarySearch(points, pointUnsigned);
             if (index < 0)
             {
                 index = -index - 1;
                 assert (index < points.length) : "No more space in array";
 
-                if (points[index] != point) //ok, someone else at this point, let's shift array and insert
+                if (points[index] != pointUnsigned) //ok, someone else at this point, let's shift array and insert
                 {
                     assert (points[points.length - 1] == EMPTY) : "No more space in array";
 
                     System.arraycopy(points, index, points, index + 1, points.length - index - 1);
                     System.arraycopy(values, index, values, index + 1, values.length - index - 1);
 
-                    points[index] = point;
+                    points[index] = pointUnsigned;
                     values[index] = saturatingCastToInt(delta);
+
                     return true;
                 }
                 else
                 {
-                    values[index] = saturatingCastToInt((long)values[index] + (long)delta);
+                    points[index] = pointUnsigned;
+                    values[index] = saturatingCastToInt(values[index] + (long)delta);
                 }
             }
             else
             {
-                values[index] = saturatingCastToInt((long)values[index] + (long)delta);
+                values[index] = saturatingCastToInt(values[index] + (long)delta);
             }
 
             return false;
+        }
+
+        /**
+         * Calculate the weighted midpoint using a slightly different approach from the documented
+         * formula that should calculate the same values without overflowing long arithmetic.
+         */
+        long calculateWeightedMidpoint(long point1, long value1, long point2, long value2)
+        {
+            assert point1 >= 0 && point1 <= CassandraUInt.MAX_VALUE_LONG;
+            assert point2 >= 0 && point2 <= CassandraUInt.MAX_VALUE_LONG;
+            assert value1 >= 0 && value1 <= Integer.MAX_VALUE;
+            assert value2 >= 0 && value2 <= Integer.MAX_VALUE;
+            long distance = point2 - point1;
+            long weightedDistance = value2 * distance;
+            long totalWeight = value1 + value2;
+            long weightedMidpoint = point1 + weightedDistance / totalWeight;
+            return ceilKey(weightedMidpoint, roundSeconds);
         }
 
         /**
@@ -250,32 +271,18 @@ public class StreamingTombstoneHistogramBuilder
             assert isFull() : "DataHolder must be full in order to merge two points";
 
             final long[] smallestDifference = findPointPairWithSmallestDistance();
+            final int index = (int)smallestDifference[0];
+            final long point1 = smallestDifference[1];
+            final long point2 = smallestDifference[2];
 
-            final long point1 = smallestDifference[0];
-            final long point2 = smallestDifference[1];
+            assert (CassandraUInt.toLong(points[index + 1]) == point2) : "point2 should follow point1";
+            final long value1 = values[index];
+            final long value2 = values[index + 1];
+            final int sum = saturatingCastToInt(value1 + value2);
 
-            int index = Arrays.binarySearch(points, point1);
-            if (index < 0)
-            {
-                index = -index - 1;
-                assert (index < points.length) : "Not found in array";
-                assert (points[index] == point1) : "Not found in array";
-            }
-
-            long value1 = values[index];
-            long value2 = values[index + 1];
-
-            assert (points[index + 1] == point2) : "point2 should follow point1";
-
-            long a = saturatingCastToLong(point1 * value1);
-            long b = saturatingCastToLong(point2 * value2);
-            long sum = saturatingCastToLong(value1 + value2);
-            long newPoint = saturatingCastToMaxDeletionTime(saturatingCastToLong(a + b) / sum);
-            newPoint = newPoint <= point1 ? saturatingCastToMaxDeletionTime(point1 + 1) : newPoint;
-            newPoint = Math.min(newPoint, point2);
-            newPoint = ceilKey(newPoint, roundSeconds);
-            points[index] = newPoint;
-            values[index] = saturatingCastToInt(sum);
+            long newPoint = calculateWeightedMidpoint(point1, value1, point2, value2);
+            points[index] = CassandraUInt.fromLong(newPoint);
+            values[index] = sum;
 
             System.arraycopy(points, index + 2, points, index + 1, points.length - index - 2);
             System.arraycopy(values, index + 2, values, index + 1, values.length - index - 2);
@@ -290,21 +297,43 @@ public class StreamingTombstoneHistogramBuilder
             long point1 = 0;
             long point2 = Long.MAX_VALUE;
 
+            int index = 0;
             for (int i = 0; i < points.length - 1; i++)
             {
-                long pointA = points[i];
-                long pointB = points[i + 1];
+                long pointA = CassandraUInt.toLong(points[i]);
+                long pointB = CassandraUInt.toLong(points[i + 1]);
 
                 assert pointB > pointA : "DataHolder not sorted, p2(" + pointB +") < p1(" + pointA + ") for " + this;
 
                 if (point2 - point1 > pointB - pointA)
                 {
+                    index = i;
                     point1 = pointA;
                     point2 = pointB;
                 }
             }
 
-            return new long[]{point1, point2};
+            return new long[]{index, point1, point2};
+        }
+
+        private int unsignedBinarySearch(int[] points, int pointUnsigned)
+        {
+            int low = 0;
+            int high = points.length - 1;
+
+            int comparablePointUnsigned = pointUnsigned ^ Integer.MIN_VALUE;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                int midVal = points[mid] ^ Integer.MIN_VALUE;
+
+                if (midVal < comparablePointUnsigned)
+                    low = mid + 1;
+                else if (midVal != comparablePointUnsigned)
+                    high = mid - 1;
+                else
+                    return mid;
+            }
+            return -(low + 1);
         }
 
         public String toString()
@@ -315,7 +344,7 @@ public class StreamingTombstoneHistogramBuilder
                 if (points[i] == EMPTY)
                     break;
 
-                entries.add("[" + points[i] + "], [" + values[i] + "]");
+                entries.add("[" + CassandraUInt.toLong(points[i]) + "], [" + values[i] + "]");
             }
             return StringUtils.join(entries, ",");
         }
@@ -329,10 +358,11 @@ public class StreamingTombstoneHistogramBuilder
         {
             for (int i = 0; i < points.length; i++)
             {
-                if (points[i] == EMPTY)
+                int pointUnsigned = points[i] ;
+                if (pointUnsigned== EMPTY)
                     break;
 
-                histogramDataConsumer.consume(points[i], values[i]);
+                histogramDataConsumer.consume(pointUnsigned, values[i]);
             }
         }
 
@@ -349,9 +379,10 @@ public class StreamingTombstoneHistogramBuilder
 
             for (int i = 0; i < points.length; i++)
             {
-                final long point = points[i];
-                if (point == EMPTY)
+                int pointUnsigned = points[i];
+                if (pointUnsigned == EMPTY)
                     break;
+                final long point = CassandraUInt.toLong(pointUnsigned);
                 final int value = values[i];
                 if (point > b)
                 {
@@ -361,7 +392,7 @@ public class StreamingTombstoneHistogramBuilder
                     }
                     else
                     {
-                        final long prevPoint = points[i - 1];
+                        final long prevPoint = CassandraUInt.toLong(points[i - 1]);
                         final int prevValue = values[i - 1];
                         // calculate estimated count mb for point b
                         double weight = (b - prevPoint) / (double) (point - prevPoint);
@@ -416,7 +447,7 @@ public class StreamingTombstoneHistogramBuilder
      */
     static class Spool
     {
-        final long[] points;
+        final int[] points;
         final int[] values;
 
         final int capacity;
@@ -430,7 +461,7 @@ public class StreamingTombstoneHistogramBuilder
             this.capacity = getPowerOfTwoCapacity(requestedCapacity);
 
             // x2 because we want no more than two reprobes on average when _capacity_ entries will be written
-            points = new long[capacity * 2];
+            points = new int[capacity * 2];
             values = new int[capacity * 2];
             clear();
         }
@@ -454,12 +485,13 @@ public class StreamingTombstoneHistogramBuilder
                 return false;
             }
 
+            int pointUnsigned = CassandraUInt.fromLong(point);
             final int cell = (capacity - 1) & hash(point);
 
             // We use linear scanning. I think cluster of 100 elements is large enough to give up.
             for (int attempt = 0; attempt < 100; attempt++)
             {
-                if (tryCell(cell + attempt, point, delta))
+                if (tryCell(cell + attempt, pointUnsigned, delta))
                     return true;
             }
             return false;
@@ -482,21 +514,21 @@ public class StreamingTombstoneHistogramBuilder
             }
         }
 
-        private boolean tryCell(int cell, long point, int delta)
+        private boolean tryCell(int cell, int pointUnsigned, int delta)
         {
-            assert cell >= 0 && point >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + point + " delta:" + delta;
+            assert cell >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + CassandraUInt.toLong(pointUnsigned) + " delta:" + delta;
 
             cell = cell % points.length;
             if (points[cell] == -1)
             {
-                points[cell] = point;
+                points[cell] = pointUnsigned;
                 values[cell] = delta;
                 size++;
                 return true;
             }
-            if (points[cell] == point)
+            if (points[cell] == pointUnsigned)
             {
-                values[cell] = (int) saturatingCastToInt((long) values[cell] + (long) delta);
+                values[cell] = saturatingCastToInt((long) values[cell] + (long) delta);
                 return true;
             }
             return false;
@@ -523,20 +555,15 @@ public class StreamingTombstoneHistogramBuilder
     {
         long delta = point % bucketSize;
 
-        if (delta == 0)
-            return point;
+        if (delta != 0)
+            point = point + bucketSize - delta;
 
-        return saturatingCastToMaxDeletionTime((long) point + (long) bucketSize - (long) delta);
+        return saturatingCastToMaxDeletionTime(point);
     }
 
     public static int saturatingCastToInt(long value)
     {
         return (int) (value > Integer.MAX_VALUE ? Integer.MAX_VALUE : value);
-    }
-    
-    public static long saturatingCastToLong(long value)
-    {
-        return value < 0L ? Long.MAX_VALUE : value;
     }
 
     /**
