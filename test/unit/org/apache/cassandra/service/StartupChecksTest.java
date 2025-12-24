@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -181,17 +182,53 @@ public class StartupChecksTest
     @Test
     public void testGetReadAheadKBPath()
     {
-        Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
+        List<String> sysBlockDevices = Lists.newArrayList("sda");
+        Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12", sysBlockDevices);
         Assert.assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
 
-        Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
+        sysBlockDevices = Lists.newArrayList("scsi");
+        Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1", sysBlockDevices);
         Assert.assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
 
-        Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
+        sysBlockDevices = Lists.newArrayList("sca");
+        Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca", sysBlockDevices);
         Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
 
-        Path invalidDir = StartupChecks.getReadAheadKBPath("/invaliddir/xpto");
+        sysBlockDevices = Lists.newArrayList("sca");
+        Path invalidDir = StartupChecks.getReadAheadKBPath("/invaliddir/xpto", sysBlockDevices);
         Assert.assertNull(invalidDir);
+
+        // RAID cases
+        sysBlockDevices = Lists.newArrayList("md0");
+        Path dirWithRAID = StartupChecks.getReadAheadKBPath("/dev/md0", sysBlockDevices);
+        Assert.assertEquals(Paths.get("/sys/block/md0/queue/read_ahead_kb"), dirWithRAID);
+
+        sysBlockDevices = Lists.newArrayList("md0", "md1");
+        dirWithRAID = StartupChecks.getReadAheadKBPath("/dev/md0", sysBlockDevices);
+        Assert.assertEquals(Paths.get("/sys/block/md0/queue/read_ahead_kb"), dirWithRAID);
+
+        sysBlockDevices = Lists.newArrayList("md0", "md1");
+        dirWithRAID = StartupChecks.getReadAheadKBPath("/dev/md", sysBlockDevices);
+        Assert.assertNull(dirWithRAID);
+
+        sysBlockDevices = Lists.newArrayList("md0", "md1");
+        dirWithRAID = StartupChecks.getReadAheadKBPath("/dev/foomd0bar", sysBlockDevices);
+        Assert.assertNull(dirWithRAID);
+
+        sysBlockDevices = Lists.newArrayList("md");
+        dirWithRAID = StartupChecks.getReadAheadKBPath("/dev/md0", sysBlockDevices);
+        Assert.assertEquals(Paths.get("/sys/block/md/queue/read_ahead_kb"), dirWithRAID);
+
+        sysBlockDevices = Lists.newArrayList();
+        Path dir = StartupChecks.getReadAheadKBPath("/dev/md0", sysBlockDevices);
+        Assert.assertNull(dir);
+
+        // bad blockDirectoryPath
+        sysBlockDevices = Lists.newArrayList("md");
+        Assert.assertNull(StartupChecks.getReadAheadKBPath(null, sysBlockDevices));
+        Assert.assertNull(StartupChecks.getReadAheadKBPath("", sysBlockDevices));
+        Assert.assertNull(StartupChecks.getReadAheadKBPath("/foo", sysBlockDevices));
+        Assert.assertNull(StartupChecks.getReadAheadKBPath("/foo/bar", sysBlockDevices));
     }
 
     @Test
