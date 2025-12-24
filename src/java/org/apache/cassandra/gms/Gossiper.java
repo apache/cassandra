@@ -59,6 +59,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.GossipMetrics;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -204,6 +205,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     private volatile long lastProcessedMessageAt = currentTimeMillis();
 
+    public static final GossipMetrics metrics = new GossipMetrics();
+
     public void clearUnsafe()
     {
         unreachableEndpoints.clear();
@@ -264,7 +267,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 /* Update the local heartbeat counter. */
                 endpointStateMap.get(getBroadcastAddressAndPort()).updateHeartBeat();
                 if (logger.isTraceEnabled())
-                    logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
+                    logger.trace("My heartbeat is now {}", getLocalHeartbeatNumber());
                 final List<GossipDigest> gDigests = new ArrayList<>();
 
                 Gossiper.instance.makeGossipDigest(gDigests);
@@ -807,17 +810,31 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return endpointStateMap.containsKey(endpoint);
     }
 
+    public int getLocalHeartbeatNumber()
+    {
+        return getCurrentHeartbeatNumber(getBroadcastAddressAndPort());
+    }
+
+    public int getCurrentHeartbeatNumber(InetAddressAndPort endpoint)
+    {
+        return endpointStateMap.get(endpoint).getHeartBeatState().getHeartBeatVersion();
+    }
+
     public int getCurrentGenerationNumber(InetAddressAndPort endpoint)
     {
         return endpointStateMap.get(endpoint).getHeartBeatState().getGeneration();
     }
 
     /**
-     * Returns true if the chosen target was also a seed. False otherwise
+     * Sends a GossipDigestSyn message to a randomly selected endpoint from the provided set.
      *
-     * @param message
+     * @param message the GossipDigestSyn message to be sent.
      * @param epSet   a set of endpoint from which a random endpoint is chosen.
-     * @return true if the chosen endpoint is also a seed.
+     * @return an EnumSet indicating the type(s) of node the message was sent to:
+     *         SEED if the target is a seed node,
+     *         CMS if the target is a CMS node,
+     *         or both.
+     *         Returns an empty EnumSet if epSet is empty.
      */
     private EnumSet<GossipedWith> sendGossip(Message<GossipDigestSyn> message, Set<InetAddressAndPort> epSet)
     {
@@ -836,9 +853,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         EnumSet<GossipedWith> gossipedWith = EnumSet.noneOf(GossipedWith.class);
 
         if (seeds.contains(to))
+        {
             gossipedWith.add(SEED);
+            GossipMetrics.sendSynToSeed.inc();
+        }
         if (ClusterMetadata.current().fullCMSMembers().contains(to))
+        {
             gossipedWith.add(CMS);
+            if (!seeds.contains(to))
+                GossipMetrics.sendSynToCMS.inc();
+        }
+        if (unreachableEndpoints.containsKey(to))
+            GossipMetrics.sendSynToUnreachable.inc();
         GossiperDiagnostics.sendGossipDigestSyn(this, to);
         return gossipedWith;
     }

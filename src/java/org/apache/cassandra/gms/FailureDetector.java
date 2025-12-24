@@ -51,6 +51,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.FailureDetectorMetrics;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -334,6 +335,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void report(InetAddressAndPort ep)
     {
+        FailureDetectorMetrics.report.inc();
         long now = preciseTime.now();
         ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
         if (heartbeatWindow == null)
@@ -356,6 +358,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void interpret(InetAddressAndPort ep)
     {
+        FailureDetectorMetrics.interpret.inc();
         ArrivalWindow hbWnd = arrivalSamples.get(ep);
         if (hbWnd == null)
         {
@@ -400,6 +403,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void forceConviction(InetAddressAndPort ep)
     {
+        FailureDetectorMetrics.convict.inc();
         logger.debug("Forcing conviction of {}", ep);
         for (IFailureDetectionEventListener listener : fdEvntListeners)
         {
@@ -409,6 +413,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public void remove(InetAddressAndPort ep)
     {
+        FailureDetectorMetrics.remove.inc();
         arrivalSamples.remove(ep);
     }
 
