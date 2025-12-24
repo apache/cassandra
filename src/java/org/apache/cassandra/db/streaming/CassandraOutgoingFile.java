@@ -180,8 +180,11 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean computeShouldStreamEntireSSTables()
     {
-        // don't stream if full sstable transfers are disabled or legacy counter shards are present
-        if (!DatabaseDescriptor.streamEntireSSTables() || ref.get().getSSTableMetadata().hasLegacyCounterShards)
+        // don't stream if full sstable transfers are disabled, legacy counter shards are present,
+        // or sstable uses old bloom filter format (pre-4.0) which is incompatible with zero-copy streaming
+        if (!DatabaseDescriptor.streamEntireSSTables() ||
+            ref.get().getSSTableMetadata().hasLegacyCounterShards ||
+            ref.get().descriptor.version.hasOldBfFormat())
             return false;
 
         return contained(sections, ref.get());
