@@ -15,22 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
 
-public class TruncateException extends RequestExecutionException
+package org.apache.cassandra.cql3;
+
+public class SemiQualifiedName extends QualifiedName
 {
-    public TruncateException(Throwable e, String msg)
+    private SemiQualifiedName() {}
+
+    public SemiQualifiedName(String keyspace)
     {
-        super(ExceptionCode.TRUNCATE_ERROR, msg, e);
+        super(keyspace, null);
     }
 
-    public TruncateException(Throwable e)
+    @Override
+    public String toString()
     {
-        super(ExceptionCode.TRUNCATE_ERROR, "Error during truncate: " + e.getMessage(), e);
+        return getKeyspace();
     }
 
-    public TruncateException(String msg)
+    public String toCQLString()
     {
-        super(ExceptionCode.TRUNCATE_ERROR, msg);
+        return ColumnIdentifier.maybeQuote(getKeyspace());
     }
 }

@@ -107,6 +107,13 @@ public interface SchemaProvider
         return metadata;
     }
 
+    default KeyspaceMetadata validateKeyspace(String keyspaceName)
+    {
+        return Optional.ofNullable(getKeyspaceInstance(keyspaceName))
+               .map(Keyspace::getMetadata)
+               .orElseThrow(() -> new InvalidRequestException(String.format("Keyspace %s does not exist", keyspaceName)));
+    }
+
     default ColumnFamilyStore getColumnFamilyStoreInstance(TableId id)
     {
         TableMetadata metadata = getTableMetadata(id);

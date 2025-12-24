@@ -1409,6 +1409,7 @@ dropMaterializedViewStatement returns [DropViewStatement.Raw stmt]
   */
 truncateStatement returns [TruncateStatement stmt]
     : K_TRUNCATE (K_COLUMNFAMILY)? cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
+    | K_TRUNCATE K_KEYSPACE ks=keyspaceName { $stmt = new TruncateStatement(new SemiQualifiedName(ks)); }
     ;
 
 /**
