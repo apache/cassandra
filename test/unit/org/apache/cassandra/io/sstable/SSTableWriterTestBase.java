@@ -38,9 +38,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -155,25 +157,39 @@ public class SSTableWriterTestBase extends SchemaLoader
             assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore((int) (System.currentTimeMillis() / 1000)), false, 0).isEmpty());
     }
 
-    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, ILifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
     {
-        Descriptor desc = cfs.newSSTableDescriptor(directory);
-        return desc.getFormat().getWriterFactory().builder(desc)
-                   .setTableMetadataRef(cfs.metadata)
-                   .setKeyCount(0)
-                   .setRepairedAt(repairedAt)
-                   .setPendingRepair(pendingRepair)
-                   .setTransientSSTable(isTransient)
-                   .setSerializationHeader(new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS))
-                   .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
-                   .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
-                   .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                   .build(txn, cfs);
+        return getWriter(cfs.newSSTableDescriptor(directory), cfs, txn, repairedAt, pendingRepair, isTransient);
     }
 
-    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn)
+    public static SSTableWriter getWriter(SSTableFormat<?, ?> format, ColumnFamilyStore cfs, File directory, ILifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    {
+        return getWriter(cfs.newSSTableDescriptor(directory, format), cfs, txn, repairedAt, pendingRepair, isTransient);
+    }
+
+    public static SSTableWriter getWriter(Descriptor desc, ColumnFamilyStore cfs, ILifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    {
+        return desc.getFormat().getWriterFactory().builder(desc)
+                     .setTableMetadataRef(cfs.metadata)
+                     .setKeyCount(0)
+                     .setRepairedAt(repairedAt)
+                     .setPendingRepair(pendingRepair)
+                     .setTransientSSTable(isTransient)
+                     .setSerializationHeader(new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS))
+                     .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
+                     .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
+                     .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                     .build(txn, cfs);
+    }
+
+    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, ILifecycleTransaction txn)
     {
         return getWriter(cfs, directory, txn, 0, null, false);
+    }
+
+    public static SSTableWriter getWriter(SSTableFormat<?, ?> format, ColumnFamilyStore cfs, File directory, ILifecycleTransaction txn)
+    {
+        return getWriter(format, cfs, directory, txn, 0, null, false);
     }
 
     public static ByteBuffer random(int i, int size)

@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.TimeUUID;
 public class WrappedLifecycleTransaction implements ILifecycleTransaction
 {
 
-    final ILifecycleTransaction delegate;
+    protected final ILifecycleTransaction delegate;
     public WrappedLifecycleTransaction(ILifecycleTransaction delegate)
     {
         this.delegate = delegate;

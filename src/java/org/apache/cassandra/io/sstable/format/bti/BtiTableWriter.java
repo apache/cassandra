@@ -82,7 +82,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
     }
 
     @SuppressWarnings({ "resource", "RedundantSuppression" }) // dataFile is closed along with the reader
-    private BtiTableReader openInternal(OpenReason openReason, boolean isFinal, Supplier<PartitionIndex> partitionIndexSupplier)
+    private BtiTableReader openInternal(OpenReason openReason, long lengthOverride, Supplier<PartitionIndex> partitionIndexSupplier)
     {
         IFilter filter = null;
         FileHandle dataFile = null;
@@ -99,7 +99,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
 
             partitionIndex = partitionIndexSupplier.get();
             rowIndexFile = indexWriter.rowIndexFHBuilder.complete();
-            dataFile = openDataFile(isFinal ? NO_LENGTH_OVERRIDE : dataWriter.getLastFlushOffset(), builder.getStatsMetadata());
+            dataFile = openDataFile(lengthOverride, builder.getStatsMetadata());
             filter = indexWriter.getFilterCopy();
 
             return builder.setPartitionIndex(partitionIndex)
@@ -121,11 +121,12 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
     @Override
     public void openEarly(Consumer<SSTableReader> callWhenReady)
     {
-        long dataLength = dataWriter.position();
+        // Because the partition index writer is one partition behind, we want the file to stop at the start of the
+        // last partition that was written.
+        long dataLength = partitionWriter.getInitialPosition();
         indexWriter.buildPartial(dataLength, partitionIndex ->
         {
-            indexWriter.rowIndexFHBuilder.withLengthOverride(indexWriter.rowIndexWriter.getLastFlushOffset());
-            BtiTableReader reader = openInternal(OpenReason.EARLY, false, () -> partitionIndex);
+            BtiTableReader reader = openInternal(OpenReason.EARLY, dataLength, () -> partitionIndex);
             callWhenReady.accept(reader);
         });
     }
@@ -151,7 +152,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         if (maxDataAge < 0)
             maxDataAge = Clock.Global.currentTimeMillis();
 
-        return openInternal(openReason, true, indexWriter::completedPartitionIndex);
+        return openInternal(openReason, NO_LENGTH_OVERRIDE, indexWriter::completedPartitionIndex);
     }
 
     /**
@@ -214,7 +215,14 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
 
         public boolean buildPartial(long dataPosition, Consumer<PartitionIndex> callWhenReady)
         {
-            return partitionIndex.buildPartial(callWhenReady, rowIndexWriter.position(), dataPosition);
+            long rowIndexPosition = rowIndexWriter.position();
+            return partitionIndex.buildPartial(partitionIndex ->
+                                               {
+                                                   rowIndexFHBuilder.withLengthOverride(rowIndexPosition);
+                                                   callWhenReady.accept(partitionIndex);
+                                                   rowIndexFHBuilder.withLengthOverride(NO_LENGTH_OVERRIDE);
+                                               },
+                                               rowIndexPosition, dataPosition);
         }
 
         public void mark()

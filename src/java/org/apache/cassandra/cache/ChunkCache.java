@@ -23,6 +23,7 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 
@@ -324,5 +325,14 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
         return cache.policy().eviction()
                 .map(policy -> policy.weightedSize().orElseGet(cache::estimatedSize))
                 .orElseGet(cache::estimatedSize);
+    }
+
+    /**
+     * Returns the number of cached chunks of given file.
+     */
+    @VisibleForTesting
+    public int sizeOfFile(String filePath)
+    {
+        return (int) cache.asMap().keySet().stream().filter(x -> x.path.equals(filePath)).count();
     }
 }
