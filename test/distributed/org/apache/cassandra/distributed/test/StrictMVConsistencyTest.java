@@ -51,6 +51,8 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.service.paxos.PaxosPropose;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -182,28 +184,17 @@ public class StrictMVConsistencyTest extends TestBaseImpl
             populateRandomData(cluster, 10, 0, 0, false);
             verifyBaseTableAndMVInSync(cluster, 10);
 
-            // block propose phase on 3 nodes
-            for (int i = 1; i <= 3; i++)
-            {
-                cluster.get(i).runOnInstance(
-                () -> {
-                    BBPaxosProposeRequestHandler.disableHandlingPropose.set(true);
-                }
-                );
-            }
+            // Use message filter to drop propose requests from coordinator to other nodes.
+            // This allows node 1 to accept the proposal locally, but the coordinator won't get quorum
+            // and will timeout. Later, serial read will discover and replay the accepted proposal.
+            IMessageFilters.Filter filter = cluster.filters().verbs(Verb.PAXOS2_PROPOSE_REQ.id).from(1).to(2, 3).drop();
 
             populateRandomData(cluster, 10, 100, 0, true);
             verifyBaseTableAndMVInSync(cluster, 10);
 
-            // unblock propose
-            for (int i = 1; i <= 3; i++)
-            {
-                cluster.get(i).runOnInstance(
-                () -> {
-                    BBPaxosProposeRequestHandler.disableHandlingPropose.set(false);
-                }
-                );
-            }
+            // remove filter
+            filter.off();
+
             readBaseTableWithSerialConsistency(cluster, 10, 100, 0);
             // reading with serial consistency will replay the failed proposal, we are expecting 20 rows now.
             verifyBaseTableAndMVInSync(cluster, 20);
@@ -296,6 +287,53 @@ public class StrictMVConsistencyTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void paxosRepairForDeletionForSingleColumnPrimaryKeyBaseTableTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withTokenSupplier(evenlyDistributedTokens(3, 1))
+                                        .withNodeIdTopology(singleDcNetworkTopology(3, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK).set("materialized_views_enabled", "true")
+                                                                    .set("materialized_view_strict_consistency_enabled", "true")
+                                                                    .set("paxos_variant", "v2"))
+                                        .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'NetworkTopologyStrategy', 'dc0': 3}"));
+            cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk int PRIMARY KEY, ck int, v int) WITH strict_mv_consistency = true;", KEYSPACE, baseTableName));
+            cluster.schemaChange(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT * FROM %s.%s WHERE pk IS NOT NULL " +
+                                               "AND v IS NOT NULL PRIMARY KEY (v, pk)", KEYSPACE, MVName, KEYSPACE, baseTableName));
+
+
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + "." + baseTableName + " (pk, ck, v) VALUES (?, ?, ?) IF NOT EXISTS;",
+                                           ConsistencyLevel.LOCAL_QUORUM,
+                                           1, 1, 1);
+            verifyBaseTableAndMVInSync(cluster, 1);
+            // verify block propose response so that all nodes accept the propose but the coordinator will not proceed to commit because
+            // all nodes cannot reply the propose request
+            IMessageFilters.Filter filter = cluster.filters().verbs(Verb.PAXOS2_PROPOSE_RSP.id).drop();
+
+            try
+            {
+                cluster.coordinator(1).execute("DELETE FROM " + KEYSPACE + "." + baseTableName + " WHERE pk = ?;",
+                                               ConsistencyLevel.LOCAL_QUORUM,
+                                               1);
+                fail("Should have thrown an exception");
+            } catch (Exception ignored)
+            {
+                // this is expected as this will timeout
+            }
+
+
+            filter.off();
+
+            // verify run paxos repair will bring MV and base table in sync
+            runPaxosRepairInCluster(cluster);
+            verifyBaseTableAndMVInSync(cluster, 0);
+            // verify there is no uncommitted data ie nothing to be repaired
+            assertClusterNoUncommitted(cluster);
+        }
+    }
+
     private void assertClusterNoUncommitted(Cluster cluster)
     {
         for (int i = 1; i <= 3; i++)
@@ -312,13 +350,13 @@ public class StrictMVConsistencyTest extends TestBaseImpl
                 try
                 {
                     TableId tableid = Schema.instance.getTableMetadata(KEYSPACE, baseTableName).id;
-                    StorageService.instance.autoRepairPaxos(tableid).get();
+                    PaxosCleanupResponse response = (PaxosCleanupResponse) StorageService.instance.autoRepairPaxos(tableid).get();
+                    Assert.assertTrue(response.wasSuccessful);
                     return;
                 }
                 catch (Exception e)
                 {
                     e.printStackTrace();
-
                 }
                 fail("Paxos repair failed");
             }
