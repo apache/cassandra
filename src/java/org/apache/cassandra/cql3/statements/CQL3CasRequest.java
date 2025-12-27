@@ -188,15 +188,16 @@ public class CQL3CasRequest implements CASRequest
     {
         assert staticConditions != null || !conditions.isEmpty() || metadata.strictMVEnabled();
 
-        // Fetch all columns, but query only the selected ones
-        ColumnFilter columnFilter = ColumnFilter.selection(columnsToRead());
-
         if (metadata.strictMVEnabled())
         {
             // making sure base table request is only updating one row
-            assert updates.size() == 1;
+            if (updates.size() != 1)
+                throw new IllegalStateException("Only one row update is supported for strict mv consistency enabled table");
             return SinglePartitionReadCommand.create(metadata, nowInSec, key, updates.get(0).clustering);
         }
+
+        // Fetch all columns, but query only the selected ones
+        ColumnFilter columnFilter = ColumnFilter.selection(columnsToRead());
 
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.

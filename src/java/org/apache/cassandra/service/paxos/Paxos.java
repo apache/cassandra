@@ -1159,13 +1159,17 @@ public class Paxos
         // process to get current value of base table
         DataResolver<?, ?> resolver = new DataResolver(query, inProgress.participants, NoopReadRepair.instance, requestTime);
         for (int i = 0 ; i < inProgress.responses.size() ; ++i)
+        {
             resolver.preprocess(inProgress.responses.get(i));
+        }
         PartitionIterator result = resolver.resolve();
         FilteredPartition current;
         try (RowIterator iter = PartitionIterators.getOnlyElement(result, query))
         {
             current = FilteredPartition.create(iter);
         }
+        // not using user cl is because we want to make sure the MV mutation is applied to local_quorum/quorum nodes
+        // so reading with proper consistency will get read after write consistency
         final ConsistencyLevel consistencyLevelForMVMutation = consistencyForConsensus == ConsistencyLevel.LOCAL_SERIAL
                                                                ? ConsistencyLevel.LOCAL_QUORUM
                                                                : ConsistencyLevel.QUORUM;

@@ -552,7 +552,9 @@ public final class SchemaKeyspace
             builder.add("memtable", params.memtable.configurationKey());
 
         if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && !isView)
+        {
             builder.add("strict_mv_consistency", params.strictMVConsistency);
+        }
 
         // As above, only add the auto_repair column if the scheduler is enabled
         // to avoid RTE in pre-5.1 versioned node during upgrades

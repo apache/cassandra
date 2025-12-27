@@ -2782,8 +2782,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             throw new InvalidRequestException(
             String.format("Not qualified for strict mv consistency because base table has non-LWT compatible queries, " +
-                          "modification with ts: %s, batch statement: %s, delete without full primary key: %s, IN restrictions " +
-                          "used: %s",
+                          "modification with ts: %d, batch statement: %d, delete without full primary key: %d, IN restrictions " +
+                          "used: %d",
                           metric.viewBaseTableModificationWithTimestamp.getCount(),
                           metric.viewBaseTableUsedInBatchStatement.getCount(),
                           metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount(),

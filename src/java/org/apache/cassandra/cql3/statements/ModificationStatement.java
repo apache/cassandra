@@ -665,22 +665,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private ResultMessage executeWithStrictMVConsistency(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         assert Paxos.useV2(); // strict MV consistency requires Paxos V2
-        CQL3CasRequest request = makeCasRequest(queryState, options);
-
-        try (RowIterator result = StorageProxy.cas(keyspace(),
-                                                   table(),
-                                                   request.key,
-                                                   request,
-                                                   options.getSerialConsistency(),
-                                                   options.getConsistency(),
-                                                   queryState.getClientState(),
-                                                   options.getNowInSeconds(queryState),
-                                                   requestTime))
+        ResultMessage result = executeWithCondition(queryState, options, requestTime);
+        if (hasConditions())
         {
-            if (hasConditions())
-                return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
-            return null;
+            return result;
         }
+        return null;
     }
 
     private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
