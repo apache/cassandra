@@ -659,6 +659,7 @@ public class Config
     // strict_mv_consistency need to be enabled to enable the feature.
     public boolean materialized_view_strict_consistency_enabled = false;
 
+    // When true (and materialized_view_strict_consistency_enabled is true), materialized views can only be created on tables with strict_mv_consistency enabled.
     public boolean materialized_view_strict_consistency_enforced = false;
 
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)

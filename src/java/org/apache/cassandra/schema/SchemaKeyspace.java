@@ -629,7 +629,9 @@ public final class SchemaKeyspace
         }
 
         if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && !forView)
+        {
             builder.add("strict_mv_consistency", params.strictMVConsistency);
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
