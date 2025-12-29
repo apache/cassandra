@@ -932,6 +932,11 @@ public class TableMetadata implements SchemaElement
         return differsDeeply ? Optional.of(Difference.DEEP) : Optional.empty();
     }
 
+    public boolean strictMVEnabled()
+    {
+        return DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && params.strictMVConsistency;
+    }
+
     @Override
     public int hashCode()
     {

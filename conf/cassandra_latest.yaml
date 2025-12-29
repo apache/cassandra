@@ -2070,6 +2070,12 @@ materialized_views_enabled: false
 # (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the Materialized View.
 # materialized_views_on_repair_enabled: true
 
+# Controls whether metrics are collected for base tables when materialized views are present.
+# When enabled, additional metrics will be collected for the base tables that have materialized views.
+# The metrics are used for determine if current MV base table is qualified to move to strict MV consistency.
+# Defaults to false.
+# materialized_view_base_table_metric_collection_enabled: false
+
 # Enables SASI index creation on this node.
 # SASI indexes are considered experimental and are not recommended for production use.
 sasi_indexes_enabled: false

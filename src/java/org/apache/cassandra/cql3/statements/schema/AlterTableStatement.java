@@ -46,7 +46,9 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -683,6 +685,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             attrs.validate();
 
             TableParams params = attrs.asAlteredTableParams(table.params);
+
+            // if enabling strict_mv_consistency
+            if (params.strictMVConsistency)
+            {
+                ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
+                cfs.checkQualifiedForStrictMVConsistency();
+            }
 
             if (table.isCounter() && params.defaultTimeToLive > 0)
                 throw ire("Cannot set default_time_to_live on a table with counters");

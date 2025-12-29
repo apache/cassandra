@@ -133,6 +133,7 @@ public final class SchemaKeyspace
               + "read_repair text,"
               + "fast_path frozen<map<text, text>>,"
               + "auto_repair frozen<map<text, text>>,"
+              + "strict_mv_consistency boolean,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -626,6 +627,11 @@ public final class SchemaKeyspace
         {
             builder.add("auto_repair", params.autoRepair.asMap());
         }
+
+        if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && !forView)
+        {
+            builder.add("strict_mv_consistency", params.strictMVConsistency);
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -1105,6 +1111,11 @@ public final class SchemaKeyspace
         if (row.has("auto_repair"))
         {
             builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
+        }
+
+        if (row.has("strict_mv_consistency"))
+        {
+            builder.strictMVConsistency(row.getBoolean("strict_mv_consistency"));
         }
 
         return builder.build();

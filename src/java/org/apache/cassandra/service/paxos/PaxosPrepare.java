@@ -252,11 +252,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static class FoundIncompleteAccepted extends FoundIncomplete
     {
         final Accepted accepted;
+        final List<Message<ReadResponse>> responses;
 
-        private FoundIncompleteAccepted(Ballot promisedBallot, Participants participants, Accepted accepted)
+        private FoundIncompleteAccepted(Ballot promisedBallot, Participants participants, Accepted accepted, List<Message<ReadResponse>> responses)
         {
             super(FOUND_INCOMPLETE_ACCEPTED, participants, promisedBallot);
             this.accepted = accepted;
+            this.responses = responses;
         }
 
         public String toString()
@@ -392,10 +394,11 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     }
 
     @SuppressWarnings("SameParameterValue")
-    static <T extends Consumer<Status>> T prepareWithBallot(Ballot ballot, Participants participants, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean acceptEarlyReadPermission, T onDone)
+    static <T extends Consumer<Status>> T prepareWithBallot(Ballot ballot, Participants participants, DecoratedKey partitionKey, TableMetadata table, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission, T onDone)
     {
         Tracing.trace("Preparing {}", ballot);
-        prepareWithBallotInternal(participants, new Request(ballot, participants.electorate, partitionKey, table, isWrite, true), acceptEarlyReadPermission, onDone);
+        Request request = readCommand == null ? new Request(ballot, participants.electorate, partitionKey, table, isWrite, true) : new Request(ballot, participants.electorate, readCommand, isWrite, true);
+        prepareWithBallotInternal(participants, request, acceptEarlyReadPermission, onDone);
         return onDone;
     }
 
@@ -896,7 +899,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             case SUPERSEDED:
                 return new Superseded(supersededBy, participants);
             case FOUND_INCOMPLETE_ACCEPTED:
-                return new FoundIncompleteAccepted(request.ballot, participants, latestAccepted);
+                return new FoundIncompleteAccepted(request.ballot, participants, latestAccepted, readResponses);
             case FOUND_INCOMPLETE_COMMITTED:
                 return new FoundIncompleteCommitted(request.ballot, participants, latestCommitted);
             case PROMISED:
@@ -996,7 +999,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
     }
 
-    static class Request extends AbstractRequest<Request>
+    public static class Request extends AbstractRequest<Request>
     {
         Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {

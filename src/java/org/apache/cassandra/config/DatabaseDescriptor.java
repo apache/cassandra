@@ -4685,6 +4685,36 @@ public class DatabaseDescriptor
         conf.materialized_views_on_repair_enabled = val;
     }
 
+    public static boolean getMaterializedViewStrictConsistencyEnabled()
+    {
+        return conf.materialized_view_strict_consistency_enabled;
+    }
+
+    public static void setMaterializedViewStrictConsistencyEnabled(boolean enabled)
+    {
+        conf.materialized_view_strict_consistency_enabled = enabled;
+    }
+
+    public static boolean getMaterializedViewStrictConsistencyEnforced()
+    {
+        return conf.materialized_view_strict_consistency_enforced;
+    }
+
+    public static void setMaterializedViewStrictConsistencyEnforced(boolean enforced)
+    {
+        conf.materialized_view_strict_consistency_enforced = enforced;
+    }
+
+    public static boolean getMaterializedViewsBasetableMetricCollectionEnabled()
+    {
+        return conf.materialized_view_base_table_metric_collection_enabled;
+    }
+
+    public static void setMaterializedViewsBasetableMetricCollectionEnabled(boolean enabled)
+    {
+        conf.materialized_view_base_table_metric_collection_enabled = enabled;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;

@@ -229,6 +229,9 @@ public class CQL3CasRequest implements CASRequest
     private RegularAndStaticColumns columnsToRead()
     {
         RegularAndStaticColumns allColumns = metadata.regularAndStaticColumns();
+        // if it is for MV base table, we should read all columns
+        if (metadata.strictMVEnabled())
+            return allColumns;
 
         // If we update static row, we won't have any conditions on regular rows.
         // If we update regular row, we have to fetch all regular rows (which would satisfy column condition) and
@@ -242,7 +245,15 @@ public class CQL3CasRequest implements CASRequest
 
     public SinglePartitionReadCommand readCommand(long nowInSec)
     {
-        assert staticConditions != null || !conditions.isEmpty();
+        assert staticConditions != null || !conditions.isEmpty() || metadata.strictMVEnabled();
+
+        if (metadata.strictMVEnabled())
+        {
+            // making sure base table request is only updating one row
+            if (updates.size() != 1)
+                throw new IllegalStateException("Only one row update is supported for strict mv consistency enabled table");
+            return SinglePartitionReadCommand.create(metadata, nowInSec, key, updates.get(0).clustering);
+        }
 
         // Fetch all columns, but query only the selected ones
         ColumnFilter columnFilter = ColumnFilter.selection(columnsToRead());

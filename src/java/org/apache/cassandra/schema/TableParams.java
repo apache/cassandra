@@ -101,7 +101,8 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTO_REPAIR;
+        AUTO_REPAIR,
+        STRICT_MV_CONSISTENCY;
 
         @Override
         public String toString()
@@ -136,6 +137,7 @@ public final class TableParams
     public final boolean pendingDrop;
 
     public final AutoRepairParams autoRepair;
+    public final boolean strictMVConsistency;
 
     private TableParams(Builder builder)
     {
@@ -167,6 +169,7 @@ public final class TableParams
         pendingDrop = builder.pendingDrop;
         checkNotNull(transactionalMigrationFrom);
         autoRepair = builder.autoRepair;
+        strictMVConsistency = builder.strictMVConsistency;
     }
 
     public static Builder builder()
@@ -200,7 +203,8 @@ public final class TableParams
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
                             .pendingDrop(params.pendingDrop)
-                            .automatedRepair(params.autoRepair);
+                            .automatedRepair(params.autoRepair)
+                            .strictMVConsistency(params.strictMVConsistency);
     }
 
     public Builder unbuild()
@@ -302,7 +306,8 @@ public final class TableParams
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
             && pendingDrop == p.pendingDrop
-            && autoRepair.equals(p.autoRepair);
+            && autoRepair.equals(p.autoRepair)
+            && strictMVConsistency == p.strictMVConsistency;
     }
 
     @Override
@@ -332,7 +337,8 @@ public final class TableParams
                                 transactionalMode,
                                 transactionalMigrationFrom,
                                 pendingDrop,
-                                autoRepair);
+                                autoRepair,
+                                strictMVConsistency);
     }
 
     @Override
@@ -365,6 +371,7 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
                           .add(Option.AUTO_REPAIR.toString(), autoRepair)
+                          .add(Option.STRICT_MV_CONSISTENCY.toString(), strictMVConsistency)
                           .toString();
     }
 
@@ -434,6 +441,12 @@ public final class TableParams
             builder.newLine()
                 .append("AND auto_repair = ").append(autoRepair.asMap());
         }
+
+        if (!isView && DatabaseDescriptor.getRawConfig() != null && DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled())
+        {
+            builder.newLine();
+            builder.append("AND strict_mv_consistency = ").append(strictMVConsistency);
+        }
     }
 
     public static final class Builder
@@ -464,6 +477,7 @@ public final class TableParams
         public boolean pendingDrop = false;
 
         private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
+        private boolean strictMVConsistency = false;
         public Builder()
         {
         }
@@ -620,6 +634,12 @@ public final class TableParams
         public Builder automatedRepair(AutoRepairParams val)
         {
             autoRepair = val;
+            return this;
+        }
+
+        public Builder strictMVConsistency(boolean val)
+        {
+            strictMVConsistency = val;
             return this;
         }
     }

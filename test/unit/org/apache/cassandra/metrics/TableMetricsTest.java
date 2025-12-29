@@ -53,6 +53,8 @@ public class TableMetricsTest
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
     private static final String TWCS_TABLE = "tablemetricstesttwcs";
+    private static final String BASE_TABLE = "basetablemetricstest";
+    private static final String MV1 = "mv1metricstest";
 
     private static EmbeddedCassandraService cassandra;
     private static Cluster cluster;
@@ -88,6 +90,15 @@ public class TableMetricsTest
         session.execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
         session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1));", KEYSPACE, table));
         return ColumnFamilyStore.getIfExists(KEYSPACE, table);
+    }
+
+    private ColumnFamilyStore recreateMVAndBaseTable()
+    {
+        session.execute(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", KEYSPACE, MV1));
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, BASE_TABLE));
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1));", KEYSPACE, BASE_TABLE));
+        session.execute(String.format("CREATE MATERIAlIZED VIEW %s.%s AS SELECT * FROM %s.%s WHERE id IS NOT NULL AND val1 IS NOT NULL AND val2 IS NOT NULL PRIMARY KEY(val2, id, val1);", KEYSPACE, MV1, KEYSPACE, BASE_TABLE));
+        return ColumnFamilyStore.getIfExists(KEYSPACE, BASE_TABLE);
     }
 
     private void executeBatch(boolean isLogged, int distinctPartitions, int statementsPerPartition, String... tables)
@@ -192,6 +203,74 @@ public class TableMetricsTest
         assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
                 row("org.apache.cassandra.metrics.ColumnFamily.MaxSSTableDuration.junit.tablemetricstesttwcs", "junit.tablemetricstesttwcs", "gauge",
                         String.valueOf(cfs.metric.maxSSTableDuration.getValue())));
+    }
+
+    @Test
+    public void testStrictMVConsistencyQualificationMetrics()
+    {
+        Boolean originalConfig = DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled();
+        DatabaseDescriptor.setMaterializedViewsBasetableMetricCollectionEnabled(true);
+        ColumnFamilyStore base = recreateMVAndBaseTable();
+        ColumnFamilyStore withoutMV = recreateTable();
+        // delete statement not providing all primary key columns
+        // test all PK columns are provided
+        // for MV base table and normal table without MV, counter will not change
+        String fullParimarykeyDelete = "DELETE FROM %s.%s WHERE id = %d AND val1 = '%s'";
+        session.execute(String.format(fullParimarykeyDelete, KEYSPACE, BASE_TABLE, 1, "2"));
+        assertEquals(0, base.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount());
+        session.execute(String.format(fullParimarykeyDelete, KEYSPACE, TABLE, 1, "2"));
+        assertEquals(0, withoutMV.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount());
+        // test not all PK columns are provided
+        // for MV base table, the counter should increase, for normal table without MV, counter will not change
+        String partitionDelete = "DELETE FROM %s.%s WHERE id = %d";
+        session.execute(String.format(partitionDelete, KEYSPACE, BASE_TABLE, 1));
+        assertEquals(1, base.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount());
+        session.execute(String.format(partitionDelete, KEYSPACE, TABLE, 1));
+        assertEquals(0, withoutMV.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount());
+
+        // batch statement
+        // test base table involved in batch statement
+        String batch = "BEGIN BATCH\n" +
+                       "INSERT INTO %s.%s (id, val1, val2) VALUES (1, '1', '11');\n" +
+                       "INSERT INTO %s.%s (id, val1, val2) VALUES (2, '1', '11');\n" +
+                       "APPLY BATCH";
+        session.execute(String.format(batch, KEYSPACE, BASE_TABLE, KEYSPACE, BASE_TABLE));
+        assertEquals(2, base.metric.viewBaseTableUsedInBatchStatement.getCount());
+        session.execute(String.format(batch, KEYSPACE, TABLE, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableUsedInBatchStatement.getCount());
+
+        // insert with timestamp
+        String insert = "INSERT INTO %s.%s (id, val1, val2) VALUES (1, '1', '11') USING TIMESTAMP 12345;";
+        session.execute(String.format(insert, KEYSPACE, BASE_TABLE));
+        assertEquals(1, base.metric.viewBaseTableModificationWithTimestamp.getCount());
+        session.execute(String.format(insert, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableModificationWithTimestamp.getCount());
+        // update with timestamp
+        String update = "UPDATE %s.%s USING TIMESTAMP 12345 SET val2 = '2' WHERE id=1 AND val1='1';";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(2, base.metric.viewBaseTableModificationWithTimestamp.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableModificationWithTimestamp.getCount());
+        // update with IN partition key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id IN (1, 2) AND val1='1';";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(1, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
+        // update with IN clustering key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id=1 AND val1 IN ('1', '2');";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(2, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
+        // update with IN both partition key and clustering key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id IN (1, 2) AND val1 IN ('1', '2');";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(3, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
+
+        DatabaseDescriptor.setMaterializedViewsBasetableMetricCollectionEnabled(originalConfig);
     }
 
     @Test

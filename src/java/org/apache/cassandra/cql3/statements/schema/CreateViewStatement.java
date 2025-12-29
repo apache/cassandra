@@ -185,6 +185,12 @@ public final class CreateViewStatement extends AlterSchemaStatement
                                                    false,
                                                    state);
 
+        if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && DatabaseDescriptor.getMaterializedViewStrictConsistencyEnforced())
+        {
+            if (!table.strictMVEnabled())
+                throw ire("Materialized views can only be created on table with strict MV consistency enabled.");
+        }
+
         if (table.params.gcGraceSeconds == 0)
         {
             throw ire("Cannot create materialized view '%s' for base table " +
