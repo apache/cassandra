@@ -416,6 +416,46 @@ public class PartitionUpdate extends AbstractBTreePartition
              + (deletionInfo.getPartitionDeletion().isLive() ? 0 : 1);
     }
 
+
+    /**
+     * Returns the clustering of the single row contained in this partition update,
+     * specifically for tables with strict Materialized View (MV) consistency enabled.
+     * <p>
+     * Strict MV consistency requires that updates to base tables be single-row operations
+     * to ensure deterministic and consistent view updates. This method extracts the clustering
+     * key of that single row while validating that the update conforms to strict MV constraints.
+     * <p>
+     * The following constraints are enforced via assertions:
+     * <ul>
+     *   <li>Static row updates are not allowed</li>
+     *   <li>Range deletions are not allowed</li>
+     *   <li>Partition deletions are not allowed unless the table has no clustering columns</li>
+     *   <li>The update must contain at most one row</li>
+     * </ul>
+     *
+     * @return the clustering of the single row in this update, or {@link Clustering#EMPTY}
+     *         if this update contains no rows (e.g., partition-level deletion on a table
+     *         without clustering columns)
+     * @throws AssertionError if any of the strict MV consistency constraints are violated
+     */
+    public Clustering<?> getClusteringForSingleRowForStrictMVConsistency()
+    {
+        // Strict MV base table should not have static row
+        assert staticRow().isEmpty() : "Static row updated is not supported for strict MV Consistency enabled table";
+
+        // if this contains range deletion in partition
+        assert deletionInfo.rangeCount() == 0 : "Range deletion is not supported for strict MV Consistency enabled table";
+
+        // if this is partition deletion with clustering key
+        assert !(!deletionInfo.getPartitionDeletion().isLive() && !metadata().clusteringColumns().isEmpty()) :
+        "Partition deletion is not supported unless there is no clustering key for strict MV Consistency enabled table";
+
+        assert rowCount() <= 1 : "Cannot modify multiple rows in one operation for strict MV Consistency enabled table: " + rowCount();
+        if (rowCount() == 0)
+            return Clustering.EMPTY;
+        return lastRow().clustering();
+    }
+
     /**
      * The size of the data contained in this update.
      *

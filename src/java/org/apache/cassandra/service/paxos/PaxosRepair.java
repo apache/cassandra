@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -302,8 +303,8 @@ public class PaxosRepair extends AbstractPaxosRepair
                 SinglePartitionReadCommand readCommand = null;
                 if (isAcceptedButNotCommitted && table.strictMVEnabled() && !latestAccepted.update.isEmpty())
                 {
-                    assert latestAccepted.update.rowCount() == 1 : "latest accepted with multiple rows: " + latestAccepted.update.rowCount();
-                    readCommand = SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), latestAccepted.update.partitionKey(), latestAccepted.update.lastRow().clustering());
+                    Clustering<?> clustering = latestAccepted.update.getClusteringForSingleRowForStrictMVConsistency();
+                    readCommand = SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), latestAccepted.update.partitionKey(), clustering);
                 }
 
                 return prepareWithBallot(ballot, participants, partitionKey(), table, readCommand, false, false,
@@ -414,10 +415,15 @@ public class PaxosRepair extends AbstractPaxosRepair
 
                     if (proposal.update.metadata().strictMVEnabled())
                     {
+                        // it is possible that the prepare phase is sent with no read command but the replica responded
+                        // with an acceptted uncommitted proposal. In this case, the read responses could be empty.
+                        // We need to retry in this case because for strict MV base table, we need to read the current status
+                        // of the row.
+                        if (incompleteAccepted == null || incompleteAccepted.responses.isEmpty())
+                            return retry(this);
                         // apply MV muatation before commit
-                        assert incompleteAccepted != null && !incompleteAccepted.responses.isEmpty();
                         Paxos.resolveCurrentAndApplyMVMutations(
-                        SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), proposal.update.partitionKey(), proposal.update.lastRow().clustering()),
+                        SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), proposal.update.partitionKey(), proposal.update.getClusteringForSingleRowForStrictMVConsistency()),
                         proposal.update, incompleteAccepted, paxosConsistency, Dispatcher.RequestTime.forImmediateExecution());
                     }
 
