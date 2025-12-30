@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
@@ -244,6 +245,47 @@ public final class TableAttributes extends PropertyDefinitions
         defaultLCSOptions.put(CompactionParams.Option.CLASS.toString(), LeveledCompactionStrategy.class.getSimpleName());
         properties.put(Option.COMPACTION.toString(), defaultLCSOptions);
         overrideLCSSSTableSizeInMb(DatabaseDescriptor.getLCSSSTableSizeInMB());
+    }
+
+    /**
+     * (Uber-specific) Apply Zstd compression enforcement while preserving user-specified chunk_length
+     */
+    public void applyZstdEnforcement(String keyspaceName, String tableName)
+    {
+        // should not affect any system schema behavior
+        if (SchemaConstants.isSystemKeyspace(keyspaceName) || !DatabaseDescriptor.getEnforceZstdCompression()) {
+            return;
+        }
+
+        // Create fresh compression options map with Zstd settings
+        Map<String, String> compressionOptions = new HashMap<>();
+        compressionOptions.put(CompressionParams.CLASS, ZstdCompressor.class.getSimpleName());
+        compressionOptions.put(ZstdCompressor.COMPRESSION_LEVEL_OPTION_NAME,
+                              String.valueOf(DatabaseDescriptor.getEnforceZstdCompressionLevel()));
+
+        // Preserve only standard compression parameters from user options
+        if (hasOption(Option.COMPRESSION))
+        {
+            Map<String, String> userOptions = getMap(Option.COMPRESSION);
+
+            // Preserve chunk_length_in_kb if specified
+            if (userOptions.containsKey(CompressionParams.CHUNK_LENGTH_IN_KB))
+            {
+                compressionOptions.put(CompressionParams.CHUNK_LENGTH_IN_KB,
+                                      userOptions.get(CompressionParams.CHUNK_LENGTH_IN_KB));
+            }
+
+            // Preserve min_compress_ratio if specified
+            if (userOptions.containsKey(CompressionParams.MIN_COMPRESS_RATIO))
+            {
+                compressionOptions.put(CompressionParams.MIN_COMPRESS_RATIO,
+                                      userOptions.get(CompressionParams.MIN_COMPRESS_RATIO));
+            }
+        }
+
+        properties.put(Option.COMPRESSION.toString(), compressionOptions);
+        logger.info(String.format("Zstd compression enforcement is enabled. Setting ZstdCompressor with compression_level: %d for %s.%s.",
+                                  DatabaseDescriptor.getEnforceZstdCompressionLevel(), keyspaceName, tableName));
     }
 
     public boolean overrideLCSSSTableSizeInMb(int size)

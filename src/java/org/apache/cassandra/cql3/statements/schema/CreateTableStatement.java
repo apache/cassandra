@@ -120,19 +120,20 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                       attrs.getCompactionStrategy()));
         }
 
-        // LCS enforcement
         // Check if schema exists for IF NOT EXISTS query.
-        // if this schema already exists and no new schema will be created, we simply skip the enforcement
+        // if this schema already exists and no new schema will be created, we simply skip ALL enforcement
         // to avoid crash loop for some hard-coded schema creation at startup
         KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (keyspace != null && keyspace.hasTable(tableName) && ifNotExists) {
-            logger.info(String.format("LCS enforcement level=%s. Skip enforcement for %s.%s because it already exists.",
-                                      DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
+            logger.info("Skip all enforcement for {}.{} because it already exists (IF NOT EXISTS).",
+                        keyspaceName, tableName);
             return super.execute(state, locally);
         }
 
+        // validate the table attributes first
         attrs.validate();
         attrs.applyLCSEnforcement(keyspaceName, tableName);
+        attrs.applyZstdEnforcement(keyspaceName, tableName);
         return super.execute(state, locally);
     }
 

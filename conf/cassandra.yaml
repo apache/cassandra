@@ -582,6 +582,17 @@ commitlog_segment_size: 32MiB
 #        was the pre 4.0 behavior.
 #
 # flush_compression: fast
+
+# (Uber-specific) Enforce zstd compression for newly created tables and MVs
+# When enabled, all newly created tables will use Zstd compression regardless
+# of what compression is specified in the CREATE TABLE statement
+# enforce_zstd_compression: false
+
+# (Uber-specific) Compression level to use when enforce_zstd_compression is enabled
+# Valid range is typically 1-22, with higher values providing better compression
+# but requiring more CPU. Level 5 provides a good balance of speed and compression ratio.
+# enforce_zstd_compression_level: 5
+
 # RequestThrottler which can limit the number of read or write requests allowed
 # by the co-ordinator. The default NoOpRequestThrottler allows all requests.
 #request_throttler:

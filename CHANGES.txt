@@ -1,4 +1,5 @@
 Unreleased
+ * [CAAS-27] Implement zstd enforcement for CREATE table/mv
 4.1.10.4
  * [CAAS-672] Code refactor for strict MV consistency
  * [CAAS-669] Fix Paxos repair for strict MV consistency enabled table for deletion commands

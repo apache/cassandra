@@ -1007,6 +1007,10 @@ public class DatabaseDescriptor
                                                              conf.native_transport_min_backoff_on_queue_overload,
                                                              conf.native_transport_max_backoff_on_queue_overload));
 
+        // (Uber-specific) Validate Zstd compression level
+        if (conf.enforce_zstd_compression_level < 1 || conf.enforce_zstd_compression_level > 22)
+            throw new ConfigurationException("enforce_zstd_compression_level must be between 1 and 22, but was " + conf.enforce_zstd_compression_level, false);
+
     }
 
     @VisibleForTesting
@@ -2314,6 +2318,28 @@ public class DatabaseDescriptor
     public static void setLCSSSTableSizeInMB(int size)
     {
         conf.lcs_sstable_size_in_mb = size;
+    }
+
+    public static boolean getEnforceZstdCompression()
+    {
+        return conf.enforce_zstd_compression;
+    }
+
+    public static void setEnforceZstdCompression(boolean enforce)
+    {
+        conf.enforce_zstd_compression = enforce;
+    }
+
+    public static int getEnforceZstdCompressionLevel()
+    {
+        return conf.enforce_zstd_compression_level;
+    }
+
+    public static void setEnforceZstdCompressionLevel(int level)
+    {
+        if (level < 1 || level > 22) // Zstd supports levels 1-22
+            throw new IllegalArgumentException("enforce_zstd_compression_level must be between 1 and 22, got: " + level);
+        conf.enforce_zstd_compression_level = level;
     }
 
     public static ConsistencyLevel getWriteCLDefault() { return conf.write_cl_default; }

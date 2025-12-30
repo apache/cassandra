@@ -366,6 +366,17 @@ public class Config
 
     public CompactionStrategyMigrationOptions compaction_strategy_migration_options = new CompactionStrategyMigrationOptions();
 
+    /**
+     * (Uber-specific) Enforce zstd compression for newly created tables
+     */
+    public volatile boolean enforce_zstd_compression = false;
+
+    /**
+     * (Uber-specific) Compression level to use when enforce_zstd_compression is enabled
+     */
+
+    public volatile int enforce_zstd_compression_level = 5;
+
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
