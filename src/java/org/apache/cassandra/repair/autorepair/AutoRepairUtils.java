@@ -150,27 +150,27 @@ public class AutoRepairUtils
     COL_DELETE_HOSTS, COL_DELETE_HOSTS_UPDATE_TIME, COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String DEL_AUTO_REPAIR_HISTORY = String.format(
-    "DELETE FROM %s.%s WHERE %s = ? AND %s = ?"
+    "DELETE FROM %s.%s WHERE %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE,
     COL_HOST_ID);
 
     final static String RECORD_START_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= ?, repair_turn = ? WHERE %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
-    "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_DELETE_HOSTS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SET_FORCE_REPAIR = String.format(
-    "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ? IF EXISTS"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_HOST_ID);
 

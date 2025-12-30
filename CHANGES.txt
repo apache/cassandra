@@ -1,4 +1,5 @@
 5.1
+ * Use LWTs for all auto-repair history mutations (CASSANDRA-20996)
  * Change the eager reference counting of compression dictionaries to lazy (CASSANDRA-21074)
  * Add cursor based optimized compaction path (CASSANDRA-20918)
  * Ensure peers with LEFT status are expired from gossip state (CASSANDRA-21035)
