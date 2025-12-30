@@ -48,6 +48,7 @@ import org.junit.Test;
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SystemDistributedKeyspace.AUTO_REPAIR_HISTORY;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test that verifies orphan nodes are cleaned up from auto_repair_history even when repairs
@@ -55,6 +56,24 @@ import static org.junit.Assert.assertEquals;
  */
 public class AutoRepairOrphanCleanupTest extends TestBaseImpl
 {
+    /*
+     * (CASSANDRA-20995)
+     * When a node in the ring goes down its auto-repair history becomes orphaned.
+     * Consequently, the auto-repair scheduler of all other nodes in the cluster
+     * start voting for this node's auto-repair history to be removed. Once >50%
+     * of the cluster vote to delete said down node, its auto-repair history is
+     * deleted from the auto-repair system tables.
+     *
+     * This cleanup process is important to maintain continuous execution of
+     * repair across the entire cluster. If a node goes down, it will no longer
+     * perform repair and will not update its repair history in the system tables.
+     * However, as it is still present in the auto-repair history table,
+     * the down node will still be considered as a candidate to run repair.
+     * As a result, it will occupy space in the auto-repair queue and in cases
+     * with low auto-repair parallelism may even completely block auto-repair
+     * within the cluster.
+     */
+
     private static Cluster cluster;
 
     @BeforeClass
@@ -171,7 +190,7 @@ public class AutoRepairOrphanCleanupTest extends TestBaseImpl
                 liveNodesFound++;
         }
         assertEquals("All 3 live nodes should be present", 3, liveNodesFound);
-        assertEquals("Orphan node should be present", true, orphanFound);
+        assertTrue("Orphan node should be present", orphanFound);
 
         // Once the auto_repair_history table is prepared, initialize auto-repair service on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
