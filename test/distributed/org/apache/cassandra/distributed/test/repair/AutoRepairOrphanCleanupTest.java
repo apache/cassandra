@@ -51,29 +51,25 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
+ * (CASSANDRA-20995)
  * Test that verifies orphan nodes are cleaned up from auto_repair_history even when repairs
  * are skipped due to min_repair_interval constraints.
+ * When a node in the ring goes down its auto-repair history becomes orphaned.
+ * Consequently, the auto-repair scheduler of all other nodes in the cluster
+ * start voting for this node's auto-repair history to be removed. Once >50%
+ * of the cluster vote to delete said down node, its auto-repair history is
+ * deleted from the auto-repair system tables.
+ * This cleanup process is important to maintain continuous execution of
+ * repair across the entire cluster. If a node goes down, it will no longer
+ * perform repair and will not update its repair history in the system tables.
+ * However, as it is still present in the auto-repair history table,
+ * the down node will still be considered as a candidate to run repair.
+ * As a result, it will occupy space in the auto-repair queue and in cases
+ * with low auto-repair parallelism may even completely block auto-repair
+ * within the cluster.
  */
 public class AutoRepairOrphanCleanupTest extends TestBaseImpl
 {
-    /*
-     * (CASSANDRA-20995)
-     * When a node in the ring goes down its auto-repair history becomes orphaned.
-     * Consequently, the auto-repair scheduler of all other nodes in the cluster
-     * start voting for this node's auto-repair history to be removed. Once >50%
-     * of the cluster vote to delete said down node, its auto-repair history is
-     * deleted from the auto-repair system tables.
-     *
-     * This cleanup process is important to maintain continuous execution of
-     * repair across the entire cluster. If a node goes down, it will no longer
-     * perform repair and will not update its repair history in the system tables.
-     * However, as it is still present in the auto-repair history table,
-     * the down node will still be considered as a candidate to run repair.
-     * As a result, it will occupy space in the auto-repair queue and in cases
-     * with low auto-repair parallelism may even completely block auto-repair
-     * within the cluster.
-     */
-
     private static Cluster cluster;
 
     @BeforeClass
