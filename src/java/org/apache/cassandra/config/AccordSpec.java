@@ -30,6 +30,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
+import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.in_memory;
 
 public class AccordSpec
 {
@@ -187,6 +188,9 @@ public class AccordSpec
     // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
     public boolean catchup_on_start_exit_on_failure = false;
     public boolean catchup_on_start = true;
+
+    public enum RangeIndexMode { in_memory, journal_sai }
+    public RangeIndexMode range_index_mode = in_memory;
 
     public final JournalSpec journal = new JournalSpec();
 

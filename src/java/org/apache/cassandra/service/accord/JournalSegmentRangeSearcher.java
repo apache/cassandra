@@ -58,7 +58,7 @@ import org.apache.cassandra.utils.RangeTree;
 
 import static accord.primitives.Routable.Domain.Range;
 
-public class RouteInMemoryIndex<V> implements RangeSearcher
+public class JournalSegmentRangeSearcher<V> implements JournalRangeSearcher
 {
     private final Long2ObjectHashMap<SegmentIndex> segmentIndexes = new Long2ObjectHashMap<>();
 
@@ -85,7 +85,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     }
 
     @Override
-    public RangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX)
+    public JournalRangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX)
     {
         NavigableSet<TxnId> result = search(commandStoreId, range.table(),
                                             OrderedRouteSerializer.serializeTokenOnly(range.start()),
@@ -103,7 +103,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     }
 
     @Override
-    public RangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
+    public JournalRangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
     {
         NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key), minTxnId, maxTxnId, decidedRX);
         return new DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));

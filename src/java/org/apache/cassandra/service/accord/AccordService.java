@@ -371,9 +371,10 @@ public class AccordService implements IAccordService, Shutdownable
             AccordKeyspace.truncateCommandsForKey();
 
         as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
-        as.journal().replay(as.node().commandStores());
+        as.journal().replay(as.node.commandStores());
         logger.info("Waiting for command stores to quiesce.");
         ((AccordCommandStores)as.node.commandStores()).waitForQuiescence();
+        getBlocking(as.node.commandStores().forAll("Post Replay", safeStore -> ((AccordCommandStore)safeStore.commandStore()).rangeIndex().postReplay()));
         as.journal.unsafeSetStarted();
         as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
 
@@ -743,13 +744,13 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public AsyncResult<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+    public AsyncResult<Void> sync(Object requestedBy, TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
     {
         return node.durability().sync(requestedBy, ExclusiveSyncPoint, minBound, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
     }
 
     @Override
-    public AsyncChain<Void> sync(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    public AsyncChain<Void> sync(TxnId minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
         if (keys.size() != 1)
             return syncInternal(minBound, keys, syncLocal, syncRemote);

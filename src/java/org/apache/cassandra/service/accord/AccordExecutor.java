@@ -1755,14 +1755,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return result;
     }
 
-    private static List<Task> toSimpleSnapshotList(TaskQueue<?> queue)
-    {
-        List<Task> list = new ArrayList<>();
-        for (int i = 0 ; i < queue.size() ; i++)
-            list.add(queue.get(i));
-        return list;
-    }
-
     private static void addToSnapshot(List<TaskInfo> snapshot, TaskQueue<?> queue, TaskInfo.Status ifCurrent, TaskInfo.Status ifQueued)
     {
         for (int i = 0 ; i < queue.size() ; ++i)

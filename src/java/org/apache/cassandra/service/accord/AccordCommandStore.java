@@ -50,6 +50,7 @@ import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.CommandSummaries;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
@@ -63,10 +64,12 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults.CountingResult;
 
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
@@ -155,12 +158,11 @@ public class AccordCommandStore extends CommandStore
 
     public final String loggingId;
     public final Journal journal;
-    private final RangeSearcher rangeSearcher;
     private final AccordExecutor sharedExecutor;
     final AccordExecutor.SequentialExecutor exclusiveExecutor;
     private final ExclusiveCaches caches;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
-    private final CommandsForRanges.Manager commandsForRanges;
+    private final RangeIndex rangeIndex;
     private final TableId tableId;
     private TableMetadataRef metadata;
     volatile SafeRedundantBefore safeRedundantBefore;
@@ -181,7 +183,6 @@ public class AccordCommandStore extends CommandStore
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.loggingId = String.format("[%s]", id);
         this.journal = journal;
-        this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.sharedExecutor = sharedExecutor;
         if (this.progressLog instanceof DefaultProgressLog)
             ((DefaultProgressLog)this.progressLog).unsafeSetConfig(DatabaseDescriptor.getAccordProgressLogConfig());
@@ -196,7 +197,15 @@ public class AccordCommandStore extends CommandStore
         }
 
         this.exclusiveExecutor = sharedExecutor.executor(id);
-        this.commandsForRanges = new CommandsForRanges.Manager(this);
+        {
+            AccordSpec.RangeIndexMode mode = DatabaseDescriptor.getAccord().range_index_mode;
+            switch (mode)
+            {
+                default: throw new UnhandledEnum(mode);
+                case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
+                case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+            }
+        }
 
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
@@ -227,9 +236,9 @@ public class AccordCommandStore extends CommandStore
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
-    public CommandsForRanges.Manager commandsForRanges()
+    public RangeIndex rangeIndex()
     {
-        return commandsForRanges;
+        return rangeIndex;
     }
 
     @Override
@@ -369,7 +378,7 @@ public class AccordCommandStore extends CommandStore
         taskExecutor().execute(run);
     }
 
-    public AccordSafeCommandStore begin(AccordTask<?> operation, @Nullable CommandsForRanges commandsForRanges)
+    public AccordSafeCommandStore begin(AccordTask<?> operation, @Nullable CommandSummaries commandsForRanges)
     {
         require(current == null);
         current = AccordSafeCommandStore.create(operation, commandsForRanges, this);
@@ -470,11 +479,6 @@ public class AccordCommandStore extends CommandStore
     public final RedundantBefore safeGetRedundantBefore()
     {
         return safeRedundantBefore.redundantBefore;
-    }
-
-    public RangeSearcher rangeSearcher()
-    {
-        return rangeSearcher;
     }
 
     public AccordCommandStoreReplayer replayer()

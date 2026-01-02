@@ -21,11 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -45,6 +47,8 @@ import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
+import accord.local.CommandSummaries;
+import accord.local.CommandSummaries.Summary;
 import accord.local.LoadKeys;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -53,6 +57,7 @@ import accord.primitives.AbstractRanges;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
@@ -211,7 +216,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
     boolean hasRanges;
-    @Nullable CommandsForRanges commandsForRanges;
+    @Nullable CommandSummaries commandsForRanges;
     @Nullable private TaskQueue queued;
 
     private BiConsumer<? super R, Throwable> callback;
@@ -969,6 +974,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             }
         }
 
+        // TODO (expected): produce key summaries to avoid locking all in memory
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
         final Ranges ranges = ((AbstractRanges) preLoadContext.keys()).toRanges();
@@ -1017,7 +1023,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                     if (v == null) return;
                     else if (v instanceof CommandsForKey)
                     {
-                        if (!summaryLoader.isRelevant((CommandsForKey) v))
+                        if (!loader.isRelevant((CommandsForKey) v))
                             return;
                     }
                     else
@@ -1025,7 +1031,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                         TxnId last = CommandSerializers.txnId.deserialize((ByteBuffer) v);
                         int position = (int)CommandSerializers.txnId.serializedSize(last);
                         TxnId minUndecided = CommandSerializers.txnId.deserialize((ByteBuffer) v, position);
-                        if (!summaryLoader.isRelevant(entry.key(), last, minUndecided))
+                        if (!loader.isRelevant(entry.key(), last, minUndecided))
                             return;
                     }
 
@@ -1060,7 +1066,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             super.cleanup(caches);
         }
 
-        CommandsForRanges finish(Caches caches)
+        CommandSummaries finish(Caches caches)
         {
             caches.commandsForKeys().unregister(keyWatcher);
             return super.finish(caches);
@@ -1069,39 +1075,16 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public class RangeTxnScanner extends AccordExecutor.AbstractIOTask
     {
-        class CommandWatcher implements AccordCache.Listener<TxnId, Command>
-        {
-            @Override
-            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
-            {
-                CommandsForRanges.Summary summary = summaryLoader.ifRelevant(state);
-                if (summary != null)
-                    summaries.put(summary.plainTxnId(), summary);
-            }
-        }
+        final Map<Timestamp, Summary> summaries = new HashMap<>();
+        final Map<Timestamp, Summary> mutexSummaries = Collections.synchronizedMap(summaries);
 
-        final ConcurrentHashMap<TxnId, CommandsForRanges.Summary> summaries = new ConcurrentHashMap<>();
-        // TODO (expected): produce key summaries to avoid locking all in memory
-        final CommandWatcher commandWatcher = new CommandWatcher();
-        final Unseekables<?> keysOrRanges = preLoadContext.keys();
-
-        CommandsForRanges.Loader summaryLoader;
+        RangeIndex.Loader loader;
         boolean scanned;
         Throwable failure;
 
         protected void runInternal()
         {
-            summaryLoader.intersects(txnId -> {
-                if (summaries.containsKey(txnId))
-                    return;
-
-                CommandsForRanges.Summary summary = summaryLoader.load(txnId);
-                if (summary != null)
-                {
-                    summaries.putIfAbsent(txnId, summary);
-                    summaryLoader.maybeRecordFutureRx(summary);
-                }
-            });
+            loader.load(mutexSummaries, () -> cancelled);
         }
 
         @Override
@@ -1126,9 +1109,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void startInternal(Caches caches)
         {
-            summaryLoader = commandStore.commandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.loadKeysFor(), keysOrRanges);
-            summaryLoader.forEachInCache(keysOrRanges, summary -> summaries.put(summary.plainTxnId(), summary), caches);
-            caches.commands().register(commandWatcher);
+            loader = commandStore.rangeIndex().loader(preLoadContext.primaryTxnId(), preLoadContext.executeAt(), preLoadContext.loadKeysFor(), preLoadContext.keys());
+            loader.loadExclusive(mutexSummaries, caches);
         }
 
         public void scannedExclusive()
@@ -1147,13 +1129,14 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void cleanup(Caches caches)
         {
-            caches.commands().tryUnregister(commandWatcher);
+            loader.cleanupExclusive(caches);
         }
 
-        CommandsForRanges finish(Caches caches)
+        CommandSummaries finish(Caches caches)
         {
-            caches.commands().unregister(commandWatcher);
-            return new CommandsForRanges(summaries);
+            loader.finish(summaries);
+            TreeMap<Timestamp, Summary> byId = new TreeMap<>(summaries);
+            return (CommandSummaries.ByTxnIdSnapshot) () -> byId;
         }
 
         @Override

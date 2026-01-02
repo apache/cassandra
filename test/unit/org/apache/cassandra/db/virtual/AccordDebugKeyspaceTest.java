@@ -718,6 +718,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     }
 
     // TODO (expected): test graph_all (though mostly shared logic)
+    // TODO (required): we have some bug with visiting same txn twice via multiple intersecting dependency relations; test and fix
     @Test
     public void graph() throws TopologyException
     {

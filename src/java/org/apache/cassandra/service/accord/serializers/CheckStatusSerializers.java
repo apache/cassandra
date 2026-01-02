@@ -96,7 +96,7 @@ public class CheckStatusSerializers
                 Known max = kind == 1 ? min : known.deserialize(in);
                 values[i] = new MinAndMaxKnown(min, max);
             }
-            return KnownMap.SerializerSupport.create(true, starts, values);
+            return KnownMap.SerializerSupport.create(starts, values);
         }
 
         @Override

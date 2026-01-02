@@ -30,21 +30,21 @@ import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
 
-public interface RangeSearcher
+public interface JournalRangeSearcher
 {
     Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX);
     Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX);
 
-    static RangeSearcher extractRangeSearcher(Object o)
+    static JournalRangeSearcher extractRangeSearcher(Object o)
     {
-        if (o instanceof RangeSearcher.Supplier)
-            return ((RangeSearcher.Supplier) o).rangeSearcher();
-        return NoopRangeSearcher.instance;
+        if (o instanceof JournalRangeSearcher.Supplier)
+            return ((JournalRangeSearcher.Supplier) o).rangeSearcher();
+        return NoopJournalRangeSearcher.instance;
     }
 
     interface Supplier
     {
-        RangeSearcher rangeSearcher();
+        JournalRangeSearcher rangeSearcher();
     }
 
     interface Result
@@ -117,7 +117,7 @@ public interface RangeSearcher
         }
     }
 
-    enum NoopRangeSearcher implements RangeSearcher
+    enum NoopJournalRangeSearcher implements JournalRangeSearcher
     {
         instance;
 
