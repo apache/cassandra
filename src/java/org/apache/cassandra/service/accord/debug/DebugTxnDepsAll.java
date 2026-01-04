@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -36,6 +37,7 @@ import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChain;
+
 import org.apache.cassandra.service.accord.IAccordService;
 
 import static accord.primitives.Routables.Slice.Minimal;

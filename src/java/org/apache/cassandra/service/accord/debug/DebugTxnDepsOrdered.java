@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import accord.local.Command;
@@ -35,6 +36,7 @@ import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChain;
+
 import org.apache.cassandra.service.accord.IAccordService;
 
 import static accord.primitives.Routables.Slice.Minimal;

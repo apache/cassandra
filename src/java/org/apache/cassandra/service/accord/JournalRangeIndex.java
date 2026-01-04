@@ -22,7 +22,10 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
+
+import org.agrona.collections.Object2ObjectHashMap;
 
 import accord.api.RoutingKey;
 import accord.impl.RangeIntervalComparators;
@@ -48,11 +51,11 @@ import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 import accord.utils.SemiSyncIntervalTree;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Object2ObjectHashMap;
-import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import accord.utils.btree.BTree;
 import accord.utils.btree.IntervalBTree;
+
+import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static accord.local.CommandSummaries.Relevance.IRRELEVANT;
 import static accord.local.LoadKeysFor.RECOVERY;

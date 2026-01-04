@@ -117,9 +117,9 @@ public class RecoverySerializers
             CommandSerializers.ballot.serialize(recoverOk.accepted, out);
             ExecuteAtSerializer.serializeNullable(recoverOk.executeAt, out);
             latestDeps.serialize(recoverOk.deps, out);
-            DepsSerializers.deps.serialize(recoverOk.earlierWait, out);
-            DepsSerializers.deps.serialize(recoverOk.earlierNoWait, out);
-            DepsSerializers.deps.serialize(recoverOk.laterCoordRejects, out);
+            DepsSerializers.deps.serialize(recoverOk.simpleWait, out);
+            DepsSerializers.deps.serialize(recoverOk.simpleNoWait, out);
+            DepsSerializers.deps.serialize(recoverOk.supersedingCoordRejects, out);
             out.writeBoolean(recoverOk.selfAcceptsFastPath);
             KeySerializers.nullableParticipants.serialize(recoverOk.coordinatorAcceptsFastPath, out);
             out.writeBoolean(recoverOk.supersedingRejects);
@@ -187,9 +187,9 @@ public class RecoverySerializers
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted);
             size += ExecuteAtSerializer.serializedNullableSize(recoverOk.executeAt);
             size += latestDeps.serializedSize(recoverOk.deps);
-            size += DepsSerializers.deps.serializedSize(recoverOk.earlierWait);
-            size += DepsSerializers.deps.serializedSize(recoverOk.earlierNoWait);
-            size += DepsSerializers.deps.serializedSize(recoverOk.laterCoordRejects);
+            size += DepsSerializers.deps.serializedSize(recoverOk.simpleWait);
+            size += DepsSerializers.deps.serializedSize(recoverOk.simpleNoWait);
+            size += DepsSerializers.deps.serializedSize(recoverOk.supersedingCoordRejects);
             size += TypeSizes.sizeof(recoverOk.selfAcceptsFastPath);
             size += KeySerializers.nullableParticipants.serializedSize(recoverOk.coordinatorAcceptsFastPath);
             size += TypeSizes.sizeof(recoverOk.supersedingRejects);
