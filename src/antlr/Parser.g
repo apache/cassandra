@@ -295,7 +295,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st56=commentOnUserTypeFieldStatement     { $stmt = st56; }
     | st57=securityLabelOnUserTypeFieldStatement   { $stmt = st57; }
     | st58=createDataSourceStatement       { $stmt = st58; }
-    | st59=createDataSinkStatement         { $stmt = st99; }
+    | st59=createDataSinkStatement         { $stmt = st59; }
     | st60=dropDataSourceStatement         { $stmt = st60; }
     | st61=dropDataSinkStatement           { $stmt = st61; }
     ;
