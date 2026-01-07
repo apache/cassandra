@@ -2630,6 +2630,31 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setDirectMaterializedViewModification(enabled);
     }
 
+    public String getViewKeyRebuildConfig()
+    {
+        return ssProxy.getViewKeyRebuildConfig();
+    }
+
+    public void setViewKeyRebuildOnDeletionEnabled(boolean enabled)
+    {
+        ssProxy.setViewKeyRebuildOnDeletionEnabled(enabled);
+    }
+
+    public void setViewKeyRebuildApplyMutationsEnabled(boolean enabled)
+    {
+        ssProxy.setViewKeyRebuildApplyMutationsEnabled(enabled);
+    }
+
+    public void setViewKeyRebuildVerboseLoggingEnabled(boolean enabled)
+    {
+        ssProxy.setViewKeyRebuildVerboseLoggingEnabled(enabled);
+    }
+
+    public void setViewKeyRebuildViewReadEnabled(boolean enabled)
+    {
+        ssProxy.setViewKeyRebuildViewReadEnabled(enabled);
+    }
+
     public List<String> mutateSSTableRepairedState(boolean repair, boolean preview, String keyspace, List<String> tables) throws InvalidRequestException
     {
         return ssProxy.mutateSSTableRepairedState(repair, preview, keyspace, tables);

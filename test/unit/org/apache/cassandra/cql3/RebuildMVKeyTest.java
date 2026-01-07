@@ -47,14 +47,16 @@ public class RebuildMVKeyTest extends ViewAbstractTest
     public void afterTest() throws Throwable
     {
         DatabaseDescriptor.setDirectMaterializedViewModification(false);
-        DatabaseDescriptor.setRebuildKeyOnMaterializedViewModificationEnabled(false);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(false);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(false);
     }
 
     @Test
     public void testRebuildKeyOnMVMetric() throws Throwable
     {
         DatabaseDescriptor.setDirectMaterializedViewModification(true);
-        DatabaseDescriptor.setRebuildKeyOnMaterializedViewModificationEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(true);
         String mvName = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                    "WHERE pk IS NOT NULL AND ck IS NOT NULL " +
                                    "PRIMARY KEY (pk, ck)");
@@ -68,13 +70,39 @@ public class RebuildMVKeyTest extends ViewAbstractTest
         ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(viewMetadata.id);
         assertNotNull(viewCfs.metric.viewRebuildKeyTime);
         assertEquals(1, viewCfs.metric.viewRebuildKeyTime.cf.getCount());
+        // non-zero write latency as mutation is applied
+        assertTrue(viewCfs.metric.writeLatency.latencyMeter.getCount() > 0);
+    }
+
+    @Test
+    public void testRebuildKeyWithoutMutation() throws Throwable
+    {
+        DatabaseDescriptor.setDirectMaterializedViewModification(true);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(false);
+        String mvName = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                   "WHERE pk IS NOT NULL AND ck IS NOT NULL " +
+                                   "PRIMARY KEY (pk, ck)");
+
+        execute("TRUNCATE %s");
+        String mvQuery = String.format("DELETE FROM %s.%s WHERE pk = ? AND ck = ?", keyspace(), mvName);
+        executeNet(mvQuery, 1, 1);
+
+        TableMetadata viewMetadata = Schema.instance.getTableMetadata(keyspace(), mvName);
+        assertNotNull(viewMetadata);
+        ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(viewMetadata.id);
+        assertNotNull(viewCfs.metric.viewRebuildKeyTime);
+        assertEquals(1, viewCfs.metric.viewRebuildKeyTime.cf.getCount());
+        // zero write latency as no mutation is applied
+        assertEquals(0, viewCfs.metric.writeLatency.latencyMeter.getCount());
     }
 
     @Test
     public void testRebuildKeyOnMVValidation() throws Throwable
     {
         DatabaseDescriptor.setDirectMaterializedViewModification(true);
-        DatabaseDescriptor.setRebuildKeyOnMaterializedViewModificationEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(true);
         String mvName = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                    "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
                                    "PRIMARY KEY (pk, ck, v1)");

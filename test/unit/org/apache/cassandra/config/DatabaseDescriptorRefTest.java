@@ -171,6 +171,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.db.guardrails.GuardrailsConfig$TableProperties",
     "org.apache.cassandra.db.guardrails.Values$Config",
     "org.apache.cassandra.db.monitoring.IBadQueryReporter",
+    "org.apache.cassandra.db.view.ViewKeyRebuildConfig",
     "org.apache.cassandra.dht.IPartitioner",
     "org.apache.cassandra.distributed.api.IInstance",
     "org.apache.cassandra.distributed.api.IIsolatedExecutor",

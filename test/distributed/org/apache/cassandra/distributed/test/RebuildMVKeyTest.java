@@ -197,7 +197,9 @@ public class RebuildMVKeyTest extends TestBaseImpl
                                                                        .set("materialized_view_strict_consistency_enabled", true)
                                                                        .set("paxos_variant", "v2")
                                                                        .set("direct_materialized_view_modification_enabled", true)
-                                                                       .set("rebuild_key_on_materialized_view_modification_enabled", true)
+                                                                       .set("view_key_rebuild_config.rebuild_on_deletion_enabled", true)
+                                                                       .set("view_key_rebuild_config.apply_mutations_enabled", true)
+                                                                       .set("view_key_rebuild_config.verbose_logging_enabled", true)
                                                                        .set("materialized_views_per_table_fail_threshold", 1)
                                                                        .set("paxos_repair_enabled", false))
                                            .withInstanceInitializer(BB::install)
@@ -387,7 +389,9 @@ public class RebuildMVKeyTest extends TestBaseImpl
                 {
                     throw new RuntimeException(e);
                 }
-                DatabaseDescriptor.setRebuildKeyOnMaterializedViewModificationEnabled(true);
+                DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+                DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(true);
+                DatabaseDescriptor.setViewKeyRebuildVerboseLoggingEnabled(true);
             });
         });
 

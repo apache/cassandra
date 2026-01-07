@@ -5378,14 +5378,44 @@ public class DatabaseDescriptor
         conf.direct_materialized_view_modification_enabled = enabled;
     }
 
-    public static boolean getRebuildKeyOnMaterializedViewModificationEnabled()
+    public static boolean getViewKeyRebuildOnDeletionEnabled()
     {
-        return conf.rebuild_key_on_materialized_view_modification_enabled;
+        return conf.view_key_rebuild_config.rebuild_on_deletion_enabled;
     }
 
-    public static void setRebuildKeyOnMaterializedViewModificationEnabled(boolean enabled)
+    public static void setViewKeyRebuildOnDeletionEnabled(boolean enabled)
     {
-        conf.rebuild_key_on_materialized_view_modification_enabled = enabled;
+        conf.view_key_rebuild_config.rebuild_on_deletion_enabled = enabled;
+    }
+
+    public static boolean getViewKeyRebuildApplyMutationsEnabled()
+    {
+        return conf.view_key_rebuild_config.apply_mutations_enabled;
+    }
+
+    public static void setViewKeyRebuildApplyMutationsEnabled(boolean enabled)
+    {
+        conf.view_key_rebuild_config.apply_mutations_enabled = enabled;
+    }
+
+    public static boolean getViewKeyRebuildVerboseLoggingEnabled()
+    {
+        return conf.view_key_rebuild_config.verbose_logging_enabled;
+    }
+
+    public static void setViewKeyRebuildVerboseLoggingEnabled(boolean enabled)
+    {
+        conf.view_key_rebuild_config.verbose_logging_enabled = enabled;
+    }
+
+    public static boolean getViewKeyRebuildViewReadEnabled()
+    {
+        return conf.view_key_rebuild_config.view_read_enabled;
+    }
+
+    public static void setViewKeyRebuildViewReadEnabled(boolean enabled)
+    {
+        conf.view_key_rebuild_config.view_read_enabled = enabled;
     }
 
 

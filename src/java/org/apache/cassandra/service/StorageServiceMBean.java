@@ -1247,6 +1247,21 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setDirectMaterializedViewModification(boolean enabled);
 
+    /** Gets the ViewKeyRebuildConfig as a formatted string */
+    public String getViewKeyRebuildConfig();
+
+    /** Sets the ViewKeyRebuildConfig rebuild_on_deletion_enabled flag */
+    public void setViewKeyRebuildOnDeletionEnabled(boolean enabled);
+
+    /** Sets the ViewKeyRebuildConfig apply_mutations_enabled flag */
+    public void setViewKeyRebuildApplyMutationsEnabled(boolean enabled);
+
+    /** Sets the ViewKeyRebuildConfig verbose_logging_enabled flag */
+    public void setViewKeyRebuildVerboseLoggingEnabled(boolean enabled);
+
+    /** Sets the ViewKeyRebuildConfig view_read_enabled flag */
+    public void setViewKeyRebuildViewReadEnabled(boolean enabled);
+
     /** Gets the names of all tables for the given keyspace */
     public List<String> getTablesForKeyspace(String keyspace);
 

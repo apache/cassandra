@@ -8022,6 +8022,42 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setDirectMaterializedViewModification(enabled);
     }
 
+    @Override
+    public String getViewKeyRebuildConfig()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("ViewKeyRebuildConfig:\n");
+        sb.append("  rebuild_on_deletion_enabled: ").append(DatabaseDescriptor.getViewKeyRebuildOnDeletionEnabled()).append("\n");
+        sb.append("  apply_mutations_enabled: ").append(DatabaseDescriptor.getViewKeyRebuildApplyMutationsEnabled()).append("\n");
+        sb.append("  verbose_logging_enabled: ").append(DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled()).append("\n");
+        sb.append("  view_read_enabled: ").append(DatabaseDescriptor.getViewKeyRebuildViewReadEnabled());
+        return sb.toString();
+    }
+
+    @Override
+    public void setViewKeyRebuildOnDeletionEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(enabled);
+    }
+
+    @Override
+    public void setViewKeyRebuildApplyMutationsEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(enabled);
+    }
+
+    @Override
+    public void setViewKeyRebuildVerboseLoggingEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setViewKeyRebuildVerboseLoggingEnabled(enabled);
+    }
+
+    @Override
+    public void setViewKeyRebuildViewReadEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setViewKeyRebuildViewReadEnabled(enabled);
+    }
+
     public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag)
     {
         DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);

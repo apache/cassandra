@@ -19,6 +19,7 @@ package org.apache.cassandra.db.view;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -29,12 +30,14 @@ import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Creates the updates to apply to a view given the existing rows in the base
@@ -48,6 +51,26 @@ import org.apache.cassandra.db.partitions.*;
 public class ViewUpdateGenerator
 {
     protected static final Logger logger = LoggerFactory.getLogger(ViewUpdateGenerator.class);
+
+    // verbose logging helper
+    private void verboseLog(String message, Supplier<String> stringSupplier)
+    {
+        try
+        {
+            if (DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled())
+            {
+                String s = stringSupplier.get();
+                if (s == null)
+                    logger.debug(message);
+                else
+                    logger.debug("{}, {}", message, s);
+            }
+        }
+        catch (Throwable t)
+        {
+            logger.warn("Failed to processing string supplier for message: {}", message, t);
+        }
+    }
     private final View view;
     private final int nowInSec;
 
@@ -284,27 +307,50 @@ public class ViewUpdateGenerator
         //    we read (k=1,v=9) from base table, so we need to delete (k=1,v=1) in view
         // 2. doesn't have the non-pk base column in view pk, baseRow is null/dead
 
-        // TODO: obervability on each action taken?
-
         if (baseRow == null)
+        {
+            verboseLog("baseRow is null, DELETE_FROM_BASE_READ", () -> null);
             return ReadRebuildAction.DELETE_FROM_BASE_READ;
+        }
+        else
+        {
+            verboseLog(baseMetadata.keyspace + '.' + baseMetadata.name + ", baseRow=",
+                       () -> baseRow.toString(baseMetadata, true));
+        }
 
         if (view.hasSamePrimaryKeyColumnsAsBaseTable())
         {
-            return baseRow.hasLiveData(nowInSec, baseEnforceStrictLiveness)
-                   ? ReadRebuildAction.REWRITE
-                   : ReadRebuildAction.DELETE_FROM_BASE_READ;
+            if (baseRow.hasLiveData(nowInSec, baseEnforceStrictLiveness))
+            {
+                verboseLog("baseRow hasLiveData, REWRITE", () -> null);
+                return ReadRebuildAction.REWRITE;
+            }
+            else
+            {
+                verboseLog("baseRow !hasLiveData, DELETE_FROM_BASE_READ", () -> null);
+                return ReadRebuildAction.DELETE_FROM_BASE_READ;
+            }
         }
 
         ColumnMetadata nonPKCol = view.baseNonPKColumnsInViewPK.get(0);
         ColumnMetadata baseNonPkCol = view.getBaseColumn(nonPKCol);
         Cell<?> cell = baseRow.getCell(baseNonPkCol);
         if (!ViewUtils.isLive(cell, nowInSec))
+        {
+            verboseLog("non-PK cell !isLive, DELETE_FROM_BASE_READ", () -> null);
             return ReadRebuildAction.DELETE_FROM_BASE_READ;
+        }
         // if the non-pk cell matches
-        return cell.buffer().equals(nonPKValue)
-               ? ReadRebuildAction.REWRITE
-               : ReadRebuildAction.DELETE_FROM_BASE_READ;
+        if (ByteBufferUtil.compareUnsigned(cell.buffer(), nonPKValue) == 0)
+        {
+            verboseLog("non-PK cell isLive && equals, REWRITE", () -> null);
+            return ReadRebuildAction.REWRITE;
+        }
+        else
+        {
+            verboseLog("non-PK cell isLive && !equals, DELETE_FROM_BASE_READ", () -> null);
+            return ReadRebuildAction.DELETE_FROM_BASE_READ;
+        }
     }
 
     /**

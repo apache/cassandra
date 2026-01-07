@@ -70,7 +70,6 @@ import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -534,7 +533,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
 
         // Only when we allow direct modification of views on MV repair, isView can be true
-        if (DatabaseDescriptor.getRebuildKeyOnMaterializedViewModificationEnabled() && isView())
+        if (DatabaseDescriptor.getViewKeyRebuildOnDeletionEnabled() && isView())
             return rebuildMVKey(queryState, options, requestTime);
 
         if (metadata.strictMVEnabled())
@@ -581,14 +580,22 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 baseRow = iter.hasNext() ? iter.next() : null;
             }
             ViewUpdateGenerator generator = new ViewUpdateGenerator(view, builder.buildBasePartitionKey(), nowInSeconds);
-            generator.addBaseTableRowForReadRebuild(baseRow, builder.buildBaseClusteringKey(), readTimestamp, builder.buildNonPrimaryKeyValue());
+            if (DatabaseDescriptor.getViewKeyRebuildViewReadEnabled())
+            {
+                // TODO: read from view table as well for logging & strict rebuild
+            }
+            else
+            {
+                generator.addBaseTableRowForReadRebuild(baseRow, builder.buildBaseClusteringKey(), readTimestamp, builder.buildNonPrimaryKeyValue());
+            }
             Collection<PartitionUpdate> updates = generator.generateViewUpdates();
             List<Mutation> mutations = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
                 mutations.add(new Mutation(update));
             if (mutations.isEmpty())
                 throw new InvalidRequestException("No mutations were generated for rebuildMVKey");
-            StorageProxy.mutateWithTriggers(mutations, options.getConsistency(), false, requestTime);
+            if (DatabaseDescriptor.getViewKeyRebuildApplyMutationsEnabled())
+                StorageProxy.mutateWithTriggers(mutations, options.getConsistency(), false, requestTime);
             logger.info("rebuildMVKey applied {} updates to view {}", updates.size(), viewCfs.name);
         }
         catch (Exception e)

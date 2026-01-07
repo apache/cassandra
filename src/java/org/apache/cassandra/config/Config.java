@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.view.ViewKeyRebuildConfig;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.profiling.ContinuousProfilerConfig;
 import org.apache.cassandra.sqel.SampledQueryEventLoggerOptions;
@@ -667,7 +668,7 @@ public class Config
      * In previous versions, we let the Spark job generate the modifications. When this config is set to true, the server
      * will ignore the actual modification to MV, but try to rebuild the given key within MV from the base table.
      */
-    public boolean rebuild_key_on_materialized_view_modification_enabled = false;
+    public ViewKeyRebuildConfig view_key_rebuild_config = new ViewKeyRebuildConfig();
 
     @Replaces(oldName = "enable_sasi_indexes", converter = Converters.IDENTITY, deprecated = true)
     public boolean sasi_indexes_enabled = false;
