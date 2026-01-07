@@ -43,8 +43,11 @@ public class TimeoutStrategyTest {
         Assertions.assertThat(w.getMicros(3))
                 .isEqualTo(expectedBaseLatencyMicros * 4);
 
-        // Edge case to check for 0 attempts: max(0, -1) = 0
+        // Edge case to check for 0 or negative attempts: max(0, -1) = 0
         Assertions.assertThat(w.getMicros(0))
+                .isEqualTo(expectedBaseLatencyMicros);
+
+        Assertions.assertThat(w.getMicros(Integer.MIN_VALUE))
                 .isEqualTo(expectedBaseLatencyMicros);
     }
 
