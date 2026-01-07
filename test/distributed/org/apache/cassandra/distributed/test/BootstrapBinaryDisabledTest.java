@@ -61,7 +61,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
                                            .withConfig(c -> {
                                                config.forEach(c::set);
-                                               c.with(Feature.GOSSIP, Feature.NETWORK, Feature.NATIVE_PROTOCOL);
+                                               c.with(Feature.GOSSIP, Feature.NETWORK, Feature.NATIVE_PROTOCOL, Feature.JMX);
                                            })
                                            .withInstanceInitializer((cl, nodeNumber) -> {
                                                switch (nodeNumber) {

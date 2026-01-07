@@ -183,12 +183,7 @@ public class NodeProbe implements AutoCloseable
         this.output = Output.CONSOLE;
     }
 
-    /**
-     * Create a connection to the JMX agent and setup the M[X]Bean proxies.
-     *
-     * @throws IOException on connection failures
-     */
-    protected void connect() throws IOException
+    protected void initializeJMXConnector() throws IOException
     {
         String host = this.host;
         if (host.contains(":"))
@@ -207,6 +202,16 @@ public class NodeProbe implements AutoCloseable
         env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
 
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
+    }
+
+    /**
+     * Create a connection to the JMX agent and setup the M[X]Bean proxies.
+     *
+     * @throws IOException on connection failures
+     */
+    protected void connect() throws IOException
+    {
+        initializeJMXConnector();
         mbeanServerConn = jmxc.getMBeanServerConnection();
 
         try
@@ -240,10 +245,18 @@ public class NodeProbe implements AutoCloseable
                     "Invalid ObjectName? Please report this as a bug.", e);
         }
 
-        memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
-                ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
-        runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
-                mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+        try
+        {
+            memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
+                                                                ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
+
+            runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
+                                                                    ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+        }
+        catch (IllegalArgumentException ex)
+        {
+            // ignore
+        }
     }
 
     private RMIClientSocketFactory getRMIClientSocketFactory()

@@ -723,4 +723,6 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+
+    public boolean skipNotificationListeners(boolean skip);
 }

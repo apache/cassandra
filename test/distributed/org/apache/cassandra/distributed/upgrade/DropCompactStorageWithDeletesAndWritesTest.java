@@ -25,6 +25,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -42,7 +43,7 @@ public class DropCompactStorageWithDeletesAndWritesTest extends DropCompactStora
         new TestCase()
         .nodes(2)
         .upgradesFrom(v22)
-        .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
+        .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL, JMX).set("enable_drop_compact_storage", true))
         .setup(cluster -> {
             cluster.schemaChange(String.format(
             "CREATE TABLE %s.%s (key int, c1 int, c2 int, c3 int, PRIMARY KEY (key, c1, c2)) WITH COMPACT STORAGE",
