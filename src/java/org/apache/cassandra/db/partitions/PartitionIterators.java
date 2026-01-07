@@ -34,13 +34,22 @@ public abstract class PartitionIterators
     @SuppressWarnings("resource") // The created resources are returned right away
     public static RowIterator getOnlyElement(final PartitionIterator iter, SinglePartitionReadCommand command)
     {
-        // If the query has no results, we'll get an empty iterator, but we still
-        // want a RowIterator out of this method, so we return an empty one.
-        RowIterator toReturn = iter.hasNext()
-                             ? iter.next()
-                             : EmptyIterators.row(command.metadata(),
-                                                  command.partitionKey(),
-                                                  command.clusteringIndexFilter().isReversed());
+        RowIterator toReturn;
+        try
+        {
+            // If the query has no results, we'll get an empty iterator, but we still
+            // want a RowIterator out of this method, so we return an empty one.
+            toReturn = iter.hasNext()
+                       ? iter.next()
+                       : EmptyIterators.row(command.metadata(),
+                                            command.partitionKey(),
+                                            command.clusteringIndexFilter().isReversed());
+        }
+        catch (RuntimeException e)
+        {
+            iter.close();
+            throw e;
+        }
 
         // Note that in general, we should wrap the result so that it's close method actually
         // close the whole PartitionIterator.
