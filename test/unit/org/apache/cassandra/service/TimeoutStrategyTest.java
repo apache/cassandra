@@ -29,7 +29,7 @@ public class TimeoutStrategyTest {
     public void testParseLatencyModifierExponential() {
         long expectedBaseLatencyMicros = TimeUnit.MILLISECONDS.toMicros(30);
         String spec = "30ms * 2^attempts";
-        TimeoutStrategy.Wait w = org.apache.cassandra.service.TimeoutStrategy.parseWait(spec, TimeoutStrategy.LatencySourceFactory.none());
+        TimeoutStrategy.Wait w = TimeoutStrategy.parseWait(spec, TimeoutStrategy.LatencySourceFactory.none());
 
         // Attempt 1: baseLatency * 2^(1-1) = baseLatency * 1
         Assertions.assertThat(w.getMicros(1))
@@ -46,5 +46,24 @@ public class TimeoutStrategyTest {
         // Edge case to check for 0 attempts: max(0, -1) = 0
         Assertions.assertThat(w.getMicros(0))
                 .isEqualTo(expectedBaseLatencyMicros);
+    }
+
+    @Test
+    public void testParseLatencyModifierFractionalBaseExponential() {
+        long expectedBaseLatencyMicros = TimeUnit.MILLISECONDS.toMicros(30);
+        String spec = "30ms * 1.5^attempts";
+        TimeoutStrategy.Wait w = TimeoutStrategy.parseWait(spec, TimeoutStrategy.LatencySourceFactory.none());
+
+        // Attempt 1: baseLatency * 1.5^(1-1) = baseLatency * 1
+        Assertions.assertThat(w.getMicros(1))
+                .isEqualTo((int) expectedBaseLatencyMicros);
+
+        // Attempt 2: baseLatency * 1.5^(2-1) = baseLatency * 1.5
+        Assertions.assertThat(w.getMicros(2))
+                .isEqualTo((int) (expectedBaseLatencyMicros * 1.5));
+
+        // Attempt 3: baseLatency * 1.5^(3-1) = baseLatency * 2.25
+        Assertions.assertThat(w.getMicros(3))
+                .isEqualTo((int) (expectedBaseLatencyMicros * 2.25));
     }
 }
