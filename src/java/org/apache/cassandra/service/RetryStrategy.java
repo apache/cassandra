@@ -64,7 +64,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * <li> dynamic constant    {@code pX() * constant}
  * <li> dynamic linear      {@code pX() * constant * attempts}
  * <li> dynamic exponential {@code pX() * constant ^ attempts}
- *
+ * <li> Note: for dynamic exponential, attempts is subtracted by 1, such that times begin at {@code pX() * constant}.
  * e.g.
  * <li> {@code 10ms <= p50(rw)*0.66...p99(rw)}
  * <li> {@code 10ms <= p95(rw)*1.8^attempts <= 100ms}
