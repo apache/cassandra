@@ -72,7 +72,7 @@ public class RetryStrategyTest
     }
 
     @Test
-    public void testSeededWaitRandomizer()
+    public void seededWaitRandomizer()
     {
         RetrySpec spec = new RetrySpec(new RetrySpec.MaxAttempt(10),
                                        new DurationSpec.LongMillisecondsBound("200ms"),
@@ -88,12 +88,10 @@ public class RetryStrategyTest
     {
         return new SharedContext.ForwardingSharedContext(SharedContext.Global.instance)
         {
-            private final Random seededRandom = new Random(seed);
-
             @Override
             public Supplier<Random> random()
             {
-                return () -> seededRandom;
+                return () -> new Random(seed);
             }
         };
     }
