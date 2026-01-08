@@ -98,7 +98,8 @@ public class TimeoutStrategy implements WaitStrategy
         default LatencyModifier identity() { return (l, a) -> l; }
         default LatencyModifier multiply(double constant) { return (l, a) -> saturatedCast(l * constant); }
         default LatencyModifier multiplyByAttempts(double multiply) { return (l, a) -> saturatedCast(l * multiply * a); }
-        default LatencyModifier multiplyByAttemptsExp(double base) { return (l, a) -> saturatedCast(l * pow(base, a)); }
+        // Ensure attempts is non-negative before subtracting 1.
+        default LatencyModifier multiplyByAttemptsExp(double base) { return (l, a) -> saturatedCast(l * pow(base, max(0, (max(a, 0) - 1)))); }
     }
 
     public interface Wait

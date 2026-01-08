@@ -1,4 +1,5 @@
 5.1
+ * Fix off-by-one bug in exponential backoff for repair retry config (CASSANDRA-21102)
  * Move training parameters for Zstd dictionary compression to CQL (CASSANDRA-21078)
  * Add configuration for sorted imports in source files (CASSANDRA-17925)
  * Change the eager reference counting of compression dictionaries to lazy (CASSANDRA-21074)
