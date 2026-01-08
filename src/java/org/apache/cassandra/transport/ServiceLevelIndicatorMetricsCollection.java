@@ -156,7 +156,8 @@ public class ServiceLevelIndicatorMetricsCollection
         }
         if (DatabaseDescriptor.getServiceLevelIndicatorErrorLogEnabled())
         {
-            query = PasswordObfuscator.obfuscate(query) == null ? "null" : query;
+            String obfuscated = PasswordObfuscator.obfuscate(query);
+            query =  obfuscated == null ? "null" : obfuscated;
             NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, ex.getClass().getSimpleName(), 1,
                              TimeUnit.MINUTES, "Service level indicator exception {} while executing {}",
                              code == null ? "unexpected CQL exception" : code.toString(), query, ex);
