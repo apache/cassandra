@@ -23,10 +23,12 @@ import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-public class TimeoutStrategyTest {
+public class TimeoutStrategyTest
+{
 
     @Test
-    public void testParseLatencyModifierExponential() {
+    public void testParseLatencyModifierExponential()
+    {
         long expectedBaseLatencyMicros = TimeUnit.MILLISECONDS.toMicros(30);
         String spec = "30ms * 2^attempts";
         TimeoutStrategy.Wait w = TimeoutStrategy.parseWait(spec, TimeoutStrategy.LatencySourceFactory.none());
@@ -52,7 +54,8 @@ public class TimeoutStrategyTest {
     }
 
     @Test
-    public void testParseLatencyModifierFractionalBaseExponential() {
+    public void testParseLatencyModifierFractionalBaseExponential()
+    {
         long expectedBaseLatencyMicros = TimeUnit.MILLISECONDS.toMicros(30);
         String spec = "30ms * 1.5^attempts";
         TimeoutStrategy.Wait w = TimeoutStrategy.parseWait(spec, TimeoutStrategy.LatencySourceFactory.none());
