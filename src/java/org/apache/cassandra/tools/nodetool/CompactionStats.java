@@ -56,7 +56,21 @@ public class CompactionStats extends AbstractCommand
         TableBuilder tableBuilder = new TableBuilder();
         pendingTasksAndConcurrentCompactorsStats(probe, tableBuilder);
         compactionsStats(probe, tableBuilder);
-        reportCompactionTable(probe.getCompactionManagerProxy().getCompactions(), probe.getCompactionThroughputBytes(), humanReadable, vtableOutput, out, tableBuilder);
+        Map<String, String> currentCompactionThroughputMetricsMap = probe.getCurrentCompactionThroughputMiBPerSec();
+        String currentThroughput1MinStr = currentCompactionThroughputMetricsMap.get("1minute");
+        Double currentCompactionThroughputMiBPerSec = null;
+        try
+        {
+            if (currentThroughput1MinStr != null && !currentThroughput1MinStr.isEmpty())
+            {
+                currentCompactionThroughputMiBPerSec = Double.parseDouble(currentThroughput1MinStr);
+            }
+        }
+        catch (NumberFormatException e)
+        {
+            // If parsing fails, currentCompactionThroughputMiBPerSec remains null and we'll fall back to configured throughput
+        }
+        reportCompactionTable(probe.getCompactionManagerProxy().getCompactions(), probe.getCompactionThroughputBytes(), currentCompactionThroughputMiBPerSec, humanReadable, vtableOutput, out, tableBuilder);
     }
 
     private void pendingTasksAndConcurrentCompactorsStats(NodeProbe probe, TableBuilder tableBuilder)
@@ -118,10 +132,15 @@ public class CompactionStats extends AbstractCommand
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out, TableBuilder table)
     {
-        reportCompactionTable(compactions, compactionThroughputInBytes, humanReadable, false, out, table);
+        reportCompactionTable(compactions, compactionThroughputInBytes, null, humanReadable, false, out, table);
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, boolean vtableOutput, PrintStream out, TableBuilder table)
+    {
+        reportCompactionTable(compactions, compactionThroughputInBytes, null, humanReadable, vtableOutput, out, table);
+    }
+
+    public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, Double currentCompactionThroughputMiBPerSec, boolean humanReadable, boolean vtableOutput, PrintStream out, TableBuilder table)
     {
         if (compactions.isEmpty())
         {
@@ -162,9 +181,22 @@ public class CompactionStats extends AbstractCommand
         }
 
         String remainingTime = "n/a";
-        if (compactionThroughputInBytes != 0)
+        long throughputInBytes = 0;
+        
+        // Use current compaction throughput (1 minute) if available and > 0, otherwise fall back to configured throughput
+        if (currentCompactionThroughputMiBPerSec != null && currentCompactionThroughputMiBPerSec > 0)
         {
-            long remainingTimeInSecs = remainingBytes / compactionThroughputInBytes;
+            // Convert MiB/s to bytes/s (1 MiB = 1024 * 1024 bytes)
+            throughputInBytes = (long) (currentCompactionThroughputMiBPerSec * 1024 * 1024);
+        }
+        else if (compactionThroughputInBytes != 0)
+        {
+            throughputInBytes = compactionThroughputInBytes;
+        }
+        
+        if (throughputInBytes > 0)
+        {
+            long remainingTimeInSecs = remainingBytes / throughputInBytes;
             remainingTime = format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60));
         }
 
