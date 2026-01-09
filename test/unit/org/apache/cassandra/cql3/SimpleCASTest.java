@@ -32,7 +32,7 @@ public class SimpleCASTest extends CQLTester
     @Test
     public void casOnSystemTable()
     {
-        // in CASSANDRA-???? there was a NPE caused by a missing return.  This happened when you tried to do
+        // in CASSANDRA-21112 there was a NPE caused by a missing return.  This happened when you tried to do
         // CAS on a local system table, the logic to figure out the protocol is expected to choose paxos but lacked
         // the return and instead tried to infer from TCM, but local system tables are not in TCM and not allowed
         // to be used in accord, so failed with a NPE.
