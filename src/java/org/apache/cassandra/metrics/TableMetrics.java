@@ -353,6 +353,7 @@ public class TableMetrics
 
     public final SnapshottingTimer secondaryIndexBuildTime;
     public final Gauge<Integer> secondaryIndexTally;
+    public final Counter secondaryIndexReadCount;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -1157,6 +1158,7 @@ public class TableMetrics
                 return cfs.isIndex() ? 1 : 0;
             }
         });
+        secondaryIndexReadCount = createTableCounter("SecondaryIndexReadCount");
     }
 
     private Memtable.MemoryUsage getMemoryUsageWithIndexes(ColumnFamilyStore cfs)

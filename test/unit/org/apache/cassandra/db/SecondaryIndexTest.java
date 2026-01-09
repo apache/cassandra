@@ -584,4 +584,106 @@ public class SecondaryIndexTest
             assertFalse(iter.hasNext());
         }
     }
+
+    @Test
+    public void testSecondaryIndexReadCountMetricForCompositeIndex()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_COMPOSITE_INDEX);
+        ByteBuffer col = ByteBufferUtil.bytes("birthdate");
+
+        // Insert test data
+        new RowUpdateBuilder(cfs.metadata(), 0, "k1").clustering("c").add("birthdate", 1L).build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "k2").clustering("c").add("birthdate", 2L).build().applyUnsafe();
+
+        Util.flush(cfs);
+
+        // Get the index CFS
+        ReadCommand rcForIndex = Util.cmd(cfs).filterOn("birthdate", Operator.EQ, 1L).build();
+        Index index = rcForIndex.getIndex(cfs);
+        ColumnFamilyStore indexCfs = index.getBackingTable().orElseThrow(() -> new AssertionError("Index has no backing table"));
+
+        long initialCount = indexCfs.metric.secondaryIndexReadCount.getCount();
+
+        // Test 1: Read without using index (direct partition key lookup)
+        ReadCommand readWithoutIndex = Util.cmd(cfs, Util.dk("k1")).build();
+        Util.getAll(readWithoutIndex);
+
+        assertEquals("Metric should not increment for non-index read",
+                     initialCount,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+
+        // Test 2: Read using index (with filter on indexed column)
+        ReadCommand readWithIndex = Util.cmd(cfs)
+                                        .filterOn("birthdate", Operator.EQ, 1L)
+                                        .build();
+
+        Util.getAll(readWithIndex);
+
+        assertEquals("Metric should increment for index read",
+                     initialCount + 1,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+
+        // Test 3: Another index read should increment again
+        ReadCommand anotherIndexRead = Util.cmd(cfs)
+                                           .filterOn("birthdate", Operator.EQ, 2L)
+                                           .build();
+
+        Util.getAll(anotherIndexRead);
+
+        assertEquals("Metric should increment for second index read",
+                     initialCount + 2,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+    }
+
+    @Test
+    public void testSecondaryIndexReadCountMetricForKeysIndex()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_KEYS_INDEX);
+        ByteBuffer col = ByteBufferUtil.bytes("birthdate");
+
+        // Insert test data
+        new RowUpdateBuilder(cfs.metadata(), 0, "k1").add("birthdate", 1L).build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "k2").add("birthdate", 2L).build().applyUnsafe();
+
+        Util.flush(cfs);
+
+        // Get the index CFS
+        ReadCommand rcForIndex = Util.cmd(cfs).filterOn("birthdate", Operator.EQ, 1L).build();
+        Index index = rcForIndex.getIndex(cfs);
+        ColumnFamilyStore indexCfs = index.getBackingTable().orElseThrow(() -> new AssertionError("Index has no backing table"));
+
+        long initialCount = indexCfs.metric.secondaryIndexReadCount.getCount();
+
+        // Test 1: Read without using index (direct partition key lookup)
+        ReadCommand readWithoutIndex = Util.cmd(cfs, Util.dk("k1")).build();
+        Util.getAll(readWithoutIndex);
+
+        assertEquals("Metric should not increment for non-index read",
+                     initialCount,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+
+        // Test 2: Read using index (with filter on indexed column)
+        ReadCommand readWithIndex = Util.cmd(cfs)
+                                        .filterOn("birthdate", Operator.EQ, 1L)
+                                        .build();
+
+        Util.getAll(readWithIndex);
+
+        assertEquals("Metric should increment for index read",
+                     initialCount + 1,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+
+        // Test 3: Another index read should increment again
+        ReadCommand anotherIndexRead = Util.cmd(cfs)
+                                           .filterOn("birthdate", Operator.EQ, 2L)
+                                           .build();
+
+        Util.getAll(anotherIndexRead);
+
+        assertEquals("Metric should increment for second index read",
+                     initialCount + 2,
+                     indexCfs.metric.secondaryIndexReadCount.getCount());
+    }
 }
+
+

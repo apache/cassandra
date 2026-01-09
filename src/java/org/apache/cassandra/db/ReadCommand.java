@@ -455,6 +455,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                 executionController.setRowMergeListener(new ShadowRowsListener(cfs));
 
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
+            if (searcher != null)
+            {
+                index.getBackingTable().ifPresent(table -> table.metric.secondaryIndexReadCount.inc());
+            }
+
             iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
             try

@@ -2,6 +2,7 @@ Unreleased
  * [CAAS-720] Fix password obfuscation in SLI query logs
  * [CAAS-305] Enrich ViewKeyRebuildConfig control and verbose logging
  * [CAAS-27] Implement zstd enforcement for CREATE table/mv
+ * [CAAS-645] Add metrics for reads to Secondary Indexes
 4.1.10.4
  * [CAAS-672] Code refactor for strict MV consistency
  * [CAAS-669] Fix Paxos repair for strict MV consistency enabled table for deletion commands
