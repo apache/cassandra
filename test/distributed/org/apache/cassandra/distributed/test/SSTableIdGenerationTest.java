@@ -530,7 +530,12 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         String tableColName = SSTABLE_ACTIVITY_V2.equals(table) ? "table_name" : "columnfamily_name";
         String idColName = SSTABLE_ACTIVITY_V2.equals(table) ? "id" : "generation";
         String cql = "SELECT rate_15m, rate_120m FROM system.%s WHERE keyspace_name=? and %s=? and %s=?";
-        UntypedResultSet results = executeInternal(format(cql, table, tableColName, idColName), "ks", "tab", genId);
+
+        Object id = genId;
+        if (LEGACY_SSTABLE_ACTIVITY.equals(table) && genId instanceof Long)
+            id = Integer.valueOf(Long.toString((Long) genId));
+
+        UntypedResultSet results = executeInternal(format(cql, table, tableColName, idColName), "ks", "tab", id);
         assertThat(results).isNotNull();
 
         if (expectExists)

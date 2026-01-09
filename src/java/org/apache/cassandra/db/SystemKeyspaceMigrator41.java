@@ -157,6 +157,10 @@ public class SystemKeyspaceMigrator41
                      row ->
                      Collections.singletonList(new Object[]{ row.getString("keyspace_name"),
                                                              row.getString("columnfamily_name"),
+                                                             // here SequenceBasedSSTableId is based on generation ids which are longs,
+                                                             // but we might technically use a number which is also an integer.
+                                                             // This is fine, because the generation column is of type 'text'
+                                                             // so we do not risk that types would be incompatible or similar.
                                                              new SequenceBasedSSTableId(row.getInt("generation")).toString(),
                                                              row.has("rate_120m") ? row.getDouble("rate_120m") : null,
                                                              row.has("rate_15m") ? row.getDouble("rate_15m") : null

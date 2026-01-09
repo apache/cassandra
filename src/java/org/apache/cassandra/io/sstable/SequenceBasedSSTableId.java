@@ -20,7 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -33,9 +33,9 @@ import com.google.common.base.Preconditions;
  */
 public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBasedSSTableId>
 {
-    public final int generation;
+    public final long generation;
 
-    public SequenceBasedSSTableId(final int generation)
+    public SequenceBasedSSTableId(final long generation)
     {
         assert generation >= 0;
 
@@ -50,7 +50,7 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
         else if (o == this)
             return 0;
 
-        return Integer.compare(this.generation, o.generation);
+        return Long.compare(this.generation, o.generation);
     }
 
     @Override
@@ -72,8 +72,8 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
     @Override
     public ByteBuffer asBytes()
     {
-        ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES);
-        bytes.putInt(0, generation);
+        ByteBuffer bytes = ByteBuffer.allocate(Long.BYTES);
+        bytes.putLong(0, generation);
         return bytes;
     }
 
@@ -96,13 +96,13 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
         @Override
         public Supplier<SequenceBasedSSTableId> generator(Stream<SSTableId> existingIdentifiers)
         {
-            int value = existingIdentifiers.filter(SequenceBasedSSTableId.class::isInstance)
-                                           .map(SequenceBasedSSTableId.class::cast)
-                                           .mapToInt(id -> id.generation)
-                                           .max()
-                                           .orElse(0);
+            long value = existingIdentifiers.filter(SequenceBasedSSTableId.class::isInstance)
+                                            .map(SequenceBasedSSTableId.class::cast)
+                                            .mapToLong(id -> id.generation)
+                                            .max()
+                                            .orElse(0);
 
-            AtomicInteger fileIndexGenerator = new AtomicInteger(value);
+            AtomicLong fileIndexGenerator = new AtomicLong(value);
             return () -> new SequenceBasedSSTableId(fileIndexGenerator.incrementAndGet());
         }
 
@@ -115,20 +115,20 @@ public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBas
         @Override
         public boolean isUniqueIdentifier(ByteBuffer bytes)
         {
-            return bytes != null && bytes.remaining() == Integer.BYTES && bytes.getInt(0) >= 0;
+            return bytes != null && bytes.remaining() == Long.BYTES && bytes.getLong(0) >= 0;
         }
 
         @Override
         public SequenceBasedSSTableId fromString(String token) throws IllegalArgumentException
         {
-            return new SequenceBasedSSTableId(Integer.parseInt(token));
+            return new SequenceBasedSSTableId(Long.parseLong(token));
         }
 
         @Override
         public SequenceBasedSSTableId fromBytes(ByteBuffer bytes) throws IllegalArgumentException
         {
-            Preconditions.checkArgument(bytes.remaining() == Integer.BYTES, "Buffer does not have a valid number of bytes remaining. Expecting: %s but was: %s", Integer.BYTES, bytes.remaining());
-            return new SequenceBasedSSTableId(bytes.getInt(0));
+            Preconditions.checkArgument(bytes.remaining() == Long.BYTES, "Buffer does not have a valid number of bytes remaining. Expecting: %s but was: %s", Long.BYTES, bytes.remaining());
+            return new SequenceBasedSSTableId(bytes.getLong(0));
         }
     }
 }

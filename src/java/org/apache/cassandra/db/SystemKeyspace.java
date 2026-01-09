@@ -1688,19 +1688,27 @@ public final class SystemKeyspace
         executeInternal(format(cql, SSTABLE_ACTIVITY_V2),
                         keyspace,
                         table,
-                        id.toString(),
+                        id.toString(), // this is on text type, so we do not care if we save "integer" or "long" in there
                         meter.fifteenMinuteRate(),
                         meter.twoHourRate());
 
         if (!DatabaseDescriptor.isUUIDSSTableIdentifiersEnabled() && id instanceof SequenceBasedSSTableId)
         {
+            SequenceBasedSSTableId sequenceBasedSSTableId = (SequenceBasedSSTableId) id;
+            // We can not put a value bigger than max int to legacy sstable_activity where generation column is still on int.
+            // The probablity of that happening is quite low, we would need to use all generations from Integer.MAX_VALUE
+            // to hit this problem.
+            if (Integer.MAX_VALUE < sequenceBasedSSTableId.generation)
+                return;
+
             // we do this in order to make it possible to downgrade until we switch in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
             cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
             executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY),
                             keyspace,
                             table,
-                            ((SequenceBasedSSTableId) id).generation,
+                            // safe to cast generation to int as it always fits to that, based on the above condition
+                            (int) sequenceBasedSSTableId.generation,
                             meter.fifteenMinuteRate(),
                             meter.twoHourRate());
         }
@@ -1717,8 +1725,17 @@ public final class SystemKeyspace
         {
             // we do this in order to make it possible to downgrade until we switch in cassandra.yaml to UUID based ids
             // see the discussion on CASSANDRA-17048
+
+            SequenceBasedSSTableId sequenceBasedSSTableId = (SequenceBasedSSTableId) id;
+
+            // legacy sstable activity table does not contain generation id's bigger than this, so we return,
+            // we would be otherwise trying to pass a long into generation column which is int which would fail.
+            if (Integer.MAX_VALUE < sequenceBasedSSTableId.generation)
+                return;
+
             cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
-            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, ((SequenceBasedSSTableId) id).generation);
+            // safe to cast generation to int as it always fits to that, based on the above condition
+            executeInternal(format(cql, LEGACY_SSTABLE_ACTIVITY), keyspace, table, (int) sequenceBasedSSTableId.generation);
         }
     }
 
