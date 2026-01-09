@@ -1,4 +1,5 @@
 5.1
+ * When level compaction validates its table properties, it used the wrong default value for sstable_size_in_mb which allowed properties that would later be rejected at runtime (CASSANDRA-20570)
  * Fix off-by-one bug in exponential backoff for repair retry config (CASSANDRA-21102)
  * Move training parameters for Zstd dictionary compression to CQL (CASSANDRA-21078)
  * Add configuration for sorted imports in source files (CASSANDRA-17925)

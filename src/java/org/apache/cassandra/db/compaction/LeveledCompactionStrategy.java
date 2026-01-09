@@ -594,7 +594,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         int fanoutSize;
 
         // Validate the sstable_size option
-        String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "1";
+        String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : String.valueOf(DEFAULT_MAX_SSTABLE_SIZE_MIB);
         try
         {
             ssSize = Integer.parseInt(size);
