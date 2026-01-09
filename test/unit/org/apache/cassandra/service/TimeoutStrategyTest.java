@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.service;
 
+import java.util.concurrent.TimeUnit;
+
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
-
-import java.util.concurrent.TimeUnit;
 
 public class TimeoutStrategyTest
 {
