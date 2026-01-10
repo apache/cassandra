@@ -109,8 +109,8 @@ public class CommandChangeTest
                             out.clear();
                             Command orig = cmdBuilder.build(saveStatus);
 
-                            AccordJournal.Writer.make(null, orig).write(out, version);
-                            AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
+                            AccordJournal.CommandChangeWriter.make(null, orig).write(out, version);
+                            AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(orig.txnId(), Load.ALL);
                             builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
                             // We are not persisting the result, so force it for strict equality
                             builder.forceResult(orig.result());

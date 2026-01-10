@@ -198,7 +198,6 @@ public class CommandStoreSerializers
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException
         {
-
             CommandSerializers.txnId.serialize(t.quorumBefore, out);
             CommandSerializers.txnId.serialize(t.universalBefore, out);
         }
@@ -554,15 +553,16 @@ public class CommandStoreSerializers
             byte flags = (byte) ((t.getClass() == IdSingleEntry.class) ? 0 : 1);
             out.writeByte(flags);
             CommandSerializers.txnId.serialize(t, out);
+            out.writeUnsignedVInt32(t.encoded());
             if (flags == 0)
             {
                 IdSingleEntry e = (IdSingleEntry) t;
-                KeySerializers.range.serialize(e.range);
+                KeySerializers.range.serialize(e.range, out);
             }
             else
             {
                 IdMultiEntry e = (IdMultiEntry) t;
-                KeySerializers.ranges.serialize(e.ranges);
+                KeySerializers.ranges.serialize(e.ranges, out);
             }
         }
 
@@ -571,15 +571,16 @@ public class CommandStoreSerializers
         {
             byte flags = in.readByte();
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            int encoded = in.readUnsignedVInt32();
             if (flags == 0)
             {
                 Range range = KeySerializers.range.deserialize(in);
-                return new IdSingleEntry(txnId, range);
+                return IdEntry.SerializerSupport.create(txnId, encoded, range);
             }
             else
             {
                 Ranges ranges = KeySerializers.ranges.deserialize(in);
-                return new IdMultiEntry(txnId, ranges);
+                return IdEntry.SerializerSupport.create(txnId, encoded, ranges);
             }
         }
 

@@ -711,7 +711,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 finally { completeTaskExclusive(task); }
                 break;
 
-            case FAILING:
             case RUNNING:
             case PERSISTING:
             case FINISHED:
@@ -942,7 +941,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         abstract void submitExclusive(AccordExecutor owner);
     }
 
+    // run the task even on a stopped commandStore
     public interface Unstoppable extends PreLoadContext.Empty
+    {
+    }
+
+    // run the task even on a termimated commandStore
+    public interface Unterminatable extends Unstoppable
     {
     }
 
@@ -998,7 +1003,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         private boolean running;
         private boolean stopped;
         private volatile boolean visibleStopped;
-        private boolean shutdown;
+        private boolean terminated;
 
         SequentialExecutor()
         {
@@ -1029,10 +1034,21 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                     LockSupport.park();
                 waiting = null;
             }
-            if (stopped && (shutdown || !(task instanceof AccordTask && ((AccordTask<?>) task).preLoadContext() instanceof Unstoppable)))
-                task.fail(new RejectedExecutionException());
+
+            if (stopped && reject(task))
+                task.fail(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + ((AccordTask<?>) task).preLoadContext()));
             else
                 task.runInternal();
+        }
+
+        private boolean reject(Task task)
+        {
+            if (!(task instanceof AccordTask<?>))
+                return true;
+
+            PreLoadContext context = ((AccordTask<?>) task).preLoadContext();
+
+            return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
         }
 
         void failTask(Throwable t)
@@ -1128,10 +1144,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             this.visibleStopped = true;
         }
 
-        void shutdown()
+        void terminate()
         {
             Invariants.require(inExecutor());
-            this.shutdown = this.stopped = true;
+            this.visibleStopped = this.terminated = this.stopped = true;
         }
 
         @Override

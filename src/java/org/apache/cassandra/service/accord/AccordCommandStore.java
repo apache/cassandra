@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -36,6 +35,11 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import accord.api.LocalListeners.TxnListener;
+import accord.impl.progresslog.TxnState;
+import accord.local.MaxConflicts;
+import accord.local.MaxDecidedRX;
+import accord.local.RejectBefore;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 
@@ -113,6 +117,7 @@ import static org.apache.cassandra.service.accord.AccordJournal.saveDirectory;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxConflicts;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxDecidedRX;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.progressLogState;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.redundantBefore;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.rejectBefore;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.txnListener;
 
@@ -496,12 +501,8 @@ public class AccordCommandStore extends CommandStore
             boolean stopped = exclusiveExecutor.stopped();
             if (durable && stopped)
             {
-                logger.debug("{} Signalling termination", this);
+                exclusiveExecutor.terminate();
                 terminated.signalAll();
-            }
-            else
-            {
-                logger.debug("{} Not signalling termination with waiting: {} ({}), stopped: {}", this, DurablyAppliedTo.summarise(unsafeGetRedundantBefore(), DurablyAppliedTo::isNotDone), durable, stopped);
             }
         }
     }
@@ -586,7 +587,7 @@ public class AccordCommandStore extends CommandStore
         Mode mode;
         if (journal instanceof AccordJournal)
         {
-            ReplayMode replayMode = getAccord().journal.replayMode;
+            ReplayMode replayMode = getAccord().journal.replay;
             switch (replayMode)
             {
                 default: throw new UnhandledEnum(replayMode);
@@ -616,9 +617,9 @@ public class AccordCommandStore extends CommandStore
             return;
 
         long reportId = nextDurabilityLoggingId.incrementAndGet();
-        logger.debug("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
+        logger.debug("{} durability: ensuring for {} ({})", this, onCommandStoreDurable, reportId);
         executor().afterSubmittedAndConsequences(() -> {
-            logger.debug("{}: saving intersecting keys ({})", this, reportId);
+            logger.debug("{} durability: saving intersecting keys ({})", this, reportId);
             class Ready extends CountingResult implements Runnable
             {
                 public Ready() { super(1); }
@@ -645,11 +646,11 @@ public class AccordCommandStore extends CommandStore
             ready.invoke((success, fail) -> {
                 if (fail != null)
                 {
-                    logger.error("{}: failed to ensure durability of {} ({})", this, ranges, reportId, fail);
+                    logger.error("{} failed to ensure durability of {} ({})", this, ranges, reportId, fail);
                 }
                 else
                 {
-                    logger.debug("{}: waiting for CommandsForKey to flush ({})", this, reportId);
+                    logger.debug("{} waiting for CommandsForKey to flush ({})", this, reportId);
                     ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.commandsForKey;
 
                     AccordDurableOnFlush.notifyOnDurable(cfs, this, onCommandStoreDurable);
@@ -737,9 +738,8 @@ public class AccordCommandStore extends CommandStore
 
     AsyncChain<Boolean> saveState(Descriptor descriptor)
     {
-        return chain((AccordExecutor.Unstoppable)() -> "Save State", safeStore -> {
+        return chain((AccordExecutor.Unterminatable)() -> "Save State", safeStore -> {
             File storeDir = storeSaveDir();
-
             {
                 File[] tmpDirs = listTmpSaveDirs(storeDir);
                 if (tmpDirs != null)
@@ -749,6 +749,9 @@ public class AccordCommandStore extends CommandStore
                         dir.tryDeleteRecursive();
                 }
             }
+
+            RedundantBefore validateRedundantBefore = journal.loadRedundantBefore(id);
+            Invariants.expect(validateRedundantBefore.equals(unsafeGetRedundantBefore()), "Journal RedundantBefore does not match in memory: %s != %s", validateRedundantBefore, unsafeGetRedundantBefore());
 
             File[] sortedSaveDirs = listSortedSaveDirs(storeDir);
             File tmpSaveDir = new File(storeDir, "tmp" + descriptor.timestamp);
@@ -761,7 +764,7 @@ public class AccordCommandStore extends CommandStore
 
             try
             {
-                logger.info("{}: Saving state to {}", this, saveDir);
+                logger.info("{} saving state to {}", this, saveDir);
                 tmpSaveDir.createDirectoriesIfNotExists();
                 writeOne(new File(tmpSaveDir, "max_decidedrx"), unsafeGetMaxDecidedRX(), maxDecidedRX);
                 writeOne(new File(tmpSaveDir, "max_conflicts"), unsafeGetMaxConflicts(), maxConflicts);
@@ -769,11 +772,12 @@ public class AccordCommandStore extends CommandStore
                 writeList(new File(tmpSaveDir, "listeners"), ((DefaultLocalListeners)listeners).snapshot(), txnListener);
                 writeList(new File(tmpSaveDir, "progress_log"), ((DefaultProgressLog)progressLog).snapshot(), progressLogState);
                 rangeIndex.save(new File(tmpSaveDir, "range_index"));
+                writeOne(new File(tmpSaveDir, "redundant_before"), unsafeGetRedundantBefore(), redundantBefore);
                 tmpSaveDir.move(saveDir);
             }
-            catch (IOException e)
+            catch (Throwable t)
             {
-                logger.error("{}: Failed to save replay state {}", this, saveDir);
+                logger.error("{} failed to save replay state {}", this, saveDir, t);
                 tmpSaveDir.tryDeleteRecursive();
                 saveDir.tryDeleteRecursive();
                 return false;
@@ -781,7 +785,7 @@ public class AccordCommandStore extends CommandStore
 
             if (sortedSaveDirs != null)
             {
-                int delete = (sortedSaveDirs.length + 1) - getAccord().journal.save_points;
+                int delete = (sortedSaveDirs.length + 1) - getAccord().journal.retainSavePoints;
                 if (delete > 0)
                 {
                     sortedSaveDirs = Arrays.copyOf(sortedSaveDirs, delete);
@@ -824,26 +828,43 @@ public class AccordCommandStore extends CommandStore
             File storeDir = storeSaveDir();
             File[] savePoints = listSortedSaveDirs(storeDir);
             if (savePoints == null)
+            {
+                logger.info("{} no save points found at {}", this, storeDir);
                 return null;
+            }
 
             File savePoint = savePoints[savePoints.length - 1];
+            long segment = Long.parseLong(savePoint.name());
+            MaxDecidedRX mxd; MaxConflicts mxc; RejectBefore rjb;
+            List<TxnListener> dll; List<TxnState> dpl; Object rgi;
+            RedundantBefore rdb;
             try
             {
-                long segment = Long.parseLong(savePoint.name());
-                logger.info("{}: Restoring state from {}", this, savePoint);
-                unsafeSetMaxDecidedRX(readOne(new File(savePoint, "max_decidedrx"), maxDecidedRX));
-                unsafeSetMaxConflicts(readOne(new File(savePoint, "max_conflicts"), maxConflicts));
-                unsafeSetRejectBefore(readOne(new File(savePoint, "reject_before"), rejectBefore));
-                ((DefaultLocalListeners) listeners).restore(readList(new File(savePoint, "listeners"), txnListener));
-                ((DefaultProgressLog) progressLog).restore(safeStore, readList(new File(savePoint, "progress_log"), progressLogState));
-                rangeIndex.restore(new File(savePoint, "range_index"));
-                return Map.entry(id, segment + 1);
+                logger.info("{} loading state from {}", this, savePoint);
+                mxd = readOne(new File(savePoint, "max_decidedrx"), maxDecidedRX);
+                mxc = readOne(new File(savePoint, "max_conflicts"), maxConflicts);
+                rjb = readOne(new File(savePoint, "reject_before"), rejectBefore);
+                dll = readList(new File(savePoint, "listeners"), txnListener);
+                dpl = readList(new File(savePoint, "progress_log"), progressLogState);
+                rgi = rangeIndex.load(new File(savePoint, "range_index"));
+                rdb = readOne(new File(savePoint, "redundant_before"), redundantBefore);
             }
-            catch (IOException e)
+            catch (Throwable t)
             {
-                logger.warn("{}: Could not replay save point {}", this, savePoint);
+                logger.warn("{} could not replay save point {}", this, savePoint, t);
                 return null;
             }
+
+            if (journal instanceof AccordJournal && ((AccordJournal)journal).maxDescriptor() <= segment)
+                Invariants.expect(rdb.equals(unsafeGetRedundantBefore()));
+
+            rangeIndex.restore(rgi);
+            unsafeSetMaxDecidedRX(mxd);
+            unsafeSetMaxConflicts(mxc);
+            unsafeSetRejectBefore(rjb);
+            ((DefaultLocalListeners) listeners).restore(dll);
+            ((DefaultProgressLog) progressLog).restore(safeStore, dpl);
+            return Map.entry(id, segment + 1);
         });
     }
 
@@ -888,7 +909,11 @@ public class AccordCommandStore extends CommandStore
         if (metadata != null)
             sb.append(metadata).append('|');
         sb.append(tableId);
-        sb.append('|').append(id).append(',').append(executor().executorId).append(']');
+        sb.append('|')
+          .append(id).append(',')
+          .append(executor().executorId).append(',')
+          .append(node.id().id)
+          .append(']');
         return sb.toString();
     }
 

@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.List;
+import java.util.Objects;
 import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import com.google.common.primitives.Shorts;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -80,6 +82,7 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
         compressed.position(0);
         while (compressed.hasRemaining())
             channel.write(compressed);
+        buffer.clear();
     }
 
     @Override
@@ -95,7 +98,7 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
         try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
         {
             out.writeUnsignedVInt32(version);
-            serializer.serialize(value, version);
+            serializer.serialize(value, out, version);
         }
     }
 
@@ -104,7 +107,16 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
         try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
         {
             out.writeUnsignedVInt32(0);
-            serializer.serialize(value);
+            serializer.serialize(value, out);
+        }
+        if (Invariants.isParanoid())
+        {
+            try
+            {
+                T reconcile = CompressedFrameDataInputPlus.readOne(file, serializer);
+                Invariants.require(Objects.equals(value, reconcile));
+            }
+            catch (IOException e) {}
         }
     }
 
@@ -114,6 +126,15 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
         {
             out.writeUnsignedVInt32(0);
             CollectionSerializers.serializeList(value, out, serializer);
+        }
+        if (Invariants.isParanoid())
+        {
+            try
+            {
+                T reconcile = CompressedFrameDataInputPlus.readOne(file, serializer);
+                Invariants.require(Objects.equals(value, reconcile));
+            }
+            catch (IOException e) {}
         }
     }
 }

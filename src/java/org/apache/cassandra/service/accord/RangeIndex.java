@@ -103,7 +103,7 @@ public interface RangeIndex
                 return ifRelevant((Command) command);
 
             Invariants.require(command instanceof ByteBuffer);
-            AccordJournal.Builder builder = new AccordJournal.Builder(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
+            AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
             ByteBuffer buffer = (ByteBuffer) command;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
@@ -132,5 +132,6 @@ public interface RangeIndex
     default void postReplay() {}
     default void prune(TxnId syncId, Ranges ranges, RedundantBefore redundantBefore) {}
     default void save(File file) throws IOException {}
-    default void restore(File file) throws IOException {}
+    default Object load(File file) throws IOException { return null; }
+    default void restore(Object loaded) {}
 }

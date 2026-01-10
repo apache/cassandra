@@ -90,8 +90,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.Builder;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.CommandChangeSerializer;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.MergeSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
@@ -124,6 +125,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Image;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Repeat;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.MergeSerializer.INSTANCE;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -875,7 +877,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnMetadata versionColumn;
 
         JournalKey key;
-        AccordRowCompactor<?> compactor;
+        AccordRowCompactor<?, ?> compactor;
         final Version userVersion;
 
         public AccordJournalPurger(AccordCompactionInfos compactionInfos, Version version, ColumnFamilyStore cfs)
@@ -899,7 +901,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         compactor = new AccordCommandRowCompactor(infos, userVersion, nowInSec);
                         break;
                     case TOPOLOGY_UPDATE:
-                        compactor = new TopologyCompactor((FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator>) key.type.serializer, userVersion, infos.minEpoch);
+                        compactor = new TopologyCompactor(userVersion, infos.minEpoch);
                         break;
                     default:
                         compactor = new AccordMergingCompactor(key.type.serializer, userVersion);
@@ -939,11 +941,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static abstract class AccordRowCompactor<T extends FlyweightImage>
+    static abstract class AccordRowCompactor<V, T extends Builder>
     {
-        final FlyweightSerializer<Object, T> serializer;
+        final MergeSerializer<V, ? super T, T> serializer;
 
-        AccordRowCompactor(FlyweightSerializer<Object, T> serializer)
+        AccordRowCompactor(MergeSerializer<V, ? super T, T> serializer)
         {
             this.serializer = serializer;
         }
@@ -953,15 +955,15 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         abstract UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException;
     }
 
-    static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate.Accumulator>
+    static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate, AccordTopologyUpdate.TopologyAccumulator>
     {
         TopologyImage lastImage;
         boolean hasWritten;
         final long minEpoch;
 
-        TopologyCompactor(FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator> serializer, Version userVersion, long minEpoch)
+        TopologyCompactor(Version userVersion, long minEpoch)
         {
-            super(serializer, userVersion);
+            super(INSTANCE, userVersion);
             this.minEpoch = minEpoch;
         }
 
@@ -1004,7 +1006,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordMergingCompactor<T extends FlyweightImage> extends AccordRowCompactor<T>
+    static class AccordMergingCompactor<V, T extends Builder> extends AccordRowCompactor<V, T>
     {
         final T builder;
         final Version userVersion;
@@ -1012,10 +1014,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         long lastDescriptor;
         int lastOffset;
 
-        AccordMergingCompactor(FlyweightSerializer<Object, T> serializer, Version userVersion)
+        AccordMergingCompactor(MergeSerializer<V, ? super T, T> serializer, Version userVersion)
         {
             super(serializer);
-            this.builder = serializer.mergerFor();
+            this.builder = serializer.builderFor();
             this.userVersion = userVersion;
         }
 
@@ -1072,7 +1074,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     static class AccordCommandRowEntry
     {
-        final AccordJournal.Builder builder = new AccordJournal.Builder();
+        final AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges();
         Row row;
         boolean modified;
 
@@ -1094,7 +1096,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordCommandRowCompactor extends AccordRowCompactor<AccordJournal.Builder>
+    static class AccordCommandRowCompactor extends AccordRowCompactor<AccordJournal.CommandChangeWriter, AccordJournal.CommandChanges>
     {
         static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
         final long timestamp = ClientState.getTimestamp();
@@ -1103,14 +1105,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnData userVersionCell;
         final long nowInSec;
 
-        final AccordJournal.Builder mainBuilder = new AccordJournal.Builder();
+        final AccordJournal.CommandChanges mainBuilder = new AccordJournal.CommandChanges();
         final List<AccordCommandRowEntry> entries = new ArrayList<>();
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;
 
         AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion, long nowInSec)
         {
-            super((FlyweightSerializer<Object, AccordJournal.Builder>) JournalKey.Type.COMMAND_DIFF.serializer);
+            super((CommandChangeSerializer) JournalKey.Type.COMMAND_DIFF.serializer);
             this.infos = infos;
             this.userVersion = userVersion;
             this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));

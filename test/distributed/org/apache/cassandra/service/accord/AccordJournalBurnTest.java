@@ -199,11 +199,12 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
                          }, directory, cfs)
                          {
+                             Node node;
                              @Override
                              public void start(Node node)
                              {
+                                 this.node = node;
                                  super.start(node);
-                                 unsafeSetStarted();
                              }
 
                              @Override
@@ -240,10 +241,10 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      @Override
                                      public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
                                      {
-                                         if (journalTable == null)
+                                         if (table == null)
                                              throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
                                          Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
-                                         journalTable.safeNotify(index -> index.remove(staticSegments));
+                                         table.safeNotify(index -> index.remove(staticSegments));
                                          return result;
                                      }
                                  };
@@ -334,7 +335,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                              private TreeMap<JournalKey, Command> read(CommandStores commandStores)
                              {
                                  TreeMap<JournalKey, Command> result = new TreeMap<>(JournalKey.SUPPORT::compare);
-                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null, false, 0))
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(null, null, false, 0))
                                  {
                                      JournalKey prev = null;
                                      while (iter.hasNext())
@@ -356,11 +357,11 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
 
                              @Override
-                             public boolean replay(CommandStores commandStores)
+                             public boolean replay(CommandStores commandStores, Object param)
                              {
                                  // Make sure to replay _only_ static segments
                                  this.closeCurrentSegmentForTestingIfNonEmpty();
-                                 return super.replay(commandStores);
+                                 return super.replay(commandStores, param);
                              }
 
                              @Override

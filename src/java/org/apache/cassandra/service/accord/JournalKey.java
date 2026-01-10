@@ -37,13 +37,7 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.BootstrapBeganAtSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.CommandDiffSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RangesForEpochSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.RedundantBeforeSerializer;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.SafeToReadSerializer;
+import static org.apache.cassandra.service.accord.AccordJournalSerializers.*;
 
 public final class JournalKey
 {
@@ -229,7 +223,7 @@ public final class JournalKey
             if (cmp == 0) cmp = k1.id.compareTo(k2.id);
             return cmp;
         }
-    };
+    }
 
     @Override
     public boolean equals(Object other)
@@ -264,20 +258,20 @@ public final class JournalKey
 
     public enum Type
     {
-        COMMAND_DIFF                 (0, new CommandDiffSerializer(), true),
+        COMMAND_DIFF                 (0, new CommandChangeSerializer(), true),
         REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer(), false),
         DURABLE_BEFORE               (2, new DurableBeforeSerializer(), false),
         SAFE_TO_READ                 (3, new SafeToReadSerializer(), false),
         BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer(), false),
         RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer(), false),
-        TOPOLOGY_UPDATE              (6, new AccordTopologyUpdate.FlyweightSerializer(), true),
+        TOPOLOGY_UPDATE              (6, new AccordTopologyUpdate.MergeSerializer(), true),
         ;
 
         public final int id;
-        public final FlyweightSerializer<?, ?> serializer;
+        public final MergeSerializer<?, ?, ?> serializer;
         public final boolean usesTxnId;
 
-        Type(int id, FlyweightSerializer<?, ?> serializer, boolean usesTxnId)
+        Type(int id, MergeSerializer<?, ?, ?> serializer, boolean usesTxnId)
         {
             this.id = id;
             this.serializer = serializer;

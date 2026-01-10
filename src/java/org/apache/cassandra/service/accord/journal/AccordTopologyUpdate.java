@@ -35,7 +35,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
+import org.apache.cassandra.service.accord.AccordJournalSerializers;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -391,11 +391,11 @@ public interface AccordTopologyUpdate
         }
     }
 
-    class Accumulator implements AccordJournalValueSerializers.FlyweightImage
+    class TopologyAccumulator implements AccordJournalSerializers.Builder
     {
         TopologyImage read, write;
 
-        public Accumulator()
+        public TopologyAccumulator()
         {
         }
 
@@ -426,14 +426,16 @@ public interface AccordTopologyUpdate
         }
     }
 
-    class FlyweightSerializer implements AccordJournalValueSerializers.FlyweightSerializer<AccordTopologyUpdate, Accumulator>
+    class MergeSerializer implements AccordJournalSerializers.MergeSerializer<AccordTopologyUpdate, TopologyAccumulator, TopologyAccumulator>
     {
-        public FlyweightSerializer() {}
+        public static final MergeSerializer INSTANCE = new MergeSerializer();
+
+        public MergeSerializer() {}
 
         @Override
-        public Accumulator mergerFor()
+        public TopologyAccumulator builderFor()
         {
-            return new Accumulator();
+            return new TopologyAccumulator();
         }
 
         @Override
@@ -443,13 +445,13 @@ public interface AccordTopologyUpdate
         }
 
         @Override
-        public void reserialize(JournalKey key, Accumulator from, DataOutputPlus out, Version version) throws IOException
+        public void reserialize(JournalKey key, TopologyAccumulator from, DataOutputPlus out, Version version) throws IOException
         {
             serialize(key, from.write, out, version);
         }
 
         @Override
-        public void deserialize(JournalKey key, Accumulator into, DataInputPlus in, Version version) throws IOException
+        public void deserialize(JournalKey key, TopologyAccumulator into, DataInputPlus in, Version version) throws IOException
         {
             into.read(Serializer.instance.deserialize(in));
         }

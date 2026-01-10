@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -116,7 +117,8 @@ public class Journal<K, V>
 
     private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
 
-    final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
+    private volatile State state = State.UNINITIALIZED;
+    private static final AtomicReferenceFieldUpdater<Journal, State> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(Journal.class, State.class, "state");
 
     private final WaitQueue segmentPrepared = newWaitQueue();
     private volatile Thread waitingAllocatorThread;
@@ -206,31 +208,44 @@ public class Journal<K, V>
         flusherCallbacks.submit(recordPointer, runnable);
     }
 
-    public void start()
+    public void open()
     {
-        Invariants.require(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
-                              "Unexpected journal state during initialization", state);
-        metrics.register(flusher);
+        Invariants.require(stateUpdater.compareAndSet(this, State.UNINITIALIZED, State.OPENING),
+                           "Unexpected journal state before opening", state);
 
         deleteTmpFiles();
-
         List<Descriptor> descriptors = Descriptor.list(directory);
-        // find the largest existing timestamp
-        descriptors.sort(null);
-        long maxTimestamp = descriptors.isEmpty()
-                          ? Long.MIN_VALUE
-                          : descriptors.get(descriptors.size() - 1).timestamp;
-        nextSegmentId.set(Math.max(currentTimeMillis(), maxTimestamp + 1));
-
         segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.OPENING, State.OPEN_READABLE),
+                           "Unexpected journal state once opened", state);
+    }
+
+    public void start(long maxTableDescriptor)
+    {
+        if (state == State.UNINITIALIZED)
+            open();
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.OPEN_READABLE, State.STARTING),
+                              "Unexpected journal state before starting", state);
+
+        {
+            nextSegmentId.set(Math.max(currentTimeMillis(), Math.max(maxDescriptor(), maxTableDescriptor) + 1));
+        }
+
         closer = executorFactory().sequential(name + "-closer");
         releaser = executorFactory().sequential(name + "-releaser");
         allocator = executorFactory().infiniteLoop(name + "-allocator", allocateRunnable, SAFE, NON_DAEMON, SYNCHRONIZED);
+
+        // we use these metrics when advancing segments, so must register first
+        metrics.register(flusher);
         advanceSegment(null);
-        Invariants.require(state.compareAndSet(State.INITIALIZING, State.NORMAL),
-                              "Unexpected journal state after initialization", state);
+
         flusher.start();
         compactor.start();
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.STARTING, State.WRITEABLE),
+                           "Unexpected journal state once started", state);
 
         final int maxSegments = 100;
         if (segments.get().count(Segment::isStatic) > maxSegments)
@@ -254,6 +269,29 @@ public class Journal<K, V>
         }
     }
 
+    public long maxDescriptor()
+    {
+        List<Segment<K, V>> existingSegments = segments.get().allSorted(false);
+        return existingSegments.isEmpty() ? 0 : existingSegments.get(0).descriptor.timestamp;
+    }
+
+    public State getState()
+    {
+        return state;
+    }
+
+    public boolean isReadable()
+    {
+        State state = this.state;
+        return state.compareTo(State.OPEN_READABLE) >= 0 && state.compareTo(State.STOPPED_READABLE) <= 0;
+    }
+
+    private boolean isNotStopped()
+    {
+        State state = this.state;
+        return state.compareTo(State.STARTING) >= 0 && state.compareTo(State.STOPPING) <= 0;
+    }
+
     @VisibleForTesting
     public void runCompactorForTesting()
     {
@@ -274,22 +312,28 @@ public class Journal<K, V>
             tmpFile.delete();
     }
 
+    public boolean hasBeenOpened()
+    {
+        return state.compareTo(State.OPEN_READABLE) >= 0;
+    }
+
     public boolean isTerminated()
     {
-        return state.get() == State.STOPPED;
+        return state == State.STOPPED_READABLE;
     }
 
     // return the last segment that was written to
-    public Descriptor shutdown()
+    public Descriptor stop()
     {
+        logger.info("Stopping journal");
         logger.debug("Shutting down " + allocator);
-        boolean shutdown;
+        boolean stop;
         synchronized (allocateRunnable)
         {
             // we synchronize on allocateRunnable to ensure it witnesses it before the next attempt to allocate a segment
-            shutdown = state.compareAndSet(State.NORMAL, State.STOPPING);
+            stop = stateUpdater.compareAndSet(this, State.WRITEABLE, State.STOPPING);
         }
-        Invariants.require(shutdown, "Unexpected journal state while trying to shut down", state);
+        Invariants.require(stop, "Unexpected journal state before stopping", state);
 
         // ensure prompt shutdown, though the above state change suffices semantically
         allocator.shutdown();
@@ -299,14 +343,22 @@ public class Journal<K, V>
 
         compactor.shutdownNow();
         flusher.shutdownNow();
-        Descriptor lastSegment = closeAllSegments(); // this flushes any pending writes
+        Descriptor lastSegment = finaliseSegments(); // this flushes any pending writes
         logger.debug("Shutting down " + releaser + " and " + closer);
         releaser.shutdown();
         closer.shutdown();
         metrics.deregister();
-        Invariants.require(state.compareAndSet(State.STOPPING, State.STOPPED),
-                           "Unexpected journal state while trying to shut down", state);
+        Invariants.require(stateUpdater.compareAndSet(this, State.STOPPING, State.STOPPED_READABLE),
+                           "Unexpected journal state after stopping", state);
         return lastSegment;
+    }
+
+    public void close()
+    {
+        logger.info("Closing journal");
+        stateUpdater.compareAndSet(this, State.STOPPED_READABLE, State.CLOSING);
+        closeAllSegments();
+        stateUpdater.compareAndSet(this, State.CLOSING, State.CLOSED);
     }
 
     public void awaitTerminationUntil(long deadlineNanos) throws InterruptedException, TimeoutException
@@ -459,9 +511,6 @@ public class Journal<K, V>
     {
         for (Segment<K, V> segment : segments.allSorted(false))
         {
-            if (!segment.index().mayContainId(id))
-                continue;
-
             if (segment.readLast(id, consumer))
                 return true;
         }
@@ -531,7 +580,6 @@ public class Journal<K, V>
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
-
         ActiveSegment<K, V> segment = currentSegment;
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize)))
@@ -587,12 +635,12 @@ public class Journal<K, V>
             WaitQueue.Signal prepared = segmentPrepared.register(metrics.waitingOnSegmentAllocation.time(), Context::stop);
             if (availableSegment == null && currentSegment == currentActiveSegment)
             {
-                prepared.awaitThrowUncheckedOnInterrupt();
-
                 // In case we woke up due to shutdown signal or interrupt, check mode
-                State state = this.state.get();
-                if (state.ordinal() > State.NORMAL.ordinal())
+                State state = this.state;
+                if (state.ordinal() > State.WRITEABLE.ordinal())
                     throw new IllegalStateException("Can not obtain allocated segment due to shutdown " + state);
+
+                prepared.awaitThrowUncheckedOnInterrupt();
             }
             else
                 prepared.cancel();
@@ -640,7 +688,7 @@ public class Journal<K, V>
                 boolean interrupted;
                 synchronized (this)
                 {
-                    if (state.get().compareTo(State.STOPPING) >= 0)
+                    if (state.compareTo(State.STOPPING) >= 0)
                         throw new TerminateException();
 
                     interrupted = Thread.interrupted();
@@ -688,7 +736,7 @@ public class Journal<K, V>
         return ActiveSegment.create(descriptor, params, keySupport);
     }
 
-    private Descriptor closeAllSegments()
+    private void closeAllSegments()
     {
         Segments<K, V> segments = swapSegments(ignore -> Segments.none());
 
@@ -699,6 +747,16 @@ public class Journal<K, V>
                 ((ActiveSegment<K, V>) segment).closeAndIfEmptyDiscard(this);
             else
                 segment.close(this);
+        }
+    }
+
+    private Descriptor finaliseSegments()
+    {
+        List<Segment<K, V>> all = segments().allSorted(false);
+        for (Segment<K, V> segment : all)
+        {
+            if (segment.isActive())
+                ((ActiveSegment<K, V>) segment).discardUnusedTail();
         }
 
         if (all.isEmpty())
@@ -736,27 +794,26 @@ public class Journal<K, V>
 
     private void addNewActiveSegment(ActiveSegment<K, V> activeSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withNewActiveSegment(activeSegment));
     }
 
     private void removeEmptySegment(ActiveSegment<K, V> activeSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withoutEmptySegment(activeSegment));
     }
 
     private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
     }
 
     void replaceCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
-    }
-
-    void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
-    {
-        segments().selectActive(currentSegment.descriptor.timestamp, into);
     }
 
     ActiveSegment<K, V> oldestActiveSegment()
@@ -925,6 +982,7 @@ public class Journal<K, V>
     @VisibleForTesting
     public void truncateForTesting()
     {
+        Invariants.require(isNotStopped());
         ActiveSegment<?, ?> discarding = currentSegment;
         if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
         {
@@ -1133,12 +1191,16 @@ public class Journal<K, V>
         }
     }
 
-    enum State
+    public enum State
     {
         UNINITIALIZED,
-        INITIALIZING,
-        NORMAL,
+        OPENING,
+        OPEN_READABLE,
+        STARTING,
+        WRITEABLE,
         STOPPING,
-        STOPPED
+        STOPPED_READABLE,
+        CLOSING,
+        CLOSED
     }
 }

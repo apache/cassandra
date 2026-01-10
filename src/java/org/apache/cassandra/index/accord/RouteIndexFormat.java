@@ -58,7 +58,6 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -160,7 +159,7 @@ public class RouteIndexFormat
             return null;
         ByteBuffer record = recordCell.buffer();
         Version user_version = Version.fromVersion(Int32Type.instance.compose(user_versionCell.buffer()));
-        AccordJournal.Builder builder = extract(txnId, record, user_version);
+        AccordJournal.CommandChanges builder = extract(txnId, record, user_version);
         StoreParticipants participants = builder.participants();
         if (participants == null)
             return null;
@@ -179,10 +178,10 @@ public class RouteIndexFormat
         }
     }
 
-    public static AccordJournal.Builder extract(TxnId txnId, ByteBuffer record, Version userVersion)
+    public static AccordJournal.CommandChanges extract(TxnId txnId, ByteBuffer record, Version userVersion)
     {
-        AccordJournal.Builder builder = new AccordJournal.Builder(txnId, AccordJournal.Load.ALL);
-        AccordJournalTable.readBuffer(record, builder::deserializeNext, userVersion);
+        AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(txnId, AccordJournal.Load.ALL);
+        builder.deserializeNext(record, userVersion);
         return builder;
     }
 

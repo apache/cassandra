@@ -229,6 +229,12 @@ public class AccordSpec
             NON_DURABLE
         }
 
+        public enum ReplaySavePoint
+        {
+            NO,
+            LATEST
+        }
+
         // TODO (required): add REBOOTSTRAP
         public enum StopMarkerFailurePolicy
         {
@@ -247,7 +253,9 @@ public class AccordSpec
         public int segmentSize = 32 << 20;
         public int compactMaxSegments = 32;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
-        public ReplayMode replayMode = ReplayMode.PART_NON_DURABLE;
+        public ReplayMode replay = ReplayMode.PART_NON_DURABLE;
+        public ReplaySavePoint replaySavePoint = ReplaySavePoint.LATEST;
+        public int retainSavePoints = 2;
         public StopMarkerFailurePolicy stopMarkerFailurePolicy = StopMarkerFailurePolicy.EXIT;
         public FlushMode flushMode = FlushMode.PERIODIC;
         public volatile DurationSpec flushPeriod; // pulls default from 'commitlog_sync_period'
@@ -255,7 +263,6 @@ public class AccordSpec
         public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("60000ms");
         private volatile long flushCombinedBlockPeriod = Long.MIN_VALUE;
         public Version version = Version.DOWNGRADE_SAFE_VERSION;
-        public int save_points = 2;
 
         public JournalSpec setFlushPeriod(DurationSpec newFlushPeriod)
         {

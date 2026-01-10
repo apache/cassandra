@@ -97,7 +97,7 @@ public class AccordJournalOrderTest
         Runnable check = () -> {
             for (JournalKey key : res.keySet())
             {
-                AccordJournal.Builder diffs = accordJournal.load(key.commandStoreId, key.id);
+                AccordJournal.CommandChanges diffs = accordJournal.load(key.commandStoreId, key.id);
                 Assert.assertEquals(String.format("%d != %d for key %s", diffs.count(), res.get(key).intValue(), key),
                                     diffs.count(), res.get(key).intValue());
             }

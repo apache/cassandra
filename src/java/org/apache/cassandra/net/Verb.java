@@ -83,7 +83,7 @@ import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
-import org.apache.cassandra.service.accord.AccordSerializers;
+import org.apache.cassandra.service.accord.serializers.AccordSerializers;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;

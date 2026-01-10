@@ -50,12 +50,13 @@ public class CompressedFrameDataInputPlus extends RebufferingInputStream
         this.checksum = checksum;
         this.channel = channel;
         this.compressed = compressor.preferredBufferType().allocate(frameSize);
+        buffer.limit(0);
     }
 
     @Override
     protected void reBuffer() throws IOException
     {
-        compressed.clear();
+        compressed.position(0);
         compressed.limit(SIZE_OF_HEADER);
         while (channel.read(compressed) >= 0 && compressed.hasRemaining());
         compressed.flip();
@@ -75,6 +76,7 @@ public class CompressedFrameDataInputPlus extends RebufferingInputStream
         }
         compressed.flip();
         this.checksum.update(compressed);
+        compressed.flip();
         long dataChecksum = checksum.getValue();
         if (headerChecksum != dataChecksum)
             throw new IOException("Invalid checksum: " + headerChecksum + " != " + dataChecksum);

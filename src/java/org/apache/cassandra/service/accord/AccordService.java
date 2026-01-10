@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -36,10 +37,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
-import accord.utils.UnhandledEnum;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.agrona.collections.Long2LongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,7 @@ import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Catchup;
+import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
@@ -77,6 +79,7 @@ import accord.topology.TopologyManager;
 import accord.topology.TopologyRange;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
@@ -153,7 +156,13 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.JOB;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
 import static org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode.RESET;
-import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
@@ -371,20 +380,17 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    public static boolean replayJournal(AccordService as)
+    private boolean replayJournal(Long2LongHashMap minSegments)
     {
-        logger.info("Starting journal replay.");
-        long start = nanoTime();
-        if (getAccord().journal.replayMode == RESET)
+        if (getAccord().journal.replay == RESET)
             AccordKeyspace.truncateCommandsForKey();
 
-        as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
-        as.journal().replay(as.node.commandStores());
+        logger.info("Starting journal replay.");
+        long start = nanoTime();
+        journal().replay(node.commandStores(), minSegments);
         logger.info("Waiting for command stores to quiesce.");
-        ((AccordCommandStores)as.node.commandStores()).waitForQuiescence();
-        getBlocking(as.node.commandStores().forAll("Post Replay", safeStore -> ((AccordCommandStore)safeStore.commandStore()).rangeIndex().postReplay()));
-        as.journal.unsafeSetStarted();
-        as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+        ((AccordCommandStores)node.commandStores()).waitForQuiescence();
+        getBlocking(node.commandStores().forAll("Post Replay", safeStore -> ((AccordCommandStore)safeStore.commandStore()).rangeIndex().postReplay()));
 
         long end = nanoTime();
         logger.info("Finished journal replay. {}s elapsed", String.format("%.2f", NANOSECONDS.toMillis(end - start)/1000.0));
@@ -477,35 +483,72 @@ public class AccordService implements IAccordService, Shutdownable
         node.unsafeSetReplaying(true);
         try
         {
-            journal.start(node);
+            node.durability().stop();
+
+            journal.open(node);
             node.load();
 
             ClusterMetadata metadata = ClusterMetadata.current();
             endpointMapper.updateMapping(metadata);
 
-            List<TopologyUpdate> images = journal.replayTopologies();
-            if (!images.isEmpty())
-            {
-                // Initialise command stores using latest topology from the log;
-                // if there are no local command stores, don't report any topologies and simply fetch the latest known in the cluster
-                // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
-                // epochs having been garbage collected by the other nodes in the cluster
-                TopologyUpdate last = images.get(images.size() - 1);
-                if (!last.commandStores.isEmpty())
-                {
-                    node.commandStores().initializeTopologyUnsafe(last);
+            // Initialise command stores using latest topology from the log;
+            // if there are no local command stores, don't report any topologies and simply fetch the latest known in the cluster
+            // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
+            // epochs having been garbage collected by the other nodes in the cluster
 
-                    // Replay local epochs
-                    for (TopologyUpdate image : images)
-                        node.topology().reportTopology(image.global);
-                }
+            List<TopologyUpdate> images = journal.replayTopologies();
+            TopologyUpdate last = images.isEmpty() ? null : images.get(images.size() - 1);
+            boolean initialiseCommandStores = last != null && !last.commandStores.isEmpty();
+            if (initialiseCommandStores)
+                node.commandStores().initializeTopologyUnsafe(last);
+
+            node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
+            // restore save points before we perform starting the journal so we can validate consistency between journal and save point state (where possible)
+            Long2LongHashMap minSegments;
+            switch (getAccord().journal.replaySavePoint)
+            {
+                default: throw new UnhandledEnum(getAccord().journal.replaySavePoint);
+                case NO: minSegments = new Long2LongHashMap(0L); break;
+                case LATEST: minSegments = restoreFromSavePoints(node.commandStores());
             }
-            replayJournal(this);
+
+            // now start the journal before we replay, as replay may trigger its own new journal writes
+            journal.start(node);
+
+            if (initialiseCommandStores)
+            {
+                // Replay local topologies
+                for (TopologyUpdate image : images)
+                    node.topology().reportTopology(image.global);
+            }
+
+            replayJournal(minSegments);
+            node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+            // TODO (required): after restart, trigger ensureDurable as we ignore during replay
+            //  (or else decide during replay if any given call should be ignored)
         }
         finally
         {
             node.unsafeSetReplaying(false);
         }
+    }
+
+    private Long2LongHashMap restoreFromSavePoints(CommandStores commandStores)
+    {
+        Long2LongHashMap result = new Long2LongHashMap(0);
+        Future<List<Map.Entry<Integer, Long>>> future = toFuture(((AccordCommandStores)commandStores).restoreState());
+        future.awaitThrowUncheckedOnInterrupt();
+        List<Map.Entry<Integer, Long>> success = future.getNow();
+        if (success != null)
+        {
+            for (Map.Entry<Integer, Long> e : success)
+            {
+                if (e != null && e.getValue() > 0)
+                    result.put(e.getKey(), e.getValue());
+            }
+        }
+
+        return result;
     }
 
     private void distributedStartupInternal()
@@ -1074,7 +1117,7 @@ public class AccordService implements IAccordService, Shutdownable
                 logger.warn("Cannot write safe shutdown marker as not all command stores terminated promptly");
 
             commandStores.waitForQuiescence();
-            Descriptor lastSegment = journal.shutdown();
+            Descriptor lastSegment = journal.stop();
             if (lastSegment == null && safeShutdown)
                 logger.warn("Cannot write safe shutdown marker as no segment descriptor reported by journal");
 

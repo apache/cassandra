@@ -65,7 +65,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.utils.Invariants.require;
 import static com.google.common.base.Preconditions.checkArgument;
-import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.USER;

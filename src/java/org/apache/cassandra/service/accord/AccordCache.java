@@ -1323,7 +1323,7 @@ public class AccordCache implements CacheSize
         @Override
         public @Nullable Command inflate(AccordCommandStore commandStore, TxnId key, Object serialized)
         {
-            AccordJournal.Builder builder = new AccordJournal.Builder(key);
+            AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(key);
             ByteBuffer buffer = (ByteBuffer) serialized;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))

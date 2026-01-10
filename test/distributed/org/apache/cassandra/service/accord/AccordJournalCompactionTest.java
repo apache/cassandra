@@ -54,7 +54,7 @@ import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.api.Journal.FieldUpdates;
 import static accord.local.CommandStores.RangesForEpoch;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.AccordJournalSerializers.DurableBeforeAccumulator;
 
 
 public class AccordJournalCompactionTest
@@ -113,7 +113,6 @@ public class AccordJournalCompactionTest
         try
         {
             journal.start(null);
-            journal.unsafeSetStarted();
             Timestamp timestamp = Timestamp.NONE;
 
             RandomSource rs = new DefaultRandom(1);
@@ -156,7 +155,7 @@ public class AccordJournalCompactionTest
         }
         finally
         {
-            journal.shutdown();
+            journal.stop();
         }
     }
 

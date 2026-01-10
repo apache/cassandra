@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Queue;
 import java.util.concurrent.TimeoutException;
@@ -36,6 +35,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.AbstractIterator;
 
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.IntArrayList;
@@ -75,12 +75,13 @@ import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
+import org.apache.cassandra.journal.Segments;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.KeepFirst;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
@@ -91,7 +92,7 @@ import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.NativeLibrary;
-import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static accord.api.Journal.Load.ALL;
@@ -112,10 +113,10 @@ import static accord.local.Cleanup.Input.FULL;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
-import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
-import static org.apache.cassandra.service.accord.AccordService.toFuture;
+import static org.apache.cassandra.service.accord.AccordJournalSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.JournalKey.SUPPORT;
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Accumulator;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyAccumulator;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.newTopology;
@@ -129,12 +130,9 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     @VisibleForTesting
     protected final Journal<JournalKey, Object> journal;
     @VisibleForTesting
-    protected final AccordJournalTable<JournalKey, Object> journalTable;
+    protected final AccordJournalTable<Object> table;
+    protected final OpOrder readOrder;
     private final Params params;
-    Node node;
-
-    enum Status { INITIALIZED, STARTING, REPLAY, STARTED, TERMINATING, TERMINATED }
-    private volatile Status status = Status.INITIALIZED;
 
     public AccordJournal(Params params)
     {
@@ -146,24 +144,11 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     {
         Version userVersion = Version.fromVersion(params.userVersion());
         this.journal = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
-                                     // In Accord, we are using streaming serialization, i.e. Reader/Writer interfaces instead of materializing objects
-                                     new ValueSerializer<>()
-                                     {
-                                         @Override
-                                         public void serialize(JournalKey key, Object value, DataOutputPlus out, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-
-                                         @Override
-                                         public Object deserialize(JournalKey key, DataInputPlus in, int userVersion)
-                                         {
-                                             throw new UnsupportedOperationException();
-                                         }
-                                     },
+                                     new ValueSerializer.Unsupported<>(),
                                      compactor(cfs, userVersion),
                                      cfs.readOrdering);
-        this.journalTable = new AccordJournalTable<>(journal, JournalKey.SUPPORT, cfs, userVersion);
+        this.table = new AccordJournalTable<>(cfs);
+        this.readOrder = table.cfs.readOrdering;
         this.params = params;
     }
 
@@ -174,10 +159,10 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
             @Override
             public Collection<StaticSegment<JournalKey, Object>> compact(Collection<StaticSegment<JournalKey, Object>> staticSegments)
             {
-                if (journalTable == null)
+                if (table == null)
                     throw new IllegalStateException("Unsafe access to AccordJournal during <init>; journalTable was touched before it was published");
                 Collection<StaticSegment<JournalKey, Object>> result = super.compact(staticSegments);
-                journalTable.safeNotify(index -> index.remove(staticSegments));
+                table.safeNotify(index -> index.remove(staticSegments));
                 return result;
             }
         };
@@ -189,19 +174,23 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         return journal.currentActiveSegment().index().size();
     }
 
-    public void start(Node node)
+    @Override
+    public void open(Node node)
     {
-        Invariants.require(status == Status.INITIALIZED);
-        this.node = node;
-        status = Status.STARTING;
-        // start table first to scrub directories before compactor starts
-        journalTable.start();
-        journal.start();
+        journal.open();
     }
 
-    public boolean started()
+    public void start(Node node)
     {
-        return status == Status.STARTED;
+        // start table first to scrub directories before compactor starts
+        table.start();
+        long maxTableDescriptor = table.maxDescriptor();
+        journal.start(maxTableDescriptor);
+    }
+
+    public long maxDescriptor()
+    {
+        return Math.max(journal.maxDescriptor(), table.maxDescriptor());
     }
 
     public Params configuration()
@@ -214,18 +203,14 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         return journal.compactor();
     }
 
-    public boolean isTerminated()
+    public Descriptor stop()
     {
-        return status == Status.TERMINATED;
+        return journal.stop();
     }
 
-    public Descriptor shutdown()
+    public void close()
     {
-        Invariants.require(status == Status.REPLAY || status == Status.STARTED, "%s", status);
-        status = Status.TERMINATING;
-        Descriptor lastSegment = journal.shutdown();
-        status = Status.TERMINATED;
-        return lastSegment;
+        journal.close();
     }
 
     public boolean awaitTerminationUntil(long deadlineNanos) throws InterruptedException
@@ -244,7 +229,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     @Override
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        Builder builder = load(commandStoreId, txnId);
+        CommandChanges builder = load(commandStoreId, txnId);
         builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
     }
@@ -253,9 +238,9 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     {
         public final long segment;
         public final int position;
-        public final Builder builder;
+        public final CommandChanges builder;
 
-        public DebugEntry(long segment, int position, Builder builder)
+        public DebugEntry(long segment, int position, CommandChanges builder)
         {
             this.segment = segment;
             this.position = position;
@@ -274,16 +259,16 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     {
         JournalKey key = new JournalKey(txnId, COMMAND_DIFF, commandStoreId);
         List<DebugEntry> result = new ArrayList<>();
-        journalTable.readAll(key, (long segment, int position, JournalKey k, ByteBuffer buffer, int userVersion) -> {
-            Builder builder = new Builder(txnId);
-            new AccordJournalTable.RecordConsumerAdapter<>(builder::deserializeNext).accept(segment, position, k, buffer, userVersion);
+        readAll(key, (long segment, int position, JournalKey k, ByteBuffer buffer, int userVersion) -> {
+            CommandChanges builder = new CommandChanges(txnId);
+            new RecordConsumerAdapter<>(builder::deserializeNext).accept(segment, position, k, buffer, userVersion);
             result.add(new DebugEntry(segment, position, builder));
         });
         return result;
     }
 
     // applies cleanup and returns null if no command should be returned
-    public static Builder cleanupAndFilter(Builder builder, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    public static CommandChanges cleanupAndFilter(CommandChanges builder, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         if (builder.isEmpty())
             return null;
@@ -303,49 +288,49 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     @Override
     public Command.Minimal loadMinimal(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        Builder builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL), redundantBefore, durableBefore);
+        CommandChanges builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL), redundantBefore, durableBefore);
         return builder == null ? null : builder.asMinimal();
     }
 
     @Override
     public Command.MinimalWithDeps loadMinimalWithDeps(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        Builder builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL_WITH_DEPS), redundantBefore, durableBefore);
+        CommandChanges builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL_WITH_DEPS), redundantBefore, durableBefore);
         return builder == null ? null : builder.asMinimalWithDeps();
     }
 
     @Override
     public RedundantBefore loadRedundantBefore(int commandStoreId)
     {
-        IdentityAccumulator<RedundantBefore> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId));
+        KeepFirst<RedundantBefore> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<TxnId, Ranges> loadBootstrapBeganAt(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<TxnId, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId));
+        KeepFirst<NavigableMap<TxnId, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.BOOTSTRAP_BEGAN_AT, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public NavigableMap<Timestamp, Ranges> loadSafeToRead(int commandStoreId)
     {
-        IdentityAccumulator<NavigableMap<Timestamp, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId));
+        KeepFirst<NavigableMap<Timestamp, Ranges>> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public CommandStores.RangesForEpoch loadRangesForEpoch(int commandStoreId)
     {
-        IdentityAccumulator<RangesForEpoch> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId));
+        KeepFirst<RangesForEpoch> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId));
         return accumulator.get();
     }
 
     @Override
     public void saveCommand(int commandStoreId, CommandUpdate update, @Nullable Runnable onFlush)
     {
-        Writer diff = Writer.make(update.before, update.after);
+        CommandChangeWriter diff = CommandChangeWriter.make(update.before, update.after);
         if (diff == null)
         {
             if (onFlush != null)
@@ -355,11 +340,11 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
 
         JournalKey key = new JournalKey(update.txnId, COMMAND_DIFF, commandStoreId);
         RecordPointer pointer = journal.asyncWrite(key, diff);
-        if (journalTable.shouldIndex(key)
+        if (table.shouldIndex(key)
             && diff.hasParticipants()
             && diff.after.route() != null)
             journal.onDurable(pointer, () ->
-                                       journalTable.safeNotify(index ->
+                                       table.safeNotify(index ->
                                                                index.update(pointer.segment, key.commandStoreId, key.id, diff.after.route())));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
@@ -371,9 +356,9 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         List<TopologyUpdate> images = new ArrayList<>();
         try (CloseableIterator<TopologyUpdate> iter = new CloseableIterator<>()
         {
-            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(topologyUpdateKey(0L),
-                                                                                                 topologyUpdateKey(Timestamp.MAX_EPOCH),
-                                                                                                 true, 0);
+            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(topologyUpdateKey(0L),
+                                                                                    topologyUpdateKey(Timestamp.MAX_EPOCH),
+                                                                                    true, 0);
             TopologyImage prev = null;
 
             @Override
@@ -386,7 +371,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
             public TopologyUpdate next()
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
-                Accumulator reader = readAll(ref.key());
+                TopologyAccumulator reader = readAll(ref.key());
                 if (reader.read().kind() == Kind.Repeat)
                 {
                     if (prev == null)
@@ -473,7 +458,6 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     public void saveStoreState(int commandStoreId, FieldUpdates fieldUpdates, Runnable onFlush)
     {
         RecordPointer pointer = null;
-        // TODO: avoid allocating keys
         if (fieldUpdates.newRedundantBefore != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.REDUNDANT_BEFORE, commandStoreId), fieldUpdates.newRedundantBefore);
         if (fieldUpdates.newBootstrapBeganAt != null)
@@ -492,49 +476,250 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
             onFlush.run();
     }
 
-    private Builder loadDiffs(int commandStoreId, TxnId txnId, Load load)
+    private CommandChanges loadDiffs(int commandStoreId, TxnId txnId, Load load)
     {
         JournalKey key = new JournalKey(txnId, COMMAND_DIFF, commandStoreId);
-        Builder builder = new Builder(txnId, load);
-        journalTable.readAll(key, builder::deserializeNext);
+        CommandChanges builder = new CommandChanges(txnId, load);
+        readAll(key, builder::deserializeNext);
         return builder;
     }
 
     @VisibleForTesting
-    public Builder load(int commandStoreId, TxnId txnId)
+    public CommandChanges load(int commandStoreId, TxnId txnId)
     {
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    public <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
+    public <BUILDER extends AccordJournalSerializers.Builder> BUILDER readAll(JournalKey key)
     {
-        BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
+        Invariants.require(journal.isReadable());
+        BUILDER builder = (BUILDER) key.type.serializer.builderFor();
         builder.reset(key);
         // TODO (expected): this can be further improved to avoid allocating lambdas
-        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
+        AccordJournalSerializers.MergeSerializer<?, ? super BUILDER, ? extends BUILDER> serializer = (AccordJournalSerializers.MergeSerializer<?, ? super BUILDER, ? extends BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
-        journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }
 
-    public <BUILDER extends FlyweightImage> BUILDER readLast(JournalKey key)
+    public <BUILDER extends AccordJournalSerializers.Builder> BUILDER readLast(JournalKey key)
     {
-        BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
+        Invariants.require(journal.isReadable());
+        BUILDER builder = (BUILDER) key.type.serializer.builderFor();
         builder.reset(key);
         // TODO (expected): this can be further improved to avoid allocating lambdas
-        AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
-        journalTable.readLast(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
+        AccordJournalSerializers.MergeSerializer<?, ? super BUILDER, ? extends BUILDER> serializer = (AccordJournalSerializers.MergeSerializer<?, ? super BUILDER, ? extends BUILDER>) key.type.serializer;
+        readLast(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
     }
 
-    public void forEachEntry(JournalKey key, AccordJournalTable.Reader reader)
+    public void forEachEntry(JournalKey key, Reader reader)
     {
-        journalTable.readAll(key, reader);
+        readAll(key, reader);
+    }
+
+    public interface Reader
+    {
+        void read(DataInputPlus input, Version userVersion) throws IOException;
+
+        default void read(ByteBuffer buffer, Version userVersion)
+        {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+            {
+                read(in, userVersion);
+            }
+            catch (IOException e)
+            {
+                // can only throw if serializer is buggy or bytes got corrupted
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    static class RecordConsumerAdapter<K> implements RecordConsumer<K>
+    {
+        protected final Reader reader;
+        private long prevSegment = Long.MAX_VALUE;
+        private long prevPosition = Long.MAX_VALUE;
+
+        RecordConsumerAdapter(Reader reader)
+        {
+            this.reader = reader;
+        }
+
+        @Override
+        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
+        {
+            Invariants.require(segment <= prevSegment,
+                               "Records should always be iterated over in a reverse order, but segment %d was seen after %d while reading %s", segment, prevSegment, key);
+            Invariants.require(segment != prevSegment || position < prevPosition,
+                               "Records should always be iterated over in a reverse order, but position %d was seen after %d for segment %d while reading %s", position, prevPosition, segment, key);
+            reader.read(buffer, Version.fromVersion(userVersion));
+            prevSegment = segment;
+            prevPosition = position;
+        }
+    }
+
+    /**
+     * Perform a read from Journal table, followed by the reads from all journal segments.
+     * <p>
+     * When reading from journal segments, skip descriptors that were read from the table.
+     */
+    public void readAll(JournalKey key, Reader reader)
+    {
+        readAll(key, new RecordConsumerAdapter<>(reader));
+    }
+
+    public void readAll(JournalKey key, RecordConsumer<JournalKey> reader)
+    {
+        try (OpOrder.Group readOrder = table.cfs.readOrdering.start())
+        {
+            // SELECT segments first, to avoid missing segments due to races compacting segment->sstable
+            Segments<JournalKey, Object> segments = journal.segments();
+            try (AccordJournalTable.TableKeyIterator table = this.table.readAllFromTable(key, readOrder))
+            {
+                boolean hasTableData = table.advance();
+                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+                // First, read all journal entries newer than anything flushed into sstables
+                Journal.readAll(key, (segment, position, key1, buffer, userVersion) -> {
+                    if (segment > minSegment)
+                        reader.accept(segment, position, key1, buffer, userVersion);
+                }, readOrder, segments);
+
+                // Then, read SSTables
+                while (hasTableData)
+                {
+                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+                    hasTableData = table.advance();
+                }
+            }
+        }
+    }
+
+    public void readLast(JournalKey key, Reader reader)
+    {
+        readLast(key, new RecordConsumerAdapter<>(reader));
+    }
+
+    public void readLast(JournalKey key, RecordConsumer<JournalKey> reader)
+    {
+        try (OpOrder.Group readOrder = table.cfs.readOrdering.start())
+        {
+            Segments<JournalKey, Object> segments = journal.segments();
+            try (AccordJournalTable.TableKeyIterator table = this.table.readAllFromTable(key, readOrder))
+            {
+                boolean hasTableData = table.advance();
+                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+
+                class JournalReader implements RecordConsumer<JournalKey>
+                {
+                    boolean read;
+                    @Override
+                    public void accept(long segment, int position, JournalKey key, ByteBuffer buffer, int userVersion)
+                    {
+                        if (segment > minSegment)
+                        {
+                            reader.accept(segment, position, key, buffer, userVersion);
+                            read = true;
+                        }
+                    }
+                }
+
+                // First, read all journal entries newer than anything flushed into sstables
+                JournalReader journalReader = new JournalReader();
+                Journal.readLast(key, journalReader, readOrder, segments);
+
+                // Then, read SSTables, if we haven't found a record already
+                if (hasTableData && !journalReader.read)
+                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+            }
+        }
+    }
+
+
+    @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
+    public CloseableIterator<Journal.KeyRefs<JournalKey>> keyIterator(@Nullable JournalKey min, @Nullable JournalKey max, boolean includeActive, long minSegment)
+    {
+        try (OpOrder.Group readOrder = this.readOrder.start())
+        {
+            return new JournalAndTableKeyIterator<>(journal, table, min, max, includeActive, minSegment);
+        }
+    }
+
+    private static class JournalAndTableKeyIterator<V> extends AbstractIterator<Journal.KeyRefs<JournalKey>> implements CloseableIterator<Journal.KeyRefs<JournalKey>>
+    {
+        final Journal<JournalKey, V>.SegmentKeyIterator journalIterator;
+        final AccordJournalTable.TableIterator tableIterator;
+
+        private JournalAndTableKeyIterator(Journal<JournalKey, V> journal, AccordJournalTable<?> table, JournalKey min, JournalKey max, boolean includeActive, long minSegment)
+        {
+            // We must initialise journal reader first, else we may race with segment->table compaction and miss some data
+            // that is, the following sequence could happen:
+            //  - Select sstables to read
+            //  - Segments compacted; segments removed and sstables added
+            //  - Segment iterator created
+            // TODO (expected): segments should be sstables on creation
+            this.journalIterator = journal.segmentKeyIterator(min, max, segment -> segment.id() >= minSegment && (includeActive || segment.isStatic()));
+            this.tableIterator = table.keyIterator(min, max, minSegment);
+        }
+
+        JournalKey prevFromTable = null;
+        JournalKey prevFromJournal = null;
+
+        @Override
+        protected Journal.KeyRefs<JournalKey> computeNext()
+        {
+            JournalKey tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
+            JournalKey journalKey = journalIterator.hasNext() ? journalIterator.peek().key() : null;
+
+            if (journalKey != null)
+            {
+                Invariants.require(prevFromJournal == null || SUPPORT.compare(journalKey, prevFromJournal) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal segments: %s should strictly follow %s", journalKey, prevFromJournal);
+                prevFromJournal = journalKey;
+            }
+            else
+            {
+                prevFromJournal = null;
+            }
+
+            if (tableKey != null)
+            {
+                Invariants.require(prevFromTable == null || SUPPORT.compare(tableKey, prevFromTable) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal table: %s should strictly follow %s", tableKey, prevFromTable);
+                prevFromTable = tableKey;
+            }
+            else
+            {
+                prevFromTable = null;
+            }
+
+            if (tableKey == null)
+                return journalKey == null ? endOfData() : journalIterator.next();
+
+            if (journalKey == null)
+                return new Journal.KeyRefs<>(tableIterator.next());
+
+            int cmp = SUPPORT.compare(tableKey, journalKey);
+            if (cmp == 0)
+            {
+                tableIterator.next();
+                return journalIterator.next();
+            }
+
+            return cmp < 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
+        }
+
+        public void close()
+        {
+            tableIterator.close();
+            journalIterator.close();
+        }
     }
 
     private <T> RecordPointer appendInternal(JournalKey key, T write)
     {
-        AccordJournalValueSerializers.FlyweightSerializer<T, ?> serializer = (AccordJournalValueSerializers.FlyweightSerializer<T, ?>) key.type.serializer;
+        AccordJournalSerializers.MergeSerializer<T, ?, ?> serializer = (AccordJournalSerializers.MergeSerializer<T, ?, ?>) key.type.serializer;
         return journal.asyncWrite(key, (out, userVersion) -> serializer.serialize(key, write, out, Version.fromVersion(userVersion)));
     }
 
@@ -546,7 +731,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
 
     public void sanityCheck(int commandStoreId, RedundantBefore redundantBefore, Command orig)
     {
-        Builder builder = load(commandStoreId, orig.txnId());
+        CommandChanges builder = load(commandStoreId, orig.txnId());
         builder.forceResult(orig.result());
         // We can only use strict equality if we supply result.
         Command reconstructed = builder.construct(redundantBefore);
@@ -561,7 +746,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     public void truncateForTesting()
     {
         journal.truncateForTesting();
-        journalTable.safeNotify(JournalSegmentRangeSearcher::truncateForTesting);
+        table.safeNotify(JournalSegmentRangeSearcher::truncateForTesting);
     }
 
     @VisibleForTesting
@@ -575,7 +760,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     {
         journal.closeCurrentSegmentForTestingIfNonEmpty();
         journal.runCompactorForTesting();
-        journalTable.forceCompaction();
+        table.forceCompaction();
     }
 
     public void forEach(Consumer<JournalKey> consumer, boolean includeActive, long minSegment)
@@ -585,7 +770,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
 
     public void forEach(Consumer<JournalKey> consumer, @Nullable JournalKey min, @Nullable JournalKey max, boolean includeActive, long minSegment)
     {
-        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(min, max, includeActive, minSegment))
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(min, max, includeActive, minSegment))
         {
             while (iter.hasNext())
             {
@@ -595,29 +780,11 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         }
     }
 
-    private Long2LongHashMap restoreToMarkers(CommandStores commandStores)
-    {
-        Long2LongHashMap result = new Long2LongHashMap(0);
-        Future<List<Map.Entry<Integer, Long>>> future = toFuture(((AccordCommandStores)commandStores).restoreState());
-        future.awaitThrowUncheckedOnInterrupt();
-        List<Map.Entry<Integer, Long>> success = future.getNow();
-        if (success != null)
-        {
-            for (Map.Entry<Integer, Long> e : success)
-            {
-                if (e != null && e.getValue() > 0)
-                    result.put(e.getKey(), e.getValue());
-            }
-        }
-
-        return result;
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
-    public boolean replay(CommandStores commandStores)
+    public boolean replay(CommandStores commandStores, Object param)
     {
-        final Long2LongHashMap minSegments = restoreToMarkers(commandStores);
+        Invariants.require(param == null || param.getClass() == Long2LongHashMap.class, "Param should be null or a map of commandStoreId->minSegmentId");
+        final Long2LongHashMap minSegments = param == null ? new Long2LongHashMap(0L) : (Long2LongHashMap) param;
 
         // TODO (expected): make the parallelisms configurable
         // Replay is performed in parallel, where at most X commands can be in flight, across at most Y commands stores.
@@ -641,7 +808,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                 this.commandStore = commandStore;
                 this.replayer = (AbstractReplayer) commandStore.replayer();
                 // Keys in the index are sorted by command store id, so index iteration will be sequential
-                this.iter = journalTable.keyIterator(new JournalKey(replayer.minReplay.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false, minSegment);
+                this.iter = keyIterator(new JournalKey(replayer.minReplay.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()), false, minSegment);
                 logger.info("Beginning replay of {} with min={}, {}", commandStore, replayer.minReplay,
                             replayer.redundantBefore.map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
             }
@@ -666,7 +833,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                         continue;
 
                     key = ref.key();
-                    segments = journalTable.shouldIndex(key) ? ref.copyOfSegments() : null;
+                    segments = table.shouldIndex(key) ? ref.copyOfSegments() : null;
                     break;
                 }
 
@@ -682,7 +849,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                           if (segments != null && route != null)
                           {
                               for (long segment : segments)
-                                  journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, (Route<?>) route));
+                                  table.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, (Route<?>) route));
                           }
                           return null;
                       }).begin((success, fail) -> {
@@ -832,19 +999,13 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         // TODO (expected): reusable buffer to build, or pre-size
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            Writer writer = Writer.make(before, after);
+            CommandChangeWriter writer = CommandChangeWriter.make(before, after);
             if (writer == null)
                 return null;
 
             writer.write(out, userVersion);
             return out.asNewBuffer();
         }
-    }
-
-    @VisibleForTesting
-    public void unsafeSetStarted()
-    {
-        status = Status.STARTED;
     }
 
     @VisibleForTesting
@@ -856,21 +1017,21 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     @Override
     public JournalRangeSearcher rangeSearcher()
     {
-        return journalTable.rangeSearcher();
+        return table.rangeSearcher();
     }
 
-    public static class Writer implements Journal.Writer
+    public static class CommandChangeWriter implements Journal.Writer
     {
         private final Command after;
         private final int flags;
 
-        private Writer(Command after, int flags)
+        private CommandChangeWriter(Command after, int flags)
         {
             this.after = after;
             this.flags = flags;
         }
 
-        public static Writer make(Command before, Command after)
+        public static CommandChangeWriter make(Command before, Command after)
         {
             if (before == after
                 || after == null
@@ -881,7 +1042,7 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
             if (!anyFieldChanged(flags))
                 return null;
 
-            return new Writer(after, flags);
+            return new CommandChangeWriter(after, flags);
         }
 
         @Override
@@ -986,26 +1147,26 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
         }
     }
 
-    public static class Builder extends CommandChange.Builder implements FlyweightImage
+    public static class CommandChanges extends CommandChange.Builder implements AccordJournalSerializers.Builder
     {
         private final boolean deserializeDeps;
 
-        public Builder()
+        public CommandChanges()
         {
             this(Load.ALL);
         }
 
-        public Builder(Load load)
+        public CommandChanges(Load load)
         {
             this(null, load);
         }
 
-        public Builder(TxnId txnId)
+        public CommandChanges(TxnId txnId)
         {
             this(txnId, Load.ALL);
         }
 
-        public Builder(TxnId txnId, Load load)
+        public CommandChanges(TxnId txnId, Load load)
         {
             super(txnId, load);
             deserializeDeps = load == ALL;
@@ -1120,6 +1281,18 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
                         ResultSerializers.result.serialize(result, out);
                         break;
                 }
+            }
+        }
+
+        public void deserializeNext(ByteBuffer buffer, Version userVersion)
+        {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, false))
+            {
+                deserializeNext(in, userVersion);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
             }
         }
 

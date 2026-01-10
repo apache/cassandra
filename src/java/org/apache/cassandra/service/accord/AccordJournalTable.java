@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,18 +72,12 @@ import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.journal.Journal;
-import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
-import org.apache.cassandra.journal.Segments;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -94,18 +87,14 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
+import static org.apache.cassandra.service.accord.JournalKey.SUPPORT;
 
-public class AccordJournalTable<K extends JournalKey, V> implements JournalRangeSearcher.Supplier
+public class AccordJournalTable<V> implements JournalRangeSearcher.Supplier
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournalTable.class);
 
-    private final Journal<K, V> journal;
-    private final ColumnFamilyStore cfs;
+    final ColumnFamilyStore cfs;
 
-    private final ColumnMetadata recordColumn;
-    private final ColumnMetadata versionColumn;
-
-    private final KeySupport<K> keySupport;
     /**
      * Access to this field should only ever be handled by {@link #safeNotify(Consumer)}.  There is an assumption that
      * an error in the index should not cause the journal to crash, so {@link #safeNotify(Consumer)} exists to make sure
@@ -113,16 +102,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
      */
     @Nullable
     private final JournalSegmentRangeSearcher<Object> index;
-    private final Version accordJournalVersion;
 
-    public AccordJournalTable(Journal<K, V> journal, KeySupport<K> keySupport, ColumnFamilyStore cfs, Version accordJournalVersion)
+    public AccordJournalTable(ColumnFamilyStore cfs)
     {
-        this.journal = journal;
         this.cfs = cfs;
-        this.recordColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("record", false));
-        this.versionColumn = cfs.metadata().getColumn(ColumnIdentifier.getInterned("user_version", false));
-        this.keySupport = keySupport;
-        this.accordJournalVersion = accordJournalVersion;
 
         this.index = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME) != null
                      ? new JournalSegmentRangeSearcher<>()
@@ -175,6 +158,15 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         }
     }
 
+    public long maxDescriptor()
+    {
+        return cfs.getTracker().getView().liveSSTables()
+                  .stream()
+                  .filter(sst -> sst.getSSTableMetadata().totalRows > 0)
+                  .map(sst -> LongType.instance.compose(sst.getSSTableMetadata().coveredClustering.end().bufferAt(0)))
+                  .max(Long::compare).orElse(0L);
+    }
+
     /**
      * This method is here to make it easier for org.apache.cassandra.distributed.test.accord.journal.JournalAccessRouteIndexOnStartupRaceTest
      * to check when we need to do waiting
@@ -192,36 +184,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
-        }
-    }
-
-    public interface Reader
-    {
-        void read(DataInputPlus input, Version userVersion) throws IOException;
-    }
-
-    static class RecordConsumerAdapter<K> implements RecordConsumer<K>
-    {
-        protected final Reader reader;
-
-        RecordConsumerAdapter(Reader reader)
-        {
-            this.reader = reader;
-        }
-
-        private long prevSegment = Long.MAX_VALUE;
-        private long prevPosition = Long.MAX_VALUE;
-
-        @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
-        {
-            Invariants.require(segment <= prevSegment,
-                               "Records should always be iterated over in a reverse order, but segment %d was seen after %d while reading %s", segment, prevSegment, key);
-            Invariants.require(segment != prevSegment || position < prevPosition,
-                               "Records should always be iterated over in a reverse order, but position %d was seen after %d for segment %d while reading %s", position, prevPosition, segment, key);
-            readBuffer(buffer, reader, Version.fromVersion(userVersion));
-            prevSegment = segment;
-            prevPosition = position;
         }
     }
 
@@ -338,86 +300,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         }
     }
 
-    /**
-     * Perform a read from Journal table, followed by the reads from all journal segments.
-     * <p>
-     * When reading from journal segments, skip descriptors that were read from the table.
-     */
-    public void readAll(K key, Reader reader)
+    static class TableKeyIterator implements Closeable, RecordConsumer<JournalKey>
     {
-        readAll(key, new RecordConsumerAdapter<>(reader));
-    }
-
-    public void readAll(K key, RecordConsumer<K> reader)
-    {
-        try (OpOrder.Group readOrder = cfs.readOrdering.start())
-        {
-            // SELECT segments first, to avoid missing segments due to races compacting segment->sstable
-            Segments<K, V> segments = journal.segments();
-            try (TableKeyIterator table = readAllFromTable(key, readOrder))
-            {
-                boolean hasTableData = table.advance();
-                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
-                // First, read all journal entries newer than anything flushed into sstables
-                Journal.readAll(key, (segment, position, key1, buffer, userVersion) -> {
-                    if (segment > minSegment)
-                        reader.accept(segment, position, key1, buffer, userVersion);
-                }, readOrder, segments);
-
-                // Then, read SSTables
-                while (hasTableData)
-                {
-                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
-                    hasTableData = table.advance();
-                }
-            }
-        }
-    }
-
-    public void readLast(K key, Reader reader)
-    {
-        readLast(key, new RecordConsumerAdapter<>(reader));
-    }
-
-    public void readLast(K key, RecordConsumer<K> reader)
-    {
-        try (OpOrder.Group readOrder = cfs.readOrdering.start())
-        {
-            Segments<K, V> segments = journal.segments();
-            try (TableKeyIterator table = readAllFromTable(key, readOrder))
-            {
-                boolean hasTableData = table.advance();
-                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
-
-                class JournalReader implements RecordConsumer<K>
-                {
-                    boolean read;
-                    @Override
-                    public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
-                    {
-                        if (segment > minSegment)
-                        {
-                            reader.accept(segment, position, key, buffer, userVersion);
-                            read = true;
-                        }
-                    }
-                }
-
-                // First, read all journal entries newer than anything flushed into sstables
-                JournalReader journalReader = new JournalReader();
-                Journal.readLast(key, journalReader, readOrder, segments);
-
-                // Then, read SSTables, if we haven't found a record already
-                if (hasTableData && !journalReader.read)
-                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
-            }
-        }
-    }
-
-    // TODO (expected): why are recordColumn and versionColumn instance fields, so that this cannot be a static class?
-    class TableKeyIterator implements Closeable, RecordConsumer<K>
-    {
-        final K key;
+        final JournalKey key;
         final List<UnfilteredRowIterator> unmerged;
         final UnfilteredRowIterator merged;
 
@@ -426,7 +311,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         ByteBuffer value;
         int userVersion;
 
-        TableKeyIterator(K key, List<UnfilteredRowIterator> unmerged, UnfilteredRowIterator merged)
+        TableKeyIterator(JournalKey key, List<UnfilteredRowIterator> unmerged, UnfilteredRowIterator merged)
         {
             this.key = key;
             this.unmerged = unmerged;
@@ -434,7 +319,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         }
 
         @Override
-        public void accept(long segment, int offset, K key, ByteBuffer buffer, int userVersion)
+        public void accept(long segment, int offset, JournalKey key, ByteBuffer buffer, int userVersion)
         {
             this.segment = segment;
             this.offset = offset;
@@ -452,8 +337,8 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
                 Row row = (Row) merged.next();
                 segment = LongType.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(0)));
                 offset = Int32Type.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(1)));
-                value = row.getCell(recordColumn).buffer();
-                userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
+                value = row.getCell(JournalColumns.record).buffer();
+                userVersion = Int32Type.instance.compose(row.getCell(JournalColumns.user_version).buffer());
                 return true;
             }
             catch (Throwable t)
@@ -470,7 +355,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         }
     }
 
-    private TableKeyIterator readAllFromTable(K key, OpOrder.Group readOrder)
+    TableKeyIterator readAllFromTable(JournalKey key, OpOrder.Group readOrder)
     {
         DecoratedKey pk = JournalColumns.decorate(key);
         List<UnfilteredRowIterator> iters = new ArrayList<>(3);
@@ -500,25 +385,21 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         }
     }
 
-    @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max, boolean includeActive, long minSegment)
+    TableIterator keyIterator(JournalKey min, JournalKey max, long minSegment)
     {
-        try (OpOrder.Group readOrder = cfs.readOrdering.start())
-        {
-            return new JournalAndTableKeyIterator(min, max, includeActive, minSegment);
-        }
+        return new TableIterator(cfs, min, max, minSegment);
     }
 
-    private class TableIterator extends AbstractIterator<K> implements CloseableIterator<K>
+    static class TableIterator extends AbstractIterator<JournalKey> implements CloseableIterator<JournalKey>
     {
         private final UnfilteredPartitionIterator mergeIterator;
         private final RefViewFragment view;
 
-        private TableIterator(JournalKey min, JournalKey max, long minSegment)
+        private TableIterator(ColumnFamilyStore table, JournalKey min, JournalKey max, long minSegment)
         {
             Invariants.require((min != null && max != null) || min == max);
-            view = cfs.selectAndReference(View.select(SSTableSet.LIVE, r -> (max == null || JournalKey.SUPPORT.compare(getJournalKey(r.getFirst()), max) <= 0)
-                                                                         && (min == null || JournalKey.SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)
+            view = table.selectAndReference(View.select(SSTableSet.LIVE, r -> (max == null || SUPPORT.compare(getJournalKey(r.getFirst()), max) <= 0)
+                                                                         && (min == null || SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)
                                                                          && (r.getSSTableMetadata().coveredClustering.end().isArtificial() || LongType.instance.compose(r.getSSTableMetadata().coveredClustering.end().bufferAt(0)) >= minSegment)
             ));
             List<ISSTableScanner> scanners = new ArrayList<>();
@@ -530,19 +411,19 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
             }
 
             mergeIterator = view.sstables.isEmpty()
-                            ? EmptyIterators.unfilteredPartition(cfs.metadata())
+                            ? EmptyIterators.unfilteredPartition(table.metadata())
                             : UnfilteredPartitionIterators.merge(scanners, UnfilteredPartitionIterators.MergeListener.NOOP);
         }
 
         @CheckForNull
-        protected K computeNext()
+        protected JournalKey computeNext()
         {
-            K ret = null;
+            JournalKey ret = null;
             if (mergeIterator.hasNext())
             {
                 try (UnfilteredRowIterator partition = mergeIterator.next())
                 {
-                    ret = (K) getJournalKey(partition.partitionKey());
+                    ret = getJournalKey(partition.partitionKey());
                     while (partition.hasNext())
                         partition.next();
                 }
@@ -559,90 +440,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements JournalRange
         {
             mergeIterator.close();
             view.close();
-        }
-    }
-
-    private class JournalAndTableKeyIterator extends AbstractIterator<Journal.KeyRefs<K>> implements CloseableIterator<Journal.KeyRefs<K>>
-    {
-        final Journal<K, V>.SegmentKeyIterator journalIterator;
-        final TableIterator tableIterator;
-
-        private JournalAndTableKeyIterator(K min, K max, boolean includeActive, long minSegment)
-        {
-            // We must initialise journal reader first, else we may race with segment->table compaction and miss some data
-            // that is, the following sequence could happen:
-            //  - Select sstables to read
-            //  - Segments compacted; segments removed and sstables added
-            //  - Segment iterator created
-            // TODO (expected): segments should be sstables on creation
-            this.journalIterator = journal.segmentKeyIterator(min, max, segment -> segment.id() >= minSegment && (includeActive || segment.isStatic()));
-            this.tableIterator = new TableIterator(min, max, minSegment);
-        }
-
-        K prevFromTable = null;
-        K prevFromJournal = null;
-
-        @Override
-        protected Journal.KeyRefs<K> computeNext()
-        {
-            K tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
-            K journalKey = journalIterator.hasNext() ? journalIterator.peek().key() : null;
-
-            if (journalKey != null)
-            {
-                Invariants.require(prevFromJournal == null || keySupport.compare(journalKey, prevFromJournal) >= 0, // == for case where we have not consumed previous on prev iteration
-                                   "Incorrect sort order in journal segments: %s should strictrly follow %s " + this, journalKey, prevFromJournal);
-                prevFromJournal = journalKey;
-            }
-            else
-            {
-                prevFromJournal = null;
-            }
-
-            if (tableKey != null)
-            {
-                Invariants.require(prevFromTable == null || keySupport.compare(tableKey, prevFromTable) >= 0, // == for case where we have not consumed previous on prev iteration
-                                   "Incorrect sort order in journal table: %s should strictrly follow %s " + this, tableKey, prevFromTable);
-                prevFromTable = tableKey;
-            }
-            else
-            {
-                prevFromTable = null;
-            }
-
-            if (tableKey == null)
-                return journalKey == null ? endOfData() : journalIterator.next();
-
-            if (journalKey == null)
-                return new Journal.KeyRefs<>(tableIterator.next());
-
-            int cmp = keySupport.compare(tableKey, journalKey);
-            if (cmp == 0)
-            {
-                tableIterator.next();
-                return journalIterator.next();
-            }
-
-            return cmp < 0 ? new Journal.KeyRefs<>(tableIterator.next()) : journalIterator.next();
-        }
-
-        public void close()
-        {
-            tableIterator.close();
-            journalIterator.close();
-        }
-    }
-
-    public static void readBuffer(ByteBuffer buffer, Reader reader, Version userVersion)
-    {
-        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
-        {
-            reader.read(in, userVersion);
-        }
-        catch (IOException e)
-        {
-            // can only throw if serializer is buggy or bytes got corrupted
-            throw new RuntimeException(e);
         }
     }
 }

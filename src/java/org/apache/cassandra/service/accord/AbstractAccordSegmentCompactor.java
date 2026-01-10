@@ -46,8 +46,8 @@ import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.StaticSegment.KeyOrderReader;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.Builder;
+import org.apache.cassandra.service.accord.AccordJournalSerializers.MergeSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -120,8 +120,8 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         initializeWriter(estimatedKeyCount);
 
         JournalKey key = null;
-        FlyweightImage builder = null;
-        FlyweightSerializer<Object, FlyweightImage> serializer = null;
+        Builder builder = null;
+        MergeSerializer serializer = null;
         long firstDescriptor = -1, lastDescriptor = -1;
         int firstOffset = -1, lastOffset = -1;
         try
@@ -134,8 +134,8 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                     maybeWritePartition(key, builder, serializer, firstDescriptor, firstOffset);
                     switchPartitions();
                     key = reader.key();
-                    serializer = (FlyweightSerializer<Object, FlyweightImage>) key.type.serializer;
-                    builder = serializer.mergerFor();
+                    serializer = key.type.serializer;
+                    builder = serializer.builderFor();
                     builder.reset(key);
                     firstDescriptor = lastDescriptor = -1;
                     firstOffset = lastOffset = -1;
@@ -148,7 +148,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
                 {
                     if (builder == null)
                     {
-                        builder = serializer.mergerFor();
+                        builder = serializer.builderFor();
                         builder.reset(key);
                     }
 
@@ -208,7 +208,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         return Collections.emptyList();
     }
 
-    private void maybeWritePartition(JournalKey key, FlyweightImage builder, FlyweightSerializer<Object, FlyweightImage> serializer, long descriptor, int offset) throws IOException
+    private void maybeWritePartition(JournalKey key, Builder builder, MergeSerializer<Object, ? super Builder, Builder> serializer, long descriptor, int offset) throws IOException
     {
         if (builder != null)
         {

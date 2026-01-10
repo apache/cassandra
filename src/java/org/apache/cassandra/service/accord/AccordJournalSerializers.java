@@ -19,6 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NavigableMap;
 
 import com.google.common.collect.ImmutableSortedMap;
@@ -37,42 +39,41 @@ import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.local.CommandStores.RangesForEpoch;
 
-public class AccordJournalValueSerializers
+public class AccordJournalSerializers
 {
-    public interface FlyweightImage
+    public interface Builder
     {
         void reset(JournalKey key);
     }
 
-    public interface FlyweightSerializer<ENTRY, IMAGE extends FlyweightImage>
+    public interface MergeSerializer<V, DeserializeInto extends Builder, B extends DeserializeInto>
     {
-        IMAGE mergerFor();
+        B builderFor();
 
-        void serialize(JournalKey key, ENTRY from, DataOutputPlus out, Version userVersion) throws IOException;
+        void deserialize(JournalKey key, DeserializeInto into, DataInputPlus in, Version userVersion) throws IOException;
 
-        void reserialize(JournalKey key, IMAGE from, DataOutputPlus out, Version userVersion) throws IOException;
-
-        void deserialize(JournalKey key, IMAGE into, DataInputPlus in, Version userVersion) throws IOException;
-
-        default IMAGE deserialize(JournalKey key, DataInputPlus in, Version userVersion) throws IOException
+        default B deserialize(JournalKey key, DataInputPlus in, Version userVersion) throws IOException
         {
-            IMAGE image = mergerFor();
-            deserialize(key, image, in, userVersion);
-            return image;
+            B builder = builderFor();
+            deserialize(key, builder, in, userVersion);
+            return builder;
         }
+
+        void serialize(JournalKey key, V from, DataOutputPlus out, Version userVersion) throws IOException;
+
+        void reserialize(JournalKey key, B from, DataOutputPlus out, Version userVersion) throws IOException;
     }
 
-    public static class CommandDiffSerializer
-    implements FlyweightSerializer<AccordJournal.Writer, AccordJournal.Builder>
+    public static class CommandChangeSerializer implements MergeSerializer<AccordJournal.CommandChangeWriter, AccordJournal.CommandChanges, AccordJournal.CommandChanges>
     {
         @Override
-        public AccordJournal.Builder mergerFor()
+        public AccordJournal.CommandChanges builderFor()
         {
-            return new AccordJournal.Builder();
+            return new AccordJournal.CommandChanges();
         }
 
         @Override
-        public void serialize(JournalKey key, AccordJournal.Writer writer, DataOutputPlus out, Version userVersion)
+        public void serialize(JournalKey key, AccordJournal.CommandChangeWriter writer, DataOutputPlus out, Version userVersion)
         {
             try
             {
@@ -85,7 +86,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, AccordJournal.Builder from, DataOutputPlus out, Version userVersion) throws IOException
+        public void reserialize(JournalKey key, AccordJournal.CommandChanges from, DataOutputPlus out, Version userVersion) throws IOException
         {
             from.serialize(out,
                            // In CompactionIterator, we are dealing with relatively recent records, so we do not pass redundant before here.
@@ -94,13 +95,13 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, AccordJournal.Builder into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, AccordJournal.CommandChanges into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.deserializeNext(in, userVersion);
         }
     }
 
-    public abstract static class Accumulator<A, V> implements FlyweightImage
+    public abstract static class Accumulator<A, V> implements Builder
     {
         protected A accumulated;
 
@@ -122,25 +123,25 @@ public class AccordJournalValueSerializers
         }
     }
 
-    public static class IdentityAccumulator<T> extends Accumulator<T, T>
+    public static class KeepFirst<V> extends Accumulator<V, V>
     {
-        final T initial;
+        final V ifNone;
         boolean hasRead;
-        public IdentityAccumulator(T initial)
+        public KeepFirst(V ifNone)
         {
-            super(initial);
-            this.initial = initial;
+            super(ifNone);
+            this.ifNone = ifNone;
         }
 
         @Override
         public void reset(JournalKey key)
         {
             hasRead = false;
-            accumulated = initial;
+            accumulated = ifNone;
         }
 
         @Override
-        protected T accumulate(T oldValue, T newValue)
+        protected V accumulate(V oldValue, V newValue)
         {
             if (hasRead)
                 return oldValue;
@@ -151,19 +152,45 @@ public class AccordJournalValueSerializers
         @Override
         public String toString()
         {
-            return "IdentityAccumulator{" +
-                   initial +
+            return "KeepFirst{" +
+                   accumulated +
                    '}';
         }
     }
 
+    public static class KeepList<V> extends Accumulator<List<V>, V>
+    {
+        public KeepList(List<V> initial)
+        {
+            super(initial);
+        }
+
+        public KeepList()
+        {
+            super(new ArrayList<>());
+        }
+
+        @Override
+        protected List<V> accumulate(List<V> oldValue, V newValue)
+        {
+            oldValue.add(newValue);
+            return oldValue;
+        }
+
+        @Override
+        public void reset(JournalKey key)
+        {
+            accumulated.clear();
+        }
+    }
+
     public static class RedundantBeforeSerializer
-    implements FlyweightSerializer<RedundantBefore, IdentityAccumulator<RedundantBefore>>
+    implements MergeSerializer<RedundantBefore, Accumulator<?, ? super RedundantBefore>, Accumulator<RedundantBefore, RedundantBefore>>
     {
         @Override
-        public IdentityAccumulator<RedundantBefore> mergerFor()
+        public KeepFirst<RedundantBefore> builderFor()
         {
-            return new IdentityAccumulator<>(RedundantBefore.EMPTY);
+            return new KeepFirst<>(RedundantBefore.EMPTY);
         }
 
         @Override
@@ -173,7 +200,7 @@ public class AccordJournalValueSerializers
             {
                 if (entry == RedundantBefore.EMPTY)
                 {
-                    // I think this branch was to paper over a bug in the RedundantBefore serializer; it should now be defunct
+                    // I am fairly sure this branch was to paper over a bug in the RedundantBefore serializer; it should now be defunct
                     out.writeInt(0);
                     return;
                 }
@@ -187,13 +214,13 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<RedundantBefore> from, DataOutputPlus out, Version userVersion) throws IOException
+        public void reserialize(JournalKey key, Accumulator<RedundantBefore, RedundantBefore> from, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, IdentityAccumulator<RedundantBefore> into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, Accumulator<?, ? super RedundantBefore> into, DataInputPlus in, Version userVersion) throws IOException
         {
             if (in.readInt() == 0)
             {
@@ -225,9 +252,9 @@ public class AccordJournalValueSerializers
     }
 
     public static class DurableBeforeSerializer
-    implements FlyweightSerializer<DurableBefore, DurableBeforeAccumulator>
+    implements MergeSerializer<DurableBefore, Accumulator<?, ? super DurableBefore>, DurableBeforeAccumulator>
     {
-        public DurableBeforeAccumulator mergerFor()
+        public DurableBeforeAccumulator builderFor()
         {
             return new DurableBeforeAccumulator();
         }
@@ -252,19 +279,21 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void deserialize(JournalKey journalKey, DurableBeforeAccumulator into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey journalKey, Accumulator<?, ? super DurableBefore> into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.update(CommandStoreSerializers.durableBefore.deserialize(in));
         }
     }
 
     public static class BootstrapBeganAtSerializer
-    implements FlyweightSerializer<NavigableMap<TxnId, Ranges>, IdentityAccumulator<NavigableMap<TxnId, Ranges>>>
+    implements MergeSerializer<NavigableMap<TxnId, Ranges>,
+                              Accumulator<?, ? super NavigableMap<TxnId, Ranges>>,
+                              Accumulator<NavigableMap<TxnId, Ranges>, NavigableMap<TxnId, Ranges>>>
     {
         @Override
-        public IdentityAccumulator<NavigableMap<TxnId, Ranges>> mergerFor()
+        public KeepFirst<NavigableMap<TxnId, Ranges>> builderFor()
         {
-            return new IdentityAccumulator<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
+            return new KeepFirst<>(ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY));
         }
 
         @Override
@@ -274,25 +303,27 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> image, DataOutputPlus out, Version userVersion) throws IOException
+        public void reserialize(JournalKey key, Accumulator<NavigableMap<TxnId, Ranges>, NavigableMap<TxnId, Ranges>> image, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, image.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<TxnId, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey key, Accumulator<?, ? super NavigableMap<TxnId, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.update(CommandStoreSerializers.bootstrapBeganAt.deserialize(in));
         }
     }
 
     public static class SafeToReadSerializer
-    implements FlyweightSerializer<NavigableMap<Timestamp, Ranges>, IdentityAccumulator<NavigableMap<Timestamp, Ranges>>>
+    implements MergeSerializer<NavigableMap<Timestamp, Ranges>,
+                              Accumulator<?, ? super NavigableMap<Timestamp, Ranges>>,
+                              Accumulator<NavigableMap<Timestamp, Ranges>, NavigableMap<Timestamp, Ranges>>>
     {
         @Override
-        public IdentityAccumulator<NavigableMap<Timestamp, Ranges>> mergerFor()
+        public KeepFirst<NavigableMap<Timestamp, Ranges>> builderFor()
         {
-            return new IdentityAccumulator<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
+            return new KeepFirst<>(ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY));
         }
 
         @Override
@@ -302,25 +333,27 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void reserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, Version userVersion) throws IOException
+        public void reserialize(JournalKey key, Accumulator<NavigableMap<Timestamp, Ranges>, NavigableMap<Timestamp, Ranges>> from, DataOutputPlus out, Version userVersion) throws IOException
         {
             serialize(key, from.get(), out, userVersion);
         }
 
         @Override
-        public void deserialize(JournalKey key, IdentityAccumulator<NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey key, Accumulator<?, ? super NavigableMap<Timestamp, Ranges>> into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.update(CommandStoreSerializers.safeToRead.deserialize(in));
         }
     }
 
     public static class RangesForEpochSerializer
-    implements FlyweightSerializer<RangesForEpoch, Accumulator<RangesForEpoch, RangesForEpoch>>
+    implements MergeSerializer<RangesForEpoch,
+                              Accumulator<?, ? super RangesForEpoch>,
+                              Accumulator<RangesForEpoch, RangesForEpoch>>
     {
         public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
-        public IdentityAccumulator<RangesForEpoch> mergerFor()
+        public KeepFirst<RangesForEpoch> builderFor()
         {
-            return new IdentityAccumulator<>(null);
+            return new KeepFirst<>(null);
         }
 
         @Override
@@ -336,7 +369,7 @@ public class AccordJournalValueSerializers
         }
 
         @Override
-        public void deserialize(JournalKey key, Accumulator<RangesForEpoch, RangesForEpoch> into, DataInputPlus in, Version userVersion) throws IOException
+        public void deserialize(JournalKey key, Accumulator<?, ? super RangesForEpoch> into, DataInputPlus in, Version userVersion) throws IOException
         {
             into.update(AccordTopologyUpdate.RangesForEpochSerializer.instance.deserialize(in));
         }

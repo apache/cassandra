@@ -542,8 +542,8 @@ final class Flusher<K, V>
             {
                 signal.awaitThrowUncheckedOnInterrupt();
 
-                Journal.State state = journal.state.get();
-                Invariants.require(state == Journal.State.NORMAL,
+                Journal.State state = journal.getState();
+                Invariants.require(state != Journal.State.STOPPED_READABLE,
                                       "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
             }
             else

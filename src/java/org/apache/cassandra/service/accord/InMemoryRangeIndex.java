@@ -28,6 +28,7 @@ import java.util.function.BooleanSupplier;
 
 import javax.annotation.Nullable;
 
+import accord.impl.cfr.IdEntry;
 import accord.impl.cfr.InMemoryRangeSummaryIndex;
 import accord.impl.cfr.LoadListener;
 import accord.local.Command;
@@ -167,8 +168,14 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
     }
 
     @Override
-    public void restore(File file) throws IOException
+    public List<IdEntry> load(File file) throws IOException
     {
-        restore(readList(file, CommandStoreSerializers.rangeIndexIdEntry));
+        return readList(file, CommandStoreSerializers.rangeIndexIdEntry);
+    }
+
+    @Override
+    public void restore(Object loaded)
+    {
+        restore((List<IdEntry>)loaded);
     }
 }

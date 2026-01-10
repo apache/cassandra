@@ -257,7 +257,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
             AccordCommandStore commandStore = (AccordCommandStore) shard.store;
             if (!commandStore.awaitTerminationUntil(deadlineNanos))
             {
-                logger.warn("{}: timeout awaiting durability: {}", commandStore, DurablyAppliedTo.summarise(commandStore.unsafeGetRedundantBefore()));
+                logger.warn("{} timeout awaiting durability: {}", commandStore, DurablyAppliedTo.summarise(commandStore.unsafeGetRedundantBefore()));
                 return false;
             }
         }

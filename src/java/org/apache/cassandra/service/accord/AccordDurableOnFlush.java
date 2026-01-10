@@ -72,6 +72,12 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 
     public static void notifyOnDurable(ColumnFamilyStore cfs, CommandStore commandStore, RedundantBefore onDurable)
     {
+        if (cfs == null)
+        {
+            // TODO (required): is this correct? Revisit when we improve DROP TABLE
+            notifyNow(commandStore, onDurable);
+            return;
+        }
         View view = cfs.getTracker().getView();
         for (int i = view.liveMemtables.size() - 1; i >= 0 ; --i)
         {
@@ -92,25 +98,30 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
                 return;
         }
 
-        notifyNow(cfs.metadata(), commandStore, onDurable);
+        notifyNow(commandStore, onDurable);
     }
 
     static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
     {
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+        if (cfs == null)
+        {
+            notifyNow(commandStore, report);
+            return;
+        }
         View view = cfs.getTracker().getView();
         boolean notifyNow = true;
         for (Memtable memtable : view.liveMemtables)
             notifyNow &= memtable.getMemtableId() > memtableId;
         for (Memtable memtable : view.flushingMemtables)
             notifyNow &= memtable.getMemtableId() > memtableId;
-        if (notifyNow) notifyNow(metadata, commandStore, report);
-        else cfs.waitForPriorFlushes().addListener(() -> notifyNow(metadata, commandStore, report));
+        if (notifyNow) notifyNow(commandStore, report);
+        else cfs.waitForPriorFlushes().addListener(() -> notifyNow(commandStore, report));
     }
 
-    static void notifyNow(TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
+    static void notifyNow(CommandStore commandStore, RedundantBefore report)
     {
-        logger.debug("Reporting flush of {}/{}; reporting {} to {}", metadata.id, metadata, report, commandStore);
+        logger.debug("{} reporting flush with {}", commandStore, report);
         commandStore.execute((AccordExecutor.Unstoppable) () -> "Report Durable", safeStore -> {
             safeStore.upsertRedundantBefore(report);
         }, commandStore.agent());
