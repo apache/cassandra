@@ -191,7 +191,7 @@ public class ConsensusRequestRouter
         TableMetadata metadata = getTableMetadata(cm, tableId);
         // Non-distributed tables always take the Paxos path
         if (metadata == null)
-            pickPaxos();
+            return pickPaxos();
         return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
     }
 
