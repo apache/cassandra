@@ -87,6 +87,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.AccordSpec$RangeIndexMode",
     "org.apache.cassandra.config.AccordSpec$TransactionalRangeMigration",
     "org.apache.cassandra.config.AccordSpec$JournalSpec$ReplayMode",
+    "org.apache.cassandra.config.AccordSpec$JournalSpec$ReplaySavePoint",
     "org.apache.cassandra.config.AccordSpec$JournalSpec$StopMarkerFailurePolicy",
     "org.apache.cassandra.config.CassandraRelevantProperties",
     "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",

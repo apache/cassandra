@@ -61,7 +61,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.journal.RangeSearcher.NoopJournalRangeSearcher;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -145,14 +144,11 @@ public class RangeSearchManager implements RangeSearcher.Supplier
     @Override
     public RangeSearcher rangeSearcher()
     {
-        if (segmentSearcher == null)
-            return NoopJournalRangeSearcher.instance;
         return new JournalTableRangeSearcher();
     }
 
     public void start()
     {
-        if (segmentSearcher == null) return;
         Index tableIndex = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME);
         RetryStrategy retry = DatabaseDescriptor.getAccord().retry_journal_index_ready.retry();
         for (int i = 0; !cfs.indexManager.isIndexQueryable(tableIndex); i++)

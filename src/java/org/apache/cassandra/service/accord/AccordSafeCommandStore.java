@@ -37,6 +37,7 @@ import accord.local.Command;
 import accord.local.CommandStores;
 import accord.local.CommandSummaries;
 import accord.local.NodeCommandStoreService;
+import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.Timestamp;
@@ -48,6 +49,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.service.paxos.PaxosState;
 
 import static accord.utils.Invariants.illegalState;
@@ -187,6 +189,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public void updateCommandsForRanges(Command prev, Command updated, boolean force)
     {
         commandStore().rangeIndex().update(prev, updated, force);
+    }
+
+    @Override
+    public void reportDurable(RedundantBefore addRedundantBefore, int flags)
+    {
+        upsertRedundantBefore(addRedundantBefore);
+        commandStore.maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
     }
 
     @Override

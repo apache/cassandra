@@ -117,7 +117,7 @@ public class AccordBounceTest extends FuzzTestBase
     {
         try (Cluster cluster = init(builder().withNodes(1).start()))
         {
-            withRandom(33458862746049787L, rng -> {
+            withRandom(rng -> {
                 Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<>() {
                                                                                      int i = 0;
                                                                                      @Override
@@ -144,14 +144,22 @@ public class AccordBounceTest extends FuzzTestBase
                                                                             .build(schema, hb, cluster)));
                 }
 
-                Runnable writeAndValidate = () -> {
+                Runnable write = () -> {
                     for (HistoryBuilder hb : historyBuilders)
                         for (int pk = 0; pk < 10; pk++)
                             for (int i = 0; i < 10; i++)
                                 hb.insert(pk);
+                };
+
+                Runnable validate = () -> {
                     for (HistoryBuilder hb : historyBuilders)
                         for (int pk = 0; pk < 10; pk++)
                             hb.selectPartition(pk);
+                };
+
+                Runnable writeAndValidate = () -> {
+                    write.run();
+                    validate.run();
                 };
 
                 // Command Stores should not be lost on bounce
@@ -170,6 +178,7 @@ public class AccordBounceTest extends FuzzTestBase
                     writeAndValidate.run();
                     ClusterUtils.stopUnchecked(cluster.get(1));
                     cluster.get(1).startup();
+                    validate.run();
 
                     SchemaSpec schema = schemaGen.generate(rng);
                     cluster.schemaChange(schema.compile());

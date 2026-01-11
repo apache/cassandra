@@ -19,9 +19,7 @@
 package org.apache.cassandra.service.accord.journal;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -32,7 +30,6 @@ import accord.impl.AbstractReplayer;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.primitives.Route;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
@@ -264,67 +261,4 @@ public class Replay
     {
         return commandStore instanceof AccordCommandStore ? ((AccordCommandStore) commandStore).executor().executorId() : 1;
     }
-
-    public static List<accord.api.Journal.TopologyUpdate> topologies(AccordJournal journal)
-    {
-        List<accord.api.Journal.TopologyUpdate> images = new ArrayList<>();
-        try (CloseableIterator<accord.api.Journal.TopologyUpdate> iter = new CloseableIterator<>()
-        {
-            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journal.keyIterator(TopologyRecord.journalKey(0L),
-                                                                                            TopologyRecord.journalKey(Timestamp.MAX_EPOCH),
-                                                                                            true, 0);
-            TopologyRecord.TopologyImage prev = null;
-
-            @Override
-            public boolean hasNext()
-            {
-                return iter.hasNext();
-            }
-
-            @Override
-            public accord.api.Journal.TopologyUpdate next()
-            {
-                Journal.KeyRefs<JournalKey> ref = iter.next();
-                MergeSerializers.TopologyMerger reader = journal.readAll(ref.key());
-                if (reader.read().kind() == TopologyRecord.Kind.Repeat)
-                {
-                    if (prev == null)
-                    {
-                        logger.error("Encountered TopologyImage Repeat record for epoch {}, but no prior image record was found", ref.key().id.epoch());
-                        return null;
-                    }
-                    prev = reader.read().asImage(Invariants.nonNull(prev.getUpdate()));
-                }
-                else prev = reader.read();
-
-                return new accord.api.Journal.TopologyUpdate(prev.getUpdate().commandStores,
-                                                             prev.getUpdate().global);
-            }
-
-            @Override
-            public void close()
-            {
-                iter.close();
-            }
-        })
-        {
-            accord.api.Journal.TopologyUpdate prev = null;
-            while (iter.hasNext())
-            {
-                accord.api.Journal.TopologyUpdate next = iter.next();
-                if (next == null)
-                    continue;
-
-                Invariants.require(prev == null || next.global.epoch() > prev.global.epoch());
-                // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
-                if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
-                    images.clear();
-
-                images.add(next);
-                prev = next;
-            }
-        }
-        return images;
-    }
-
 }

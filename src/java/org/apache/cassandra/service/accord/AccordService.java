@@ -86,6 +86,7 @@ import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplaySavePoint;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -393,7 +394,11 @@ public class AccordService implements IAccordService, Shutdownable
     private boolean replayJournal(Long2LongHashMap minSegments)
     {
         if (getAccord().journal.replay == RESET)
+        {
+            if (getAccord().journal.replaySavePoint != ReplaySavePoint.NO)
+                throw new IllegalArgumentException("Cannot reset state and replay from a save point; must modify either accord.journal.replay or accord.journal.replay_save_point");
             AccordKeyspace.truncateCommandsForKey();
+        }
 
         logger.info("Starting journal replay.");
         long start = nanoTime();
@@ -534,7 +539,7 @@ public class AccordService implements IAccordService, Shutdownable
 
             replayJournal(minSegments);
             node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
-            // TODO (required): after restart, trigger ensureDurable as we ignore during replay
+            // TODO (expected): after restart, trigger ensureDurable as we ignore during replay
             //  (or else decide during replay if any given call should be ignored)
         }
         finally

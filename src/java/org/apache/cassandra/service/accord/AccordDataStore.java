@@ -32,7 +32,7 @@ import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 
 public class AccordDataStore implements DataStore
 {
@@ -43,14 +43,27 @@ public class AccordDataStore implements DataStore
      * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
      * This is used to gate journal cleanup, since we skip the CommitLog for applying to the data table.
      */
-    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
+    @Override
+    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess, int flags)
     {
         if (commandStore.node().isReplaying() || ranges.isEmpty())
             return;
 
-        logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) ranges.get(0).prefix());
-        AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, reportOnSuccess);
+        logger.debug("{} awaiting local data durability for {}", commandStore, ranges);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
+    }
+
+    @Override
+    public void ensureDurable(CommandStore commandStore, RedundantBefore reportOnSuccess, int flags)
+    {
+        logger.debug("{} awaiting full local data durability", commandStore);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
+    }
+
+    private void ensureDurableInternal(CommandStore commandStore, RedundantBefore redundantBefore, int flags)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(((AccordCommandStore)commandStore).tableId());
+        AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, ReportDurable.of(redundantBefore, flags));
     }
 
     @Override

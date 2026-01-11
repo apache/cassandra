@@ -105,14 +105,14 @@ final class Flusher<K, V>
         flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
     }
 
-    void shutdownNow()
+    void shutdown()
     {
         logger.debug("Shutting down " + flushExecutor);
-        flushExecutor.shutdownNow();
+        flushExecutor.shutdown();
         if (fsyncExecutor != null)
         {
             logger.debug("Shutting down " + fsyncExecutor);
-            fsyncExecutor.shutdownNow(); // `now` to interrupt potentially parked runnable
+            fsyncExecutor.shutdown(); // `now` to interrupt potentially parked runnable
         }
     }
 
@@ -147,6 +147,10 @@ final class Flusher<K, V>
                 try
                 {
                     doRun(state);
+                }
+                catch (InterruptedException t)
+                {
+                    throw t;
                 }
                 catch (Throwable t)
                 {
@@ -197,8 +201,8 @@ final class Flusher<K, V>
 
             public void doRun(Interruptible.State state) throws InterruptedException
             {
-                if (state == NORMAL) awaitWork();
-                else if (!hasWork()) return;
+                if (state == NORMAL)
+                    awaitWork();
 
                 if (fsyncing == null)
                     fsyncing = journal.oldestActiveSegment();
@@ -267,6 +271,10 @@ final class Flusher<K, V>
             try
             {
                 doRun(state);
+            }
+            catch (InterruptedException t)
+            {
+                throw t;
             }
             catch (Throwable t)
             {
@@ -543,13 +551,31 @@ final class Flusher<K, V>
                 signal.awaitThrowUncheckedOnInterrupt();
 
                 Journal.State state = journal.getState();
-                Invariants.require(state != Journal.State.STOPPED_READABLE,
+                Invariants.require(state.compareTo(Journal.State.STOPPED_READABLE) < 0,
                                       "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
             }
             else
                 signal.cancel();
         }
         while (fsyncFinishedFor < flushTime);
+    }
+
+    void awaitFsync(ActiveSegment<K, V> segment, int fsyncedTo)
+    {
+        while (true)
+        {
+            Journal.State state = journal.getState();
+            Invariants.require(state.compareTo(Journal.State.STOPPED_READABLE) < 0,
+                               "Thread %s outlived journal, which is in %s state", Thread.currentThread(), state);
+
+            WaitQueue.Signal signal = fsyncComplete.register();
+            if (segment.fsyncedTo() >= fsyncedTo)
+            {
+                signal.cancel();
+                break;
+            }
+            signal.awaitThrowUncheckedOnInterrupt();
+        }
     }
 
     private long flushPeriodNanos()

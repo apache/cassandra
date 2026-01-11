@@ -95,6 +95,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -187,10 +188,20 @@ public class AccordCommandStore extends CommandStore
         }
     }
 
+    static class Termination extends Condition.Sync
+    {
+        private boolean commandStoreFlushed;
+        private boolean dataStoreFlushed;
+        private boolean isReadyToTerminate()
+        {
+            return commandStoreFlushed && dataStoreFlushed;
+        }
+    }
+
     static final AtomicReferenceFieldUpdater<AccordCommandStore, SafeRedundantBefore> safeRedundantBeforeUpdater
         = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, SafeRedundantBefore.class, "safeRedundantBefore");
-    static final AtomicReferenceFieldUpdater<AccordCommandStore, Condition> terminatedUpdater
-        = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Condition.class, "terminated");
+    static final AtomicReferenceFieldUpdater<AccordCommandStore, Termination> terminatedUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Termination.class, "terminated");
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
     private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
@@ -205,7 +216,7 @@ public class AccordCommandStore extends CommandStore
     private TableMetadataRef metadata;
 
     volatile SafeRedundantBefore safeRedundantBefore;
-    volatile Condition terminated;
+    volatile Termination terminated;
 
     private AccordSafeCommandStore current;
     LogLinearDecayingHistograms.Buffer metricsBuffer;
@@ -460,22 +471,16 @@ public class AccordCommandStore extends CommandStore
 
     public AsyncResult<Void> shutdownAsync()
     {
-        terminatedUpdater.compareAndSet(this, null, Condition.newOneTimeCondition());
+        terminatedUpdater.compareAndSet(this, null, new Termination());
         progressLog.stop();
         return execute((PreLoadContext.Empty)() -> "Shutdown", safeStore -> {
             exclusiveExecutor.stop();
             logger.info("{} stopping. Durably applied: {}, waiting: {}", this,
                         DurablyAppliedTo.summarise(safeStore.redundantBefore(), DurablyAppliedTo::isDone),
                         DurablyAppliedTo.summarise(safeStore.redundantBefore(), DurablyAppliedTo::isNotDone));
-            maybeTerminated();
+            this.ensureDurable(null, ReportDurable.commandStoreFlush());
+            dataStore.ensureDurable(this, RedundantBefore.EMPTY, ReportDurable.DATA_STORE_FLUSH);
         });
-    }
-
-    @Override
-    protected void upsertedRedundantBefore(SafeCommandStore safeStore, RedundantBefore added)
-    {
-        super.upsertedRedundantBefore(safeStore, added);
-        maybeTerminated();
     }
 
     @Override
@@ -493,16 +498,22 @@ public class AccordCommandStore extends CommandStore
         rangeIndex.prune(syncId, ranges, safeStore.redundantBefore());
     }
 
-    private void maybeTerminated()
+    void maybeTerminated(boolean setCommandStoreDurable, boolean setDataStoreDurable)
     {
         if (terminated != null)
         {
-            boolean durable = unsafeGetRedundantBefore().foldl((b, v, p2, p3) -> {
-                return v && (b == null || b.maxBound(LOCALLY_APPLIED).compareTo(b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE)) <= 0);
-            }, true, null, null, ignore -> false);
-            boolean stopped = exclusiveExecutor.stopped();
-            if (durable && stopped)
+            if (setCommandStoreDurable) terminated.commandStoreFlushed = true;
+            if (setDataStoreDurable) terminated.dataStoreFlushed = true;
+            if (terminated.isReadyToTerminate())
             {
+                Invariants.require(exclusiveExecutor.stopped());
+                boolean syncPointsDurable = unsafeGetRedundantBefore().foldl((b, v, p2, p3) -> {
+                    return v && (b == null || b.maxBound(LOCALLY_APPLIED).compareTo(b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE)) <= 0);
+                }, true, null, null, ignore -> false);
+
+                if (!syncPointsDurable)
+                    logger.error("{} has flushed command and data stores, but sync points recorded in RedundantBefore are not durable: {}", this, DurablyAppliedTo.summarise(unsafeGetRedundantBefore()));
+
                 exclusiveExecutor.terminate();
                 terminated.signalAll();
             }
@@ -612,8 +623,14 @@ public class AccordCommandStore extends CommandStore
     }
 
     static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
+
     @Override
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
+    {
+        ensureDurable(ranges, ReportDurable.of(onCommandStoreDurable));
+    }
+
+    protected void ensureDurable(@Nullable Ranges ranges, ReportDurable onCommandStoreDurable)
     {
         if (node().isReplaying())
             return;
@@ -626,21 +643,31 @@ public class AccordCommandStore extends CommandStore
             {
                 public Ready() { super(1); }
                 @Override public void run() { decrement(); }
+
+                void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey> e)
+                {
+                    if (e.isModified())
+                    {
+                        increment();
+                        caches.global().saveWhenReadyExclusive(e, this);
+                    }
+                }
             }
 
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
-                for (Range range : ranges)
+                if (ranges == null)
                 {
-                    for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                    for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                        ready.maybeFlush(caches, e);
+                }
+                else
+                {
+                    for (Range range : ranges)
                     {
-                        AccordCacheEntry<RoutingKey, CommandsForKey> e = caches.commandsForKeys().getUnsafe(k);
-                        if (e.isModified())
-                        {
-                            ready.increment();
-                            caches.global().saveWhenReadyExclusive(e, ready);
-                        }
+                        for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                            ready.maybeFlush(caches, caches.commandsForKeys().getUnsafe(k));
                     }
                 }
             }

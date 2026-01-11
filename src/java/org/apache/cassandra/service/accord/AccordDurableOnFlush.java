@@ -39,38 +39,98 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDurableOnFlush.class);
 
-    private Int2ObjectHashMap<RedundantBefore> commandStores = new Int2ObjectHashMap<>();
+    public static class ReportDurable
+    {
+        public static final int COMMAND_STORE_FLUSH = 1;
+        public static final int DATA_STORE_FLUSH = 2;
+
+        public final RedundantBefore redundantBefore;
+        final int flags;
+
+        private ReportDurable(RedundantBefore redundantBefore, int flags)
+        {
+            this.redundantBefore = redundantBefore;
+            this.flags = flags;
+        }
+
+        public boolean isDataStoreFlush()
+        {
+            return isDataStoreFlush(flags);
+        }
+
+        public static boolean isDataStoreFlush(int flags)
+        {
+            return 0 != (flags & DATA_STORE_FLUSH);
+        }
+
+        public boolean isCommandStoreFlush()
+        {
+            return isCommandStoreFlush(flags);
+        }
+
+        public static boolean isCommandStoreFlush(int flags)
+        {
+            return 0 != (flags & COMMAND_STORE_FLUSH);
+        }
+
+        public static ReportDurable of(RedundantBefore redundantBefore)
+        {
+            return of(redundantBefore, 0);
+        }
+
+        public static ReportDurable of(RedundantBefore redundantBefore, int flags)
+        {
+            return new ReportDurable(redundantBefore, flags);
+        }
+
+        public static ReportDurable commandStoreFlush()
+        {
+            return new ReportDurable(RedundantBefore.EMPTY, COMMAND_STORE_FLUSH);
+        }
+//
+//        public static ReportDurable dataStoreFlush()
+//        {
+//            return new ReportDurable(RedundantBefore.EMPTY, DATA_STORE_FLUSH);
+//        }
+//
+        static ReportDurable merge(ReportDurable a, ReportDurable b)
+        {
+            return new ReportDurable(RedundantBefore.merge(a.redundantBefore, b.redundantBefore), a.flags | b.flags);
+        }
+    }
+
+    private Int2ObjectHashMap<ReportDurable> commandStores = new Int2ObjectHashMap<>();
 
     AccordDurableOnFlush()
     {
     }
 
-    synchronized boolean add(int commandStoreId, RedundantBefore reportOnFlush)
+    synchronized boolean add(int commandStoreId, ReportDurable reportOnFlush)
     {
         if (commandStores == null)
             return false;
-        commandStores.merge(commandStoreId, reportOnFlush, RedundantBefore::merge);
+        commandStores.merge(commandStoreId, reportOnFlush, ReportDurable::merge);
         return true;
     }
 
     @Override
     public void accept(Long memtableId, TableMetadata metadata)
     {
-        Int2ObjectHashMap<RedundantBefore> notify;
+        Int2ObjectHashMap<ReportDurable> notify;
         synchronized (this)
         {
             notify = commandStores;
             commandStores = null;
         }
         CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
-        for (Map.Entry<Integer, RedundantBefore> e : notify.entrySet())
+        for (Map.Entry<Integer, ReportDurable> e : notify.entrySet())
         {
-            RedundantBefore durable = e.getValue();
+            ReportDurable durable = e.getValue();
             notifyInOrder(memtableId, metadata, commandStores.forId(e.getKey()), durable);
         }
     }
 
-    public static void notifyOnDurable(ColumnFamilyStore cfs, CommandStore commandStore, RedundantBefore onDurable)
+    public static void notifyOnDurable(ColumnFamilyStore cfs, CommandStore commandStore, ReportDurable onDurable)
     {
         if (cfs == null)
         {
@@ -101,7 +161,7 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
         notifyNow(commandStore, onDurable);
     }
 
-    static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, RedundantBefore report)
+    static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, ReportDurable report)
     {
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
         if (cfs == null)
@@ -119,11 +179,11 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
         else cfs.waitForPriorFlushes().addListener(() -> notifyNow(commandStore, report));
     }
 
-    static void notifyNow(CommandStore commandStore, RedundantBefore report)
+    static void notifyNow(CommandStore commandStore, ReportDurable report)
     {
         logger.debug("{} reporting flush with {}", commandStore, report);
         commandStore.execute((AccordExecutor.Unstoppable) () -> "Report Durable", safeStore -> {
-            safeStore.upsertRedundantBefore(report);
+            safeStore.reportDurable(report.redundantBefore, report.flags);
         }, commandStore.agent());
     }
 }

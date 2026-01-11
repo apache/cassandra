@@ -30,6 +30,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.*;
@@ -79,6 +82,8 @@ import static org.apache.cassandra.service.accord.journal.TopologyRecord.newTopo
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
+
     @VisibleForTesting
     protected final Journal<JournalKey, Object> segments;
     protected final ColumnFamilyStore table;
@@ -96,14 +101,15 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public AccordJournal(Params params, File directory, ColumnFamilyStore table)
     {
         Version userVersion = Version.fromVersion(params.userVersion());
-        this.segments = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
-                                      new ValueSerializer.Unsupported<>(),
-                                      compactor(table, userVersion),
-                                      table.readOrdering);
         this.rangeSearch = RangeSearchManager.ifEnabled(table);
         this.table = table;
         this.readOrder = table.readOrdering;
         this.params = params;
+        // initialise journal last because we call a self method to initialise its compactor
+        this.segments = new Journal<>("AccordJournal", directory, params, JournalKey.SUPPORT,
+                                      new ValueSerializer.Unsupported<>(),
+                                      compactor(table, userVersion),
+                                      table.readOrdering);
     }
 
     @Override
@@ -114,7 +120,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public void start(Node node)
     {
-        // start table first to scrub directories before compactor starts
         if (rangeSearch != null)
             rangeSearch.start();
 
@@ -163,8 +168,6 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         if (onFlush != null)
             segments.onDurable(pointer, onFlush);
     }
-
-
 
     <T> void append(JournalKey key, T write, Runnable onFlush)
     {
@@ -251,7 +254,64 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public List<TopologyUpdate> loadTopologies()
     {
-        return Replay.topologies(this);
+        List<accord.api.Journal.TopologyUpdate> images = new ArrayList<>();
+        try (CloseableIterator<accord.api.Journal.TopologyUpdate> iter = new CloseableIterator<>()
+        {
+            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(TopologyRecord.journalKey(0L),
+                                                                                    TopologyRecord.journalKey(Timestamp.MAX_EPOCH),
+                                                                                    true, 0);
+            TopologyRecord.TopologyImage prev = null;
+
+            @Override
+            public boolean hasNext()
+            {
+                return iter.hasNext();
+            }
+
+            @Override
+            public accord.api.Journal.TopologyUpdate next()
+            {
+                Journal.KeyRefs<JournalKey> ref = iter.next();
+                MergeSerializers.TopologyMerger reader = readAll(ref.key());
+                if (reader.read().kind() == TopologyRecord.Kind.Repeat)
+                {
+                    if (prev == null)
+                    {
+                        logger.error("Encountered TopologyImage Repeat record for epoch {}, but no prior image record was found", ref.key().id.epoch());
+                        return null;
+                    }
+                    prev = reader.read().asImage(Invariants.nonNull(prev.getUpdate()));
+                }
+                else prev = reader.read();
+
+                return new accord.api.Journal.TopologyUpdate(prev.getUpdate().commandStores,
+                                                             prev.getUpdate().global);
+            }
+
+            @Override
+            public void close()
+            {
+                iter.close();
+            }
+        })
+        {
+            accord.api.Journal.TopologyUpdate prev = null;
+            while (iter.hasNext())
+            {
+                accord.api.Journal.TopologyUpdate next = iter.next();
+                if (next == null)
+                    continue;
+
+                Invariants.require(prev == null || next.global.epoch() > prev.global.epoch());
+                // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
+                if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
+                    images.clear();
+
+                images.add(next);
+                prev = next;
+            }
+        }
+        return images;
     }
 
     @Override
@@ -498,7 +558,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     {
         if (rangeSearch == null)
         {
-            Invariants.require(DatabaseDescriptor.getAccord().range_index_mode != journal_sai);
+            Invariants.require(DatabaseDescriptor.getAccord().range_index_mode != journal_sai, "range_index_mode is journal_sai, but the storage attached index was not found on initialisation");
             return new SegmentCompactor<>(userVersion, cfs);
         }
 

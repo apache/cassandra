@@ -229,9 +229,7 @@ public class Journal<K, V>
         Invariants.require(stateUpdater.compareAndSet(this, State.OPEN_READABLE, State.STARTING),
                               "Unexpected journal state before starting", state);
 
-        {
-            nextSegmentId.set(Math.max(currentTimeMillis(), Math.max(maxDescriptor(), maxTableDescriptor) + 1));
-        }
+        nextSegmentId.set(Math.max(currentTimeMillis(), Math.max(maxDescriptor(), maxTableDescriptor) + 1));
 
         closer = executorFactory().sequential(name + "-closer");
         releaser = executorFactory().sequential(name + "-releaser");
@@ -330,7 +328,7 @@ public class Journal<K, V>
         boolean stop;
         synchronized (allocateRunnable)
         {
-            // we synchronize on allocateRunnable to ensure it witnesses it before the next attempt to allocate a segment
+            // we synchronize on allocateRunnable to ensure it witnesses this change before the next attempt to allocate a segment
             stop = stateUpdater.compareAndSet(this, State.WRITEABLE, State.STOPPING);
         }
         Invariants.require(stop, "Unexpected journal state before stopping", state);
@@ -342,8 +340,13 @@ public class Journal<K, V>
         segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
 
         compactor.shutdownNow();
-        flusher.shutdownNow();
+
+        currentSegment.discardUnusedTail();
+        flusher.requestExtraFlush();
+
         Descriptor lastSegment = finaliseSegments(); // this flushes any pending writes
+
+        flusher.shutdown();
         logger.debug("Shutting down " + releaser + " and " + closer);
         releaser.shutdown();
         closer.shutdown();
@@ -752,13 +755,17 @@ public class Journal<K, V>
 
     private Descriptor finaliseSegments()
     {
-        List<Segment<K, V>> all = segments().allSorted(false);
-        for (Segment<K, V> segment : all)
+        while (true)
         {
-            if (segment.isActive())
-                ((ActiveSegment<K, V>) segment).discardUnusedTail();
+            ActiveSegment<K, V> oldestActive = oldestActiveSegment();
+            oldestActive.discardUnusedTail();
+            flusher.awaitFsync(oldestActive, oldestActive.writtenToAtLeast());
+            if (oldestActive == currentSegment)
+                break;
         }
 
+        currentSegment.persistComponents();
+        List<Segment<K, V>> all = segments().allSorted(false);
         if (all.isEmpty())
             return null;
         return all.get(0).descriptor;

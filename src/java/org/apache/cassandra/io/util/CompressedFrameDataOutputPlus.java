@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.List;
 import java.util.Objects;
-import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import com.google.common.primitives.Shorts;
@@ -34,6 +33,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.io.compress.ZstdCompressor.DEFAULT_COMPRESSION_LEVEL;
@@ -95,7 +95,7 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
 
     public static <T> void write(File file, T value, IVersionedSerializer<T> serializer, int version) throws IOException
     {
-        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             out.writeUnsignedVInt32(version);
             serializer.serialize(value, out, version);
@@ -104,7 +104,7 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
 
     public static <T> void writeOne(File file, T value, UnversionedSerializer<T> serializer) throws IOException
     {
-        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             out.writeUnsignedVInt32(0);
             serializer.serialize(value, out);
@@ -122,7 +122,7 @@ public class CompressedFrameDataOutputPlus extends BufferedDataOutputStreamPlus
 
     public static <T> void writeList(File file, List<T> value, UnversionedSerializer<T> serializer) throws IOException
     {
-        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataOutputPlus out = new CompressedFrameDataOutputPlus(DEFAULT_FRAME_SIZE, file.newReadWriteChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             out.writeUnsignedVInt32(0);
             CollectionSerializers.serializeList(value, out, serializer);

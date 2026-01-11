@@ -1415,6 +1415,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 }
             }
             cfs.replaceFlushed(memtable, sstables);
+            memtable.notifyFlushed();
             reclaim(memtable);
             cfs.compactionStrategyManager.compactionLogger.flush(sstables);
             logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",

@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.List;
-import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -31,6 +30,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.Crc;
 
 import static org.apache.cassandra.io.compress.ZstdCompressor.DEFAULT_COMPRESSION_LEVEL;
 import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.DEFAULT_FRAME_SIZE;
@@ -89,7 +89,7 @@ public class CompressedFrameDataInputPlus extends RebufferingInputStream
 
     public static <T> T read(File file, IVersionedSerializer<T> serializer) throws IOException
     {
-        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             int version = in.readUnsignedVInt32();
             return serializer.deserialize(in, version);
@@ -98,7 +98,7 @@ public class CompressedFrameDataInputPlus extends RebufferingInputStream
 
     public static <T> T readOne(File file, UnversionedSerializer<T> serializer) throws IOException
     {
-        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             int version = in.readUnsignedVInt32();
             if (version != 0)
@@ -109,7 +109,7 @@ public class CompressedFrameDataInputPlus extends RebufferingInputStream
 
     public static <T> List<T> readList(File file, UnversionedSerializer<T> serializer) throws IOException
     {
-        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), new CRC32C()))
+        try (CompressedFrameDataInputPlus in = new CompressedFrameDataInputPlus(DEFAULT_FRAME_SIZE, file.newReadChannel(), ZstdCompressor.getOrCreate(DEFAULT_COMPRESSION_LEVEL), Crc.crc32()))
         {
             int version = in.readUnsignedVInt32();
             if (version != 0)
