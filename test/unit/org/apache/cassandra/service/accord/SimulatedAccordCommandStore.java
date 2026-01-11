@@ -94,6 +94,9 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
@@ -496,9 +499,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         commandStore.shutdown();
     }
 
-    private static class DefaultJournal extends InMemoryJournal implements JournalRangeSearcher.Supplier
+    private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
-        private final JournalSegmentRangeSearcher<?> index = new JournalSegmentRangeSearcher<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private DefaultJournal(Node.Id id, RandomSource rs)
         {
             super(id, rs);
@@ -524,7 +527,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
 
         @Override
-        public JournalRangeSearcher rangeSearcher()
+        public RangeSearcher rangeSearcher()
         {
             return index;
         }

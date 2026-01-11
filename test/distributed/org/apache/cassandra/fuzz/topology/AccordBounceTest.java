@@ -57,7 +57,7 @@ public class AccordBounceTest extends FuzzTestBase
     {
         try (Cluster cluster = init(builder().withNodes(1).start()))
         {
-            withRandom(rng -> {
+            withRandom(33458889736874219L, rng -> {
                 Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<String>()
                                                                                  {
                                                                                      int i = 0;
@@ -117,8 +117,8 @@ public class AccordBounceTest extends FuzzTestBase
     {
         try (Cluster cluster = init(builder().withNodes(1).start()))
         {
-            withRandom(rng -> {
-                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<String>() {
+            withRandom(33458862746049787L, rng -> {
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, new Supplier<>() {
                                                                                      int i = 0;
                                                                                      @Override
                                                                                      public String get()

@@ -130,7 +130,7 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
         }
 
         @Override
-        AccordCommandStore commandStore()
+        protected AccordCommandStore commandStore()
         {
             return owner.commandStore;
         }

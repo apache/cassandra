@@ -51,6 +51,8 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
@@ -97,7 +99,7 @@ public class AccordJournalOrderTest
         Runnable check = () -> {
             for (JournalKey key : res.keySet())
             {
-                AccordJournal.CommandChanges diffs = accordJournal.load(key.commandStoreId, key.id);
+                CommandChanges diffs = accordJournal.load(key.commandStoreId, key.id);
                 Assert.assertEquals(String.format("%d != %d for key %s", diffs.count(), res.get(key).intValue(), key),
                                     diffs.count(), res.get(key).intValue());
             }

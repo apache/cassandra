@@ -68,6 +68,8 @@ import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -1298,7 +1300,7 @@ public class AccordCache implements CacheSize
 
             try
             {
-                return AccordJournal.asSerializedChange(null, value, Version.LATEST);
+                return CommandChangeWriter.asSerializedChange(null, value, Version.LATEST);
             }
             catch (IOException e)
             {
@@ -1323,7 +1325,7 @@ public class AccordCache implements CacheSize
         @Override
         public @Nullable Command inflate(AccordCommandStore commandStore, TxnId key, Object serialized)
         {
-            AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(key);
+            CommandChanges builder = new CommandChanges(key);
             ByteBuffer buffer = (ByteBuffer) serialized;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))

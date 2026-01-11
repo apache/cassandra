@@ -98,6 +98,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
+import org.apache.cassandra.service.accord.journal.JournalRangeIndex;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -113,7 +115,7 @@ import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readList
 import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readOne;
 import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.writeList;
 import static org.apache.cassandra.io.util.CompressedFrameDataOutputPlus.writeOne;
-import static org.apache.cassandra.service.accord.AccordJournal.saveDirectory;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.saveDirectory;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxConflicts;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.maxDecidedRX;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializers.progressLogState;

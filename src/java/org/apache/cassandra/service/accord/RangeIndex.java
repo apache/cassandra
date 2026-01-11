@@ -30,6 +30,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.api.Journal.Load.MINIMAL;
@@ -45,12 +46,12 @@ public interface RangeIndex
             super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
         }
 
-        abstract AccordCommandStore commandStore();
+        protected abstract AccordCommandStore commandStore();
 
-        abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
-        abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
-        abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
-        abstract void cleanupExclusive(AccordCommandStore.Caches caches);
+        protected abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
+        protected abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
+        protected abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
+        protected abstract void cleanupExclusive(AccordCommandStore.Caches caches);
 
         protected CommandSummaries.Summary loadFromDisk(TxnId txnId)
         {
@@ -103,7 +104,7 @@ public interface RangeIndex
                 return ifRelevant((Command) command);
 
             Invariants.require(command instanceof ByteBuffer);
-            AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
+            CommandChanges builder = new CommandChanges(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
             ByteBuffer buffer = (ByteBuffer) command;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))

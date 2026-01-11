@@ -43,7 +43,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.accord.AccordJournalTable;
+import org.apache.cassandra.service.accord.journal.RangeSearchManager;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -136,7 +136,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
 
-            new ByteBuddy().rebase(AccordJournalTable.class)
+            new ByteBuddy().rebase(RangeSearchManager.class)
                            .method(named("maybeWait"))
                            .intercept(MethodDelegation.to(BBHelper.class))
                            .make()

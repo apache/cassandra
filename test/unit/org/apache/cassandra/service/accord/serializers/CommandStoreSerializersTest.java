@@ -20,7 +20,11 @@ package org.apache.cassandra.service.accord.serializers;
 
 import org.junit.Test;
 
+import accord.local.CommandStores;
 import accord.local.RedundantBefore;
+import accord.primitives.Ranges;
+import accord.utils.AccordGens;
+import accord.utils.Gen;
 import accord.utils.Gens;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,6 +37,9 @@ import static accord.utils.Property.qt;
 
 public class CommandStoreSerializersTest
 {
+    private static final long[] EPOCHS = new long[0];
+    private static final Ranges[] RANGES = new Ranges[0];
+
     static
     {
         DatabaseDescriptor.clientInitialization();
@@ -62,4 +69,51 @@ public class CommandStoreSerializersTest
         });
     }
 
+    @Test
+    public void rangesForEpoch()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(rangesForEpochGen()).check(expected -> {
+            maybeUpdatePartitioner(expected);
+            Serializers.testSerde(output, CommandStoreSerializers.rangesForEpoch, expected);
+        });
+    }
+
+    public static Gen<CommandStores.RangesForEpoch> rangesForEpochGen()
+    {
+        return AccordGenerators.partitioner().flatMap(p -> rangesForEpochGen(AccordGenerators.rangesSplitOrArbitrary(p)));
+    }
+
+    public static Gen<CommandStores.RangesForEpoch> rangesForEpochGen(Gen<Ranges> rangesGen)
+    {
+        Gen.IntGen sizeGen = Gens.ints().between(0, 10);
+        Gen.LongGen epochGen = AccordGens.epochs();
+        return rs -> {
+            int size = sizeGen.nextInt(rs);
+            if (size == 0)
+                return new CommandStores.RangesForEpoch(EPOCHS, RANGES);
+            long epoch = epochGen.nextLong(rs);
+            long[] epochs = new long[size];
+            Ranges[] ranges = new Ranges[size];
+            for (int i = 0; i < size; i++)
+            {
+                epochs[i] = epoch++;
+                ranges[i] = rangesGen.next(rs);
+            }
+            return new CommandStores.RangesForEpoch(epochs, ranges);
+        };
+    }
+
+    private void maybeUpdatePartitioner(CommandStores.RangesForEpoch expected)
+    {
+        if (expected.size() > 0)
+        {
+            for (int i = 0; i < expected.size(); i++)
+            {
+                Ranges ranges = expected.rangesAtIndex(i);
+                if (AccordGenerators.maybeUpdatePartitioner(ranges))
+                    return;
+            }
+        }
+    }
 }

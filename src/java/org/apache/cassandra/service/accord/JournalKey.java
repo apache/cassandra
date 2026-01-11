@@ -31,16 +31,19 @@ import accord.utils.Invariants;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.KeySupport;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
+import org.apache.cassandra.service.accord.journal.MergeSerializer;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
-import static org.apache.cassandra.service.accord.AccordJournalSerializers.*;
+import static org.apache.cassandra.service.accord.journal.MergeSerializers.*;
 
 public final class JournalKey
 {
+    // TODO (expected): do we need a dedicated buffer here?
+    private static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
+
     public final Type type;
     public final TxnId id;
     public final int commandStoreId;
@@ -180,7 +183,7 @@ public final class JournalKey
         @Override
         public void updateChecksum(Checksum crc, JournalKey key, int userVersion)
         {
-            byte[] out = AccordJournal.keyCRCBytes.get();
+            byte[] out = keyCRCBytes.get();
             serialize(key, out);
             crc.update(out, 0, out.length);
         }
@@ -264,7 +267,7 @@ public final class JournalKey
         SAFE_TO_READ                 (3, new SafeToReadSerializer(), false),
         BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer(), false),
         RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer(), false),
-        TOPOLOGY_UPDATE              (6, new AccordTopologyUpdate.MergeSerializer(), true),
+        TOPOLOGY_UPDATE              (6, new TopologySerializer(), true),
         ;
 
         public final int id;

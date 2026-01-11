@@ -600,7 +600,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         enqueueLoadsExclusive();
     }
 
-    void submitExclusive(Runnable runnable)
+    public void submitExclusive(Runnable runnable)
     {
         submitPlainExclusive(new PlainRunnable(null, runnable));
     }

@@ -30,6 +30,7 @@ import accord.impl.cfr.IdEntry;
 import accord.impl.cfr.IdMultiEntry;
 import accord.impl.cfr.IdSingleEntry;
 import accord.impl.progresslog.TxnState;
+import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
@@ -71,6 +72,7 @@ public class CommandStoreSerializers
     public static final UnversionedSerializer<TxnListener> txnListener = new TxnListenerSerializer();
     public static final UnversionedSerializer<TxnState> progressLogState = new ProgressLogStateSerializer();
     public static final UnversionedSerializer<IdEntry> rangeIndexIdEntry = new RangeIndexIdEntrySerializer();
+    public static final UnversionedSerializer<CommandStores.RangesForEpoch> rangesForEpoch = new RangesForEpochSerializer();
 
     private CommandStoreSerializers() {}
 
@@ -590,6 +592,46 @@ public class CommandStoreSerializers
             return 1 + CommandSerializers.txnId.serializedSize(t)
                    + (t.getClass() == IdSingleEntry.class ? KeySerializers.range.serializedSize(((IdSingleEntry)t).range)
                                                           : KeySerializers.ranges.serializedSize(((IdMultiEntry)t).ranges));
+        }
+    }
+
+    static class RangesForEpochSerializer implements UnversionedSerializer<CommandStores.RangesForEpoch>
+    {
+        @Override
+        public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out) throws IOException
+        {
+            out.writeUnsignedVInt32(from.size());
+            for (int i = 0; i < from.size(); i++)
+            {
+                out.writeLong(from.epochAtIndex(i));
+                KeySerializers.ranges.serialize(from.rangesAtIndex(i), out);
+            }
+        }
+
+        @Override
+        public CommandStores.RangesForEpoch deserialize(DataInputPlus in) throws IOException
+        {
+            int size = in.readUnsignedVInt32();
+            Ranges[] ranges = new Ranges[size];
+            long[] epochs = new long[size];
+            for (int i = 0; i < ranges.length; i++)
+            {
+                epochs[i] = in.readLong();
+                ranges[i] = KeySerializers.ranges.deserialize(in);
+            }
+            return new CommandStores.RangesForEpoch(epochs, ranges);
+        }
+
+        @Override
+        public long serializedSize(CommandStores.RangesForEpoch from)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(from.size());
+            for (int i = 0; i < from.size(); i++)
+            {
+                size += TypeSizes.LONG_SIZE;
+                size += KeySerializers.ranges.serializedSize(from.rangesAtIndex(i));
+            }
+            return size;
         }
     }
 

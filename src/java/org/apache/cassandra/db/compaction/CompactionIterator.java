@@ -89,10 +89,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.AccordJournalSerializers.Builder;
-import org.apache.cassandra.service.accord.AccordJournalSerializers.CommandChangeSerializer;
-import org.apache.cassandra.service.accord.AccordJournalSerializers.MergeSerializer;
+import org.apache.cassandra.service.accord.journal.MergeSerializers;
+import org.apache.cassandra.service.accord.journal.Merger;
+import org.apache.cassandra.service.accord.journal.MergeSerializers.CommandChangeSerializer;
+import org.apache.cassandra.service.accord.journal.MergeSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
@@ -101,8 +101,10 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
+import org.apache.cassandra.service.accord.journal.TopologyRecord;
+import org.apache.cassandra.service.accord.journal.TopologyRecord.TopologyImage;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -123,9 +125,9 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Image;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Repeat;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.MergeSerializer.INSTANCE;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Image;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Repeat;
+import static org.apache.cassandra.service.accord.journal.MergeSerializers.TopologySerializer.INSTANCE;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -941,7 +943,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static abstract class AccordRowCompactor<V, T extends Builder>
+    static abstract class AccordRowCompactor<V, T extends Merger>
     {
         final MergeSerializer<V, ? super T, T> serializer;
 
@@ -955,7 +957,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         abstract UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException;
     }
 
-    static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate, AccordTopologyUpdate.TopologyAccumulator>
+    static class TopologyCompactor extends AccordMergingCompactor<TopologyRecord, MergeSerializers.TopologyMerger>
     {
         TopologyImage lastImage;
         boolean hasWritten;
@@ -1006,7 +1008,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordMergingCompactor<V, T extends Builder> extends AccordRowCompactor<V, T>
+    static class AccordMergingCompactor<V, T extends Merger> extends AccordRowCompactor<V, T>
     {
         final T builder;
         final Version userVersion;
@@ -1017,7 +1019,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         AccordMergingCompactor(MergeSerializer<V, ? super T, T> serializer, Version userVersion)
         {
             super(serializer);
-            this.builder = serializer.builderFor();
+            this.builder = serializer.mergerFor();
             this.userVersion = userVersion;
         }
 
@@ -1074,7 +1076,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     static class AccordCommandRowEntry
     {
-        final AccordJournal.CommandChanges builder = new AccordJournal.CommandChanges();
+        final CommandChanges builder = new CommandChanges();
         Row row;
         boolean modified;
 
@@ -1096,7 +1098,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordCommandRowCompactor extends AccordRowCompactor<AccordJournal.CommandChangeWriter, AccordJournal.CommandChanges>
+    static class AccordCommandRowCompactor extends AccordRowCompactor<CommandChangeWriter, CommandChanges>
     {
         static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
         final long timestamp = ClientState.getTimestamp();
@@ -1105,7 +1107,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnData userVersionCell;
         final long nowInSec;
 
-        final AccordJournal.CommandChanges mainBuilder = new AccordJournal.CommandChanges();
+        final CommandChanges mainBuilder = new CommandChanges();
         final List<AccordCommandRowEntry> entries = new ArrayList<>();
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;

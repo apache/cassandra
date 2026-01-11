@@ -61,7 +61,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmi
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.constant;
-import static org.apache.cassandra.service.accord.AccordJournal.saveDirectory;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.saveDirectory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordCommandStores extends CommandStores implements CacheSize, Shutdownable

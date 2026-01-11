@@ -50,11 +50,12 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.api.Journal.FieldUpdates;
 import static accord.local.CommandStores.RangesForEpoch;
-import static org.apache.cassandra.service.accord.AccordJournalSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.journal.MergeSerializers.DurableBeforeMerger;
 
 
 public class AccordJournalCompactionTest
@@ -87,7 +88,7 @@ public class AccordJournalCompactionTest
         cfs.disableAutoCompaction();
 
         RedundantBefore redundantBeforeAccumulator = RedundantBefore.EMPTY;
-        DurableBeforeAccumulator durableBeforeAccumulator = new DurableBeforeAccumulator();
+        DurableBeforeMerger durableBeforeMerger = new DurableBeforeMerger();
         NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
         RangesForEpoch rangesForEpochAccumulator = null;
@@ -133,7 +134,7 @@ public class AccordJournalCompactionTest
                 journal.saveStoreState(1, updates, null);
 
                 redundantBeforeAccumulator = updates.newRedundantBefore;
-                durableBeforeAccumulator.update(addDurableBefore);
+                durableBeforeMerger.update(addDurableBefore);
                 if (updates.newBootstrapBeganAt != null)
                     bootstrapBeganAtAccumulator = updates.newBootstrapBeganAt;
                 if (updates.newSafeToRead != null)
@@ -148,7 +149,7 @@ public class AccordJournalCompactionTest
             }
 
 //            Assert.assertEquals(redundantBeforeAccumulator.get(), journal.loadRedundantBefore(1));
-            Assert.assertEquals(durableBeforeAccumulator.get(), journal.durableBeforePersister().load());
+            Assert.assertEquals(durableBeforeMerger.get(), journal.durableBeforePersister().load());
             Assert.assertEquals(bootstrapBeganAtAccumulator, journal.loadBootstrapBeganAt(1));
             Assert.assertEquals(safeToReadAtAccumulator, journal.loadSafeToRead(1));
             Assert.assertEquals(rangesForEpochAccumulator, journal.loadRangesForEpoch(1));

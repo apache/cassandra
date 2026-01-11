@@ -108,7 +108,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordKeyspace.AccordColumnFamilyStores;
-import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
@@ -119,8 +118,19 @@ import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
+import org.apache.cassandra.service.accord.journal.ReplayMarkers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordFastPathCoordinator;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
+import org.apache.cassandra.service.accord.topology.AccordTopologyService;
+import org.apache.cassandra.service.accord.topology.EndpointMapping;
+import org.apache.cassandra.service.accord.topology.FetchTopologies;
+import org.apache.cassandra.service.accord.topology.WatermarkCollector;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -167,7 +177,7 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
-import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
+import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -464,8 +474,8 @@ public class AccordService implements IAccordService, Shutdownable
             return;
 
         {
-            long startMarker = AccordJournal.readStartMarker();
-            long stopMarker = AccordJournal.readStopMarker();
+            long startMarker = ReplayMarkers.readStartMarker();
+            long stopMarker = ReplayMarkers.readStopMarker();
             if (stopMarker < startMarker)
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
@@ -496,7 +506,7 @@ public class AccordService implements IAccordService, Shutdownable
             // this avoids a registered (not joined) node learning of topologies, then later restarting with some intervening
             // epochs having been garbage collected by the other nodes in the cluster
 
-            List<TopologyUpdate> images = journal.replayTopologies();
+            List<TopologyUpdate> images = journal.loadTopologies();
             TopologyUpdate last = images.isEmpty() ? null : images.get(images.size() - 1);
             boolean initialiseCommandStores = last != null && !last.commandStores.isEmpty();
             if (initialiseCommandStores)
@@ -1222,11 +1232,7 @@ public class AccordService implements IAccordService, Shutdownable
     public static void receive(MessageDelivery sink, TopologyManager topologyManager, Message<Notification> message)
     {
         AccordSyncPropagator.Notification notification = message.payload;
-        notification.readyToCoordinate.forEach(id -> topologyManager.onReadyToCoordinate(id, notification.epoch));
-        if (!notification.closed.isEmpty())
-            topologyManager.onEpochClosed(notification.closed, notification.epoch);
-        if (!notification.retired.isEmpty())
-            topologyManager.onEpochRetired(notification.retired, notification.epoch);
+        notification.process(topologyManager);
         sink.respond(Ok, message);
     }
 
