@@ -802,11 +802,7 @@ public enum Operator
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            // avoid sorting when working with token restrictions, otherwise we can't know the difference between these queries:
-            // select * from x.y where token(id) between 0 and MIN_TOKEN
-            // select * from x.y where token(id) between MIN_TOKEN and 0
-            if (!args.get(0).token)
-                args.sort(ClusteringElements.CQL_COMPARATOR);
+            // We do not sort the arguments for BETWEEN to allow inverted bounds to return empty results.
             rangeSet.removeAll(ClusteringElements.lessThan(args.get(0), partitioner));
             rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1), partitioner));
         }
