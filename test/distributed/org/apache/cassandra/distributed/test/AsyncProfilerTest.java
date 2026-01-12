@@ -22,6 +22,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,27 +49,11 @@ public class AsyncProfilerTest extends TestBaseImpl
 
     private Cluster cluster;
 
-    /**
-     * Test-friendly kernel params check that returns valid values without reading from /proc
-     */
-    public static class TestAsyncProfilerKernelParamsCheck extends StartupChecks.AsyncProfilerKernelParamsCheck
-    {
-        @Override
-        protected int readPerfEventParanoid()
-        {
-            return 1; // Valid value (must be <= 1)
-        }
-
-        @Override
-        protected int readKptrRestrict()
-        {
-            return 0; // Valid value (must be == 0)
-        }
-    }
-
     @Test
     public void testNodetoolCommands() throws Throwable
     {
+        Assume.assumeTrue(new StartupChecks.AsyncProfilerKernelParamsCheck().hasCorrectKernelParams());
+
         File newTmpDir = new File(tmpDir.newFolder());
 
         try (WithProperties withProperties = new WithProperties()
@@ -127,7 +112,7 @@ public class AsyncProfilerTest extends TestBaseImpl
             // Initialize AsyncProfilerService instance in the cluster node context with the test directory
             String tmpDirPath = newTmpDir.absolutePath();
             cluster.get(1).runOnInstance(() -> {
-                AsyncProfilerService.instance(tmpDirPath, true, new TestAsyncProfilerKernelParamsCheck());
+                AsyncProfilerService.instance(tmpDirPath, true);
             });
 
             // fetch

@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -62,13 +63,13 @@ public class AsyncProfilerServiceTest
     private static class TestAsyncProfilerKernelParamsCheck extends StartupChecks.AsyncProfilerKernelParamsCheck
     {
         @Override
-        protected int readPerfEventParanoid()
+        public int readPerfEventParanoid()
         {
             return 1; // Valid value (must be <= 1)
         }
 
         @Override
-        protected int readKptrRestrict()
+        public int readKptrRestrict()
         {
             return 0; // Valid value (must be == 0)
         }
@@ -105,15 +106,24 @@ public class AsyncProfilerServiceTest
         profiler = null;
     }
 
-    private AsyncProfilerService getProfiler()
+    private AsyncProfilerService getProfiler(boolean skipCheck)
     {
         AsyncProfilerService.reset();
-        return AsyncProfilerService.instance(testOutputPath, false, new TestAsyncProfilerKernelParamsCheck());
+        if (skipCheck)
+        {
+            return AsyncProfilerService.instance(testOutputPath, false, new TestAsyncProfilerKernelParamsCheck());
+        }
+        else
+        {
+            return AsyncProfilerService.instance(testOutputPath, false);
+        }
     }
 
     @Test
     public void testStartAndStopProfiling() throws Throwable
     {
+        Assume.assumeTrue(new StartupChecks.AsyncProfilerKernelParamsCheck().hasCorrectKernelParams());
+
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
         {
             Map<String, String> startParameters = Map.of(ASYNC_PROFILER_START_EVENTS_PARAM, cpu.name(),
@@ -122,7 +132,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
 
             Map<String, String> stopParameters = Map.of(ASYNC_PROFILER_STOP_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
-            AsyncProfilerService profiler = getProfiler();
+            AsyncProfilerService profiler = getProfiler(false);
             profiler.start(startParameters);
             Thread.sleep(5000);
             profiler.stop(stopParameters);
@@ -148,7 +158,7 @@ public class AsyncProfilerServiceTest
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
         {
             Map<String, String> startParameters = Map.of();
-            assertThatThrownBy(() -> getProfiler().start(startParameters))
+            assertThatThrownBy(() -> getProfiler(true).start(startParameters))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Wrong parameters passed to start async profiler method. Passed parameters " +
                                   "should be:");
@@ -165,7 +175,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_DURATION_PARAM, "60s",
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
 
-            assertThatThrownBy(() -> getProfiler().start(startParameters))
+            assertThatThrownBy(() -> getProfiler(true).start(startParameters))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Event must be one or a combination of [cpu, alloc, lock, wall, nativemem, cache_misses]");
         }
@@ -180,7 +190,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM, flamegraph.name(),
                                                          ASYNC_PROFILER_START_DURATION_PARAM, "13h",
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
-            assertThatThrownBy(() -> getProfiler().start(startParameters))
+            assertThatThrownBy(() -> getProfiler(true).start(startParameters))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Max profiling duration is 43200 seconds. If you need longer profiling, use execute command instead");
         }
@@ -195,7 +205,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM, "not_a_real_format",
                                                          ASYNC_PROFILER_START_DURATION_PARAM, "60s",
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
-            assertThatThrownBy(() -> getProfiler().start(startParameters))
+            assertThatThrownBy(() -> getProfiler(true).start(startParameters))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Format must be one of [flat, traces, collapsed, flamegraph, tree, jfr]");
         }
@@ -210,7 +220,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_OUTPUT_FORMAT_PARAM, flamegraph.name(),
                                                          ASYNC_PROFILER_START_DURATION_PARAM, "60s",
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, "| grep test");
-            assertThatThrownBy(() -> getProfiler().start(startParameters))
+            assertThatThrownBy(() -> getProfiler(true).start(startParameters))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Output file name must match pattern ^[a-zA-Z0-9-]*\\.?[a-zA-Z0-9-]*$");
         }
@@ -226,7 +236,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_DURATION_PARAM, "10abc",
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, "abc");
             assertThatThrownBy(() -> {
-                getProfiler().start(startParameters);
+                getProfiler(true).start(startParameters);
             })
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Invalid duration: 10abc Accepted units:[SECONDS, MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
@@ -236,6 +246,8 @@ public class AsyncProfilerServiceTest
     @Test
     public void testSecondStartNotExecuted()
     {
+        Assume.assumeTrue(new StartupChecks.AsyncProfilerKernelParamsCheck().hasCorrectKernelParams());
+
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
         {
             Map<String, String> startParameters = Map.of(ASYNC_PROFILER_START_EVENTS_PARAM, cpu.name(),
@@ -244,7 +256,7 @@ public class AsyncProfilerServiceTest
                                                          ASYNC_PROFILER_START_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
             Map<String, String> stopParameters = Map.of(ASYNC_PROFILER_STOP_OUTPUT_FILE_NAME_PARAM, testOutputFile.name());
 
-            AsyncProfilerService profiler = getProfiler();
+            AsyncProfilerService profiler = getProfiler(false);
             assertTrue(profiler.start(startParameters));
             assertFalse(profiler.start(startParameters));
             profiler.stop(stopParameters);
@@ -257,7 +269,7 @@ public class AsyncProfilerServiceTest
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, true).set(ASYNC_PROFILER_ENABLED, false))
         {
             assertThatThrownBy(() -> {
-                AsyncProfilerService profiler = getProfiler();
+                AsyncProfilerService profiler = getProfiler(true);
                 profiler.status();
             }).hasMessageContaining("Async Profiler is not enabled. Enable it by setting cassandra.async_profiler.enabled property to true.");
         }
@@ -268,7 +280,7 @@ public class AsyncProfilerServiceTest
     {
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, true))
         {
-            AsyncProfilerService profiler = getProfiler();
+            AsyncProfilerService profiler = getProfiler(false);
 
             profiler.execute("start,event=" + cpu.name() + ",file=" + testOutputFile.absolutePath());
             Thread.sleep(5000);
@@ -284,18 +296,18 @@ public class AsyncProfilerServiceTest
     {
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, true))
         {
-            getProfiler().execute("foo");
+            getProfiler(true).execute("foo");
         }
     }
 
     @Test
     public void testFetchIllegalFile()
     {
-        assertThatThrownBy(() -> getProfiler().fetch("../abc"))
+        assertThatThrownBy(() -> getProfiler(true).fetch("../abc"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Illegal file to fetch: ../abc");
 
-        assertThatThrownBy(() -> getProfiler().fetch("/etc/abc"))
+        assertThatThrownBy(() -> getProfiler(true).fetch("/etc/abc"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Illegal file to fetch: /etc/abc");
     }
@@ -305,7 +317,7 @@ public class AsyncProfilerServiceTest
     {
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, false))
         {
-            assertThatThrownBy(() -> getProfiler().execute("foo"))
+            assertThatThrownBy(() -> getProfiler(true).execute("foo"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("The arbitrary command execution is not permitted with org.apache.cassandra.profiler:type=AsyncProfiler " +
                                   "MBean. If unsafe command execution is required, start Cassandra with " + ASYNC_PROFILER_UNSAFE_MODE.getKey() + ' ' +

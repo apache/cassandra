@@ -766,7 +766,8 @@ public class StartupChecks
                                               "Try 'sysctl kernel.perf_event_paranoid=1' and 'sysctl kernel.kptr_restrict=0' or its " +
                                               "variation on your system to resolve the issue.";
 
-        protected int readPerfEventParanoid()
+        @VisibleForTesting
+        public int readPerfEventParanoid()
         {
             List<String> lines = FileUtils.readLines(new File("/proc/sys/kernel/perf_event_paranoid"));
             if (!lines.isEmpty())
@@ -774,12 +775,21 @@ public class StartupChecks
             return Integer.MIN_VALUE;
         }
 
-        protected int readKptrRestrict()
+        @VisibleForTesting
+        public int readKptrRestrict()
         {
             List<String> lines = FileUtils.readLines(new File("/proc/sys/kernel/kptr_restrict"));
             if (!lines.isEmpty())
                 return Integer.parseInt(lines.get(0));
             return Integer.MIN_VALUE;
+        }
+
+        public boolean hasCorrectKernelParams()
+        {
+            int perfEventParanoid = readPerfEventParanoid();
+            int kptrRestrict = readKptrRestrict();
+
+            return perfEventParanoid <= 1 && kptrRestrict == 0;
         }
 
         public void execute(StartupChecksOptions startupChecksOptions, boolean shouldThrow)
