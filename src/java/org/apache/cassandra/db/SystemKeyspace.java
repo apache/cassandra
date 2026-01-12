@@ -468,6 +468,7 @@ public final class SystemKeyspace
           + "ranges set<blob>, "
           + "cfids set<uuid>, "
           + "PRIMARY KEY (parent_id))")
+        .compaction(CompactionParams.lcs(emptyMap()))
         .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
         .build();
 

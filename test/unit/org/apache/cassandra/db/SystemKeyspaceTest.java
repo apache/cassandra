@@ -201,7 +201,7 @@ public class SystemKeyspaceTest
         return rs.isEmpty() || !rs.one().has("release_version") ? null : rs.one().getString("release_version");
     }
 
-    /**
+        /**
      * Test that system.repairs table has a 30-day TTL configured.
      * This ensures repair sessions are automatically cleaned up after 30 days.
      */
@@ -218,10 +218,33 @@ public class SystemKeyspaceTest
         int expectedTTL = (int) TimeUnit.DAYS.toSeconds(30);
         int actualTTL = repairsTable.params.defaultTimeToLive;
 
-        assertEquals("system.repairs table should have a 30-day default TTL", 
-                     expectedTTL, 
+        assertEquals("system.repairs table should have a 30-day default TTL",
+                     expectedTTL,
                      actualTTL);
     }
+
+    /**
+     * Test that system.repairs table uses LeveledCompactionStrategy (LCS).
+     * LCS provides better performance for tables with continuous writes and deletes.
+     */
+    @Test
+    public void testRepairsTableUsesLCS()
+    {
+        // Get the repairs table metadata from SystemKeyspace
+        TableMetadata repairsTable = SystemKeyspace.metadata()
+                                                    .tables
+                                                    .get(SystemKeyspace.REPAIRS)
+                                                    .orElseThrow(() -> new AssertionError("system.repairs table not found"));
+
+        // Verify compaction strategy is LCS
+        String expectedStrategy = "org.apache.cassandra.db.compaction.LeveledCompactionStrategy";
+        String actualStrategy = repairsTable.params.compaction.klass().getName();
+
+        assertEquals("system.repairs table should use LeveledCompactionStrategy",
+                     expectedStrategy,
+                     actualStrategy);
+    }
+
     /**
      * Test that other system tables (without TTL) have TTL=0.
      * This verifies we're not accidentally adding TTL to tables that shouldn't have it.
@@ -247,5 +270,35 @@ public class SystemKeyspaceTest
                         0,
                         table.params.defaultTimeToLive);
         }
+    }
+
+    /**
+     * Test that the repairs table configuration is correct.
+     * This validates the table schema including compaction strategy.
+     */
+    @Test
+    public void testRepairsTableConfiguration()
+    {
+        TableMetadata repairsTable = SystemKeyspace.metadata()
+                                                    .tables
+                                                    .get(SystemKeyspace.REPAIRS)
+                                                    .orElseThrow(() -> new AssertionError("system.repairs table not found"));
+
+        // Verify table name
+        assertEquals("repairs", repairsTable.name);
+
+        // Verify keyspace
+        assertEquals(SchemaConstants.SYSTEM_KEYSPACE_NAME, repairsTable.keyspace);
+
+        // Verify compaction strategy
+        assertEquals("Should use LCS",
+                    "org.apache.cassandra.db.compaction.LeveledCompactionStrategy",
+                    repairsTable.params.compaction.klass().getName());
+
+        // Verify primary key
+        assertEquals("Should have parent_id as partition key",
+                    1,
+                    repairsTable.partitionKeyColumns().size());
+        assertEquals("parent_id", repairsTable.partitionKeyColumns().get(0).name.toString());
     }
 }

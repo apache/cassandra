@@ -375,7 +375,7 @@ public class EnforceLCSTest extends CQLTester
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS,
                                        defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.REPAIRS,
-                                       defaultCS);
+                                       LeveledCompactionStrategy.class);
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.TOP_PARTITIONS,
                                        defaultCS);
         schemaToCompactionStrategy.put(SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PAXOS_REPAIR_HISTORY,
