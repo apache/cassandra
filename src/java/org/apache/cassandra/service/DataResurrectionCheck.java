@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -146,18 +146,30 @@ public class DataResurrectionCheck implements StartupCheck
     }
 
     @Override
-    public StartupChecks.StartupCheckType getStartupCheckType()
+    public boolean isConfigurable()
     {
-        return StartupChecks.StartupCheckType.check_data_resurrection;
+        return true;
     }
 
     @Override
-    public void execute(StartupChecksOptions options) throws StartupException
+    public String name()
     {
-        if (options.isDisabled(getStartupCheckType()))
+        return "check_data_resurrection";
+    }
+
+    @Override
+    public boolean isDisabledByDefault()
+    {
+        return true;
+    }
+
+    @Override
+    public void execute(StartupChecksConfiguration configuration) throws StartupException
+    {
+        if (configuration.isDisabled(name()))
             return;
 
-        Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
+        Map<String, Object> config = configuration.getConfig(name());
         File heartbeatFile = getHeartbeatFile(config);
 
         if (!heartbeatFile.exists())
@@ -224,30 +236,30 @@ public class DataResurrectionCheck implements StartupCheck
     }
 
     @Override
-    public void postAction(StartupChecksOptions options)
+    public void postAction(StartupChecksConfiguration configuration)
     {
         // Schedule heartbeating after all checks have passed, not as part of the check,
         // as it might happen that other checks after it might fail, but we would be heartbeating already.
-        if (options.isEnabled(StartupChecks.StartupCheckType.check_data_resurrection))
-        {
-            Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
-            File heartbeatFile = DataResurrectionCheck.getHeartbeatFile(config);
+        if (!configuration.isEnabled(name()))
+            return;
 
-            ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() ->
+        Map<String, Object> configMap = configuration.getConfig(name());
+        File heartbeatFile = DataResurrectionCheck.getHeartbeatFile(configMap);
+
+        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() ->
+        {
+            Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
+            try
             {
-                Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
-                try
-                {
-                    heartbeatFile.parent().createDirectoriesIfNotExists();
-                    DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
-                    heartbeat.serializeToJsonFile(heartbeatFile);
-                }
-                catch (IOException ex)
-                {
-                    DataResurrectionCheck.LOGGER.error("Unable to serialize heartbeat to " + heartbeatFile, ex);
-                }
-            }, 0, CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getInt(), MILLISECONDS);
-        }
+                heartbeatFile.parent().createDirectoriesIfNotExists();
+                DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
+                heartbeat.serializeToJsonFile(heartbeatFile);
+            }
+            catch (IOException ex)
+            {
+                DataResurrectionCheck.LOGGER.error("Unable to serialize heartbeat to " + heartbeatFile, ex);
+            }
+        }, 0, CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getInt(), MILLISECONDS);
     }
 
     @VisibleForTesting

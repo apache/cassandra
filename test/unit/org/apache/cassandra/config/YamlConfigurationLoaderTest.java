@@ -46,7 +46,6 @@ import org.apache.cassandra.distributed.shared.WithEnvironment;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.service.StartupChecks;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -179,8 +178,8 @@ public class YamlConfigurationLoaderTest
             assertThat(config.paxos_variant).isEqualTo(Config.PaxosVariant.v2);
             assertThat(config.client_error_reporting_exclusions).isEqualTo(new SubnetGroups(Arrays.asList("127.0.0.2", "127.0.0.1")));
             assertThat(config.startup_checks).hasSize(1);
-            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("enabled")).isEqualTo(Boolean.TRUE.toString());
-            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
+            assertThat(config.startup_checks.get("check_data_resurrection").get("enabled")).isEqualTo(Boolean.TRUE.toString());
+            assertThat(config.startup_checks.get("check_data_resurrection").get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
         }
 
         try (WithProperties ignore = new WithProperties()
@@ -278,8 +277,8 @@ public class YamlConfigurationLoaderTest
             assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
             assertThat(config.client_error_reporting_exclusions).isEqualTo(new SubnetGroups(Arrays.asList("127.0.0.2", "127.0.0.1")));
             assertThat(config.startup_checks).hasSize(1);
-            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("enabled")).isEqualTo("true");
-            assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
+            assertThat(config.startup_checks.get("check_data_resurrection").get("enabled")).isEqualTo("true");
+            assertThat(config.startup_checks.get("check_data_resurrection").get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
         }
 
         try (WithEnvironment ignore  = new WithEnvironment(CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getKey(), Boolean.TRUE.toString(),

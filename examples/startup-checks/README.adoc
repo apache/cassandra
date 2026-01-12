@@ -1,0 +1,45 @@
+== Cassandra Startup Check Example
+
+An implementation of `StartupCheck` interface will create custom startup check. For the purposes of this example,
+there will be one startup check with the name `my_check`.
+
+If you want to code your own startup check without patching Cassandra yourself, you need to do the following:
+
+1. Code against interface `org.apache.cassandra.service.StartupCheck`.
+2. Put the class implementing this interface to `META-INF/services/org.apache.cassandra.service.StartupCheck`
+3. Build a JAR both with the implementation and `META-INF` resources, as show in this example, and put this JAR onto
+Cassandra's classpath.
+4. When Cassandra starts, it will auto-detect new check by loading `MyCustomStartupCheck` in your JAR.
+5. You can code more check classes and add them all into one jar, just add another entry into file in step 2.
+
+You can also configure the checks loaded like this in cassandra.yaml under `startup_checks` section,
+like following:
+
+----
+startup_checks:
+  my_check:
+    key: value
+----
+
+You can get these options from `StartupChecksConfiguration`, by check's `name()`.
+
+=== Installation
+
+----
+$ cd <cassandra_src_dir>/examples/startup-checks
+$ ant install
+----
+
+It will build the startup check and will copy it to `lib` as well as to `build/lib/jars`.
+
+You remove it from everywhere by
+
+----
+$ cd <cassandra_src_dir>/examples/startup-checks
+$ ant clean
+----
+
+=== Usage
+
+Follow the logs, you will see the output of the check. You can
+play with options in cassandra.yaml to see what is propagated to that check.
