@@ -1013,8 +1013,8 @@ public class DatabaseDescriptor
         {
             // if accordCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
             accordCacheSizeInMiB = (conf.accord.cache_size == null)
-                                   ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
-                                   : conf.accord.cache_size.toMebibytes();
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
+                                  : conf.accord.cache_size.toMebibytes();
 
             if (accordCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
@@ -1030,8 +1030,8 @@ public class DatabaseDescriptor
             // if accordWorkingSetSizeInMiB option was set to "auto" then size of the working set should be "max(5% of Heap (in MB), 1MB)
             // if negative, there is no limit
             accordWorkingSetSizeInMiB = (conf.accord.working_set_size == null)
-                                        ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
-                                        : conf.accord.working_set_size.toMebibytes();
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
+                                  : conf.accord.working_set_size.toMebibytes();
         }
         catch (NumberFormatException e)
         {
@@ -1122,10 +1122,10 @@ public class DatabaseDescriptor
         }
         else if (JMXServerOptions.isEnabledBySystemProperties())
         {
-            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
-                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
-                                             "to call configure_jmx function but you have to keep jmx_server_options " +
-                                             "in cassandra.yaml commented out.");
+                throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                                 "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                                 "to call configure_jmx function but you have to keep jmx_server_options " +
+                                                 "in cassandra.yaml commented out.");
         }
 
         conf.jmx_server_options.jmx_encryption_options.applyConfig();
@@ -3664,10 +3664,10 @@ public class DatabaseDescriptor
     private static long calculateDefaultNativeTransportMaxMessageSizeInBytes()
     {
         return Math.min(conf.max_mutation_size.toBytes(),
-                        Math.min(
-                        conf.native_transport_max_request_data_in_flight.toBytes(),
-                        conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
-                        )
+                   Math.min(
+                   conf.native_transport_max_request_data_in_flight.toBytes(),
+                   conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
+                   )
         );
     }
 
