@@ -147,4 +147,20 @@ public class StartupCheckOptionsTest
             assertTrue(excludedTables.contains(Pair.create("ks3", "tb3")));
         }
     }
+
+    @Test
+    public void testNonConfigurableCheckIsNotCustomizable() {
+        Map<StartupCheckType, Map<String, Object>> config = new EnumMap<>(StartupCheckType.class)
+        {
+            {
+                put(non_configurable_check, new HashMap<>()
+                {{
+                    put(ENABLED_PROPERTY, false);
+                    put("key", "value");
+                }});
+            }
+        };
+        StartupChecksOptions options = new StartupChecksOptions(config);
+        assertEquals(options.getConfig(non_configurable_check), Map.of(ENABLED_PROPERTY, Boolean.TRUE));
+    }
 }

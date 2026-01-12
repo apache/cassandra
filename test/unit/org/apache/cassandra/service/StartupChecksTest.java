@@ -27,6 +27,7 @@ import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -40,6 +41,8 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -64,13 +67,19 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
+import static org.apache.cassandra.service.StartupChecks.StartupCheckType.custom_check;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StartupChecksTest
@@ -252,6 +261,33 @@ public class StartupChecksTest
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
         testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
         testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testExternalCheckIsLoaded() throws StartupException
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public void execute(StartupChecksOptions startupChecksOptions)
+            {
+
+            }
+
+            @Override
+            public StartupCheckType getStartupCheckType() {
+                return custom_check;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+        doReturn(List.of(externalCheck).iterator()).when(loader).iterator();
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+            new StartupChecks().withExternalTests().verify(options);
+            verify(externalCheck, times(1)).execute(options);
+        }
     }
 
     private <R> void withPathOverriddingFileSystem(Map<String, String> pathOverrides, Callable<? extends R> callable) throws Exception

@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -110,7 +111,8 @@ public class StartupChecks
         // non-configurable check is always enabled for execution
         non_configurable_check,
         check_filesystem_ownership(true),
-        check_data_resurrection(true);
+        check_data_resurrection(true),
+        custom_check;
 
         public final boolean disabledByDefault;
 
@@ -152,6 +154,14 @@ public class StartupChecks
     public StartupChecks withDefaultTests()
     {
         preFlightChecks.addAll(DEFAULT_TESTS);
+        return this;
+    }
+
+    public StartupChecks withExternalTests() {
+        ServiceLoader<StartupCheck> loader = ServiceLoader.load(StartupCheck.class);
+        for (StartupCheck check : loader) {
+            preFlightChecks.add(check);
+        }
         return this;
     }
 
