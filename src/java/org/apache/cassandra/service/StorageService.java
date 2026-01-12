@@ -4758,6 +4758,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
+    public int getWriteTombstoneWarnThreshold()
+    {
+        return DatabaseDescriptor.getWriteTombstoneWarnThreshold();
+    }
+
+    public void setWriteTombstoneWarnThreshold(int threshold)
+    {
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(threshold);
+        logger.info("updated write_tombstone_warn_threshold to {}", threshold);
+    }
+
     public int getTombstoneFailureThreshold()
     {
         return DatabaseDescriptor.getTombstoneFailureThreshold();
@@ -5326,6 +5337,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setLocalReadTooLargeWarnThreshold(String threshold)
     {
         DatabaseDescriptor.setLocalReadSizeWarnThreshold(parseDataStorageSpec(threshold));
+    }
+
+    @Override
+    public boolean getWriteThresholdsEnabled()
+    {
+        return DatabaseDescriptor.getWriteThresholdsEnabled();
+    }
+
+    @Override
+    public void setWriteThresholdsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setWriteThresholdsEnabled(value);
+    }
+
+    @Override
+    public String getWriteTooLargeWarnThreshold()
+    {
+        return toString(DatabaseDescriptor.getWriteSizeWarnThreshold());
+    }
+
+    @Override
+    public void setWriteTooLargeWarnThreshold(String threshold)
+    {
+        DatabaseDescriptor.setWriteSizeWarnThreshold(parseDataStorageSpec(threshold));
     }
 
     @Override

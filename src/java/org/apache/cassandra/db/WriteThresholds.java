@@ -47,6 +47,9 @@ public class WriteThresholds
      */
     public static void checkWriteThresholds(PartitionUpdate update, org.apache.cassandra.db.DecoratedKey key)
     {
+        if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getWriteThresholdsEnabled())
+            return;
+
         DataStorageSpec.LongBytesBound sizeWarnThreshold = DatabaseDescriptor.getWriteSizeWarnThreshold();
         int tombstoneWarnThreshold = DatabaseDescriptor.getWriteTombstoneWarnThreshold();
 
@@ -103,6 +106,9 @@ public class WriteThresholds
      */
     public static void checkWriteThresholds(org.apache.cassandra.db.Mutation mutation)
     {
+        if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getWriteThresholdsEnabled())
+            return;
+
         DataStorageSpec.LongBytesBound sizeWarnThreshold = DatabaseDescriptor.getWriteSizeWarnThreshold();
         int tombstoneWarnThreshold = DatabaseDescriptor.getWriteTombstoneWarnThreshold();
 
