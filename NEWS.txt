@@ -136,6 +136,7 @@ New features
       and "length" defined on UTF8 strings. See CASSANDRA-20102 for more information.
     - New functions `format_bytes` and `format_time` were added. See CASSANDRA-19546.
     - It is possible to use Async-profiler for various profiling scenarios. See CASSANDRA-20854.
+    - It is possible to provide custom startup check via Java SPI. See CASSANDRA-21093.
 
 Upgrading
 ---------

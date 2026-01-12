@@ -39,11 +39,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
-
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 
 /**
  * Ownership markers on disk are compatible with the java property file format.
@@ -99,7 +97,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
 
     private final Supplier<Iterable<String>> dirs;
 
-    FileSystemOwnershipCheck()
+    public FileSystemOwnershipCheck()
     {
         this(() -> Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                     Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
@@ -114,21 +112,33 @@ public class FileSystemOwnershipCheck implements StartupCheck
     }
 
     @Override
-    public StartupChecks.StartupCheckType getStartupCheckType()
+    public String name()
     {
-        return check_filesystem_ownership;
+        return "check_filesystem_ownership";
     }
 
     @Override
-    public void execute(StartupChecksOptions options) throws StartupException
+    public boolean isConfigurable()
     {
-        if (!isEnabled(options))
+        return true;
+    }
+
+    @Override
+    public boolean isDisabledByDefault()
+    {
+        return true;
+    }
+
+    @Override
+    public void execute(StartupChecksConfiguration configuration) throws StartupException
+    {
+        if (!isEnabled(configuration))
         {
             logger.info("Filesystem ownership check is not enabled.");
             return;
         }
 
-        Map<String, Object> config = options.getConfig(getStartupCheckType());
+        Map<String, Object> config = configuration.getConfig(name());
 
         String expectedToken = constructTokenFromProperties(config);
         String tokenFilename = getFsOwnershipFilename(config);
@@ -275,9 +285,9 @@ public class FileSystemOwnershipCheck implements StartupCheck
         return new StartupException(StartupException.ERR_WRONG_DISK_STATE, ERROR_PREFIX + message);
     }
 
-    public boolean isEnabled(StartupChecksOptions options)
+    public boolean isEnabled(StartupChecksConfiguration options)
     {
-        boolean enabledFromYaml = options.isEnabled(getStartupCheckType());
+        boolean enabledFromYaml = options.isEnabled(name());
         return CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getBoolean(enabledFromYaml);
     }
 

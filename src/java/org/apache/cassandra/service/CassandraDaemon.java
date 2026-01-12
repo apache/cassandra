@@ -216,7 +216,6 @@ public class CassandraDaemon
     private JMXConnectorServer jmxServer;
 
     private final boolean runManaged;
-    protected final StartupChecks startupChecks;
     private boolean setupCompleted;
 
     public CassandraDaemon()
@@ -227,7 +226,6 @@ public class CassandraDaemon
     public CassandraDaemon(boolean runManaged)
     {
         this.runManaged = runManaged;
-        this.startupChecks = new StartupChecks().withDefaultTests().withTest(new FileSystemOwnershipCheck());
         this.setupCompleted = false;
     }
 
@@ -451,7 +449,7 @@ public class CassandraDaemon
     {
         try
         {
-            startupChecks.verify(DatabaseDescriptor.getStartupChecksOptions());
+            DatabaseDescriptor.getStartupChecksConfiguration().verify();
         }
         catch (StartupException e)
         {

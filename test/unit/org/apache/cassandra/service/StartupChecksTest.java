@@ -25,8 +25,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -40,12 +42,14 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -64,13 +68,18 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StartupChecksTest
@@ -88,7 +97,7 @@ public class StartupChecksTest
     Path sstableDir;
     static File heartbeatFile;
 
-    StartupChecksOptions options = new StartupChecksOptions();
+    StartupChecksConfiguration options = new StartupChecksConfiguration(new StartupChecks().withDefaultTests(), new HashMap<>());
 
     @BeforeClass
     public static void setupServer()
@@ -109,8 +118,8 @@ public class StartupChecksTest
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 
-        options.enable(check_data_resurrection);
-        options.getConfig(check_data_resurrection)
+        options.enable("check_data_resurrection");
+        options.getConfig("check_data_resurrection")
                .put(HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
 
         startupChecks = new StartupChecks();
@@ -183,13 +192,13 @@ public class StartupChecksTest
     public void testGetReadAheadKBPath()
     {
         Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
-        Assert.assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
+        assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
 
         Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
-        Assert.assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
+        assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
 
         Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
-        Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
+        assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
 
         Path invalidDir = StartupChecks.getReadAheadKBPath("/invaliddir/xpto");
         Assert.assertNull(invalidDir);
@@ -252,6 +261,157 @@ public class StartupChecksTest
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
         testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
         testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testExternalCheckIsLoaded() throws StartupException
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                return "my_custom_check";
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+        doReturn(List.of(externalCheck).iterator()).when(loader).iterator();
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            StartupChecks checks = new StartupChecks().withDefaultTests().withServiceLoaderTests();
+
+            StartupCheck myCustomCheck = checks.getCheck("my_custom_check");
+            assertNotNull(myCustomCheck);
+
+            StartupChecksConfiguration configuration = new StartupChecksConfiguration(checks, new HashMap<>());
+
+            checks.verify(configuration);
+            verify(externalCheck, times(1)).execute(configuration);
+        }
+    }
+
+    @Test
+    public void testLoadingCustomChecksWithNotUniqueNameIsForbidden()
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                return "my_custom_check";
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+
+        // two times! We model loading of two checks with same name
+        doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
+
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            try
+            {
+                new StartupChecks().withDefaultTests().withServiceLoaderTests();
+                fail("it should not be possible to specify two custom checks with same name");
+            }
+            catch (Throwable t)
+            {
+                assertEquals("There was an attempt to load custom startup checks with same name which is ambiguous: [my_custom_check]",
+                             t.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void testCustomCheckHasSameNameAsInBuiltCheck()
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                // for the sake of it being same as one of in-builts
+                return StartupChecks.checkLz4Native.name();
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+
+        // two times! We model loading of two checks with same name
+        doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
+
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            try
+            {
+                new StartupChecks().withDefaultTests().withServiceLoaderTests();
+                fail("it should not be possible to specify a check with same name as in-built check");
+            }
+            catch (Throwable t)
+            {
+                assertEquals("There was an attempt to load custom startup checks with same name which is ambiguous: [" + StartupChecks.checkLz4Native.name() + ']',
+                             t.getMessage());
+            }
+        }
     }
 
     private <R> void withPathOverriddingFileSystem(Map<String, String> pathOverrides, Callable<? extends R> callable) throws Exception

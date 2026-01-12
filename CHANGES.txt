@@ -1,4 +1,5 @@
 5.1
+ * Support custom StartupCheck implementations via SPI (CASSANDRA-21093)
  * Make sstableexpiredblockers support human-readable output with SSTable sizes (CASSANDRA-20448)
  * Enhance nodetool compactionhistory to report more compaction properities (CASSANDRA-20081)
  * Fix initial auto-repairs skipped by too soon check (CASSANDRA-21115)

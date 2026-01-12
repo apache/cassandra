@@ -123,6 +123,8 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -266,7 +268,7 @@ public class DatabaseDescriptor
      * The configuration for guardrails.
      */
     private static GuardrailsOptions guardrails;
-    private static StartupChecksOptions startupChecksOptions;
+    private static StartupChecksConfiguration startupChecksConfiguration;
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
@@ -1341,14 +1343,22 @@ public class DatabaseDescriptor
         }
     }
 
-    public static StartupChecksOptions getStartupChecksOptions()
+    public static StartupChecksConfiguration getStartupChecksConfiguration()
     {
-        return startupChecksOptions;
+        return startupChecksConfiguration;
     }
 
     private static void applyStartupChecks()
     {
-        startupChecksOptions = new StartupChecksOptions(conf.startup_checks);
+        try
+        {
+            StartupChecks startupChecks = new StartupChecks().withDefaultTests().withTest(new FileSystemOwnershipCheck()).withServiceLoaderTests();
+            startupChecksConfiguration = new StartupChecksConfiguration(startupChecks, conf.startup_checks);
+        }
+        catch (Throwable t)
+        {
+            throw new ConfigurationException("Invalid configuration of startup_checks: " + t.getMessage());
+        }
     }
 
     private static String storagedirFor(String type)
