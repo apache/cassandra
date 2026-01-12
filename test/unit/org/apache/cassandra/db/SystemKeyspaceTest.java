@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,6 +34,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -197,5 +199,53 @@ public class SystemKeyspaceTest
     {
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT release_version FROM system.local WHERE key='local'");
         return rs.isEmpty() || !rs.one().has("release_version") ? null : rs.one().getString("release_version");
+    }
+
+    /**
+     * Test that system.repairs table has a 30-day TTL configured.
+     * This ensures repair sessions are automatically cleaned up after 30 days.
+     */
+    @Test
+    public void testRepairsTableHas30DayTTL()
+    {
+        // Get the repairs table metadata from SystemKeyspace
+        TableMetadata repairsTable = SystemKeyspace.metadata()
+                                                    .tables
+                                                    .get(SystemKeyspace.REPAIRS)
+                                                    .orElseThrow(() -> new AssertionError("system.repairs table not found"));
+
+        // Verify TTL is set to 30 days (in seconds)
+        int expectedTTL = (int) TimeUnit.DAYS.toSeconds(30);
+        int actualTTL = repairsTable.params.defaultTimeToLive;
+
+        assertEquals("system.repairs table should have a 30-day default TTL", 
+                     expectedTTL, 
+                     actualTTL);
+    }
+    /**
+     * Test that other system tables (without TTL) have TTL=0.
+     * This verifies we're not accidentally adding TTL to tables that shouldn't have it.
+     */
+    @Test
+    public void testOtherSystemTablesHaveNoTTL()
+    {
+        // Test a few key system tables that should NOT have TTL
+        String[] tablesWithoutTTL = {
+            SystemKeyspace.LOCAL,
+            SystemKeyspace.PEERS_V2,
+            SystemKeyspace.SSTABLE_ACTIVITY_V2
+        };
+
+        for (String tableName : tablesWithoutTTL)
+        {
+            TableMetadata table = SystemKeyspace.metadata()
+                                                .tables
+                                                .get(tableName)
+                                                .orElseThrow(() -> new AssertionError("system." + tableName + " table not found"));
+
+            assertEquals("system." + tableName + " table should not have TTL",
+                        0,
+                        table.params.defaultTimeToLive);
+        }
     }
 }

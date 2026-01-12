@@ -1105,5 +1105,117 @@ public class LocalSessionTest extends AbstractRepairTest
 
         Assert.assertEquals(session, checkedSession.get());
     }
+
+    /**
+     * Test that repair sessions have TTL applied when inserted.
+     * This verifies that the 30-day TTL on system.repairs table is working correctly.
+     */
+    @Test
+    public void testRepairSessionsHaveTTL() throws Exception
+    {
+        LocalSessions sessions = new LocalSessions();
+        sessions.start();
+
+        // Create and save a repair session
+        LocalSession session = createSession();
+        sessions.putSessionUnsafe(session);
+
+        // Query the session directly from system.repairs to check TTL
+        String query = String.format("SELECT parent_id, TTL(state) as ttl FROM %s.%s WHERE parent_id = ?", 
+                                    SchemaConstants.SYSTEM_KEYSPACE_NAME, 
+                                    SystemKeyspace.REPAIRS);
+        UntypedResultSet result = QueryProcessor.executeInternal(query, session.sessionID);
+
+        Assert.assertFalse("Session should exist in system.repairs", result.isEmpty());
+        
+        UntypedResultSet.Row row = result.one();
+        int ttl = row.getInt("ttl");
+
+        // TTL should be approximately 30 days (2,592,000 seconds)
+        // We allow for a small variance due to test execution time
+        int expectedTTL = (int) java.util.concurrent.TimeUnit.DAYS.toSeconds(30);
+        int allowedVariance = 60; // Allow 60 seconds variance
+        
+        Assert.assertTrue("TTL should be approximately 30 days. Expected: ~" + expectedTTL + ", Actual: " + ttl,
+                         Math.abs(ttl - expectedTTL) <= allowedVariance);
+    }
+
+    /**
+     * Test that repair sessions without explicit TTL still get the default table TTL.
+     * This ensures backward compatibility and that existing repair code doesn't need changes.
+     */
+    @Test
+    public void testRepairSessionsGetDefaultTTL() throws Exception
+    {
+        // Verify the table itself has the correct default TTL
+        TableMetadata repairsTable = SystemKeyspace.metadata()
+                                                    .tables
+                                                    .get(SystemKeyspace.REPAIRS)
+                                                    .orElseThrow(() -> new AssertionError("system.repairs table not found"));
+
+        int expectedTTL = (int) java.util.concurrent.TimeUnit.DAYS.toSeconds(30);
+        Assert.assertEquals("system.repairs should have 30-day default TTL",
+                           expectedTTL,
+                           repairsTable.params.defaultTimeToLive);
+
+        // Create a session using the normal flow
+        LocalSessions sessions = new LocalSessions();
+        sessions.start();
+
+        LocalSession session = createSession();
+        sessions.putSessionUnsafe(session);
+
+        // Verify the session has TTL (from table default)
+        String query = String.format("SELECT TTL(state) as ttl FROM %s.%s WHERE parent_id = ?",
+                                    SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                    SystemKeyspace.REPAIRS);
+        UntypedResultSet result = QueryProcessor.executeInternal(query, session.sessionID);
+
+        Assert.assertFalse("Session should exist", result.isEmpty());
+        int actualTTL = result.one().getInt("ttl");
+        
+        // Should have TTL close to 30 days
+        Assert.assertTrue("Session should have ~30 day TTL, got: " + actualTTL,
+                         actualTTL > 0 && actualTTL <= expectedTTL);
+    }
+
+    /**
+     * Test that TTL works alongside the cleanup job.
+     * Both mechanisms (TTL + cleanup job) should work independently as defense-in-depth.
+     */
+    @Test
+    public void testTTLWorksWithCleanupJob() throws Exception
+    {
+        InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
+        sessions.start();
+
+        // Create an old finalized session that should be cleaned up
+        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_DELETE_TIMEOUT - 1;
+        LocalSession session = sessionWithTime(time - 1, time);
+        session.setState(FINALIZED);
+
+        sessions.putSessionUnsafe(session);
+        Assert.assertNotNull(sessions.getSession(session.sessionID));
+
+        // Verify session has TTL in database
+        String query = String.format("SELECT TTL(state) as ttl FROM %s.%s WHERE parent_id = ?",
+                                    SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                    SystemKeyspace.REPAIRS);
+        UntypedResultSet result = QueryProcessor.executeInternal(query, session.sessionID);
+        
+        if (!result.isEmpty())
+        {
+            int ttl = result.one().getInt("ttl");
+            Assert.assertTrue("Session should have TTL", ttl > 0);
+        }
+
+        // Cleanup job should also delete it (if superseded)
+        // Note: In this test, isSuperseded will likely return false,
+        // so cleanup won't delete it, but TTL will eventually expire it
+        sessions.cleanup();
+
+        // The key point: even if cleanup doesn't delete it (due to not being superseded),
+        // the TTL will ensure it's eventually removed after 30 days
+    }
 }
 

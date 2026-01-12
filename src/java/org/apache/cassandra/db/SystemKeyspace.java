@@ -467,7 +467,9 @@ public final class SystemKeyspace
           + "participants_wp set<text>,"
           + "ranges set<blob>, "
           + "cfids set<uuid>, "
-          + "PRIMARY KEY (parent_id))").build();
+          + "PRIMARY KEY (parent_id))")
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(30))
+        .build();
 
     @Deprecated
     private static final TableMetadata LegacyPeers =
