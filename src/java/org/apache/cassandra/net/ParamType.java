@@ -54,7 +54,9 @@ public enum ParamType
     ROW_INDEX_READ_SIZE_WARN         (13, Int64Serializer.serializer),
     CUSTOM_MAP                       (14, CustomParamsSerializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
-    TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer);
+    TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
+    WRITE_SIZE_WARN                  (18, Int64Serializer.serializer),
+    WRITE_TOMBSTONE_WARN             (19, Int32Serializer.serializer);
 
     final int id;
     final IVersionedSerializer serializer;
