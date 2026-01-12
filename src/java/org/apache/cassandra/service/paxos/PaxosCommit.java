@@ -28,7 +28,9 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.WriteThresholds;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
@@ -312,7 +314,11 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             if (response == null)
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);
             else
-                MessagingService.instance().respond(response, message);
+            {
+                Message<NoPayload> reply = message.responseWith(response);
+                reply = MessageParams.addToMessage(reply);
+                MessagingService.instance().respond(reply, message);
+            }
         }
 
         private static NoPayload execute(Agreed agreed, InetAddressAndPort from)
@@ -320,6 +326,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             if (!Paxos.isInRangeAndShouldProcess(from, agreed.update.partitionKey(), agreed.update.metadata(), false))
                 return null;
 
+            WriteThresholds.checkWriteThresholds(agreed.update, agreed.update.partitionKey());
             PaxosState.commitDirect(agreed);
             Tracing.trace("Enqueuing acknowledge to {}", from);
             return NoPayload.noPayload;

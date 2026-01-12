@@ -32,6 +32,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -197,6 +199,7 @@ public class TopPartitionTracker implements Closeable
     public static class TopHolder
     {
         public final NavigableSet<TopPartition> top;
+        public final ObjectLongMap<DecoratedKey> lookup;
         private final int maxTopPartitionCount;
         private final long minTrackedValue;
         private final Collection<Range<Token>> ranges;
@@ -205,14 +208,15 @@ public class TopPartitionTracker implements Closeable
 
         private TopHolder(int maxTopPartitionCount, long minTrackedValue, Collection<Range<Token>> ranges)
         {
-            this(maxTopPartitionCount, minTrackedValue, new TreeSet<>(), ranges, 0);
+            this(maxTopPartitionCount, minTrackedValue, new TreeSet<>(), new ObjectLongHashMap<>(), ranges, 0);
         }
 
-        private TopHolder(int maxTopPartitionCount, long minTrackedValue, NavigableSet<TopPartition> top, Collection<Range<Token>> ranges, long lastUpdate)
+        private TopHolder(int maxTopPartitionCount, long minTrackedValue, NavigableSet<TopPartition> top, ObjectLongMap<DecoratedKey> lookup, Collection<Range<Token>> ranges, long lastUpdate)
         {
             this.maxTopPartitionCount = maxTopPartitionCount;
             this.minTrackedValue = minTrackedValue;
             this.top = top;
+            this.lookup = lookup;
             this.ranges = ranges;
             this.lastUpdate = lastUpdate;
         }
@@ -224,6 +228,7 @@ public class TopPartitionTracker implements Closeable
             this.maxTopPartitionCount = maxTopPartitionCount;
             this.minTrackedValue = minTrackedValue;
             top = new TreeSet<>();
+            this.lookup = new ObjectLongHashMap<>();
             this.ranges = null;
             this.lastUpdate = storedTopPartitions.lastUpdated;
 
@@ -245,7 +250,8 @@ public class TopPartitionTracker implements Closeable
             top.add(tp);
             while (top.size() > maxTopPartitionCount)
             {
-                top.pollLast();
+                TopPartition p = top.pollLast();
+                lookup.remove(p.key);
                 currentMinValue = top.last().value;
             }
             currentMinValue = Math.min(tp.value, currentMinValue);
@@ -274,7 +280,12 @@ public class TopPartitionTracker implements Closeable
 
         private TopHolder cloneForMerging(long lastUpdate)
         {
-            return new TopHolder(maxTopPartitionCount, minTrackedValue, new TreeSet<>(top), ranges, lastUpdate);
+            return new TopHolder(maxTopPartitionCount, minTrackedValue, new TreeSet<>(top), new ObjectLongHashMap<>(lookup), ranges, lastUpdate);
+        }
+
+        public long getEstimate(DecoratedKey dk)
+        {
+            return lookup.getOrDefault(dk, 0L);
         }
 
         public String toString()
