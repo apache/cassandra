@@ -931,7 +931,7 @@ public class DatabaseDescriptor
 
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
-        applyReadThresholdsValidations(conf);
+        applyThresholdsValidations(conf);
 
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
@@ -1311,11 +1311,19 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyReadThresholdsValidations(Config config)
+    static void applyThresholdsValidations(Config config)
     {
+        // Validate read thresholds
         validateReadThresholds("coordinator_read_size", config.coordinator_read_size_warn_threshold, config.coordinator_read_size_fail_threshold);
         validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
         validateReadThresholds("row_index_read_size", config.row_index_read_size_warn_threshold, config.row_index_read_size_fail_threshold);
+
+        // Write threshold warning depends on top_partitions tracking
+        if (config.write_thresholds_enabled && !config.top_partitions_enabled)
+            logger.warn("Write thresholds require top partitions tracking to be enabled");
+
+        validateWriteSizeThreshold(config.write_size_warn_threshold, config.min_tracked_partition_size);
+        validateWriteTombstoneThresholdRange(config.write_tombstone_warn_threshold, config.min_tracked_partition_tombstone_count);
     }
 
     private static void validateReadThresholds(String name, DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail)
@@ -1324,6 +1332,25 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("%s (%s) must be greater than or equal to %s (%s)",
                                                            name + "_fail_threshold", fail,
                                                            name + "_warn_threshold", warn));
+    }
+
+    private static void validateWriteSizeThreshold(DataStorageSpec.LongBytesBound writeSizeWarn, DataStorageSpec.LongBytesBound minTrackedSize)
+    {
+        if (writeSizeWarn != null && minTrackedSize != null)
+        {
+            if (writeSizeWarn.toBytes() < minTrackedSize.toBytes())
+                throw new ConfigurationException(String.format("write_size_warn_threshold (%s) cannot be less than min_tracked_partition_size (%s)", writeSizeWarn, minTrackedSize));
+        }
+    }
+
+    private static void validateWriteTombstoneThresholdRange(int writeTombstoneWarn, long minTrackedTombstoneCount)
+    {
+        if (writeTombstoneWarn < -1)
+            throw new ConfigurationException(String.format("write_tombstone_warn_threshold (%d) must be -1 (disabled) or >= 0", writeTombstoneWarn));
+
+        if (writeTombstoneWarn != -1 && writeTombstoneWarn < minTrackedTombstoneCount)
+            throw new ConfigurationException(String.format("write_tombstone_warn_threshold (%d) cannot be less than min_tracked_partition_tombstone_count (%d)",
+                                                           writeTombstoneWarn, minTrackedTombstoneCount));
     }
 
     public static GuardrailsOptions getGuardrailsConfig()
@@ -5480,6 +5507,55 @@ public class DatabaseDescriptor
     {
         logger.info("updating  row_index_read_size_fail_threshold to {}", value);
         conf.row_index_read_size_fail_threshold = value;
+    }
+
+    public static boolean getWriteThresholdsEnabled()
+    {
+        return conf.write_thresholds_enabled;
+    }
+
+    public static void setWriteThresholdsEnabled(boolean enabled)
+    {
+        if (enabled && !conf.top_partitions_enabled)
+            logger.warn("Write thresholds require top partitions tracking to be enabled");
+        logger.info("updating write_thresholds_enabled to {}", enabled);
+        conf.write_thresholds_enabled = enabled;
+    }
+
+    @Nullable
+    public static DataStorageSpec.LongBytesBound getWriteSizeWarnThreshold()
+    {
+        return conf.write_size_warn_threshold;
+    }
+
+    public static void setWriteSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
+    {
+        validateWriteSizeThreshold(value, conf.min_tracked_partition_size);
+        logger.info("updating write_size_warn_threshold to {}", value);
+        conf.write_size_warn_threshold = value;
+    }
+
+    public static DurationSpec.LongMillisecondsBound getCoordinatorWriteWarnInterval()
+    {
+        return conf.coordinator_write_warn_interval;
+    }
+
+    public static void setCoordinatorWriteWarnInterval(DurationSpec.LongMillisecondsBound ms)
+    {
+        logger.info("updating coordinator_write_warn_interval to {}", ms);
+        conf.coordinator_write_warn_interval = ms;
+    }
+
+    public static int getWriteTombstoneWarnThreshold()
+    {
+        return conf.write_tombstone_warn_threshold;
+    }
+
+    public static void setWriteTombstoneWarnThreshold(int threshold)
+    {
+        validateWriteTombstoneThresholdRange(threshold, conf.min_tracked_partition_tombstone_count);
+        logger.info("updating write_tombstone_warn_threshold to {}", threshold);
+        conf.write_tombstone_warn_threshold = threshold;
     }
 
     public static int getDefaultKeyspaceRF()

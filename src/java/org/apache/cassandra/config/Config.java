@@ -579,6 +579,11 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public volatile boolean write_thresholds_enabled = false;
+    public volatile DataStorageSpec.LongBytesBound write_size_warn_threshold = null;
+    public volatile DurationSpec.LongMillisecondsBound coordinator_write_warn_interval = new DurationSpec.LongMillisecondsBound("1000ms");
+    public volatile int write_tombstone_warn_threshold = -1;
+
     public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();

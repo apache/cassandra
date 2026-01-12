@@ -32,6 +32,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -62,6 +63,7 @@ public class CoordinatorHelper
         // warnings as it sets a new State instance on the ThreadLocal.
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
+        CoordinatorWriteWarnings.init();
         try
         {
             ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
@@ -76,19 +78,27 @@ public class CoordinatorHelper
                                                  requestTime);
             // Collect warnings reported during the query.
             CoordinatorWarnings.done();
-            if (res != null)
-                res.setWarnings(ClientWarn.instance.getWarnings());
+            CoordinatorWriteWarnings.done();
+
+            // Convert null result to ResultMessage.Void, matching QueryProcessor.processStatement() behavior
+            // This is necessary to attach warnings to INSERT/UPDATE/DELETE statements which return null
+            if (res == null)
+                res = new ResultMessage.Void();
+
+            res.setWarnings(ClientWarn.instance.getWarnings());
 
             return RowUtil.toQueryResult(res);
         }
         catch (Exception | Error e)
         {
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
             throw e;
         }
         finally
         {
             CoordinatorWarnings.reset();
+            CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
     }

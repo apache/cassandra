@@ -307,6 +307,9 @@ public class TableMetrics
     public final TableMeter tooManySSTableIndexesReadWarnings;
     public final TableMeter tooManySSTableIndexesReadAborts;
 
+    public final TableMeter writeSizeWarnings;
+    public final TableMeter writeTombstoneWarnings;
+
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
@@ -906,6 +909,9 @@ public class TableMetrics
 
         tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.keyspace.metric.tooManySSTableIndexesReadWarnings);
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.keyspace.metric.tooManySSTableIndexesReadAborts);
+
+        writeSizeWarnings = createTableMeter("WriteSizeWarnings", cfs.keyspace.metric.writeSizeWarnings);
+        writeTombstoneWarnings = createTableMeter("WriteTombstoneWarnings", cfs.keyspace.metric.writeTombstoneWarnings);
 
         viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree", cfs.keyspace.metric.viewSSTableIntervalTree);
 
