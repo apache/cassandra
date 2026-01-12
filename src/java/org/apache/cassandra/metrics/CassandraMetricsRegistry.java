@@ -1308,7 +1308,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
             try
             {
                 Hashtable<String, String> props = new Hashtable<>(4);
-                props.put("type", type);
+                if (type != null)
+                    props.put("type", type);
                 if (scope != null)
                     props.put("scope", ObjectName.quote(scope));
 
