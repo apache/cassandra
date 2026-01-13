@@ -344,12 +344,7 @@ public final class SimpleRestriction implements SingleRestriction
                 if (operator.kind() != Operator.Kind.BINARY)
                 {
                     if (operator == Operator.IN && !column.type.isCounter())
-                    {
-                        if (!column.type.isCounter())
-                        {
-                            buffers.sort(column.type);
-                        }
-                    }
+                        buffers.sort(column.type);
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)
