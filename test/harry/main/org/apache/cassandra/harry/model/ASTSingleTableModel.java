@@ -1647,19 +1647,14 @@ public class ASTSingleTableModel
 
     private boolean shouldReverse(Select.OrderBy orderBy)
     {
-        // cassandra only supports 2 modes: original order, reverse order... so only need to check if we need to reverse the keys
-        boolean reverse = false;
         for (var block : orderBy.ordered)
         {
             Symbol col = (Symbol) block.expression; //TOOD (coverage): do we support anything other than symbol?
             col = factory.clusteringColumns.get(col); // switch to table symbol so we know if its reversed or not
             if (col.reversed != (block.ordering == Select.OrderBy.Ordering.DESC))
-            {
-                reverse = true;
-                break;
-            }
+                return true;
         }
-        return reverse;
+        return false;
     }
 
     private List<PrimaryKey> all()
