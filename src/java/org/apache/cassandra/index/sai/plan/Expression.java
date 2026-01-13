@@ -246,8 +246,8 @@ public abstract class Expression
                 Value first = new Value(buffers.get(0), indexTermType);
                 Value second = new Value(buffers.get(1), indexTermType);
 
-                // SimpleRestriction#addToRowFilter() ensures correct bounds ordering, but SAI enforces a non-arbitrary
-                // ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
+                // BETWEEN values are not sorted by SimpleRestriction to preserve semantics (BETWEEN 5 AND 2 is invalid).
+                // SAI enforces a non-arbitrary ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
                 boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
                 lower = new Bound(outOfOrder ? second : first, true);
                 upper = new Bound(outOfOrder ? first : second, true);

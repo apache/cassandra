@@ -345,7 +345,10 @@ public final class SimpleRestriction implements SingleRestriction
                 {
                     if (operator == Operator.IN)
                     {
-                        buffers.sort(column.type);
+                        if (!column.type.isCounter())
+                        {
+                            buffers.sort(column.type);
+                        }
                     }
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }

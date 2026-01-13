@@ -788,8 +788,10 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
-            // We use compare instead of compareForCQL to deal properly with reversed clustering columns
-            return type.compare(leftOperand, buffers.get(0)) >= 0 && type.compare(leftOperand, buffers.get(1)) <= 0;
+            // Use unwrapped type for comparison to handle reversed clustering columns correctly.
+            // BETWEEN semantics are always in logical (non-reversed) order: value >= low AND value <= high.
+            AbstractType<?> unwrapped = type.unwrap();
+            return unwrapped.compare(leftOperand, buffers.get(0)) >= 0 && unwrapped.compare(leftOperand, buffers.get(1)) <= 0;
         }
 
         @Override
