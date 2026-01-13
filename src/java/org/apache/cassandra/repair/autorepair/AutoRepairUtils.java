@@ -177,11 +177,16 @@ public class AutoRepairUtils
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String SELECT_LAST_REPAIR_START_TIME_FOR_NODE = String.format(
+    "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
     static ModificationStatement delStatementPriorityStatus;
     static SelectStatement selectStatementRepairPriority;
     static SelectStatement selectLastRepairTimeForNode;
+    static SelectStatement selectLastRepairStartTimeForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
@@ -207,6 +212,8 @@ public class AutoRepairUtils
                                                                                                               .forInternalCalls());
         selectLastRepairTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_TIME_FOR_NODE, ClientState
                                                                                                                       .forInternalCalls());
+        selectLastRepairStartTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_START_TIME_FOR_NODE, ClientState
+                                                                                                                                 .forInternalCalls());
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -382,7 +389,8 @@ public class AutoRepairUtils
         // this function will be called when a node bootstrap finished
         UUID hostId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
         // insert the data first
-        insertNewRepairHistory(repairType, currentTimeMillis(), currentTimeMillis());
+        long timestamp = currentTimeMillis();
+        insertNewRepairHistory(repairType, timestamp, timestamp);
         setForceRepair(repairType, hostId);
     }
 
@@ -407,7 +415,7 @@ public class AutoRepairUtils
         logger.info("Set force repair repair type: {}, node: {}", repairType, hostId);
     }
 
-    public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
+    public static long getLastRepairFinishTimeForNode(RepairType repairType, UUID hostId)
     {
         ResultMessage.Rows rows = selectLastRepairTimeForNode.execute(QueryState.forInternalCalls(),
                                                                       QueryOptions.forInternalCalls(internalQueryCL,
@@ -421,6 +429,22 @@ public class AutoRepairUtils
             return 0;
         }
         return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
+    }
+
+    public static long getLastRepairStartTimeForNode(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectLastRepairStartTimeForNode.execute(QueryState.forInternalCalls(),
+                                                                           QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                         Lists.newArrayList(
+                                                                                                         ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                         ByteBufferUtil.bytes(hostId))),
+                                                                           Dispatcher.RequestTime.forImmediateExecution());
+        UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
+        if (repairTime.isEmpty())
+        {
+            return 0;
+        }
+        return repairTime.one().getLong(COL_REPAIR_START_TS);
     }
 
     @VisibleForTesting
@@ -840,7 +864,8 @@ public class AutoRepairUtils
                 if (!autoRepairHistoryIds.contains(hostId))
                 {
                     logger.info("{} for repair type {} doesn't exist in the auto repair history table, insert a new record.", repairType, hostId);
-                    insertNewRepairHistory(repairType, hostId, currentTimeMillis(), currentTimeMillis());
+                    long timestamp = currentTimeMillis();
+                    insertNewRepairHistory(repairType, hostId, timestamp, timestamp);
                 }
             }
 
