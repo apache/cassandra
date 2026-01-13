@@ -18,6 +18,7 @@
 package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
