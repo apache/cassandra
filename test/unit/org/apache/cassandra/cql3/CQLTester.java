@@ -2698,13 +2698,13 @@ public abstract class CQLTester
         return rows;
     }
 
-    protected void assertEmpty(UntypedResultSet result) throws Throwable
+    protected void assertEmpty(UntypedResultSet result)
     {
         if (result != null && !result.isEmpty())
             throw new AssertionError(String.format("Expected empty result but got %d rows: %s \n", result.size(), makeRowStrings(result)));
     }
 
-    protected void assertInvalid(String query, Object... values) throws Throwable
+    protected void assertInvalid(String query, Object... values)
     {
         assertInvalidMessage(null, query, values);
     }
@@ -2778,7 +2778,7 @@ public abstract class CQLTester
                : replaceValues(query, values);
     }
 
-    protected void assertValidSyntax(String query) throws Throwable
+    protected void assertValidSyntax(String query)
     {
         try
         {
@@ -2791,12 +2791,12 @@ public abstract class CQLTester
         }
     }
 
-    protected void assertInvalidSyntax(String query, Object... values) throws Throwable
+    protected void assertInvalidSyntax(String query, Object... values)
     {
         assertInvalidSyntaxMessage(null, query, values);
     }
 
-    protected void assertInvalidSyntaxMessage(String errorMessage, String query, Object... values) throws Throwable
+    protected void assertInvalidSyntaxMessage(String errorMessage, String query, Object... values)
     {
         try
         {
