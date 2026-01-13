@@ -265,7 +265,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         if (rs.nextBoolean())
             return simpleRangeSearch(rs, state, symbol, value, builder);
-        // Note: BETWEEN on clustering columns is covered by clusteringBetweenQuery()
+        //TODO (coverage): define search that has a upper and lower bound: a > and a < | a beteeen ? and ?
         return eqSearch(rs, state, symbol, value, builder);
     }
 
@@ -294,7 +294,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         if (rs.nextBoolean())
             return simpleRangeSearch(rs, state, symbol, value, builder);
-        // Note: BETWEEN on clustering columns is covered by clusteringBetweenQuery()
+        //TODO (coverage): define search that has a upper and lower bound: a > and a < | a beteeen ? and ?
         return eqSearch(rs, state, symbol, value, builder);
     }
 
