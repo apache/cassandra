@@ -196,7 +196,7 @@ batchlog_replay_throttle: 1024KiB
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
 authenticator:
-  class_name: AllowAllAuthenticator
+  class_name: PasswordAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
@@ -216,7 +216,7 @@ authenticator:
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 authorizer:
-  class_name: AllowAllAuthorizer
+  class_name: CassandraAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -421,7 +421,7 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # Enable / disable CDC functionality on a per-node basis. This modifies the logic used
 # for write path allocation rejection (standard: never reject. cdc: reject Mutation
 # containing a CDC-enabled table if at space limit in cdc_raw_directory).
-cdc_enabled: false
+cdc_enabled: true
 
 # Specify whether writes to the CDC-enabled tables should be blocked when CDC data on disk has reached to the limit.
 # When setting to false, the writes will not be blocked and the oldest CDC data on disk will be deleted to
@@ -1939,7 +1939,7 @@ trace_type_repair_ttl: 7d
 # INFO level
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
-user_defined_functions_enabled: false
+user_defined_functions_enabled: true
 
 # Triggers are enabled by default.
 # `enabled` executes queries and their triggers.

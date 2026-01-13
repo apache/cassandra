@@ -268,6 +268,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                   | <schemaChangeStatement>
                   | <authenticationStatement>
                   | <authorizationStatement>
+                  | <createDataSourceStatement>
+                  | <createDataSinkStatement>
+                  | <dropDataSourceStatement>
+                  | <dropDataSinkStatement>
                   ;
 
 <dataChangeStatement> ::= <insertStatement>
@@ -1815,6 +1819,63 @@ syntax_rules += r'''
 <dropIdentityStatement> ::= "DROP" "IDENTITY" ("IF" "EXISTS")? <stringLiteral>
                           ;
 '''
+
+syntax_rules += r'''
+<createDataSourceStatement> ::= "CREATE" "DATA_SOURCE" ( "IF" "NOT" "EXISTS" )?
+srcname=<cident>
+                                "ON" "TABLE" table=<columnFamilyName>
+                                "WITH" sinkname=<cident>
+                                ;
+
+<dropDataSourceStatement> ::= "DROP" "DATA_SOURCE" ("IF" "EXISTS")?
+srcname=<cident>
+                                "ON" "TABLE" table=<columnFamilyName>
+                                ;
+'''
+syntax_rules += r'''
+<createDataSinkStatement> ::= "CREATE" "DATA_SINK" ("IF" "NOT" "EXISTS")?
+sinkname=<cident>
+                                "WITH" uri=<stringLiteral>
+                                ;
+
+<dropDataSinkStatement> ::= "DROP" "DATA_SINK" ("IF" "EXISTS")? sinkname=<cident>
+                                ;
+'''
+
+def get_data_source_names(ctxt, cass):
+    ks = ctxt.get_binding('ksname', None)
+    if ks is not None:
+        ks = dequote_name(ks)
+    return cass.get_data_source_names(ks)
+
+def get_data_sink_names(ctxt, cass):
+    return cass.get_data_sink_names()
+
+
+# Autocompletion hints for CREATE DATA_SOURCE
+explain_completion('createDataSourceStatement', 'srcname', '<srcname>')
+explain_completion('createDataSourceStatement', 'sinkname', '<sinkname>')
+
+# Completer for CREATE DATA_SOURCE sinkname - suggest existing sinks
+@completer_for('createDataSourceStatement', 'sinkname')
+def create_data_source_completer(ctxt, cass):
+    names = get_data_sink_names(ctxt, cass)
+    return list(map(maybe_escape_name, names))
+
+# Completer for DROP DATA_SOURCE - autocomplete existing source names
+@completer_for('dropDataSourceStatement', 'srcname')
+def drop_data_source_completer(ctxt, cass):
+    names = get_data_source_names(ctxt, cass)
+    return list(map(maybe_escape_name, names))
+
+# Autocompletion hints for CREATE DATA_SINK
+explain_completion('createDataSinkStatement', 'sinkname', '<sinkname>')
+
+# Completer for DROP DATA_SINK - autocomplete existing sink names
+@completer_for('dropDataSinkStatement', 'sinkname')
+def drop_data_sink_completer(ctxt, cass):
+    names = get_data_sink_names(ctxt, cass)
+    return list(map(maybe_escape_name, names))
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 

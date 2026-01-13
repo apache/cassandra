@@ -294,6 +294,10 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st55=securityLabelOnUserTypeStatement    { $stmt = st55; }
     | st56=commentOnUserTypeFieldStatement     { $stmt = st56; }
     | st57=securityLabelOnUserTypeFieldStatement   { $stmt = st57; }
+    | st58=createDataSourceStatement       { $stmt = st58; }
+    | st59=createDataSinkStatement         { $stmt = st59; }
+    | st60=dropDataSourceStatement         { $stmt = st60; }
+    | st61=dropDataSinkStatement           { $stmt = st61; }
     ;
 
 /*
@@ -1819,6 +1823,8 @@ describeStatement returns [DescribeStatement stmt]
     | K_FUNCTION fn=functionName                  { $stmt = DescribeStatement.function(fn.keyspace, fn.name); }
     | (K_AGGREGATES) => K_AGGREGATES              { $stmt = DescribeStatement.aggregates(); }
     | K_AGGREGATE ag=functionName                 { $stmt = DescribeStatement.aggregate(ag.keyspace, ag.name); }
+    | (K_DATA_SOURCES) => K_DATA_SOURCES          { $stmt = DescribeStatement.dataSources(); }
+    | (K_DATA_SINKS) => K_DATA_SINKS              { $stmt = DescribeStatement.dataSinks(); }
     | ( ( ksT=IDENT                       { gen.setKeyspace($ksT.text, false);}
           | ksT=QUOTED_NAME                 { gen.setKeyspace($ksT.text, true);}
           | ksK=unreserved_keyword          { gen.setKeyspace(ksK, false);} ) '.' )?
@@ -1828,6 +1834,58 @@ describeStatement returns [DescribeStatement stmt]
                                                     { $stmt = DescribeStatement.generic(gen.getKeyspace(), gen.getName()); }
     )
     ( K_WITH K_INTERNALS { $stmt.withInternalDetails(); } )?
+    ;
+
+/**
+* CREATE DATA_SOURCE <srcname> ON TABLE <table> with <sinkname>
+*/
+createDataSourceStatement returns [CreateDataSourceStatement.Raw stmt]
+  @init {
+        boolean ifNotExists = false;
+  }
+  : K_CREATE K_DATA_SOURCE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? srcname=noncol_ident
+    K_ON (K_COLUMNFAMILY)? name=columnFamilyName
+    K_WITH sinkname=noncol_ident {
+        $stmt = new CreateDataSourceStatement.Raw(srcname, name, sinkname, ifNotExists);
+    }
+  ;
+
+/**
+ * DROP DATA_SOURCE [IF EXISTS] <srcname> ON TABLE <table_name>
+ */
+dropDataSourceStatement returns [DropDataSourceStatement.Raw stmt]
+     @init {
+        boolean ifExists = false;
+     }
+    : K_DROP K_DATA_SOURCE (K_IF K_EXISTS { ifExists = true; } )? (srcname=noncol_ident)
+      K_ON (K_COLUMNFAMILY)? table=columnFamilyName {
+        $stmt = new DropDataSourceStatement.Raw(srcname, table, ifExists);
+      }
+    ;
+
+/**
+* CREATE DATA_SINK [IF NOT EXISTS] <sinkname> WITH <uri>
+*/
+createDataSinkStatement returns [CreateDataSinkStatement.Raw stmt]
+  @init {
+        boolean ifNotExists = false;
+  }
+  : K_CREATE K_DATA_SINK (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? sinkname=noncol_ident
+    K_WITH uri=STRING_LITERAL {
+        $stmt = new CreateDataSinkStatement.Raw(sinkname, $uri.text, ifNotExists);
+    }
+  ;
+
+/**
+ * DROP DATA_SINK [IF EXISTS] <sinkname>
+ */
+dropDataSinkStatement returns [DropDataSinkStatement.Raw stmt]
+     @init {
+        boolean ifExists = false;
+     }
+    : K_DROP K_DATA_SINK (K_IF K_EXISTS { ifExists = true; } )? sinkname=noncol_ident{
+        $stmt = new DropDataSinkStatement.Raw(sinkname, ifExists);
+      }
     ;
 
 /** DEFINITIONS **/

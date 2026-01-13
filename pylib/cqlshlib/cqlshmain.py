@@ -1207,7 +1207,7 @@ class Shell(cmd.Cmd):
 
                 what = parsed.matched[1][1].lower()
 
-                if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
+                if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates', 'data_sources', 'data_sinks'):
                     self.describe_list(result)
                 elif what == 'keyspaces':
                     self.describe_keyspaces(result)

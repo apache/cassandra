@@ -167,6 +167,10 @@ K_NOLOGIN:     N O L O G I N;
 K_OPTIONS:     O P T I O N S;
 K_ACCESS:      A C C E S S;
 K_DATACENTERS: D A T A C E N T E R S;
+K_DATA_SOURCE: D A T A '_' S O U R C E;
+K_DATA_SOURCES:D A T A '_' S O U R C E S;
+K_DATA_SINK:   D A T A '_' S I N K;
+K_DATA_SINKS:  D A T A '_' S I N K S;
 K_CIDRS:       C I D R S;
 K_IDENTITY:    I D E N T I T Y;
 

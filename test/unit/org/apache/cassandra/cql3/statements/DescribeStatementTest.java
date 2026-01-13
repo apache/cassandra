@@ -218,7 +218,7 @@ public class DescribeStatementTest extends CQLTester
     {
         String function = createFunction(KEYSPACE_PER_TEST,
                                          "tuple<int>, list<frozen<tuple<int, text>>>, tuple<frozen<tuple<int, text>>, text>",
-                                         "CREATE OR REPLACE FUNCTION %s(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>) " +
+                                         "CREATE OR REPLACE FUNCTION %s(t tuple<int>, l list<frozen<tuple<int, text>>>, ntroll  tuple<frozen<tuple<int, text>>, text>) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS tuple<int, text> " +
                                          "LANGUAGE java " +

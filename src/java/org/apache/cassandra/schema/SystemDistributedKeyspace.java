@@ -60,6 +60,7 @@ import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -89,10 +90,11 @@ public final class SystemDistributedKeyspace
      * gen 6: add denylist table
      * gen 7: add auto_repair_history and auto_repair_priority tables for AutoRepair feature
      * gen 8: add compression_dictionaries for dictionary-based compression algorithms (e.g. zstd)
+     * gen 9: add service_configs table for data source and data sink configurations
      *
      * // TODO: TCM - how do we evolve these tables?
      */
-    public static final long GENERATION = 8;
+    public static final long GENERATION = 9;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -108,10 +110,12 @@ public final class SystemDistributedKeyspace
 
     public static final String COMPRESSION_DICTIONARIES = "compression_dictionaries";
 
+    public static final String SERVICE_CONFIGS = "service_configs";
+
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY,
                                                                   VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE,
                                                                   AUTO_REPAIR_HISTORY, AUTO_REPAIR_PRIORITY,
-                                                                  COMPRESSION_DICTIONARIES);
+                                                                  COMPRESSION_DICTIONARIES, SERVICE_CONFIGS);
 
     public static final String REPAIR_HISTORY_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                      + "keyspace_name text,"
@@ -210,6 +214,15 @@ public final class SystemDistributedKeyspace
     private static final TableMetadata CompressionDictionariesTable =
         parse(COMPRESSION_DICTIONARIES, "Compression dictionaries for applicable tables", COMPRESSION_DICTIONARIES_CQL).build();
 
+    public static final String SERVICE_CONFIGS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                            + "type text,"
+                            + "service text,"
+                            + "config map<text, text>,"
+                            + "PRIMARY KEY (service, type))";
+
+    private static final TableMetadata ServiceConfigsTable =
+            parse(SERVICE_CONFIGS, "Data source and data sink configurations", SERVICE_CONFIGS_CQL).build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -225,7 +238,7 @@ public final class SystemDistributedKeyspace
                                        Tables.of(RepairHistory, ParentRepairHistory,
                                                  ViewBuildStatus, PartitionDenylistTable,
                                                  AutoRepairHistoryTable, AutoRepairPriorityTable,
-                                                 CompressionDictionariesTable));
+                                                 CompressionDictionariesTable, ServiceConfigsTable));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
