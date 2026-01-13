@@ -576,7 +576,7 @@ public class AutoRepairUtilsTest extends CQLTester
         AutoRepairUtils.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);
         AutoRepairUtils.insertNewRepairHistory(repairType, otherID, currentMillis, currentMillis + 100);
 
-        assertEquals(currentMillis - 100, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+        assertEquals(currentMillis - 100, AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myID));
     }
 
     @Test
@@ -584,7 +584,27 @@ public class AutoRepairUtilsTest extends CQLTester
     {
         UUID myID = UUID.randomUUID();
 
-        assertEquals(0, AutoRepairUtils.getLastRepairTimeForNode(repairType, myID));
+        assertEquals(0, AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testGetLastRepairStartTimeForNode()
+    {
+        UUID myID = UUID.randomUUID();
+        UUID otherID = UUID.randomUUID();
+        long currentMillis = System.currentTimeMillis();
+        AutoRepairUtils.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);
+        AutoRepairUtils.insertNewRepairHistory(repairType, otherID, currentMillis + 50, currentMillis + 100);
+
+        assertEquals(currentMillis, AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myID));
+    }
+
+    @Test
+    public void testGetLastRepairStartTimeForNodeWhenHistoryIsEmpty()
+    {
+        UUID myID = UUID.randomUUID();
+
+        assertEquals(0, AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myID));
     }
 
     @Test
