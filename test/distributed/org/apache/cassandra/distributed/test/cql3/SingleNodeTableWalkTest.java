@@ -394,7 +394,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         String annotation;
         if (rs.nextBoolean())
         {
-            builder.between(ckSymbol, new Bind(low, ckSymbol.type()), new Bind(high, ckSymbol.type()));
+            builder.between(ckSymbol, state.value(rs, low, ckSymbol.type()), state.value(rs, high, ckSymbol.type()));
             annotation = "clustering BETWEEN";
         }
         else if (rs.nextBoolean())
