@@ -788,8 +788,6 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
-            // Use unwrapped type for comparison to handle reversed clustering columns correctly.
-            // BETWEEN semantics are always in logical (non-reversed) order: value >= low AND value <= high.
             AbstractType<?> unwrapped = type.unwrap();
             return unwrapped.compare(leftOperand, buffers.get(0)) >= 0 && unwrapped.compare(leftOperand, buffers.get(1)) <= 0;
         }
@@ -804,7 +802,6 @@ public enum Operator
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            // We do not sort the arguments for BETWEEN to allow inverted bounds to return empty results.
             rangeSet.removeAll(ClusteringElements.lessThan(args.get(0), partitioner));
             rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1), partitioner));
         }
