@@ -410,6 +410,9 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             annotation = "clustering > AND <";
         }
 
+        if (rs.nextBoolean())
+            builder.orderByColumn(ckSymbol, rs.pick(Select.OrderBy.Ordering.values()));
+
         // Check if clustering column is indexed
         var indexed = state.indexes.get(ckSymbol);
         if (indexed != null)

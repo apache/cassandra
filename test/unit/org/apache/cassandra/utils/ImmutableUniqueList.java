@@ -95,6 +95,11 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
         return values[index];
     }
 
+    public T get(T value)
+    {
+        return get(indexOf(value));
+    }
+
     @Override
     public int indexOf(Object o)
     {
