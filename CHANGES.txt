@@ -1,4 +1,5 @@
 Unreleased
+ * [CAAS-449] Extend Nodetools setValueForConfig to support map type configs
  * [CAAS-603] Add 30-day TTL for System Repair Tables
  * [CAAS-720] Fix password obfuscation in SLI query logs
  * [CAAS-305] Enrich ViewKeyRebuildConfig control and verbose logging

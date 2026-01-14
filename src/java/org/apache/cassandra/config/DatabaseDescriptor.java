@@ -4933,6 +4933,10 @@ public class DatabaseDescriptor
                     e.printStackTrace();
                     return String.format("Failed to parse value: %s for given type: %s", stringValue, fieldType.getName());
                 }
+            } else if (Map.class.isAssignableFrom(fieldType)) {
+                // For Map types, expect a JSON object string and parse it
+                // Example: {"key1":"value1","key2":"value2"}
+                value = FBUtilities.fromJsonMap(stringValue);
             } else {
                 return "Unsupported type value: " + fieldType.getName();
             }

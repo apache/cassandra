@@ -30,6 +30,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setvalueforconfig",
          description = "Set value for single field for org.apache.cassandra.config.Config object, note:" +
+                       " This command now supports simple map type configs with String type keys and values." +
                        " This cmd is for C* source code expert only. Only use this command on the field when you are " +
                        "absolutely sure about the consequence of simply modifying the value in DatabaseDescriptor.java")
 public class SetValueForConfig extends NodeTool.NodeToolCmd

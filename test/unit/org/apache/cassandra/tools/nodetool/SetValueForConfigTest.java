@@ -92,6 +92,20 @@ public class SetValueForConfigTest extends CQLTester
             new TestData(new String[]{"setvalueforconfig", "compaction_throughput", "1MiB/s"}, new String[]{"Successfully set the value for compaction_throughput to 1MiB/s"}),
             // wrong unit
             new TestData(new String[]{"setvalueforconfig", "compaction_throughput", "1MiB"}, new String[]{"Invalid data rate: 1MiB Accepted units: MiB/s, KiB/s, B/s where case matters and only non-negative values are valid"}),
+            // test Map (JSON string)
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{\"k\":\"v\"}"}, new String[]{"Successfully set the value for startup_checks to {k=v}"}),
+            // test Map (JSON string with boolean value)
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{\"k\":true}"}, new String[]{"Successfully set the value for startup_checks to {k=true}"}),
+            // test Map (JSON string with numeric value)
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{\"k\":1}"}, new String[]{"Successfully set the value for startup_checks to {k=1}"}),
+            // test Map invalid JSON
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{\"k\":\"v\""}, new String[]{"Error parsing the given value {\"k\":\"v\" to type java.util.Map for field startup_checks"}),
+            // test Nested Map (JSON with nested object)
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{\"outer\":{\"inner\":\"v\"}}"}, new String[]{"Successfully set the value for startup_checks to {outer={inner=v}}"}),
+            // test Empty Map
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", "{}"}, new String[]{"Successfully set the value for startup_checks to {}"}),
+            // test Empty string as map type config (invalid)
+            new TestData(new String[]{"setvalueforconfig", "startup_checks", ""}, new String[]{"setvalueforconfig requires config field name and the value to be set."}),
         };
 
         for (int i = 0; i < testData.length; i++)
