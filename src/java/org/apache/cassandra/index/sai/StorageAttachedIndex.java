@@ -454,9 +454,34 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public boolean supportsExpression(RowFilter.Expression expression)
+    {
+        if (expression.isMapElementExpression() &&
+            indexTermType.isFrozenCollection() &&
+            indexTermType.indexTargetType() == IndexTarget.Type.FULL)
+
+            return false;
+
+        return supportsExpression(expression.column(), expression.operator());
+    }
+
+    @Override
     public boolean filtersMultipleContains()
     {
         return false;
+    }
+
+    @Override
+    public boolean supportsMapElementExpression()
+    {
+        return termType().indexTargetType() == IndexTarget.Type.KEYS_AND_VALUES;
+    }
+
+    @Override
+    public boolean supportsFilteringOnMapElementExpression()
+    {
+        // SAI supports map element expressions via post-filtering on frozen collections
+        return true;
     }
 
     @Override
@@ -772,6 +797,12 @@ public class StorageAttachedIndex implements Index
         if (indexTermType.isNonFrozenCollection())
         {
             Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOf(row, FBUtilities.nowInSeconds());
+            while (bufferIterator != null && bufferIterator.hasNext())
+                validateTermSizeForCell(analyzer, key, bufferIterator.next(), isClientMutation, state);
+        }
+        else if (indexTermType.isFrozenCollection() && indexTermType.indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOfFrozenCollection(row, FBUtilities.nowInSeconds());
             while (bufferIterator != null && bufferIterator.hasNext())
                 validateTermSizeForCell(analyzer, key, bufferIterator.next(), isClientMutation, state);
         }

@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -67,6 +68,18 @@ public class MemtableIndexManager
         if (index.termType().isNonFrozenCollection())
         {
             Iterator<ByteBuffer> bufferIterator = index.termType().valuesOf(row, FBUtilities.nowInSeconds());
+            if (bufferIterator != null)
+            {
+                while (bufferIterator.hasNext())
+                {
+                    ByteBuffer value = bufferIterator.next();
+                    bytes += target.index(key, row.clustering(), value);
+                }
+            }
+        }
+        else if (index.termType().isFrozenCollection() && index.termType().indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOfFrozenCollection(row, FBUtilities.nowInSeconds());
             if (bufferIterator != null)
             {
                 while (bufferIterator.hasNext())

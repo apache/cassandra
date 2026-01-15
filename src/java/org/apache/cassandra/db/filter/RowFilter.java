@@ -527,6 +527,11 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             return operator;
         }
 
+        public boolean isMapElementExpression()
+        {
+            return kind() == Kind.MAP_ELEMENT;
+        }
+
         /**
          * If this expression is used to query an index, the value to use as
          * partition key for that index query.
