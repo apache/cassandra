@@ -343,13 +343,8 @@ public final class SimpleRestriction implements SingleRestriction
                 List<ByteBuffer> buffers = bindAndGet(options);
                 if (operator.kind() != Operator.Kind.BINARY)
                 {
-                    if (operator == Operator.IN)
-                    {
-                        if (!column.type.isCounter())
-                        {
-                            buffers.sort(column.type);
-                        }
-                    }
+                    if (operator == Operator.IN && !column.type.isCounter())
+                        buffers.sort(column.type);
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)

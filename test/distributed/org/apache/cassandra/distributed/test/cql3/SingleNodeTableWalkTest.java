@@ -349,6 +349,86 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return state.command(rs, select, symbol.detailedName() + (indexed == null ? "" : ", indexed with " + indexed.indexDDL.indexer.name()));
     }
 
+    public Property.Command<State, Void, ?> clusteringBetweenQuery(RandomSource rs, State state)
+    {
+        ImmutableUniqueList<Symbol> cks = state.model.factory.clusteringColumns;
+        if (cks.isEmpty())
+            return Property.ignoreCommand();
+
+        // Select a single partition
+        BytesPartitionState.Ref ref = rs.pickOrderedSet(state.model.partitionKeys());
+        BytesPartitionState partition = state.model.get(ref);
+
+        NavigableSet<Clustering<ByteBuffer>> clusteringKeys = partition.clusteringKeys();
+
+        // Use first clustering column for BETWEEN
+        Symbol ckSymbol = cks.get(0);
+
+        ByteBuffer low, high;
+        boolean useRealValues = clusteringKeys.size() >= 2 && rs.nextBoolean();
+        if (useRealValues)
+        {
+            // low and high can match, have high < low, and low < high... this is all expected
+            // between where low > high should return nothing
+            // between where low == high should be the same as a ck=? query
+            low = rs.pickOrderedSet(clusteringKeys).bufferAt(0);
+            high = rs.pickOrderedSet(clusteringKeys).bufferAt(0);
+        }
+        else
+        {
+            // Generate random values
+            Gen<ByteBuffer> bytesGen = toGen(getTypeSupport(ckSymbol.type()).bytesGen());
+            low = bytesGen.next(rs);
+            high = bytesGen.next(rs);
+        }
+
+        Select.Builder builder = Select.builder().table(state.metadata);
+
+        // Add partition key restrictions
+        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
+        Clustering<ByteBuffer> pkKey = ref.key;
+        for (Symbol pk : pks)
+            builder.value(pk, pkKey.bufferAt(pks.indexOf(pk)));
+
+
+        String annotation;
+        if (rs.nextBoolean())
+        {
+            builder.between(ckSymbol, state.value(rs, low, ckSymbol.type()), state.value(rs, high, ckSymbol.type()));
+            annotation = "clustering BETWEEN";
+        }
+        else if (rs.nextBoolean())
+        {
+            builder.where(ckSymbol, Inequality.GREATER_THAN_EQ, low);
+            builder.where(ckSymbol, Inequality.LESS_THAN_EQ, high);
+            annotation = "clustering >= AND <=";
+        }
+        else
+        {
+            builder.where(ckSymbol, Inequality.GREATER_THAN, low);
+            builder.where(ckSymbol, Inequality.LESS_THAN, high);
+            annotation = "clustering > AND <";
+        }
+
+        if (rs.nextBoolean())
+            builder.orderByColumn(ckSymbol, rs.pick(Select.OrderBy.Ordering.values()));
+
+        // Check if clustering column is indexed
+        var indexed = state.indexes.get(ckSymbol);
+        if (indexed != null)
+            annotation += " (indexed with " + indexed.indexDDL.indexer.name() + ')';
+
+        // Check if column is reversed (DESC)
+        if (ckSymbol.reversed)
+            annotation += " [DESC]";
+
+        if (!useRealValues)
+            annotation += " [random values]";
+
+        Select select = builder.build();
+        return state.command(rs, select, annotation);
+    }
+
     protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
@@ -383,6 +463,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                  .addIf(State::allowClusteringBetweenQuery, this::clusteringBetweenQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())
                                   .onSuccess(onSuccess(logger))
@@ -606,6 +687,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         public boolean allowPartitionQuery()
         {
             return !(model.isEmpty() || searchableNonPartitionColumns.isEmpty());
+        }
+
+        public boolean allowClusteringBetweenQuery()
+        {
+            return hasPartitions() && !model.factory.clusteringColumns.isEmpty();
         }
 
         @Override
