@@ -295,7 +295,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st56=commentOnUserTypeFieldStatement     { $stmt = st56; }
     | st57=securityLabelOnUserTypeFieldStatement   { $stmt = st57; }
     | st58=createDataSourceStatement       { $stmt = st58; }
-    | st59=createDataSinkStatement         { $stmt = st99; }
+    | st59=createDataSinkStatement         { $stmt = st59; }
     | st60=dropDataSourceStatement         { $stmt = st60; }
     | st61=dropDataSinkStatement           { $stmt = st61; }
     ;
@@ -1837,7 +1837,7 @@ describeStatement returns [DescribeStatement stmt]
     ;
 
 /**
-* CREATE DATA_SOURCE <srcname> ON TABLE <table> with <sinkname>
+* CREATE DATA_SOURCE [IF NOT EXISTS] <srcname> ON TABLE <table> with <sinkname>
 */
 createDataSourceStatement returns [CreateDataSourceStatement.Raw stmt]
   @init {
@@ -2539,5 +2539,9 @@ basic_unreserved_keyword returns [String str]
         | K_LABELS
         | K_FIELD
         | K_COLUMN
+        | K_DATA_SOURCE
+        | K_DATA_SOURCES
+        | K_DATA_SINK
+        | K_DATA_SINKS
         ) { $str = $k.text; }
     ;

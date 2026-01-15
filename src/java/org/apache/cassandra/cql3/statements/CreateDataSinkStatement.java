@@ -19,8 +19,8 @@ package org.apache.cassandra.cql3.statements;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -30,9 +30,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-
-
-import static java.lang.String.format;
 
 /**
  * Statement for CREATE DATA_SINK [IF NOT EXISTS] <sinkname> WITH <uri>
@@ -47,26 +44,11 @@ public class CreateDataSinkStatement extends AuthenticationStatement
     private final String uri;
     private final boolean ifNotExists;
 
-
     public CreateDataSinkStatement(String sinkName, String uri, boolean ifNotExists)
     {
         this.sinkName = sinkName;
         this.uri = uri;
         this.ifNotExists = ifNotExists;
-    }
-
-    private boolean sinkAlreadyInserted() {
-        String query = "SELECT * FROM %s.%s WHERE service = ? AND type = ?";
-        String formattedQuery = format(query,
-                                       org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                       "service_configs");
-
-        org.apache.cassandra.cql3.UntypedResultSet result = org.apache.cassandra.cql3.QueryProcessor.execute(formattedQuery,
-                                                                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
-                                                                                                             sinkName,
-                                                                                                             "DATA_SINK");
-        return !result.isEmpty();
-
     }
 
     @Override
@@ -94,10 +76,13 @@ public class CreateDataSinkStatement extends AuthenticationStatement
             URI parsedUri = new URI(uri);
             String scheme = parsedUri.getScheme();
 
-            // Validate known protocols
+            // Validate known protocols using DataSinkConfig
             if (scheme == null) {
                 throw new InvalidRequestException("URI must specify a protocol (e.g., kafka://)");
             }
+
+            // Check if protocol is supported
+            DataSinkConfig.getProtocol(scheme);
 
         } catch (URISyntaxException e) {
             throw new InvalidRequestException(
@@ -106,12 +91,11 @@ public class CreateDataSinkStatement extends AuthenticationStatement
     }
 
     /**
-     * Parses the URI to extract configuration parameters for Kafka
-     * URI format: kafka://host:port?param1=value1&param2=value2
+     * Parses the URI to extract configuration parameters for the data sink.
+     * Uses DataSinkConfig to enforce allowlist of supported/safe params.
+     * URI format: protocol://host:port?param1=value1&param2=value2
      */
     private Map<String, String> parseUriToConfig(String uri) throws InvalidRequestException {
-        Map<String, String> config = new HashMap<>();
-
         try {
             URI parsedUri = new URI(uri);
             String scheme = parsedUri.getScheme();
@@ -119,59 +103,87 @@ public class CreateDataSinkStatement extends AuthenticationStatement
             int port = parsedUri.getPort();
             String query = parsedUri.getQuery();
 
-            // Set protocol-specific defaults based on scheme
-            if ("kafka".equals(scheme)) {
-                // Set required Kafka configuration
-                config.put("bootstrap.servers", host + ":" + (port > 0 ? port : 9092));
-                config.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-                config.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+            // Get protocol-specific config handler
+            DataSinkConfig sinkConfig = DataSinkConfig.getProtocol(scheme);
 
-                // Set recommended defaults
-                config.put("acks", "all");
-                config.put("retries", "3");
-                config.put("compression.type", "snappy");
-                config.put("batch.size", "16384");
-                config.put("protocol", "kafka");
-                config.put("sink_type", "kafka");
-            }
+            Map<String, String> config = sinkConfig.getDefaults(host, port);
 
-            // Parse query parameters to override defaults
+            // Parse query params to override defaults
             if (query != null && !query.isEmpty()) {
+                Set<String> allowedParams = sinkConfig.getAllowedParameters();
                 String[] pairs = query.split("&");
+
                 for (String pair : pairs) {
                     String[] keyValue = pair.split("=", 2);
                     if (keyValue.length == 2) {
-                        config.put(keyValue[0], keyValue[1]);
+                        String paramName = keyValue[0];
+
+                        // Validate against protocol-specific allowlist
+                        if (!allowedParams.contains(paramName)) {
+                            throw new InvalidRequestException(
+                                String.format("Configuration parameter '%s' not allowed for %s data sinks. " +
+                                            "Allowed parameters: %s",
+                                            paramName,
+                                            scheme,
+                                            String.join(", ", allowedParams))
+                            );
+                        }
+
+                        config.put(paramName, keyValue[1]);
                     }
                 }
             }
 
+            return config;
+
         } catch (URISyntaxException e) {
             throw new InvalidRequestException("Invalid URI syntax: " + e.getMessage());
         }
-
-        return config;
     }
 
-    // CREATE DATA_SINK [sink_name] WITH [uri]
-    public void createDataSink(ClientState state) throws org.apache.cassandra.exceptions.RequestExecutionException, InvalidRequestException
+    /**
+     * Checks if a data sink with the given name already exists in the service_configs table.
+     *
+     * @return true if the sink exists, false otherwise
+     */
+    private boolean dataSinkExists()
     {
-        String query = String.format("INSERT INTO %s.%s (type, service, config) " +
-                                     "VALUES (?, ?, ?)",
-                                     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, "service_configs");
+        String query = "SELECT * FROM %s.%s WHERE type = ? AND service = ?";
+        String formattedQuery = String.format(query,
+                                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                              "service_configs");
 
-        // Parse URI to extract configuration
-        Map<String, String> config = parseUriToConfig(uri);
+        org.apache.cassandra.cql3.UntypedResultSet result =
+            org.apache.cassandra.cql3.QueryProcessor.execute(formattedQuery,
+                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                             "DATA_SINK",
+                                                             sinkName);
+        return !result.isEmpty();
+    }
 
-        // Add sink metadata
-        config.put("sink_name", sinkName);
-        config.put("uri", uri);
+    /**
+     * CREATE DATA_SINK [sink_name] WITH [uri]
+     * Inserts the data sink configuration into the service_configs table.
+     */
+    void createDataSink() throws org.apache.cassandra.exceptions.RequestExecutionException, InvalidRequestException
+    {
 
-        org.apache.cassandra.cql3.QueryProcessor.execute(query,
-                                                         org.apache.cassandra.db.ConsistencyLevel.ONE,
-                                                         "DATA_SINK",
-                                                         sinkName,
-                                                         config);
+            String query = String.format("INSERT INTO %s.%s (type, service, config) " +
+                                         "VALUES (?, ?, ?)",
+                                         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, "service_configs");
+
+            // Parse URI to extract configuration
+            Map<String, String> config = parseUriToConfig(uri);
+
+            // Add sink metadata
+            config.put("sink_name", sinkName);
+            config.put("uri", uri);
+
+            org.apache.cassandra.cql3.QueryProcessor.execute(query,
+                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                             "DATA_SINK",
+                                                             sinkName,
+                                                             config);
     }
 
     @Override
@@ -184,19 +196,23 @@ public class CreateDataSinkStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state)
     {
         try {
-            if (ifNotExists) {
-                if (!sinkAlreadyInserted()) {
-                    createDataSink(state);
+            // Check if sink already exists
+            if (dataSinkExists()) {
+                if (ifNotExists) {
+                    // Succeed silently when using IF NOT EXISTS
+                    return new ResultMessage.Void();
                 }
-            } else {
-                if (sinkAlreadyInserted()) {
+                else
+                {
+                    // Throw error when sink exists and IF NOT EXISTS was not specified
                     throw new InvalidRequestException(
                         String.format("Data sink '%s' already exists", this.sinkName)
                     );
                 }
-                createDataSink(state);
             }
 
+            // Sink doesn't exist, create it
+            createDataSink();
             return new ResultMessage.Void();
         } catch (InvalidRequestException e) {
             throw e;
@@ -208,7 +224,7 @@ public class CreateDataSinkStatement extends AuthenticationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.CREATE_TRIGGER, sinkName); // TODO: Add CREATE_DATA_SINK audit type
+        return new AuditLogContext(AuditLogEntryType.CREATE_DATA_SINK, sinkName); // TODO: Add CREATE_DATA_SINK audit type
     }
 
     @Override

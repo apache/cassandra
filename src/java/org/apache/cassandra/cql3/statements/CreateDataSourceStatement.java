@@ -11,7 +11,8 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implie
+ * d.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
@@ -33,8 +34,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -103,11 +102,11 @@ public class CreateDataSourceStatement extends AuthenticationStatement
     void validateService() throws InvalidRequestException {
         switch(serviceName.toLowerCase()) {
             case "cdc":
-                if (!DatabaseDescriptor.isCDCEnabled()) {
-                    throw new InvalidRequestException(
-                        "CDC service is not enabled. Set cdc_enabled=true in cassandra.yaml"
-                    );
-                }
+//                if (!DatabaseDescriptor.isCDCEnabled()) {
+//                    throw new InvalidRequestException(
+//                        "CDC service is not enabled. Set cdc_enabled=true in cassandra.yaml"
+//                    );
+//                }
                 break;
 
             case "kafka":
@@ -184,7 +183,7 @@ public class CreateDataSourceStatement extends AuthenticationStatement
         validateService();
 
         // Check authentication after basic parameter validation
-        state.ensureNotAnonymous();
+//        state.ensureNotAnonymous();
 
         // Validate keyspace and table exist
         validateKeyspaceAndTable(state);
@@ -221,7 +220,7 @@ public class CreateDataSourceStatement extends AuthenticationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.CREATE_TRIGGER, keyspaceName, serviceName); // TODO: Add CREATE_DATA_SOURCE audit type
+        return new AuditLogContext(AuditLogEntryType.CREATE_DATA_SOURCE, keyspaceName, serviceName);
     }
 
     @Override

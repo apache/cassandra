@@ -124,7 +124,7 @@ public class DropDataSourceStatement extends AuthenticationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.DROP_TRIGGER, keyspaceName, serviceName); // TODO: Add DROP_DATA_SOURCE audit type
+        return new AuditLogContext(AuditLogEntryType.DROP_DATA_SOURCE, keyspaceName, serviceName); // TODO: Add DROP_DATA_SOURCE audit type
     }
 
     @Override

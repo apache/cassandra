@@ -41,7 +41,7 @@ public class DescribeDataSinksStatementTest extends CQLTester
     private void createTestSink(String sinkName, String uri) throws Throwable
     {
         CreateDataSinkStatement stmt = new CreateDataSinkStatement(sinkName, uri, false);
-        stmt.createDataSink(null);
+        stmt.createDataSink();
     }
 
     private void cleanupTestSink(String sinkName) throws Throwable

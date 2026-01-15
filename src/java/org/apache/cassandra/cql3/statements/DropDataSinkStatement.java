@@ -22,6 +22,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
@@ -69,20 +70,26 @@ public class DropDataSinkStatement extends AuthenticationStatement
             org.apache.cassandra.cql3.UntypedResultSet result = org.apache.cassandra.cql3.QueryProcessor.execute(formattedQuery,
                                                                                                                  ConsistencyLevel.ONE);
 
-            // Check if any data source's config column references sink
+            // Check for sinks in use by current data sources
             for (org.apache.cassandra.cql3.UntypedResultSet.Row row : result) {
-                String type = row.getString("type");
-                if ("DATA_SOURCE".equals(type)) {
-                    String config = row.getString("config");
+                // Only check DATA_SOURCE entries
+                if (!"DATA_SOURCE".equals(row.getString("type"))) {
+                    continue;
+                }
 
-                    if (config != null && config.contains(sinkName)) {
-                        return false; // Sink in use
-                    }
+                java.util.Map<String, String> config = row.getMap("config", UTF8Type.instance,
+                                                                  UTF8Type.instance);
+
+                if (config != null && sinkName.equals(config.get("sink"))) {
+                    System.err.println("DEBUG: Found data source '" + row.getString("service") + "' using sink '" + sinkName + "'");
+                    return false; // Sink in use
                 }
             }
             return true; // Sink not in use
         } catch (Exception e) {
-            return false; // Conservatively prevent deletion
+            System.err.println("DEBUG: Exception in checkDataSinkNotInUse: " + e.getMessage());
+            e.printStackTrace();
+            throw new InvalidRequestException("Error checking if data sink is in use: " + e.getMessage());
         }
     }
 
@@ -150,7 +157,7 @@ public class DropDataSinkStatement extends AuthenticationStatement
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.DROP_TRIGGER, sinkName);
+        return new AuditLogContext(AuditLogEntryType.DROP_DATA_SINK, sinkName);
     }
 
     @Override

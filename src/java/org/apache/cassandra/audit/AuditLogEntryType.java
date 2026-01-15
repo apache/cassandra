@@ -72,6 +72,10 @@ public enum AuditLogEntryType
     SECURITY_LABEL_TABLE(AuditLogEntryCategory.DDL),
     SECURITY_LABEL_COLUMN(AuditLogEntryCategory.DDL),
     SECURITY_LABEL_TYPE(AuditLogEntryCategory.DDL),
+    CREATE_DATA_SOURCE(AuditLogEntryCategory.DDL),
+    DROP_DATA_SOURCE(AuditLogEntryCategory.DDL),
+    CREATE_DATA_SINK(AuditLogEntryCategory.DDL),
+    DROP_DATA_SINK(AuditLogEntryCategory.DDL),
 
     /*
      * Common Audit Log Entry Types
