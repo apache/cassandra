@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -242,7 +243,7 @@ public class SecondaryIndexOnMapEntriesTest extends CQLTester
         }
         catch (InvalidRequestException e)
         {
-            String expectedMessage = "Map-entry predicates on frozen map column v are not supported";
+            String expectedMessage = String.format(Relation.FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, "v");
             assertTrue("Expected error message to contain '" + expectedMessage + "' but got '" +
                        e.getMessage() + "'", e.getMessage().contains(expectedMessage));
         }

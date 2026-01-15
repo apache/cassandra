@@ -1,4 +1,5 @@
 5.1
+ * Allow value/element indexing on frozen collections in SAI (CASSANDRA-18492)
  * Add tool to offline dump cluster metadata and the log (CASSANDRA-21129)
  * Send client warnings when writing to a large partition (CASSANDRA-17258)
  * Harden the possible range of values for max dictionary size and max total sample size for dictionary training (CASSANDRA-21194)

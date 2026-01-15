@@ -438,6 +438,27 @@ public interface Index
     }
 
     /**
+     * Return whether this index supports map element expressions on frozen map columns.
+     *
+     * @return {@code true} if this index supports map element else {@code false}.
+     */
+    default boolean supportsMapElementExpression()
+    {
+        return false;
+    }
+
+    /**
+     * Returns whether index allows filtering for map element expressions on frozen collections.
+     * SAI can handle map element predicates via post-filtering.
+     *
+     * @return {@code true} if map element expressions can be evaluated via filtering, {@code false} otherwise.
+     */
+    default boolean supportsFilteringOnMapElementExpression()
+    {
+        return false;
+    }
+
+    /**
      * If the index supports custom search expressions using the
      * {@code}SELECT * FROM table WHERE expr(index_name, expression){@code} syntax, this
      * method should return the expected type of the expression argument.

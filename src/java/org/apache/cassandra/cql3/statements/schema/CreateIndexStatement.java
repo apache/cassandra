@@ -81,10 +81,13 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     public static final String ONLY_PARTITION_KEY = "Cannot create secondary index on the only partition key column %s";
     public static final String CREATE_ON_FROZEN_COLUMN = "Cannot create %s() index on frozen column %s. Frozen collections are immutable and must be fully " +
                                                          "indexed by using the 'full(%s)' modifier";
-    public static final String FULL_ON_FROZEN_COLLECTIONS = "full() indexes can only be created on frozen collections";
+    public static final String FULL_ON_FROZEN_COLLECTIONS = "full() non-SAI indexes can only be created on frozen collections";
     public static final String NON_COLLECTION_SIMPLE_INDEX = "Cannot create %s() index on %s. Non-collection columns only support simple indexes";
     public static final String CREATE_WITH_NON_MAP_TYPE = "Cannot create index on %s of column %s with non-map type";
     public static final String CREATE_ON_NON_FROZEN_UDT = "Cannot create index on non-frozen UDT column %s";
+    public static final String ENTRIES_INDEX_ON_FROZEN_MAP_CLUSTERING_KEY_NOT_SUPPORTED = "Cannot create ENTRIES index on frozen map clustering column '%s'. " +
+                                                                                           "Map entry predicates (column[key] = value) are not supported on clustering columns. " +
+                                                                                           "Use FULL, KEYS, or VALUES index instead.";
     public static final String INDEX_ALREADY_EXISTS = "Index '%s' already exists";
     public static final String INDEX_DUPLICATE_OF_EXISTING = "Index %s is a duplicate of existing index %s";
     public static final String KEYSPACE_DOES_NOT_MATCH_TABLE = "Keyspace name '%s' doesn't match table name '%s'";
@@ -200,7 +203,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
 
         IndexMetadata.Kind kind = attrs.isCustom ? IndexMetadata.Kind.CUSTOM : IndexMetadata.Kind.COMPOSITES;
 
-        indexTargets.forEach(t -> validateIndexTarget(table, kind, t));
+        indexTargets.forEach(t -> validateIndexTarget(table, kind, t, attrs));
 
         String name = null == indexName ? generateIndexName(keyspace, indexTargets) : indexName;
 
@@ -244,7 +247,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire(TOO_LONG_CUSTOM_INDEX_TARGET, name, SchemaConstants.NAME_LENGTH);
     }
 
-    private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target)
+    private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target, IndexAttributes attrs)
     {
         ColumnMetadata column = table.getColumn(target.column);
 
@@ -252,6 +255,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire(COLUMN_DOES_NOT_EXIST, target.column);
 
         AbstractType<?> baseType = column.type.unwrap();
+
+        boolean isNonSAIIndex = !isSAIIndex(attrs);
 
         // TODO: this check needs to be removed with CASSANDRA-20235
         if ((kind == IndexMetadata.Kind.CUSTOM))
@@ -283,20 +288,39 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (column.isPartitionKey() && table.partitionKeyColumns().size() == 1)
             throw ire(ONLY_PARTITION_KEY, column);
 
-        if (baseType.isFrozenCollection() && target.type != Type.FULL)
-            throw ire(CREATE_ON_FROZEN_COLUMN, target.type, column, column.name.toCQLString());
-
-        if (!baseType.isFrozenCollection() && target.type == Type.FULL)
+        if (target.type == Type.FULL && isNonSAIIndex && (!baseType.isCollection() || column.type.isMultiCell()))
             throw ire(FULL_ON_FROZEN_COLLECTIONS);
 
         if (!baseType.isCollection() && target.type != Type.SIMPLE)
             throw ire(NON_COLLECTION_SIMPLE_INDEX, target.type, column);
 
-        if (!(baseType instanceof MapType && baseType.isMultiCell()) && (target.type == Type.KEYS || target.type == Type.KEYS_AND_VALUES))
+        // Frozen collections are only supported with SAI indexes.
+        if (isNonSAIIndex && baseType.isCollection() && !column.type.isMultiCell())
+        {
+            if (target.type == Type.VALUES || target.type == Type.KEYS || target.type == Type.KEYS_AND_VALUES)
+            {
+                throw ire(CREATE_ON_FROZEN_COLUMN, target.type.toString(), column.name, column.name);
+            }
+        }
+
+        if (!(baseType instanceof MapType) && (target.type == Type.KEYS || target.type == Type.KEYS_AND_VALUES ))
             throw ire(CREATE_WITH_NON_MAP_TYPE, target.type, column);
+
+        // Can't query map[key]=value on clustering key columns, so ENTRIES index would be not queryable.
+        if (column.isClusteringColumn() && baseType instanceof MapType && !column.type.isMultiCell()
+            && target.type == Type.KEYS_AND_VALUES)
+            throw ire(ENTRIES_INDEX_ON_FROZEN_MAP_CLUSTERING_KEY_NOT_SUPPORTED, column.name);
 
         if (column.type.isUDT() && column.type.isMultiCell())
             throw ire(CREATE_ON_NON_FROZEN_UDT, column);
+    }
+
+    /**
+     * Checks if the given index attributes represent a Storage Attached Index.
+     */
+    private boolean isSAIIndex(IndexAttributes attrs)
+    {
+        return attrs.isCustom && IndexMetadata.isSAIIndex(attrs.customClass);
     }
 
     private String generateIndexName(KeyspaceMetadata keyspace, List<IndexTarget> targets)

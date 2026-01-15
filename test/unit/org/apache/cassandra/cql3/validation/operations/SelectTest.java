@@ -27,6 +27,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -1646,11 +1647,12 @@ public class SelectTest extends CQLTester
                        row(1, 2, list(1, 6), set(2, 12), map(1, 6)),
                        row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
 
-            assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
-                                 "SELECT * FROM %s WHERE e[1] = 6 ALLOW FILTERING");
+            // CASSANDRA-18492: Allow filtering works with frozen map[key]
+            assertRows(execute("SELECT * FROM %s WHERE e[1] = 6 ALLOW FILTERING"),
+                       row(1, 2, list(1, 6), set(2, 12), map(1, 6)));
 
-            assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
-                                 "SELECT * FROM %s WHERE e[1] != 6 ALLOW FILTERING");
+            assertRows(execute("SELECT * FROM %s WHERE e[1] != 6 ALLOW FILTERING"),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
 
             assertRows(execute("SELECT * FROM %s WHERE e CONTAINS KEY 1 AND e CONTAINS 2 ALLOW FILTERING"),
                        row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
@@ -1674,9 +1676,9 @@ public class SelectTest extends CQLTester
                              "SELECT * FROM %s WHERE e CONTAINS null ALLOW FILTERING");
         assertInvalidMessage("Invalid null value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY null ALLOW FILTERING");
-        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
+        assertInvalidMessage("Invalid null map key for column e",
                              "SELECT * FROM %s WHERE e[null] = 2 ALLOW FILTERING");
-        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
+        assertInvalidMessage("Invalid null value for e[1]",
                              "SELECT * FROM %s WHERE e[1] = null ALLOW FILTERING");
 
         // Checks filtering with unset
@@ -1701,10 +1703,10 @@ public class SelectTest extends CQLTester
         assertInvalidMessage("Invalid unset value for column e",
                              "SELECT * FROM %s WHERE e CONTAINS KEY ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
+        assertInvalidMessage("Invalid unset map key for column e",
                              "SELECT * FROM %s WHERE e[?] = 2 ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Map-entry predicates on frozen map column e are not supported",
+        assertInvalidMessage("Invalid unset value for e[1]",
                              "SELECT * FROM %s WHERE e[1] = ? ALLOW FILTERING",
                              unset());
     }
@@ -3556,7 +3558,7 @@ public class SelectTest extends CQLTester
                              "NOT_CONTAINS_KEY or map-entry equality if it already restricted by one of those",
                              "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm CONTAINS KEY 'lmn'");
 
-        assertInvalidMessage("Map-entry predicates on frozen map column fm are not supported",
+        assertInvalidMessage(String.format(Relation.FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, "fm"),
                              "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm['lmn'] = 'foo2'");
     }
 }
