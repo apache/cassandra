@@ -30,7 +30,6 @@ import static java.lang.String.format;
 
 /**
  * Statement for DROP DATA_SOURCE [IF EXISTS] <servicename> ON TABLE <table>
- *
  * Removes a data source from system_distributed.serviceConfigs table,
  * stopping data streaming to the associated sink.
  */

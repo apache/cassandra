@@ -18,31 +18,30 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 
 /**
  * Statement for CREATE DATA_SOURCE [IF NOT EXISTS] <servicename> ON TABLE <table> WITH <sinkname>
- *
  * Data sources are stored in system_distributed.serviceConfigs table and define
  * streaming configurations for tables to external sinks. The service name (e.g., "cdc")
  * indicates which data capture service to use.
@@ -100,13 +99,9 @@ public class CreateDataSourceStatement extends AuthenticationStatement
      * Checks services supported, performing similar functionality to configAccesor classes in sidecar
      */
     void validateService() throws InvalidRequestException {
-        switch(serviceName.toLowerCase()) {
+        switch(LocalizeString.toLowerCaseLocalized(serviceName)) {
+
             case "cdc":
-//                if (!DatabaseDescriptor.isCDCEnabled()) {
-//                    throw new InvalidRequestException(
-//                        "CDC service is not enabled. Set cdc_enabled=true in cassandra.yaml"
-//                    );
-//                }
                 break;
 
             case "kafka":

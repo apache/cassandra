@@ -24,6 +24,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.LocalizeString;
 
 /**
  * Configuration abstraction for data sink protocols.
@@ -58,7 +59,7 @@ public abstract class DataSinkConfig
         if (protocol == null)
             throw new InvalidRequestException("Protocol cannot be null");
 
-        switch (protocol.toLowerCase())
+        switch (LocalizeString.toLowerCaseLocalized(protocol))
         {
             case "kafka":
                 return new KafkaDataSinkConfig();

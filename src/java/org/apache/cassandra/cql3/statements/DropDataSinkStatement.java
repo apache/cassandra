@@ -32,7 +32,6 @@ import static java.lang.String.format;
 
 /**
  * Statement for DROP DATA_SINK [IF EXISTS] <sinkname>
- *
  * Drops a global data sink definition from the cluster.
  */
 public class DropDataSinkStatement extends AuthenticationStatement

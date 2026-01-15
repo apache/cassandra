@@ -60,7 +60,6 @@ import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;

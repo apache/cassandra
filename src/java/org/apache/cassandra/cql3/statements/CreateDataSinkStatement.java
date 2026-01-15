@@ -33,7 +33,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
  * Statement for CREATE DATA_SINK [IF NOT EXISTS] <sinkname> WITH <uri>
- *
  * Data sinks are global cluster-level resources that define external destinations
  * for data (e.g., Kafka clusters). The URI format is expected to be like:
  * kafka://kafkacluster:port?param1=value1&param2=value2
