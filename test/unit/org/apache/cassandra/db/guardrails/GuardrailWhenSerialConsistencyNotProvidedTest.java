@@ -136,3 +136,4 @@ public class GuardrailWhenSerialConsistencyNotProvidedTest extends GuardrailTest
         assertFails(() -> execute(userClientState, query, cl, serialCl), "Query did not provide a serial consistency level.");
     }
 }
+
