@@ -934,6 +934,8 @@ public class Config
     public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
+    public volatile boolean warn_if_no_serial_consistency_level_provided_for_cas_enabled = false;
+    public volatile boolean fail_if_no_serial_consistency_level_provided_for_cas_enabled = false;
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;

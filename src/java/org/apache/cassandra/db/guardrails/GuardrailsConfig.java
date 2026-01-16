@@ -261,6 +261,18 @@ public interface GuardrailsConfig
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
     /**
+     * @return {@code true} warn if no serial consistency level is provided for CAS operations.
+     * {@code false} does not warn when no serial consistency is used on CAS operations.
+     */
+    boolean getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled();
+
+    /**
+     * @return {@code true} fail if no serial consistency level is provided for CAS operations.
+     * {@code false} does not fail when no serial consistency is used on CAS operations.
+     */
+    boolean getFailIfNoSerialConsistencyLevelProvidedForCASEnabled();
+
+    /**
      * @return The threshold to warn when writing partitions larger than threshold.
      */
     @Nullable

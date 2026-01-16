@@ -623,6 +623,34 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled()
+    {
+        return config.warn_if_no_serial_consistency_level_provided_for_cas_enabled;
+    }
+
+    public void setWarnIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("warn_if_no_serial_consistency_level_provided_for_cas_enabled",
+                                  enabled,
+                                  () -> config.warn_if_no_serial_consistency_level_provided_for_cas_enabled,
+                                  x -> config.warn_if_no_serial_consistency_level_provided_for_cas_enabled = x);
+    }
+
+    @Override
+    public boolean getFailIfNoSerialConsistencyLevelProvidedForCASEnabled()
+    {
+        return config.fail_if_no_serial_consistency_level_provided_for_cas_enabled;
+    }
+
+    public void setFailIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("fail_if_no_serial_consistency_level_provided_for_cas_enabled",
+                                  enabled,
+                                  () -> config.fail_if_no_serial_consistency_level_provided_for_cas_enabled,
+                                  x -> config.fail_if_no_serial_consistency_level_provided_for_cas_enabled = x);
+    }
+
+    @Override
     @Nullable
     public DataStorageSpec.LongBytesBound getPartitionSizeWarnThreshold()
     {

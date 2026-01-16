@@ -667,6 +667,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
+        Guardrails.serialConsistency.guard(options.serialConsistencyNotProvided(), queryState.getClientState());
+
         CQL3CasRequest request = makeCasRequest(queryState, options, requestTime);
 
         try (RowIterator result = StorageProxy.cas(keyspace(),
