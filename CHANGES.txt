@@ -1,4 +1,5 @@
 Unreleased
+ * Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created (CASSANDRA-20570)
  * [CAAS-449] Extend Nodetools setValueForConfig to support map type configs
  * [CAAS-603] Add 30-day TTL for System Repair Tables
  * [CAAS-720] Fix password obfuscation in SLI query logs
