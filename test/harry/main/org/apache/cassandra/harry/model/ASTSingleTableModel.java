@@ -1649,7 +1649,7 @@ public class ASTSingleTableModel
     {
         for (var block : orderBy.ordered)
         {
-            Symbol col = (Symbol) block.expression; //TOOD (coverage): do we support anything other than symbol?
+            Symbol col = (Symbol) block.expression; //TODO (coverage): do we support anything other than symbol?
             col = factory.clusteringColumns.get(col); // switch to table symbol so we know if its reversed or not
             if (col.reversed != (block.ordering == Select.OrderBy.Ordering.DESC))
                 return true;
