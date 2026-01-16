@@ -28,9 +28,9 @@ import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.thresholds.ThresholdCounter;
 
 import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.Builder;
-import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.Counter;
 import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.builder;
 import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.empty;
 import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.merge;
@@ -164,7 +164,7 @@ public class WarningsSnapshotTest
 
     private static Gen<WarningsSnapshot> nonEmpty()
     {
-        Gen<Counter> counter = counter();
+        Gen<ThresholdCounter> counter = counter();
         Gen<WarningsSnapshot> gen = rs -> {
             Builder builder = builder();
             builder.tombstonesWarning(counter.generate(rs));
@@ -178,15 +178,15 @@ public class WarningsSnapshotTest
         return gen.assuming(WarningsSnapshot::isDefined).describedAs(WarningsSnapshot::toString);
     }
 
-    private static Gen<Counter> counter()
+    private static Gen<ThresholdCounter> counter()
     {
         Gen<Boolean> empty = SourceDSL.booleans().all();
         Constraint maxValue = Constraint.between(1, Long.MAX_VALUE);
         Gen<ImmutableSet<InetAddressAndPort>> instances = SourceDSL.arbitrary()
                                                                    .pick(ImmutableSet.of(HOME), ImmutableSet.of(VACATION_HOME), ImmutableSet.of(HOME, VACATION_HOME));
-        Gen<Counter> gen = rs ->
-                           empty.generate(rs) ? Counter.empty()
-                                              : new Counter(instances.generate(rs), rs.next(maxValue));
-        return gen.describedAs(Counter::toString);
+        Gen<ThresholdCounter> gen = rs ->
+                           empty.generate(rs) ? ThresholdCounter.empty()
+                                              : new ThresholdCounter(instances.generate(rs), rs.next(maxValue));
+        return gen.describedAs(ThresholdCounter::toString);
     }
 }

@@ -18,15 +18,9 @@
 
 package org.apache.cassandra.service.writes.thresholds;
 
-
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.thresholds.ThresholdCounter;
 
 /**
  * Immutable snapshot of write warnings.
@@ -34,12 +28,12 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class WriteWarningsSnapshot
 {
-    private static final WriteWarningsSnapshot EMPTY = new WriteWarningsSnapshot(Counter.EMPTY, Counter.EMPTY);
+    private static final WriteWarningsSnapshot EMPTY = new WriteWarningsSnapshot(ThresholdCounter.empty(), ThresholdCounter.empty());
 
-    public final Counter writeSize;
-    public final Counter writeTombstone;
+    public final ThresholdCounter writeSize;
+    public final ThresholdCounter writeTombstone;
 
-    private WriteWarningsSnapshot(Counter writeSize, Counter writeTombstone)
+    private WriteWarningsSnapshot(ThresholdCounter writeSize, ThresholdCounter writeTombstone)
     {
         this.writeSize = writeSize;
         this.writeTombstone = writeTombstone;
@@ -50,9 +44,9 @@ public class WriteWarningsSnapshot
         return EMPTY;
     }
 
-    public static WriteWarningsSnapshot create(Counter writeSize, Counter writeTombstone)
+    public static WriteWarningsSnapshot create(ThresholdCounter writeSize, ThresholdCounter writeTombstone)
     {
-        if (writeSize == Counter.EMPTY && writeTombstone == Counter.EMPTY)
+        if (writeSize == ThresholdCounter.empty() && writeTombstone == ThresholdCounter.empty())
             return EMPTY;
         return new WriteWarningsSnapshot(writeSize, writeTombstone);
     }
@@ -84,58 +78,5 @@ public class WriteWarningsSnapshot
     {
         return String.format("%d nodes detected write to partition with many tombstones; estimated count is %d (see write_tombstone_warn_threshold)",
                              nodes, tombstones);
-    }
-
-    public static final class Counter
-    {
-        private static final Counter EMPTY = new Counter(ImmutableSet.of(), 0);
-
-        public final ImmutableSet<InetAddressAndPort> instances;
-        public final long maxValue;
-
-        Counter(ImmutableSet<InetAddressAndPort> instances, long maxValue)
-        {
-            this.instances = instances;
-            this.maxValue = maxValue;
-        }
-
-        static Counter empty()
-        {
-            return EMPTY;
-        }
-
-        public static Counter create(Set<InetAddressAndPort> instances, AtomicLong maxValue)
-        {
-            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.copyOf(instances);
-            if (copy.isEmpty())
-                return EMPTY;
-            return new Counter(copy, maxValue.get());
-        }
-
-        public Counter merge(Counter other)
-        {
-            if (other == EMPTY)
-                return this;
-            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.<InetAddressAndPort>builder()
-                                                                .addAll(instances)
-                                                                .addAll(other.instances)
-                                                                .build();
-            return new Counter(copy, Math.max(maxValue, other.maxValue));
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Counter counter = (Counter) o;
-            return maxValue == counter.maxValue && Objects.equals(instances, counter.instances);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(instances, maxValue);
-        }
     }
 }

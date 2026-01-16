@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.thresholds.ThresholdCounter;
 
 public class WarnAbortCounter
 {
@@ -52,6 +53,6 @@ public class WarnAbortCounter
 
     public WarningsSnapshot.Warnings snapshot()
     {
-        return WarningsSnapshot.Warnings.create(WarningsSnapshot.Counter.create(warnings, maxWarningValue), WarningsSnapshot.Counter.create(aborts, maxAbortsValue));
+        return WarningsSnapshot.Warnings.create(ThresholdCounter.create(warnings, maxWarningValue), ThresholdCounter.create(aborts, maxAbortsValue));
     }
 }

@@ -24,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.thresholds.ThresholdCounter;
+
 public class WarnCounter
 {
     final Set<InetAddressAndPort> warnings = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -35,8 +37,8 @@ public class WarnCounter
         warnings.add(from);
     }
 
-    public WriteWarningsSnapshot.Counter snapshot()
+    public ThresholdCounter snapshot()
     {
-        return WriteWarningsSnapshot.Counter.create(warnings, maxWarningValue);
+        return ThresholdCounter.create(warnings, maxWarningValue);
     }
 }

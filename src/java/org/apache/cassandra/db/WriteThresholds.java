@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db;
 
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,14 +30,15 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * Utility class for checking write threshold warnings on replicas.
- * Used by both regular mutation writes and CAS/LWT writes.
  */
 public class WriteThresholds
 {
     private static final Logger logger = LoggerFactory.getLogger(WriteThresholds.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     /**
      * Check write thresholds for a single partition update.
@@ -45,7 +48,7 @@ public class WriteThresholds
      * @param update the partition update being written
      * @param key the partition key being written
      */
-    public static void checkWriteThresholds(PartitionUpdate update, org.apache.cassandra.db.DecoratedKey key)
+    public static void checkWriteThresholds(PartitionUpdate update, DecoratedKey key)
     {
         if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getWriteThresholdsEnabled())
             return;
@@ -53,13 +56,13 @@ public class WriteThresholds
         DataStorageSpec.LongBytesBound sizeWarnThreshold = DatabaseDescriptor.getWriteSizeWarnThreshold();
         int tombstoneWarnThreshold = DatabaseDescriptor.getWriteTombstoneWarnThreshold();
 
-        if (sizeWarnThreshold == null && tombstoneWarnThreshold == 0)
+        if (sizeWarnThreshold == null && tombstoneWarnThreshold == -1)
             return;
 
         long sizeWarnBytes = sizeWarnThreshold != null ? sizeWarnThreshold.toBytes() : -1;
 
         TableId tableId = update.metadata().id;
-        org.apache.cassandra.db.ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
 
         if (cfs == null || cfs.topPartitions == null)
             return;
@@ -67,33 +70,33 @@ public class WriteThresholds
         long estimatedSize = cfs.topPartitions.topSizes().getEstimate(key);
         long estimatedTombstones = cfs.topPartitions.topTombstones().getEstimate(key);
 
-        if (sizeWarnBytes > 0 && estimatedSize > sizeWarnBytes)
+        if (sizeWarnBytes != -1 && estimatedSize > sizeWarnBytes)
         {
-            Long currentSize = org.apache.cassandra.db.MessageParams.get(ParamType.WRITE_SIZE_WARN);
+            Long currentSize = MessageParams.get(ParamType.WRITE_SIZE_WARN);
             if (currentSize == null || currentSize < estimatedSize)
             {
-                org.apache.cassandra.db.MessageParams.add(ParamType.WRITE_SIZE_WARN, estimatedSize);
+                MessageParams.add(ParamType.WRITE_SIZE_WARN, estimatedSize);
 
                 TableMetadata meta = update.metadata();
-                String pk = meta.partitionKeyType.getString(key.getKey());
-                logger.warn("Write to {}.{} partition {} triggered size warning; " +
-                            "estimated size is {} bytes, threshold is {} bytes (see write_size_warn_threshold)",
-                            meta.keyspace, meta.name, pk, estimatedSize, sizeWarnBytes);
+                String pk = meta.partitionKeyType.toCQLString(key.getKey());
+                noSpamLogger.warn("Write to {} partition {} triggered size warning; " +
+                                  "estimated size is {} bytes, threshold is {} bytes (see write_size_warn_threshold)",
+                                  meta, pk, estimatedSize, sizeWarnBytes);
             }
         }
 
         if (tombstoneWarnThreshold > 0 && estimatedTombstones > tombstoneWarnThreshold)
         {
-            Integer currentTombstones = org.apache.cassandra.db.MessageParams.get(ParamType.WRITE_TOMBSTONE_WARN);
+            Integer currentTombstones = MessageParams.get(ParamType.WRITE_TOMBSTONE_WARN);
             if (currentTombstones == null || currentTombstones < estimatedTombstones)
             {
-                org.apache.cassandra.db.MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, (int) estimatedTombstones);
+                MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, (int) estimatedTombstones);
 
                 TableMetadata meta = update.metadata();
-                String pk = meta.partitionKeyType.getString(key.getKey());
-                logger.warn("Write to {}.{} partition {} triggered tombstone warning; " +
-                            "estimated tombstone count is {}, threshold is {} (see write_tombstone_warn_threshold)",
-                            meta.keyspace, meta.name, pk, estimatedTombstones, tombstoneWarnThreshold);
+                String pk = meta.partitionKeyType.toCQLString(key.getKey());
+                noSpamLogger.warn("Write to {} partition {} triggered tombstone warning; " +
+                                  "estimated tombstone count is {}, threshold is {} (see write_tombstone_warn_threshold)",
+                                  meta, pk, estimatedTombstones, tombstoneWarnThreshold);
             }
         }
     }
@@ -104,7 +107,7 @@ public class WriteThresholds
      *
      * @param mutation the mutation containing one or more partition updates
      */
-    public static void checkWriteThresholds(org.apache.cassandra.db.Mutation mutation)
+    public static void checkWriteThresholds(Mutation mutation)
     {
         if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getWriteThresholdsEnabled())
             return;
@@ -112,7 +115,7 @@ public class WriteThresholds
         DataStorageSpec.LongBytesBound sizeWarnThreshold = DatabaseDescriptor.getWriteSizeWarnThreshold();
         int tombstoneWarnThreshold = DatabaseDescriptor.getWriteTombstoneWarnThreshold();
 
-        if (sizeWarnThreshold == null && tombstoneWarnThreshold == 0)
+        if (sizeWarnThreshold == null && tombstoneWarnThreshold == -1)
             return;
 
         for (PartitionUpdate update : mutation.getPartitionUpdates())

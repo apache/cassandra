@@ -19,8 +19,6 @@ package org.apache.cassandra.service.reads.thresholds;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -32,6 +30,7 @@ import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.thresholds.ThresholdCounter;
 
 public class WarningsSnapshot
 {
@@ -199,20 +198,20 @@ public class WarningsSnapshot
 
     public static final class Warnings
     {
-        private static final Warnings EMPTY = new Warnings(Counter.EMPTY, Counter.EMPTY);
+        private static final Warnings EMPTY = new Warnings(ThresholdCounter.empty(), ThresholdCounter.empty());
 
-        public final Counter warnings;
-        public final Counter aborts;
+        public final ThresholdCounter warnings;
+        public final ThresholdCounter aborts;
 
-        private Warnings(Counter warnings, Counter aborts)
+        private Warnings(ThresholdCounter warnings, ThresholdCounter aborts)
         {
             this.warnings = warnings;
             this.aborts = aborts;
         }
 
-        public static Warnings create(Counter warnings, Counter aborts)
+        public static Warnings create(ThresholdCounter warnings, ThresholdCounter aborts)
         {
-            if (warnings == Counter.EMPTY && aborts == Counter.EMPTY)
+            if (warnings == ThresholdCounter.empty() && aborts == ThresholdCounter.empty())
                 return EMPTY;
             return new Warnings(warnings, aborts);
         }
@@ -246,73 +245,6 @@ public class WarningsSnapshot
         }
     }
 
-    public static final class Counter
-    {
-        private static final Counter EMPTY = new Counter(ImmutableSet.of(), 0);
-
-        public final ImmutableSet<InetAddressAndPort> instances;
-        public final long maxValue;
-
-        @VisibleForTesting
-        Counter(ImmutableSet<InetAddressAndPort> instances, long maxValue)
-        {
-            this.instances = instances;
-            this.maxValue = maxValue;
-        }
-
-        @VisibleForTesting
-        static Counter empty()
-        {
-            return EMPTY;
-        }
-
-        public static Counter create(Set<InetAddressAndPort> instances, AtomicLong maxValue)
-        {
-            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.copyOf(instances);
-            // if instances is empty ignore value
-            // writes and reads are concurrent (write = networking callback, read = coordinator thread), so there is
-            // an edge case where instances is empty and maxValue > 0; this is caused by the fact we update value first before count
-            // we write: value then instance
-            // we read: instance then value
-            if (copy.isEmpty())
-                return EMPTY;
-            return new Counter(copy, maxValue.get());
-        }
-
-        public Counter merge(Counter other)
-        {
-            if (other == EMPTY)
-                return this;
-            ImmutableSet<InetAddressAndPort> copy = ImmutableSet.<InetAddressAndPort>builder()
-                                                    .addAll(instances)
-                                                    .addAll(other.instances)
-                                                    .build();
-            // since other is NOT empty, then output can not be empty; so skip create method
-            return new Counter(copy, Math.max(maxValue, other.maxValue));
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Counter counter = (Counter) o;
-            return maxValue == counter.maxValue && Objects.equals(instances, counter.instances);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(instances, maxValue);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "(" + instances + ", " + maxValue + ')';
-        }
-    }
-
     @VisibleForTesting
     static Builder builder()
     {
@@ -326,77 +258,77 @@ public class WarningsSnapshot
 
         public Builder tombstonesWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
-            return tombstonesWarning(new Counter(Objects.requireNonNull(instances), maxValue));
+            return tombstonesWarning(new ThresholdCounter(Objects.requireNonNull(instances), maxValue));
         }
 
-        public Builder tombstonesWarning(Counter counter)
+        public Builder tombstonesWarning(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, ThresholdCounter.empty()), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder tombstonesAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
-            return tombstonesAbort(new Counter(Objects.requireNonNull(instances), maxValue));
+            return tombstonesAbort(new ThresholdCounter(Objects.requireNonNull(instances), maxValue));
         }
 
-        public Builder tombstonesAbort(Counter counter)
+        public Builder tombstonesAbort(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(ThresholdCounter.empty(), counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder localReadSizeWarning(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
-            return localReadSizeWarning(new Counter(Objects.requireNonNull(instances), maxValue));
+            return localReadSizeWarning(new ThresholdCounter(Objects.requireNonNull(instances), maxValue));
         }
 
-        public Builder localReadSizeWarning(Counter counter)
+        public Builder localReadSizeWarning(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, ThresholdCounter.empty()), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder localReadSizeAbort(ImmutableSet<InetAddressAndPort> instances, long maxValue)
         {
-            return localReadSizeAbort(new Counter(Objects.requireNonNull(instances), maxValue));
+            return localReadSizeAbort(new ThresholdCounter(Objects.requireNonNull(instances), maxValue));
         }
 
-        public Builder localReadSizeAbort(Counter counter)
+        public Builder localReadSizeAbort(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(ThresholdCounter.empty(), counter), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
-        public Builder rowIndexSizeWarning(Counter counter)
+        public Builder rowIndexSizeWarning(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, ThresholdCounter.empty()), Warnings.EMPTY));
             return this;
         }
 
-        public Builder rowIndexSizeAbort(Counter counter)
+        public Builder rowIndexSizeAbort(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(ThresholdCounter.empty(), counter), Warnings.EMPTY));
             return this;
         }
 
-        public Builder indexReadSSTablesWarning(Counter counter)
+        public Builder indexReadSSTablesWarning(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), new Warnings(counter, Counter.EMPTY)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(ThresholdCounter.empty(), counter), new Warnings(counter, ThresholdCounter.empty())));
             return this;
         }
 
-        public Builder indexReadSSTablesAbort(Counter counter)
+        public Builder indexReadSSTablesAbort(ThresholdCounter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(ThresholdCounter.empty(), counter)));
             return this;
         }
 

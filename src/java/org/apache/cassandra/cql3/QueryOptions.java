@@ -298,23 +298,6 @@ public abstract class QueryOptions
         return getReadThresholds().getCoordinatorReadSizeFailThresholdBytes();
     }
 
-    abstract WriteThresholds getWriteThresholds();
-
-    public boolean isWriteThresholdsEnabled()
-    {
-        return getWriteThresholds().isEnabled();
-    }
-
-    public long getCoordinatorWriteSizeWarnThresholdBytes()
-    {
-        return getWriteThresholds().getCoordinatorWriteSizeWarnThresholdBytes();
-    }
-
-    public int getCoordinatorWriteTombstoneWarnThreshold()
-    {
-        return getWriteThresholds().getCoordinatorWriteTombstoneWarnThreshold();
-    }
-
     public QueryOptions prepare(List<ColumnSpecification> specs)
     {
         return this;
@@ -390,77 +373,6 @@ public abstract class QueryOptions
         }
     }
 
-    interface WriteThresholds
-    {
-        boolean isEnabled();
-
-        long getCoordinatorWriteSizeWarnThresholdBytes();
-
-        int getCoordinatorWriteTombstoneWarnThreshold();
-
-        static WriteThresholds create()
-        {
-            // if daemon initialization hasn't happened yet (very common in tests) then ignore
-            if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getWriteThresholdsEnabled())
-                return DisabledWriteThresholds.INSTANCE;
-            return new DefaultWriteThresholds(DatabaseDescriptor.getWriteSizeWarnThreshold(),
-                                              DatabaseDescriptor.getWriteTombstoneWarnThreshold());
-        }
-    }
-
-    private enum DisabledWriteThresholds implements WriteThresholds
-    {
-        INSTANCE;
-
-        @Override
-        public boolean isEnabled()
-        {
-            return false;
-        }
-
-        @Override
-        public long getCoordinatorWriteSizeWarnThresholdBytes()
-        {
-            return -1;
-        }
-
-        @Override
-        public int getCoordinatorWriteTombstoneWarnThreshold()
-        {
-            return -1;
-        }
-    }
-
-    private static class DefaultWriteThresholds implements WriteThresholds
-    {
-        private final long writeSizeWarnBytes;
-        private final int writeTombstoneWarnThreshold;
-
-        public DefaultWriteThresholds(DataStorageSpec.LongBytesBound writeSizeWarnThreshold, int tombstoneWarnThreshold)
-        {
-            this.writeSizeWarnBytes = writeSizeWarnThreshold == null ? -1 : writeSizeWarnThreshold.toBytes();
-            this.writeTombstoneWarnThreshold = tombstoneWarnThreshold;
-        }
-
-        @Override
-        public boolean isEnabled()
-        {
-            return true;
-        }
-
-        @Override
-        public long getCoordinatorWriteSizeWarnThresholdBytes()
-        {
-            return writeSizeWarnBytes;
-        }
-
-        @Override
-        public int getCoordinatorWriteTombstoneWarnThreshold()
-        {
-            return writeTombstoneWarnThreshold;
-        }
-    }
-
     static class DefaultQueryOptions extends QueryOptions
     {
         private final ConsistencyLevel consistency;
@@ -473,7 +385,6 @@ public abstract class QueryOptions
 
         private final transient ProtocolVersion protocolVersion;
         private final transient ReadThresholds readThresholds = ReadThresholds.create();
-        private final transient WriteThresholds writeThresholds = WriteThresholds.create();
 
         DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values,
                             byte[][] valuesAsByteArray, boolean skipMetadata,
@@ -547,12 +458,6 @@ public abstract class QueryOptions
         {
             return readThresholds;
         }
-
-        @Override
-        WriteThresholds getWriteThresholds()
-        {
-            return writeThresholds;
-        }
     }
 
     static class QueryOptionsWrapper extends QueryOptions
@@ -613,12 +518,6 @@ public abstract class QueryOptions
         ReadThresholds getReadThresholds()
         {
             return wrapped.getReadThresholds();
-        }
-
-        @Override
-        WriteThresholds getWriteThresholds()
-        {
-            return wrapped.getWriteThresholds();
         }
 
         @Override

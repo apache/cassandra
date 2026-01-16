@@ -20,6 +20,7 @@ package org.apache.cassandra.service.writes.thresholds;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -33,14 +34,15 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
 import org.apache.cassandra.utils.Pair;
-
-import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * ThreadLocal manager for write warnings at the coordinator.
  * Accumulates warnings from multiple write operations in a single client request,
  * then sends them to the client and updates metrics.
+ *
+ * REFACTORED VERSION: Uses CoordinatorWarningsState for state management.
  */
 public class CoordinatorWriteWarnings
 {
@@ -49,7 +51,13 @@ public class CoordinatorWriteWarnings
     private static final Warnings INIT = new Warnings();
     private static final Warnings EMPTY = new Warnings();
 
-    private static final FastThreadLocal<Warnings> STATE = new FastThreadLocal<>();
+    private static final CoordinatorWarningsState<Warnings> STATE =
+    new CoordinatorWarningsState<>("CoordinatorWriteWarnings",
+                                   INIT,
+                                   EMPTY,
+                                   Warnings::new,
+                                   logger,
+                                   false);
 
     /**
      * Initialize coordinator write warnings for this thread.
@@ -57,7 +65,7 @@ public class CoordinatorWriteWarnings
      */
     public static void init()
     {
-        STATE.set(INIT);
+        STATE.init();
     }
 
     /**
@@ -71,18 +79,13 @@ public class CoordinatorWriteWarnings
         if (snapshot.isEmpty())
             return;
 
-        Warnings warnings = STATE.get();
-        if (warnings == null || warnings == EMPTY)
+        Warnings warnings = STATE.getMutableState(() -> EMPTY);
+        if (warnings == EMPTY)
             return;
 
         for (PartitionUpdate update : mutation.getPartitionUpdates())
         {
             Pair<TableId, DecoratedKey> key = Pair.create(update.metadata().id, update.partitionKey());
-            if (warnings == INIT)
-            {
-                warnings = new Warnings();
-                STATE.set(warnings);
-            }
             warnings.merge(key, snapshot);
         }
     }
@@ -93,37 +96,11 @@ public class CoordinatorWriteWarnings
      */
     public static void done()
     {
-        try
-        {
-            Warnings warnings = STATE.get();
-            if (warnings == null || warnings == INIT || warnings.partitions.isEmpty())
-                return;
-
-            for (Map.Entry<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> entry : warnings.partitions.entrySet())
-            {
-                Pair<TableId, DecoratedKey> key = entry.getKey();
-                WriteWarningsSnapshot snapshot = entry.getValue();
-
-                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.left);
-                if (cfs == null)
-                    continue;
-
-                TableMetadata metadata = cfs.metadata();
-                String partitionKey = metadata.partitionKeyType.getString(key.right.getKey());
-
-                sendWarnings(metadata, partitionKey, snapshot);
-
-                updateMetrics(cfs, snapshot);
-            }
-        }
-        catch (Exception e)
-        {
-            logger.error("Error processing write warnings", e);
-        }
-        finally
-        {
-            STATE.set(EMPTY);
-        }
+        STATE.processAndReset(
+        warnings -> warnings.partitions != null && !warnings.partitions.isEmpty(),
+        CoordinatorWriteWarnings::processWarnings,
+        (state, e) -> logger.error("Error processing write warnings", e)
+        );
     }
 
     /**
@@ -131,7 +108,26 @@ public class CoordinatorWriteWarnings
      */
     public static void reset()
     {
-        STATE.set(EMPTY);
+        STATE.reset();
+    }
+
+    private static void processWarnings(Warnings warnings)
+    {
+        for (Map.Entry<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> entry : warnings.partitions.entrySet())
+        {
+            Pair<TableId, DecoratedKey> key = entry.getKey();
+            WriteWarningsSnapshot snapshot = entry.getValue();
+
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.left);
+            if (cfs == null)
+                continue;
+
+            TableMetadata metadata = cfs.metadata();
+            String partitionKey = metadata.partitionKeyType.getString(key.right.getKey());
+
+            sendWarnings(metadata, partitionKey, snapshot);
+            updateMetrics(cfs, snapshot);
+        }
     }
 
     private static void sendWarnings(TableMetadata metadata, String partitionKey, WriteWarningsSnapshot snapshot)

@@ -113,7 +113,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -681,10 +680,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             );
         if (!mutations.isEmpty())
         {
-            // Check write thresholds at coordinator level - similar to read threshold checking
-            maybeWarnWriteSize(mutations, options);
-            maybeWarnWriteTombstones(mutations, options);
-
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
 
             if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
@@ -1178,74 +1173,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     nowInSeconds,
                                     getTimeToLive(options),
                                     lists);
-    }
-
-    private long calculateMutationSize(List<? extends IMutation> mutations)
-    {
-        long totalSize = 0;
-        for (IMutation mutation : mutations)
-        {
-            for (PartitionUpdate update : mutation.getPartitionUpdates())
-            {
-                totalSize += update.dataSize();
-            }
-        }
-        return totalSize;
-    }
-
-    private int countTombstones(List<? extends IMutation> mutations)
-    {
-        int totalTombstones = 0;
-        for (IMutation mutation : mutations)
-        {
-            for (PartitionUpdate update : mutation.getPartitionUpdates())
-            {
-                totalTombstones += update.affectedRowCount();
-            }
-        }
-        return totalTombstones;
-    }
-
-    private void maybeWarnWriteSize(List<? extends IMutation> mutations, QueryOptions options)
-    {
-        if (!options.isWriteThresholdsEnabled())
-            return;
-
-        long totalSize = calculateMutationSize(mutations);
-        long warnThreshold = options.getCoordinatorWriteSizeWarnThresholdBytes();
-
-        if (warnThreshold > 0 && totalSize > warnThreshold)
-        {
-            String msg = String.format("Write to table %s has exceeded the size warning threshold of %,d bytes (actual: %,d bytes)",
-                                       metadata(), warnThreshold, totalSize);
-            ClientWarn.instance.warn(msg);
-            logger.warn(msg);
-
-            org.apache.cassandra.db.ColumnFamilyStore store = Keyspace.open(keyspace()).getColumnFamilyStore(table());
-            if (store != null)
-                store.metric.writeSizeWarnings.mark();
-        }
-    }
-
-    private void maybeWarnWriteTombstones(List<? extends IMutation> mutations, QueryOptions options)
-    {
-        if (!options.isWriteThresholdsEnabled())
-            return;
-
-        int tombstoneCount = countTombstones(mutations);
-        int warnThreshold = options.getCoordinatorWriteTombstoneWarnThreshold();
-
-        if (warnThreshold > 0 && tombstoneCount > warnThreshold)
-        {
-            String msg = String.format("Write to table %s contains %,d tombstones, exceeding warning threshold of %,d",
-                                       metadata(), tombstoneCount, warnThreshold);
-            ClientWarn.instance.warn(msg);
-            logger.warn(msg);
-
-            org.apache.cassandra.db.ColumnFamilyStore store = Keyspace.open(keyspace()).getColumnFamilyStore(table());
-            if (store != null)
-                store.metric.writeTombstoneWarnings.mark();
-        }
     }
 
     public static abstract class Parsed extends QualifiedStatement

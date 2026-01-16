@@ -31,47 +31,53 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
-
-import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED;
 
+/**
+ * ThreadLocal manager for read warnings at the coordinator.
+ * <p>
+ * REFACTORED VERSION: Uses CoordinatorWarningsState for state management.
+ */
 public class CoordinatorWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
     private static final boolean ENABLE_DEFENSIVE_CHECKS = READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED.getBoolean();
 
-    // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
     private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();
-    private static final FastThreadLocal<Map<ReadCommand, WarningsSnapshot>> STATE = new FastThreadLocal<>();
+
+    private static final CoordinatorWarningsState<Map<ReadCommand, WarningsSnapshot>> STATE =
+    new CoordinatorWarningsState<>("CoordinatorWarnings",
+                                   INIT,
+                                   null, // use remove() instead of setting to null
+                                   HashMap::new,
+                                   logger,
+                                   ENABLE_DEFENSIVE_CHECKS);
 
     private CoordinatorWarnings() {}
 
     public static void init()
     {
-        logger.trace("CoordinatorTrackWarnings.init()");
-        if (STATE.get() != null)
-        {
-            if (ENABLE_DEFENSIVE_CHECKS)
-                throw new AssertionError("CoordinatorTrackWarnings.init called while state is not null: " + STATE.get());
-            return;
-        }
-        STATE.set(INIT);
+        STATE.init();
     }
 
     public static void reset()
     {
-        logger.trace("CoordinatorTrackWarnings.reset()");
-        STATE.remove();
+        STATE.reset();
     }
 
     public static void update(ReadCommand cmd, WarningsSnapshot snapshot)
     {
-        logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
-        Map<ReadCommand, WarningsSnapshot> map = mutable();
+        if (logger.isTraceEnabled())
+            logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
+
+        Map<ReadCommand, WarningsSnapshot> map = STATE.getMutableState(IgnoreMap::get);
+
         WarningsSnapshot previous = map.get(cmd);
         WarningsSnapshot update = WarningsSnapshot.merge(previous, snapshot);
-        if (update == null) // null happens when the merge had null input or EMPTY input... remove the command from the map
+
+        if (update == null) // null happens when the merge had null input or EMPTY input
             map.remove(cmd);
         else
             map.put(cmd, update);
@@ -79,8 +85,18 @@ public class CoordinatorWarnings
 
     public static void done()
     {
-        Map<ReadCommand, WarningsSnapshot> map = readonly();
-        logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
+        STATE.processAndReset(
+        map -> map != INIT && !map.isEmpty(),
+        CoordinatorWarnings::processWarnings,
+        null // use default error handler
+        );
+    }
+
+    private static void processWarnings(Map<ReadCommand, WarningsSnapshot> map)
+    {
+        if (logger.isTraceEnabled())
+            logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
+
         map.forEach((command, merged) -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(command.metadata().id);
             // race condition when dropping tables, also happens in unit tests as Schema may be bypassed
@@ -89,6 +105,7 @@ public class CoordinatorWarnings
 
             String cql = command.toCQLString();
             String loggableTokens = command.loggableTokens();
+
             recordAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, WarningsSnapshot::tombstoneAbortMessage);
             recordWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, WarningsSnapshot::tombstoneWarnMessage);
 
@@ -101,53 +118,8 @@ public class CoordinatorWarnings
             recordAborts(merged.indexReadSSTablesCount, cql, loggableTokens, cfs.metric.tooManySSTableIndexesReadAborts, WarningsSnapshot::tooManyIndexesReadAbortMessage);
             recordWarnings(merged.indexReadSSTablesCount, cql, loggableTokens, cfs.metric.tooManySSTableIndexesReadWarnings, WarningsSnapshot::tooManyIndexesReadWarnMessage);
         });
-
-        // reset the state to block from double publishing
-        clearState();
     }
 
-    private static Map<ReadCommand, WarningsSnapshot> mutable()
-    {
-        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
-        if (map == null)
-        {
-            if (ENABLE_DEFENSIVE_CHECKS)
-                throw new AssertionError("CoordinatorTrackWarnings.mutable calling without calling .init() first");
-            // set map to an "ignore" map; dropping all mutations
-            // since init was not called, it isn't clear that the state will be cleaned up, so avoid populating
-            map = IgnoreMap.get();
-        }
-        else if (map == INIT)
-        {
-            map = new HashMap<>();
-            STATE.set(map);
-        }
-        return map;
-    }
-
-    private static Map<ReadCommand, WarningsSnapshot> readonly()
-    {
-        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
-        if (map == null)
-        {
-            if (ENABLE_DEFENSIVE_CHECKS)
-                throw new AssertionError("CoordinatorTrackWarnings.readonly calling without calling .init() first");
-            // since init was not called, it isn't clear that the state will be cleaned up, so avoid populating
-            map = Collections.emptyMap();
-        }
-        return map;
-    }
-
-    private static void clearState()
-    {
-        Map<ReadCommand, WarningsSnapshot> map = STATE.get();
-        if (map == null || map == INIT)
-            return;
-        // map is mutable, so set to INIT
-        STATE.set(INIT);
-    }
-
-    // utility interface to let callers use static functions
     @FunctionalInterface
     private interface ToString
     {

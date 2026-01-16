@@ -22,7 +22,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -37,9 +36,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
     private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
     {
         Tracing.trace("Enqueuing response to {}", respondToAddress);
-        Message<NoPayload> reply = respondTo.emptyResponse();
-        reply = MessageParams.addToMessage(reply);
-        MessagingService.instance().send(reply, respondToAddress);
+        MessagingService.instance().send(MessageParams.addToMessage(respondTo.emptyResponse()), respondToAddress);
     }
 
     private void failed()

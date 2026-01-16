@@ -248,6 +248,7 @@ public class TopPartitionTracker implements Closeable
         private void track(TopPartition tp)
         {
             top.add(tp);
+            lookup.put(tp.key, tp.value);
             while (top.size() > maxTopPartitionCount)
             {
                 TopPartition p = top.pollLast();
