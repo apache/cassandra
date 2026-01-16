@@ -27,6 +27,7 @@ import java.util.Set;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -342,6 +343,18 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
         return delegate.getScanner(rangeIterator);
+    }
+
+    @Override
+    public ISSTableScanner getScanner(DiskAccessMode diskAccessMode)
+    {
+        return delegate.getScanner(diskAccessMode);
+    }
+
+    @Override
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges, DiskAccessMode diskAccessMode)
+    {
+        return delegate.getScanner(ranges, diskAccessMode);
     }
 
     @Override

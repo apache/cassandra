@@ -221,6 +221,8 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode commitLogWriteDiskAccessMode;
 
+    private static DiskAccessMode compactionReadDiskAccessMode;
+
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
@@ -661,6 +663,21 @@ public class DatabaseDescriptor
             indexAccessMode = conf.disk_access_mode;
         }
         logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+
+        if (DiskAccessMode.auto == conf.compaction_read_disk_access_mode)
+        {
+            compactionReadDiskAccessMode = conf.disk_access_mode;
+        }
+        else if (DiskAccessMode.direct == conf.compaction_read_disk_access_mode)
+        {
+            compactionReadDiskAccessMode = DiskAccessMode.direct;
+        }
+        else
+        {
+            throw new IllegalArgumentException("Unsupported disk access mode for compaction_read_disk_access_mode " +
+                                               "(options: direct/auto) " + conf.compaction_read_disk_access_mode);
+        }
+        logger.info("compaction_read_disk_access_mode resolved to: {}", compactionReadDiskAccessMode);
 
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
@@ -1773,7 +1790,7 @@ public class DatabaseDescriptor
 
                 File commitLogLocationDir = new File(commitLogLocation);
                 PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
-                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+                directIOSupported = FileUtils.isDirectIOSupported(commitLogLocationDir);
             }
             catch (IOError | ConfigurationException ex)
             {
@@ -3299,6 +3316,18 @@ public class DatabaseDescriptor
     public static void setCommitLogSegmentSize(int sizeMebibytes)
     {
         conf.commitlog_segment_size = new DataStorageSpec.IntMebibytesBound(sizeMebibytes);
+    }
+
+    public static DiskAccessMode getCompactionReadDiskAccessMode()
+    {
+        return compactionReadDiskAccessMode;
+    }
+
+    @VisibleForTesting
+    public static void setCompactionReadDiskAccessMode(DiskAccessMode scanDiskAccessMode)
+    {
+        compactionReadDiskAccessMode = scanDiskAccessMode;
+        conf.compaction_read_disk_access_mode = scanDiskAccessMode;
     }
 
     /**

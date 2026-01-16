@@ -115,8 +115,56 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         }
 
-
+        /**
+         * The returned buffer is only valid until the next call to read(). Callers must consume the data immediately.
+         */
         ByteBuffer read(CompressionMetadata.Chunk chunk, boolean shouldCheckCrc) throws CorruptBlockException;
+    }
+
+    private static final class DirectRandomAccessReader implements CompressedReader
+    {
+
+        private final ChannelProxy channel;
+        private final int blockSize;
+        private final DirectThreadLocalByteBufferHolder bufferHolder;
+
+        DirectRandomAccessReader(ChannelProxy ch, int blockSize)
+        {
+            this.channel = ch;
+            this.blockSize = blockSize;
+            this.bufferHolder = new DirectThreadLocalByteBufferHolder(blockSize);
+        }
+
+        @Override
+        public ByteBuffer read(CompressionMetadata.Chunk chunk, boolean shouldCheckCrc) throws CorruptBlockException
+        {
+            int length = shouldCheckCrc ? chunk.length + Integer.BYTES // length + checksum length
+                                        : chunk.length;
+
+            long alignedPos = chunk.offset & -blockSize;
+            int delta = (int) (chunk.offset - alignedPos);
+
+            ByteBuffer buffer = bufferHolder.getBuffer(length + delta);
+            if (channel.read(buffer, alignedPos) < length + delta)
+                throw new CorruptBlockException(channel.filePath(), chunk);
+
+            buffer.position(delta);
+            buffer.limit(delta + length);
+
+            ByteBuffer slice = buffer.slice();
+            slice.limit(chunk.length); // limit at chunk content end (before CRC)
+
+            if (shouldCheckCrc)
+            {
+                int checksum = (int) ChecksumType.CRC32.of(slice);
+                slice.limit(length);
+                if (slice.getInt() != checksum)
+                    throw new CorruptBlockException(channel.filePath(), chunk);
+
+                slice.position(0).limit(chunk.length);
+            }
+            return slice;
+        }
     }
 
     private static class RandomAccessCompressedReader implements CompressedReader
@@ -155,15 +203,17 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
     private static class ScanCompressedReader implements CompressedReader
     {
+
         private final ChannelProxy channel;
-        private final ThreadLocalByteBufferHolder bufferHolder;
+        private final ByteBufferHolder bufferHolder;
         private final ThreadLocalReadAheadBuffer readAheadBuffer;
 
-        private ScanCompressedReader(ChannelProxy channel, CompressionMetadata metadata, int readAheadBufferSize)
+        private ScanCompressedReader(ChannelProxy channel, ByteBufferHolder bufferHolder,
+                                     ThreadLocalReadAheadBuffer readAheadBuffer)
         {
             this.channel = channel;
-            this.bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
-            this.readAheadBuffer = new ThreadLocalReadAheadBuffer(channel, readAheadBufferSize, metadata.compressor().preferredBufferType());
+            this.bufferHolder = bufferHolder;
+            this.readAheadBuffer = readAheadBuffer;
         }
 
         @Override
@@ -216,9 +266,98 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
             return readAheadBuffer.hasBuffer();
         }
 
+        @Override
         public void close()
         {
             readAheadBuffer.close();
+        }
+    }
+
+    public static class Direct extends CompressedChunkReader
+    {
+
+        private final CompressedReader reader;
+        private final CompressedReader scanReader;
+
+        public Direct(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
+        {
+            super(channel, metadata, crcCheckChanceSupplier);
+            int blockSize = FileUtils.getFileBlockSize(channel.file());
+            this.reader = new DirectRandomAccessReader(channel, blockSize);
+
+            int readAheadBufferSize = DatabaseDescriptor.getCompressedReadAheadBufferSize();
+            this.scanReader = (readAheadBufferSize > 0 && readAheadBufferSize > metadata.chunkLength())
+                              ? new ScanCompressedReader(channel,
+                                                         new DirectThreadLocalByteBufferHolder(blockSize),
+                                                         new DirectThreadLocalReadAheadBuffer(channel, readAheadBufferSize, blockSize))
+                              : null;
+        }
+
+        @Override
+        public void readChunk(long position, ByteBuffer uncompressed)
+        {
+            assert (position & -uncompressed.capacity()) == position;
+            assert position <= fileLength;
+
+            try
+            {
+                CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
+                boolean shouldCheckCrc = shouldCheckCrc();
+
+                uncompressed.clear();
+                CompressedReader readFrom = (scanReader != null && scanReader.allocated()) ? scanReader : reader;
+                if (chunk.length < maxCompressedLength)
+                {
+                    ByteBuffer compressed = readFrom.read(chunk, shouldCheckCrc);
+                    try
+                    {
+                        metadata.compressor().uncompress(compressed, uncompressed);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new CorruptBlockException(channel.filePath(), chunk, e);
+                    }
+                }
+                else
+                {
+                    ByteBuffer buffer = readFrom.read(chunk, shouldCheckCrc);
+                    uncompressed.put(buffer);
+                }
+
+                uncompressed.flip();
+            }
+            catch (CorruptBlockException e)
+            {
+                // Make sure reader does not see stale data.
+                uncompressed.position(0).limit(0);
+                throw new CorruptSSTableException(e, channel.filePath());
+            }
+        }
+
+        @Override
+        protected CompressedChunkReader forScan()
+        {
+            if (scanReader != null)
+                scanReader.allocateResources();
+
+            return this;
+        }
+
+        @Override
+        public void releaseUnderlyingResources()
+        {
+            if (scanReader != null)
+                scanReader.deallocateResources();
+        }
+
+        @Override
+        public void close()
+        {
+            reader.close();
+            if (scanReader != null)
+                scanReader.close();
+
+            super.close();
         }
     }
 
@@ -235,9 +374,12 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
             int readAheadBufferSize = DatabaseDescriptor.getCompressedReadAheadBufferSize();
             scanReader = (readAheadBufferSize > 0 && readAheadBufferSize > metadata.chunkLength())
-                         ? new ScanCompressedReader(channel, metadata, readAheadBufferSize) : null;
+                         ? new ScanCompressedReader(channel,
+                                                    new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType()),
+                                                    new ThreadLocalReadAheadBuffer(channel, readAheadBufferSize, metadata.compressor().preferredBufferType())) : null;
         }
 
+        @Override
         protected CompressedChunkReader forScan()
         {
             if (scanReader != null)
@@ -282,6 +424,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 }
                 else
                 {
+                    // Read directly into destination buffer for zero-copy uncompressed path
                     uncompressed.position(0).limit(chunk.length);
                     if (channel.read(uncompressed, chunk.offset) != chunk.length)
                         throw new CorruptBlockException(channel.filePath(), chunk);
