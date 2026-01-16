@@ -22,6 +22,7 @@ import java.nio.ByteOrder;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
@@ -315,6 +316,31 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
                 {
                     getChannel().close();
                 }
+            }
+        }
+    }
+
+    static class RandomAccessReaderWithOwnFile extends RandomAccessReader
+    {
+
+        private final FileHandle fileHandle;
+
+        RandomAccessReaderWithOwnFile(Rebufferer rebufferer, FileHandle fileHandle)
+        {
+            super(rebufferer);
+            this.fileHandle = Preconditions.checkNotNull(fileHandle, "fileHandle cannot be null");
+        }
+
+        @Override
+        public void close()
+        {
+            try
+            {
+                super.close();
+            }
+            finally
+            {
+                fileHandle.close();
             }
         }
     }

@@ -1,4 +1,5 @@
 5.1
+ * Direct I/O support for compaction reads (CASSANDRA-19987)
  * Enhance nodetool compactionhistory to report more compaction properities (CASSANDRA-20081)
  * Fix initial auto-repairs skipped by too soon check (CASSANDRA-21115)
  * Add configuration to disk usage guardrails to stop writes across all replicas of a keyspace when any node replicating that keyspace exceeds the disk usage failure threshold. (CASSANDRA-21024)

@@ -53,7 +53,7 @@ public class DirectIOSegmentBytemanTest
     @Test
     @BMRules(rules = { @BMRule(name = "Commitlog dir do not support direct io",
     targetClass = "FileUtils",
-    targetMethod = "getBlockSize",
+    targetMethod = "blockSize",
     action = "return 0;") } )
     public void testDirectIOUnSupportWithDirectConfig()
     {

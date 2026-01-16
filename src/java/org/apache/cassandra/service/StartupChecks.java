@@ -144,6 +144,7 @@ public class StartupChecks
                                                                       checkMaxMapCount,
                                                                       checkReadAheadKbSetting,
                                                                       checkDataDirs,
+                                                                      checkDirectIOSupport,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
                                                                       checkLegacyAuthTables,
@@ -205,7 +206,8 @@ public class StartupChecks
             Set<Path> directIOWritePaths = new HashSet<>();
             if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
                 directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
-            // TODO: add data directories when direct IO is supported for flushing and compaction
+            // Note: Data directories for direct IO compaction reads are checked in checkDirectIOSupport.
+            // This check is specifically for direct IO writes which are currently only supported for commit log.
 
             if (!directIOWritePaths.isEmpty() && IGNORE_KERNEL_BUG_1057843_CHECK.getBoolean())
             {
@@ -598,6 +600,51 @@ public class StartupChecks
             }
         }
     };
+
+    public static final StartupCheck checkDirectIOSupport = new StartupCheck()
+    {
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
+        {
+            if (options.isDisabled(getStartupCheckType()))
+                return;
+
+            // Only check if compaction_read_disk_access_mode is direct
+            if (DatabaseDescriptor.getCompactionReadDiskAccessMode() != Config.DiskAccessMode.direct)
+                return;
+
+            List<String> unsupportedLocations = findDirectIOUnsupportedLocations(DatabaseDescriptor.getAllDataFileLocations());
+
+            if (!unsupportedLocations.isEmpty())
+            {
+                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                           String.format("Direct I/O is configured for compaction reads (compaction_read_disk_access_mode=direct), " +
+                                                         "but the following data directories do not support Direct I/O: %s. " +
+                                                         "Either change compaction_read_disk_access_mode to 'standard' in cassandra.yaml, " +
+                                                         "or ensure all data directories are on filesystems that support Direct I/O. " +
+                                                         "Network filesystems (NFS, CIFS) and some virtual filesystems do not support Direct I/O.",
+                                                         unsupportedLocations));
+            }
+        }
+    };
+
+    @VisibleForTesting
+    static List<String> findDirectIOUnsupportedLocations(String[] dataFileLocations)
+    {
+        List<String> unsupportedLocations = new ArrayList<>();
+
+        for (String dataDir : dataFileLocations)
+        {
+            File dir = new File(dataDir);
+            if (!dir.exists())
+                continue; // Directory doesn't exist yet, skip
+
+            if (!FileUtils.isDirectIOSupported(dir))
+                unsupportedLocations.add(dataDir);
+        }
+
+        return unsupportedLocations;
+    }
 
     public static final StartupCheck checkSSTablesFormat = new StartupCheck()
     {

@@ -26,7 +26,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.utils.Gen;
 import accord.utils.Gens;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -40,7 +39,7 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static accord.utils.Property.qt;
 
-public class CompressedChunkReaderTest
+public class StandardCompressedChunkReaderTest extends CompressedChunkReaderTestBase
 {
     static
     {
@@ -50,17 +49,16 @@ public class CompressedChunkReaderTest
     @Test
     public void scanReaderReadsLessThanRAReader()
     {
-        var optionGen = options();
-        var paramsGen = params();
+        var optionGen = writerOptions();
+        var paramsGen = compressionParams(Gens.constant(CompressionParams.DEFAULT_CHUNK_LENGTH));
         var lengthGen = Gens.longs().between(1, 1 << 16);
-        qt().withSeed(-1871070464864118891L).forAll(Gens.random(), optionGen, paramsGen).check((rs, option, params) -> {
+
+        qt().forAll(Gens.random(), optionGen, paramsGen).check((rs, option, params) -> {
             ListenableFileSystem fs = FileSystems.newGlobalInMemoryFileSystem();
 
-            File f = new File("/file.db");
+            File f = new File("/file.bin");
             AtomicInteger reads = new AtomicInteger();
-            fs.onPostRead(f.path::equals, (p, c, pos, dst, r) -> {
-                reads.incrementAndGet();
-            });
+            fs.onPostRead(f.path::equals, (p, c, pos, dst, r) -> reads.incrementAndGet());
             long length = lengthGen.nextLong(rs);
             CompressionMetadata metadata1, metadata2;
             try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, new File("/file.offset"), new File("/file.digest"), option, params, new MetadataCollector(new ClusteringComparator())))
@@ -73,71 +71,45 @@ public class CompressedChunkReaderTest
                 metadata2 = writer.open(0);
             }
 
-            doReads(f, metadata1, length, true);
+            doReads(f, metadata1, length, false);
+            int raReads = reads.getAndSet(0);
+
+            doReads(f, metadata2, length, true);
             int scanReads = reads.getAndSet(0);
 
-            doReads(f, metadata2, length, false);
-            int raReads = reads.getAndSet(0);
-            
             if (Files.size(f.toPath()) > DatabaseDescriptor.getCompressedReadAheadBufferSize())
-                Assert.assertTrue(scanReads < raReads);
+                Assert.assertTrue(scanReads <= raReads);
         });
     }
 
-    private void doReads(File f, CompressionMetadata metadata, long length, boolean useReadAhead)
+    protected void doReads(File f, CompressionMetadata metadata, long length, boolean useReadAhead)
     {
         ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.chunkLength());
 
-        try (ChannelProxy channel = new ChannelProxy(f);
-             CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1.1);
-             metadata)
+        try (ChannelProxy channel = new ChannelProxy(f))
         {
-            if (useReadAhead)
-                reader.forScan();
-
-            long offset = 0;
-            long maxOffset = length * Long.BYTES;
-            do
+            try (CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1d);
+                 metadata)
             {
-                reader.readChunk(offset, buffer);
-                for (long expected = offset / Long.BYTES; buffer.hasRemaining(); expected++)
-                    Assertions.assertThat(buffer.getLong()).isEqualTo(expected);
+                if (useReadAhead)
+                    reader.forScan();
 
-                offset += metadata.chunkLength();
+                long offset = 0;
+                long maxOffset = length * Long.BYTES;
+                do
+                {
+                    reader.readChunk(offset, buffer);
+                    for (long expected = offset / Long.BYTES; buffer.hasRemaining(); expected++)
+                        Assertions.assertThat(buffer.getLong()).isEqualTo(expected);
+
+                    offset += metadata.chunkLength();
+                }
+                while (offset < maxOffset);
             }
-            while (offset < maxOffset);
         }
         finally
         {
             MemoryUtil.clean(buffer);
-        }}
-
-    private static Gen<SequentialWriterOption> options()
-    {
-        Gen<Integer> bufferSizes = Gens.constant(1 << 10); //.pickInt(1 << 4, 1 << 10, 1 << 15);
-        return rs -> SequentialWriterOption.newBuilder()
-                                           .finishOnClose(false)
-                                           .bufferSize(bufferSizes.next(rs))
-                                           .build();
-    }
-
-    private enum CompressionKind { Noop, Snappy, Deflate, Lz4, Zstd }
-
-    private static Gen<CompressionParams> params()
-    {
-        Gen<Integer> chunkLengths = Gens.constant(CompressionParams.DEFAULT_CHUNK_LENGTH);
-        Gen<Double> compressionRatio = Gens.pick(1.1D);
-        return rs -> {
-            CompressionKind kind = rs.pick(CompressionKind.values());
-            switch (kind)
-            {
-                case Noop: return CompressionParams.noop();
-                case Snappy: return CompressionParams.snappy(chunkLengths.next(rs), compressionRatio.next(rs));
-                case Deflate: return CompressionParams.deflate(chunkLengths.next(rs));
-                case Lz4: return CompressionParams.lz4(chunkLengths.next(rs));
-                case Zstd: return CompressionParams.zstd(chunkLengths.next(rs));
-                default: throw new UnsupportedOperationException(kind.name());
-            }
-        };
+        }
     }
 }

@@ -46,9 +46,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TM
 public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
 {
     private static final int numFiles = 5;
-    private static final File[] files = new File[numFiles];
     private static final Logger logger = LoggerFactory.getLogger(ThreadLocalReadAheadBufferTest.class);
-    private static Integer seed;
+    protected static final File[] files = new File[numFiles];
+    protected static Integer seed;
 
     @BeforeClass
     public static void setup()
@@ -74,7 +74,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             }
             catch (Exception e)
             {
-               // ignore
+                // ignore
             }
         }
     }
@@ -89,83 +89,87 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
     @Test
     public void testReadsLikeChannelProxy()
     {
-
         qt().withFixedSeed(seed).forAll(reads())
             .checkAssert(this::testReads);
     }
 
-    private void testReads(InputData propertyInputs)
+    protected void testReads(InputData propertyInputs)
     {
-        try (ChannelProxy channel = new ChannelProxy(propertyInputs.file))
+        try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);
+             ThreadLocalReadAheadBuffer tlrab = new ThreadLocalReadAheadBuffer(channel, new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(), BufferType.OFF_HEAP); )
         {
-            ThreadLocalReadAheadBuffer trlab = new ThreadLocalReadAheadBuffer(channel, new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(), BufferType.OFF_HEAP);
             for (Pair<Long, Integer> read : propertyInputs.positionsAndLengths)
             {
-                int readSize = Math.min(read.right,(int) (channel.size() - read.left));
-                ByteBuffer buf1 = ByteBuffer.allocate(readSize);
-                channel.read(buf1, read.left);
-
-                ByteBuffer buf2 = ByteBuffer.allocate(readSize);
-                try
-                {
-                    int copied = 0;
-                    while (copied < readSize) {
-                        trlab.fill(read.left + copied);
-                        int leftToRead = readSize - copied;
-                        if (trlab.remaining() >= leftToRead)
-                            copied += trlab.read(buf2, leftToRead);
-                        else
-                            copied += trlab.read(buf2, trlab.remaining());
-                    }
-                }
-                catch (CorruptSSTableException e)
-                {
-                    throw new RuntimeException(e);
-                }
-
-                Assert.assertEquals(buf1, buf2);
+                testRead(read, channel, tlrab);
             }
         }
     }
 
-    private Gen<InputData> reads()
+    protected static void testRead(Pair<Long, Integer> read, ChannelProxy bufferedChannel, ThreadLocalReadAheadBuffer tlrab)
+    {
+        int readSize = Math.min(read.right, (int) (bufferedChannel.size() - read.left));
+        ByteBuffer buf1 = ByteBuffer.allocate(readSize);
+        bufferedChannel.read(buf1, read.left);
+
+        ByteBuffer buf2 = ByteBuffer.allocate(readSize);
+        try
+        {
+            int copied = 0;
+            while (copied < readSize)
+            {
+                tlrab.fill(read.left + copied);
+                int leftToRead = readSize - copied;
+                if (tlrab.remaining() >= leftToRead)
+                    copied += tlrab.read(buf2, leftToRead);
+                else
+                    copied += tlrab.read(buf2, tlrab.remaining());
+            }
+        }
+        catch (CorruptSSTableException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        Assert.assertEquals(buf1, buf2);
+    }
+
+    protected Gen<InputData> reads()
     {
         return arbitrary().pick(List.of(files))
                           .flatMap((file) ->
                                    lists().of(longs().between(0, fileSize(file)).zip(integers().between(1, 100), Pair::create))
                                           .ofSizeBetween(5, 10)
                                           .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
-
     }
 
-    private Gen<InputData> lastBlockReads()
+    protected Gen<InputData> lastBlockReads()
     {
         int blockSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
         return arbitrary().pick(List.of(files))
-                         .flatMap((file) ->
-                                  lists().of(longs().between(max(0, fileSize(file) - blockSize), fileSize(file)).zip(integers().between(1, 100), Pair::create))
-                                         .ofSizeBetween(5, 10)
-                                         .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
-
+                          .flatMap((file) ->
+                                   lists().of(longs().between(max(0, fileSize(file) - blockSize), fileSize(file)).zip(integers().between(1, 100), Pair::create))
+                                          .ofSizeBetween(5, 10)
+                                          .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
     }
 
-    // need this becasue generators don't handle the IOException
+    // need this because generators don't handle the IOException
     private long fileSize(File file)
     {
         try
         {
             return Files.size(file.toPath());
-        } catch (IOException e)
+        }
+        catch (IOException e)
         {
             throw new RuntimeException(e);
         }
     }
 
-    private static class InputData
+    protected static class InputData
     {
 
-        private final File file;
-        private final List<Pair<Long, Integer>> positionsAndLengths;
+        protected final File file;
+        protected final List<Pair<Long, Integer>> positionsAndLengths;
 
         public InputData(File file, List<Pair<Long, Integer>> positionsAndLengths)
         {
@@ -201,5 +205,4 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
 
         return file;
     }
-
 }

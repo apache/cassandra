@@ -398,7 +398,7 @@ public class CheckpointIntervalArrayIndexTest
 
         Map<IndexComponent, FileHandle> files = new EnumMap<>(IndexComponent.class);
         for (IndexComponent c : descriptor.getLiveComponents())
-            files.put(c, new FileHandle.Builder(descriptor.fileFor(c)).mmapped(true).complete());
+            files.put(c, new FileHandle.Builder(descriptor.fileFor(c)).mmapped().complete());
         List<Segment> segments = RouteIndexFormat.readSegments(files);
         files.remove(IndexComponent.SEGMENT).close();
         files.remove(IndexComponent.METADATA).close();
