@@ -139,7 +139,7 @@ public class AdvanceMutationTrackingMigrationTest
 
         // Verify migration was auto-completed (keyspace removed from state)
         assertFalse(updated.mutationTrackingMigrationState.hasMigratingKeyspaces());
-        assertNull(updated.mutationTrackingMigrationState.getKeyspaceInfo("test_ks"));
+        assertFalse(updated.mutationTrackingMigrationState.isMigrating("test_ks"));
     }
 
     @Test
@@ -240,7 +240,7 @@ public class AdvanceMutationTrackingMigrationTest
         assertTrue(result2.isSuccess());
         ClusterMetadata afterComplete = result2.success().metadata;
 
-        assertNull(afterComplete.mutationTrackingMigrationState.getKeyspaceInfo("test_ks"));
+        assertFalse(afterComplete.mutationTrackingMigrationState.isMigrating("test_ks"));
         assertFalse(afterComplete.mutationTrackingMigrationState.hasMigratingKeyspaces());
     }
 
@@ -285,7 +285,7 @@ public class AdvanceMutationTrackingMigrationTest
         assertTrue(result2.isSuccess());
         ClusterMetadata afterTable2 = result2.success().metadata;
 
-        assertNull(afterTable2.mutationTrackingMigrationState.getKeyspaceInfo("test_ks"));
+        assertFalse(afterTable2.mutationTrackingMigrationState.isMigrating("test_ks"));
         assertFalse(afterTable2.mutationTrackingMigrationState.hasMigratingKeyspaces());
     }
 

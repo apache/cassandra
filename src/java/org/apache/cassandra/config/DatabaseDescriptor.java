@@ -2685,6 +2685,16 @@ public class DatabaseDescriptor
         conf.repair_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static long getMutationTrackingSyncTimeout(TimeUnit unit)
+    {
+        return conf.mutation_tracking_sync_timeout.to(unit);
+    }
+
+    public static void setMutationTrackingSyncTimeout(long timeoutInMillis)
+    {
+        conf.mutation_tracking_sync_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+    }
+
     public static boolean hasCrossNodeTimeout()
     {
         return conf.internode_timeout;

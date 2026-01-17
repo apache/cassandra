@@ -54,6 +54,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
@@ -68,12 +69,14 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -87,6 +90,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
@@ -114,20 +118,66 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     final SharedContext ctx;
     final Scheduler validationScheduler;
 
+    // Mutation tracking decision, snapshotted once at creation time from TCM
+    final boolean useMutationTracking;
+    final boolean mutationTrackingMigrationInProgress;
+    final ClusterMetadata metadata;
+
     private TraceState traceState;
 
-    public RepairCoordinator(StorageService storageService, int cmd, RepairOption options, String keyspace, Epoch minEpoch)
+    /**
+     * Creates a RepairCoordinator, snapshotting TCM state to decide whether mutation tracking
+     * should be used. If mutation tracking is active for the keyspace (and no migration is in progress),
+     * the incremental flag in RepairOption is flipped to false to prevent anti-compaction.
+     */
+    public static RepairCoordinator create(StorageService storageService, int cmd, RepairOption options, String keyspace, Epoch minEpoch)
     {
-        this(SharedContext.Global.instance,
-             (ks, tables) -> storageService.getValidColumnFamilies(false, false, ks, tables),
-             storageService::getLocalReplicas,
-             cmd, options, keyspace, minEpoch);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        boolean useMT = options.isIncremental()
+                         && MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(metadata, keyspace);
+        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
+        boolean mtMigration = useMT && migrationInfo != null;
+
+        // If using mutation tracking without migration, flip incremental to false
+        // to prevent anti-compaction since mutation tracking manages marking tables repaired itself
+        if (useMT && !mtMigration)
+        {
+            logger.info("Keyspace {} uses mutation tracking; disabling incremental repair to skip anti-compaction", keyspace);
+            options = options.withIncremental(false);
+        }
+
+        // During migration, validate that repair ranges don't partially overlap with pending migration ranges.
+        // Ranges must be entirely inside or entirely outside the pending set so that a compatible repair
+        // behavior (MT vs normal IR) can be selected. The tables also need to have matching migration ranges.
+        if (mtMigration)
+        {
+            NormalizedRanges<Token> repairRanges = NormalizedRanges.normalizedRanges(options.getRanges());
+            KeyspaceMetadata ksm = metadata.schema.getKeyspaceMetadata(keyspace);
+            Collection<String> cfs = options.getColumnFamilies();
+            migrationInfo.assertRangesNotMixedMigration(repairRanges, ksm, cfs.isEmpty() ? null : cfs);
+        }
+
+        return new RepairCoordinator(SharedContext.Global.instance,
+                                     (ks, tables) -> storageService.getValidColumnFamilies(false, false, ks, tables),
+                                     storageService::getLocalReplicas,
+                                     cmd, options, keyspace, minEpoch,
+                                     useMT, mtMigration, metadata);
     }
 
     RepairCoordinator(SharedContext ctx,
                       BiFunction<String, String[], Iterable<ColumnFamilyStore>> validColumnFamilies,
                       Function<String, RangesAtEndpoint> getLocalReplicas,
                       int cmd, RepairOption options, String keyspace, Epoch minEpoch)
+    {
+        this(ctx, validColumnFamilies, getLocalReplicas, cmd, options, keyspace, minEpoch, false, false, null);
+    }
+
+    RepairCoordinator(SharedContext ctx,
+                      BiFunction<String, String[], Iterable<ColumnFamilyStore>> validColumnFamilies,
+                      Function<String, RangesAtEndpoint> getLocalReplicas,
+                      int cmd, RepairOption options, String keyspace, Epoch minEpoch,
+                      boolean useMutationTracking, boolean mutationTrackingMigrationInProgress,
+                      ClusterMetadata metadata)
     {
         this.ctx = ctx;
         this.minEpoch = minEpoch;
@@ -136,6 +186,9 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;
         this.getLocalReplicas = getLocalReplicas;
+        this.useMutationTracking = useMutationTracking;
+        this.mutationTrackingMigrationInProgress = mutationTrackingMigrationInProgress;
+        this.metadata = metadata;
         ctx.repair().register(state);
     }
 
@@ -503,24 +556,57 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
     private Future<Pair<CoordinatedRepairResult, Supplier<String>>> repair(String[] cfnames, NeighborsAndRanges neighborsAndRanges)
     {
-        RepairTask task;
+        ExecutorPlus executor = createExecutor();
+        state.phase.repairSubmitted();
+
         if (state.options.isPreview())
         {
-            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            RepairTask task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            return submitRepairTask(task, executor);
+        }
+        else if (useMutationTracking)
+        {
+            RepairTask mtTask = new MutationTrackingIncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            if (mutationTrackingMigrationInProgress)
+            {
+                // During migration, run incremental repair first, then mutation tracking sync.
+                // Propagate the IR result on success since it drives migration advancement.
+                RepairTask incrementalTask = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+                AsyncPromise<Pair<CoordinatedRepairResult, Supplier<String>>> result = new AsyncPromise<>();
+                logger.info("Migration to mutation tracking in progress for {}; running incremental repair before MT sync", state.keyspace);
+                incrementalTask.perform(executor, validationScheduler).addCallback(
+                        irResult -> {
+                            logger.info("Incremental repair completed for migration keyspace {}: hasFailed={}", state.keyspace, irResult.hasFailed());
+                            Pair<CoordinatedRepairResult, Supplier<String>> irPair = Pair.create(irResult, incrementalTask::successMessage);
+                            mtTask.perform(executor, validationScheduler)
+                                    .addCallback(
+                                            mtResult -> result.trySuccess(irPair),
+                                            result::tryFailure);
+                        },
+                        failure -> {
+                            logger.warn("Incremental repair FAILED for migration keyspace {}", state.keyspace, failure);
+                            result.tryFailure(failure);
+                        }
+                );
+                return result.addCallback((s, f) -> executor.shutdown());
+            }
+            return submitRepairTask(mtTask, executor);
         }
         else if (state.options.isIncremental())
         {
-            task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            RepairTask task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            return submitRepairTask(task, executor);
         }
         else
         {
-            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            RepairTask task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            return submitRepairTask(task, executor);
         }
+    }
 
-        ExecutorPlus executor = createExecutor();
-        state.phase.repairSubmitted();
+    private Future<Pair<CoordinatedRepairResult, Supplier<String>>> submitRepairTask(RepairTask task, ExecutorPlus executor)
+    {
         return task.perform(executor, validationScheduler)
-                   // after adding the callback java could no longer infer the type...
                    .<Pair<CoordinatedRepairResult, Supplier<String>>>map(r -> Pair.create(r, task::successMessage))
                    .addCallback((s, f) -> executor.shutdown());
     }

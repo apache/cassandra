@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.replication.migration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -36,11 +38,15 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
@@ -227,6 +233,26 @@ public class KeyspaceMigrationInfo
     }
 
     /**
+     * Check if a range intersects with any pending migration range for the given table.
+     */
+    public boolean isRangeInPendingMigration(TableId tableId, Range<Token> range)
+    {
+        NormalizedRanges<Token> tableRanges = pendingRangesPerTable.get(tableId);
+        if (tableRanges == null)
+            return false;
+        return tableRanges.intersects(range);
+    }
+
+    /**
+     * Check if the range defined by startToken and endToken intersects with any pending migration range
+     * for the given table.
+     */
+    public boolean isRangeInPendingMigration(TableId tableId, Token startToken, Token endToken)
+    {
+        return isRangeInPendingMigration(tableId, new Range<>(startToken, endToken));
+    }
+
+    /**
      * Determine if read operations on a token should use tracked replication during migration.
      *
      * We only use tracked reads for ranges that have completed migrating _to_ tracked replication.
@@ -244,6 +270,107 @@ public class KeyspaceMigrationInfo
     public boolean shouldUseTrackedForWrites(boolean isTracked, TableId tableId, Token token)
     {
         return isTracked || isTokenInPendingRange(tableId, token);
+    }
+
+    /**
+     * Asserts that the given ranges are either entirely inside or entirely outside the pending
+     * migration set for each specified table. During migration, reads for pending ranges continue
+     * to use the untracked read path with blocking read repair, so it is safe to exclude mutation
+     * tracking streaming for those ranges. However, partial overlap is not supported — repair must
+     * operate on ranges that are fully migrated or fully pending.
+     *
+     * @param ranges the normalized ranges to check
+     * @param tables the tables to check against
+     * @throws IllegalStateException if ranges partially overlap with pending ranges for any table
+     */
+    public void assertRangesNotMixedMigration(@Nonnull NormalizedRanges<Token> ranges,
+                                              @Nonnull Iterable<TableMetadata> tables)
+    {
+        for (TableMetadata table : tables)
+        {
+            NormalizedRanges<Token> pendingRanges = getPendingRangesForTable(table.id);
+            if (pendingRanges.isEmpty())
+                continue;
+
+            NormalizedRanges<Token> overlap = pendingRanges.intersection(ranges);
+            if (overlap.isEmpty())
+                continue;
+
+            // Some ranges overlap with pending — verify ALL ranges are pending for this table
+            NormalizedRanges<Token> outside = ranges.subtract(pendingRanges);
+            if (!outside.isEmpty())
+                throw new IllegalStateException(String.format(
+                    "Ranges for keyspace %s partially overlap with migration pending ranges for table %s. " +
+                    "Ranges must be entirely inside or entirely outside the pending set.",
+                    keyspace, table.name));
+        }
+    }
+
+    /**
+     * Convenience overload that resolves column family names to table metadata before checking.
+     *
+     * @param ranges the normalized ranges to check
+     * @param ksm the keyspace metadata for resolving table names
+     * @param columnFamilies specific table names to check, or null for all tables
+     * @throws IllegalStateException if ranges partially overlap with pending ranges for any table
+     */
+    public void assertRangesNotMixedMigration(@Nonnull NormalizedRanges<Token> ranges,
+                                              @Nonnull KeyspaceMetadata ksm,
+                                              @Nullable Collection<String> columnFamilies)
+    {
+        checkArgument(columnFamilies == null || !columnFamilies.isEmpty(), "columnFmilies must not be empty");
+        Iterable<TableMetadata> tables;
+        if (columnFamilies != null)
+        {
+            List<TableMetadata> tableList = new ArrayList<>(columnFamilies.size());
+            for (String cf : columnFamilies)
+            {
+                TableMetadata table = ksm.tables.getNullable(cf);
+                if (table != null)
+                    tableList.add(table);
+            }
+            tables = tableList;
+        }
+        else
+        {
+            tables = ksm.tables;
+        }
+        assertRangesNotMixedMigration(ranges, tables);
+    }
+
+    /**
+     * Determines whether the given ranges for a table should use the tracked transfer path
+     * (coordinated activation via TrackedRepairTransfer) or the untracked streaming path.
+     * <p>
+     * Returns true (use tracked) when:
+     * - No migration is in progress for this keyspace, OR
+     * - The ranges don't overlap with pending migration ranges for this table
+     * <p>
+     * Returns false (use untracked) when:
+     * - A migration is in progress AND the ranges overlap with pending ranges
+     *
+     * @param metadata cluster metadata snapshot
+     * @param keyspace keyspace name
+     * @param tableId table to check
+     * @param ranges the ranges being repaired or streamed
+     * @return true if tracked transfers should be used
+     */
+    public static boolean shouldUseTrackedTransfers(@Nonnull ClusterMetadata metadata,
+                                                    @Nonnull String keyspace,
+                                                    @Nonnull TableId tableId,
+                                                    @Nonnull Collection<Range<Token>> ranges)
+    {
+        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
+        if (migrationInfo == null)
+            return true;
+
+        NormalizedRanges<Token> pendingRanges = migrationInfo.getPendingRangesForTable(tableId);
+        if (pendingRanges.isEmpty())
+            return true;
+
+        NormalizedRanges<Token> normalizedRanges = NormalizedRanges.normalizedRanges(ranges);
+        NormalizedRanges<Token> overlap = pendingRanges.intersection(normalizedRanges);
+        return overlap.isEmpty();
     }
 
     @Override

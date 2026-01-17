@@ -73,6 +73,22 @@ public class Node2OffsetsMap
         return intersection;
     }
 
+    Offsets.Mutable union()
+    {
+        if (offsetsMap.isEmpty())
+            throw new IllegalStateException("Cannot compute union of empty offsets map");
+
+        Iterator<Offsets.Mutable> iter = offsetsMap.values().iterator();
+        if (offsetsMap.size() == 1)
+            return Offsets.Mutable.copy(iter.next());
+
+        Offsets.Mutable union = Offsets.Mutable.copy(iter.next());
+        while (iter.hasNext())
+            union.addAll(iter.next());
+
+        return union;
+    }
+
     public void add(int node, Offsets offsets)
     {
         Offsets.Mutable current = offsetsMap.get(node);

@@ -67,6 +67,8 @@ import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.FinalizePropose;
+import org.apache.cassandra.repair.messages.MutationTrackingSyncRequest;
+import org.apache.cassandra.repair.messages.MutationTrackingSyncResponse;
 import org.apache.cassandra.repair.messages.PrepareConsistentRequest;
 import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.repair.messages.PrepareMessage;
@@ -292,8 +294,10 @@ public enum Verb
     FINALIZE_PROMISE_MSG   (111, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FinalizePromise.serializer,           () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     FINALIZE_COMMIT_MSG    (112, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FinalizeCommit.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     FAILED_SESSION_MSG     (113, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
-    STATUS_RSP             (115, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
-    STATUS_REQ             (114, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    STATUS_RSP             (115, P1, repairTimeout,                 ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    STATUS_REQ             (114, P1, repairTimeout,                 ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    MT_SYNC_RSP            (117, P1, repairWithBackoffTimeout,      REQUEST_RESPONSE,  () -> MutationTrackingSyncResponse.serializer, RESPONSE_HANDLER                                              ),
+    MT_SYNC_REQ            (116, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> MutationTrackingSyncRequest.serializer, () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP         ),
 
     REPLICATION_DONE_RSP   (82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     REPLICATION_DONE_REQ   (22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP),

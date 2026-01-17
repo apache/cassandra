@@ -237,7 +237,11 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                 CLUSTER.coordinator(1).execute(insert.toString(), ConsistencyLevel.ALL);
             }
 
-            CLUSTER.get(1).nodetoolResult("repair", specification.keyspaceName()).asserts().success();
+            // Background reconciliation doesn't exist/work so incremental repair just hangs waiting for reconciliation that never occurs
+            if (specification.replicationType.isTracked())
+                CLUSTER.get(1).nodetoolResult("repair", "-full", specification.keyspaceName()).asserts().success();
+            else
+                CLUSTER.get(1).nodetoolResult("repair", specification.keyspaceName()).asserts().success();
         }
 
         public void writeUnrepairedRows()

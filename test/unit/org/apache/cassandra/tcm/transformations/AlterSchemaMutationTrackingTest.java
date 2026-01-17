@@ -42,8 +42,7 @@ import org.apache.cassandra.tcm.Epoch;
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for AlterSchema auto-starting mutation tracking migration when replication type changes.
@@ -80,7 +79,7 @@ public class AlterSchemaMutationTrackingTest
         schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", ksName));
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        assertNull(metadata.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
         // Alter tracked replication
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ksName));
@@ -116,7 +115,7 @@ public class AlterSchemaMutationTrackingTest
         schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", ksName));
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        assertNull(metadata.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
         // Alter keyspace to untracked
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'untracked'", ksName));
@@ -149,7 +148,7 @@ public class AlterSchemaMutationTrackingTest
             "AND replication_type = 'untracked'"
         );
         schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", ksName));
-        assertNull(ClusterMetadata.current().mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(ksName));
 
         // Alter keyspace without changing replication type
         schemaChange(String.format(
@@ -158,7 +157,7 @@ public class AlterSchemaMutationTrackingTest
         ));
 
         // confirm no migrations were started
-        assertNull(ClusterMetadata.current().mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(ksName));
     }
 
     @Test
@@ -221,8 +220,8 @@ public class AlterSchemaMutationTrackingTest
         schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", ksName));
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        assertNull("Should have no migration before first alter for " + ksName,
-                   metadata.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse("Should have no migration before first alter for " + ksName,
+                    metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
         // Alter to tracked (untracked → tracked)
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ksName));
@@ -249,7 +248,7 @@ public class AlterSchemaMutationTrackingTest
 
         // this should auto-complete the migration, since none of the ranges from the initial alter completed migration
         metadata = ClusterMetadata.current();
-        assertNull(metadata.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
         // Alter back to tracked again
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ksName));
@@ -283,13 +282,13 @@ public class AlterSchemaMutationTrackingTest
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ksName));
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        assertNotNull(metadata.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertTrue(metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
         // Drop the keyspace & confirm migration is also removed
         schemaChange(String.format("DROP KEYSPACE %s", ksName));
 
         ClusterMetadata afterDrop = ClusterMetadata.current();
-        assertNull(afterDrop.mutationTrackingMigrationState.getKeyspaceInfo(ksName));
+        assertFalse(afterDrop.mutationTrackingMigrationState.isMigrating(ksName));
     }
 
     @Test

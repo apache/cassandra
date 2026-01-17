@@ -192,6 +192,8 @@ public class MutationTrackingService
     private final IncomingMutations incomingMutations = new IncomingMutations();
     private final OutgoingMutations outgoingMutations = new OutgoingMutations();
 
+    private final Map<String, Set<MutationTrackingSyncCoordinator>> syncCoordinatorsByKeyspace = new ConcurrentHashMap<>();
+
     private volatile boolean started = false;
 
     private MutationTrackingService()
@@ -400,6 +402,19 @@ public class MutationTrackingService
         {
             shardLock.readLock().unlock();
         }
+
+        // Notify any registered sync coordinators about the offset update
+        Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(keyspace);
+        if (coordinators != null)
+        {
+            for (MutationTrackingSyncCoordinator coordinator : coordinators)
+            {
+                if (range.intersects(coordinator.getRange()))
+                {
+                    coordinator.onOffsetsReceived();
+                }
+            }
+        }
     }
 
     public void recordFullyReconciledOffsets(ReconciledLogSnapshot reconciledSnapshot)
@@ -455,6 +470,30 @@ public class MutationTrackingService
     public boolean registerMutationCallback(ShortMutationId mutationId, IncomingMutations.Callback callback)
     {
         return incomingMutations.subscribe(mutationId, callback);
+    }
+
+    /**
+     * Register a sync coordinator to be notified when offset updates arrive.
+     */
+    public void registerSyncCoordinator(MutationTrackingSyncCoordinator coordinator)
+    {
+        syncCoordinatorsByKeyspace.computeIfAbsent(coordinator.getKeyspace(), k -> ConcurrentHashMap.newKeySet())
+                                  .add(coordinator);
+    }
+
+    /**
+     * Unregister a sync coordinator.
+     */
+    public void unregisterSyncCoordinator(MutationTrackingSyncCoordinator coordinator)
+    {
+        Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(coordinator.getKeyspace());
+        if (coordinators != null)
+        {
+            coordinators.remove(coordinator);
+
+            if (coordinators.isEmpty())
+                syncCoordinatorsByKeyspace.remove(coordinator.getKeyspace(), coordinators);
+        }
     }
 
     public void executeTransfers(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
@@ -612,6 +651,58 @@ public class MutationTrackingService
             shardLock.readLock().unlock();
         }
         return shards;
+    }
+
+    public void forEachShardInKeyspace(String keyspace, Consumer<Shard> consumer)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards ksShards = keyspaceShards.get(keyspace);
+            if (ksShards != null)
+                ksShards.forEachShard(consumer);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Collects the union of witnessed offsets for all shards in the given keyspace that overlap
+     * with the specified ranges. Used by the mutation tracking repair protocol to establish
+     * a happens-before relationship.
+     *
+     * @param keyspace the keyspace to collect offsets for
+     * @param ranges the token ranges to find overlapping shards for
+     * @return a map from shard range to the union of witnessed offsets per coordinator log
+     */
+    public Map<Range<Token>, Map<CoordinatorLogId, Offsets.Immutable>> collectWitnessedOffsetsForRanges(String keyspace, Collection<Range<Token>> ranges, Set<Integer> liveHostIds)
+    {
+        Map<Range<Token>, Map<CoordinatorLogId, Offsets.Immutable>> result = new HashMap<>();
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards ksShards = keyspaceShards.get(keyspace);
+            if (ksShards != null)
+            {
+                ksShards.forEachShard(shard -> {
+                    for (Range<Token> range : ranges)
+                    {
+                        if (shard.range.intersects(range))
+                        {
+                            result.put(shard.range, shard.collectUnionOfWitnessedOffsetsPerLog(liveHostIds));
+                            break;
+                        }
+                    }
+                });
+            }
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+        return result;
     }
 
     public void collectLocallyMissingMutations(MutationSummary remoteSummary, Log2OffsetsMap.Mutable into)
@@ -983,7 +1074,7 @@ public class MutationTrackingService
                 }
 
                 if (prevKsm == null)
-                    return nextKsm.useMutationTracking() ? UpdateDecision.CREATE : UpdateDecision.NONE;
+                    return nextKsm.useMutationTracking() ? (hasExisting ? UpdateDecision.REPLICA_GROUP : UpdateDecision.CREATE) : UpdateDecision.NONE;
 
                 if (nextKsm == null)
                     return prevKsm.useMutationTracking() ? UpdateDecision.DROP : UpdateDecision.NONE;
@@ -1058,7 +1149,7 @@ public class MutationTrackingService
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
-            Preconditions.checkArgument(keyspace.params.replicationType.isTracked() || cluster.mutationTrackingMigrationState.getKeyspaceInfo(keyspace.name) != null);
+            Preconditions.checkArgument(keyspace.params.replicationType.isTracked() || cluster.mutationTrackingMigrationState.isMigrating(keyspace.name));
 
             Map<Range<Token>, Shard> shards = new HashMap<>();
             Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();

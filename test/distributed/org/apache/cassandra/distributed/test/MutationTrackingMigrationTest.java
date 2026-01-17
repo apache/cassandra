@@ -32,7 +32,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -41,8 +40,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -136,31 +134,31 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
                 ClusterMetadata metadata = ClusterMetadata.current();
                 KeyspaceMetadata ksm = expectedState != ExpectedKeyspaceState.DROPPED ? metadata.schema.getKeyspaceMetadata(keyspace) : null;
                 MutationTrackingMigrationState migrationState = metadata.mutationTrackingMigrationState;
-                KeyspaceMigrationInfo migrationInfo = migrationState.getKeyspaceInfo(keyspace);
+                boolean migrating = migrationState.isMigrating(keyspace);
 
                 switch (expectedState)
                 {
                     case UNTRACKED:
                         assertTrue(!ksm.params.replicationType.isTracked());
-                        assertNull(migrationInfo);
+                        assertFalse(migrating);
                         break;
 
                     case MIGRATING_TO_TRACKED:
                         assertTrue(ksm.params.replicationType.isTracked());
-                        assertNotNull(migrationInfo);
+                        assertTrue(migrating);
                         break;
 
                     case MIGRATING_TO_UNTRACKED:
                         assertTrue(!ksm.params.replicationType.isTracked());
-                        assertNotNull(migrationInfo);
+                        assertTrue(migrating);
                         break;
 
                     case TRACKED:
                         assertTrue(ksm.params.replicationType.isTracked());
-                        assertNull(migrationInfo);
+                        assertFalse(migrating);
                         break;
                     case DROPPED:
-                        assertNull(migrationInfo);
+                        assertFalse(migrating);
                         break;
                     default:
                         throw new AssertionError("Unexpected state: " + expectedState);

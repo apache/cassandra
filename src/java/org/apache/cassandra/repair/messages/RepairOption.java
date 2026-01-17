@@ -504,6 +504,25 @@ public class RepairOption
                ')';
     }
 
+    /**
+     * Returns a new RepairOption with the incremental flag set to the given value.
+     * All other options are copied from this instance.
+     */
+    public RepairOption withIncremental(boolean incremental)
+    {
+        if (this.incremental == incremental)
+            return this;
+
+        RepairOption copy = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads,
+                                            ranges, pullRepair, forceRepair, previewKind, optimiseStreams,
+                                            ignoreUnreplicatedKeyspaces, repairData, repairPaxos,
+                                            dontPurgeTombstones, repairAccord, permitNoQuorum);
+        copy.getColumnFamilies().addAll(columnFamilies);
+        copy.getDataCenters().addAll(dataCenters);
+        copy.getHosts().addAll(hosts);
+        return copy;
+    }
+
     public Map<String, String> asMap()
     {
         Map<String, String> options = new HashMap<>();

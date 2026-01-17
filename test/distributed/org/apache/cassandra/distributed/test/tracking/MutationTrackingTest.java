@@ -418,19 +418,22 @@ public class MutationTrackingTest extends TestBaseImpl
                 Assert.assertEquals(0, summary.get(logId).reconciled.offsetCount());
             });
 
-            // resume the reconciler
+            // resume the reconciler and spin until reconciliation completes.
+            // The reconciler retries with PUSH_MUTATION_REQ whose response inherits the
+            // request's expiry (write_request_timeout). Under load the response can arrive
+            // after that expiry and be silently dropped by InboundMessageHandler, requiring
+            // a retry cycle. Spinning accommodates multiple retry rounds.
             cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().resumeActiveReconciler());
-            Thread.sleep(1000); // wait for reconiciler to do its job
 
-            cluster.get(1).runOnInstance(() ->
-            {
-                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
-                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
-                MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
-                CoordinatorLogId logId = getOnlyLogId(summary);
-                Assert.assertEquals(0, summary.get(logId).unreconciled.offsetCount());
-                Assert.assertEquals(1, summary.get(logId).reconciled.offsetCount());
-            });
+            Util.spinUntilTrue(() ->
+                cluster.get(1).callOnInstance(() -> {
+                    TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
+                    DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
+                    MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
+                    CoordinatorLogId logId = getOnlyLogId(summary);
+                    return summary.get(logId).unreconciled.offsetCount() == 0
+                           && summary.get(logId).reconciled.offsetCount() == 1;
+                }), 10);
         }
     }
 }

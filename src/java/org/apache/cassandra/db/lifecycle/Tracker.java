@@ -64,6 +64,7 @@ import org.apache.cassandra.notifications.TableDroppedNotification;
 import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -273,7 +274,10 @@ public class Tracker
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
-        Preconditions.checkState(!cfstore.metadata().replicationType().isTracked());
+        // Tracked tables may legitimately use this path during migration from untracked to tracked,
+        // when incremental repair streams SSTables that were written before tracking was enabled.
+        Preconditions.checkState(!cfstore.metadata().replicationType().isTracked()
+                                 || ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(cfstore.metadata().keyspace));
         addSSTablesInternal(sstables, false, true, true);
     }
 
