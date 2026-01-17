@@ -20,7 +20,9 @@ package org.apache.cassandra.replication;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -405,6 +407,76 @@ public class Shard
     void collectShardReconciledOffsetsToBuilder(ReconciledKeyspaceOffsets.Builder keyspaceBuilder)
     {
         logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
+    }
+
+    /**
+     * Returns the reconciled offsets for each coordinator log in this shard.
+     * Reconciled offsets are the intersection of what all participants have.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> collectReconciledOffsetsPerLog()
+    {
+        Map<CoordinatorLogId, Offsets.Immutable> result = new HashMap<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable reconciled = log.collectReconciledOffsets();
+            if (!reconciled.isEmpty())
+                result.put(log.logId, reconciled);
+        }
+        return result;
+    }
+
+    /**
+     * Returns the intersection of witnessed offsets scoped to only the specified participant host IDs.
+     * If liveHostIds is null, behaves the same as {@link #collectReconciledOffsetsPerLog()}.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> collectReconciledOffsetsPerLog(Set<Integer> liveHostIds)
+    {
+        if (liveHostIds == null)
+            return collectReconciledOffsetsPerLog();
+
+        Map<CoordinatorLogId, Offsets.Immutable> result = new HashMap<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable reconciled = log.collectReconciledOffsets(liveHostIds);
+            if (!reconciled.isEmpty())
+                result.put(log.logId, reconciled);
+        }
+        return result;
+    }
+
+    /**
+     * Returns the UNION of witnessed offsets from all participants for each coordinator log.
+     * Union = all offsets that ANY replica has witnessed.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> collectUnionOfWitnessedOffsetsPerLog()
+    {
+        Map<CoordinatorLogId, Offsets.Immutable> result = new HashMap<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable union = log.collectUnionOfWitnessedOffsets();
+            if (!union.isEmpty())
+                result.put(log.logId, union);
+        }
+        return result;
+    }
+
+    /**
+     * Returns the UNION of witnessed offsets scoped to only the specified participant host IDs.
+     * If liveHostIds is null, behaves the same as {@link #collectUnionOfWitnessedOffsetsPerLog()}.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> collectUnionOfWitnessedOffsetsPerLog(Set<Integer> liveHostIds)
+    {
+        if (liveHostIds == null)
+            return collectUnionOfWitnessedOffsetsPerLog();
+
+        Map<CoordinatorLogId, Offsets.Immutable> result = new HashMap<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable union = log.collectUnionOfWitnessedOffsets(liveHostIds);
+            if (!union.isEmpty())
+                result.put(log.logId, union);
+        }
+        return result;
     }
 
     @Override

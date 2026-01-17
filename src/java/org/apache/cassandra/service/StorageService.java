@@ -3139,7 +3139,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("data center(s) " + datacenters.toString() + " not found");
         }
 
-        RepairCoordinator task = new RepairCoordinator(this, cmd, options, keyspace, ClusterMetadata.current().epoch);
+        RepairCoordinator task = RepairCoordinator.create(this, cmd, options, keyspace, ClusterMetadata.current().epoch);
         task.addProgressListener(progressSupport);
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);
@@ -5464,6 +5464,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
         logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
     }
+
+    public long getMutationTrackingSyncTimeout()
+    {
+        return DatabaseDescriptor.getMutationTrackingSyncTimeout(MILLISECONDS);
+    }
+
+    public void setMutationTrackingSyncTimeout(long timeoutInMillis)
+    {
+        checkArgument(timeoutInMillis > 0);
+        DatabaseDescriptor.setMutationTrackingSyncTimeout(timeoutInMillis);
+        logger.info("MutationTrackingSyncTimeout set to {}ms via JMX", timeoutInMillis);
+    }
+
     public void evictHungRepairs()
     {
         logger.info("StorageService#clearPaxosRateLimiters called via jmx");

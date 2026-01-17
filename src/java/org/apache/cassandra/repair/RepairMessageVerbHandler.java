@@ -19,6 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -29,11 +30,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+
+import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.MutationTrackingSyncRequest;
+import org.apache.cassandra.repair.messages.MutationTrackingSyncResponse;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
@@ -381,6 +390,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ctx.repair().consistent.local.handleStatusResponse(message.from(), (StatusResponse) message.payload);
                     break;
 
+                case MT_SYNC_REQ:
+                    handleMutationTrackingSyncRequest(message);
+                    break;
+
                 default:
                     ctx.repair().handleMessage(message);
                     break;
@@ -488,5 +501,30 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                      "RepairSession #" + validationRequest.desc.parentSessionId,
                                      "validation request",
                                      from);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleMutationTrackingSyncRequest(Message<RepairMessage> message)
+    {
+        MutationTrackingSyncRequest request = (MutationTrackingSyncRequest) message.payload;
+        RepairJobDesc desc = request.desc;
+        logger.debug("Handling mutation tracking sync request {}", desc);
+
+        try
+        {
+            Map<Range<Token>, Map<CoordinatorLogId, Offsets.Immutable>> offsets =
+                MutationTrackingService.instance().collectWitnessedOffsetsForRanges(desc.keyspace, desc.ranges, request.liveHostIds);
+
+            MutationTrackingSyncResponse response = new MutationTrackingSyncResponse(
+                desc,
+                offsets);
+
+            ctx.messaging().send(message.responseWith(response), message.from());
+        }
+        catch (Exception e)
+        {
+            logger.error("Failed to handle mutation tracking sync request {}", desc, e);
+            sendFailureResponse(message);
+        }
     }
 }

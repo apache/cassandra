@@ -284,6 +284,76 @@ public abstract class CoordinatorLog
         }
     }
 
+    /**
+     * Returns the UNION of all witnessed offsets from all participants.
+     * This represents all offsets that ANY replica has witnessed.
+     */
+    Offsets.Immutable collectUnionOfWitnessedOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return Offsets.Immutable.copy(witnessedOffsets.union());
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Returns the UNION of witnessed offsets scoped to only the specified host IDs.
+     */
+    Offsets.Immutable collectUnionOfWitnessedOffsets(Set<Integer> liveHostIds)
+    {
+        Offsets.Mutable union = new Offsets.Mutable(logId);
+        lock.readLock().lock();
+        try
+        {
+            for (int hostId : liveHostIds)
+            {
+                if (!participants.contains(hostId))
+                    continue;
+
+                Offsets.Mutable nodeOffsets = witnessedOffsets.get(hostId);
+                union.addAll(nodeOffsets);
+            }
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+        return Offsets.Immutable.copy(union);
+    }
+
+    /**
+     * Returns the intersection of witnessed offsets scoped to only the specified host IDs.
+     */
+    Offsets.Immutable collectReconciledOffsets(Set<Integer> liveHostIds)
+    {
+        lock.readLock().lock();
+        try
+        {
+            Offsets.Mutable intersection = null;
+            for (int hostId : liveHostIds)
+            {
+                if (!participants.contains(hostId))
+                    continue;
+
+                Offsets.Mutable nodeOffsets = witnessedOffsets.get(hostId);
+                if (intersection == null)
+                    intersection = Offsets.Mutable.copy(nodeOffsets);
+                else
+                    intersection = Offsets.Mutable.intersection(intersection, nodeOffsets);
+            }
+            return intersection == null ? new Offsets.Immutable(logId) : Offsets.Immutable.copy(intersection);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     public long getUnreconciledCount()
     {
         lock.readLock().lock();

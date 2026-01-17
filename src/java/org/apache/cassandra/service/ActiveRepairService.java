@@ -780,7 +780,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 if (failure.reason == RequestFailureReason.TIMEOUT)
                 {
                     pending.set(-1);
-                    promise.setFailure(failRepairException(parentRepairSession, "Did not get replies from all endpoints."));
+                    promise.tryFailure(failRepairException(parentRepairSession, "Did not get replies from all endpoints."));
                 }
                 else
                 {
@@ -798,7 +798,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     }
                     else
                     {
-                        promise.setFailure(failRepairException(parentRepairSession, "Got negative replies from endpoints " + failedNodes));
+                        promise.tryFailure(failRepairException(parentRepairSession, "Got negative replies from endpoints " + failedNodes));
                     }
                 }
             }

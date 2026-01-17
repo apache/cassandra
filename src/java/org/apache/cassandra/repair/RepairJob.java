@@ -57,6 +57,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.repair.AccordRepair;
 import org.apache.cassandra.service.accord.repair.AccordRepair.AccordRepairResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosUpdateLowBallot;
@@ -261,7 +262,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                                             .flatMap(this::executeTasks, taskExecutor);
 
             // For tracked keyspaces, we need to ensure sync'd data is present in the log
-            boolean isTracked = cfs.metadata().replicationType().isTracked();
+            boolean isTracked = useTrackedTransfers();
             if (isTracked)
                 syncResults = TransferTrackingService.instance().onRepairSyncCompletion(this, syncResults, taskExecutor);
         }
@@ -347,7 +348,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             else
                 syncTasks = createStandardSyncTasks(trees);
 
-            return ks.getMetadata().params.replicationType.isTracked() 
+            return useTrackedTransfers()
                    ? SyncTasks.tracked(ks, syncTasks)
                    : SyncTasks.untracked(syncTasks);
         }, taskExecutor);
@@ -367,6 +368,23 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
     private boolean isMetadataKeyspace()
     {
         return desc.keyspace.equals(METADATA_KEYSPACE_NAME);
+    }
+
+    /**
+     * Whether tracked repair transfers should be used for this repair job.
+     * Returns true only when the keyspace uses tracked replication AND the repair ranges
+     * for this table have completed migration (or no migration is in progress).
+     * During migration, ranges still in the pending set use the traditional untracked
+     * streaming path because:
+     * - The data being streamed is pre-migration data without mutation tracking offsets
+     * - TrackedRepairTransfer does not support --force (dead node exclusion)
+     */
+    private boolean useTrackedTransfers()
+    {
+        if (!cfs.metadata().replicationType().isTracked())
+            return false;
+
+        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), desc.keyspace, cfs.metadata().id, desc.ranges);
     }
 
     private boolean isTransient(InetAddressAndPort ep)
@@ -465,7 +483,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             if (!tasks.isEmpty())
                 state.phase.streamSubmitted();
 
-            if (cfs.metadata().replicationType().isTracked())
+            if (useTrackedTransfers())
                 TransferTrackingService.instance().onRepairSyncExecution(tasks);
 
             for (SyncTask task : tasks)

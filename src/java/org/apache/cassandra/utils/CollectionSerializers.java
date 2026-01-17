@@ -77,6 +77,9 @@ public class CollectionSerializers
         }
     };
 
+    public static final UnversionedSerializer<Set<Integer>> intSetSerializer = newSetSerializer(Int32Serializer.serializer);
+    public static final UnversionedSerializer<Set<Integer>> nullableIntSetSerializer = NullableSerializer.wrap(intSetSerializer);
+
     public static <V> void serializeCollection(Collection<V> values, DataOutputPlus out, UnversionedSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(values.size());
@@ -642,6 +645,30 @@ public class CollectionSerializers
         return result;
     }
 
+    public static <V> UnversionedSerializer<Set<V>> newSetSerializer(UnversionedSerializer<V> itemSerializer)
+    {
+        return new UnversionedSerializer<Set<V>>()
+        {
+            @Override
+            public void serialize(Set<V> set, DataOutputPlus out) throws IOException
+            {
+                serializeCollection(set, out, itemSerializer);
+            }
+
+            @Override
+            public Set<V> deserialize(DataInputPlus in) throws IOException
+            {
+                return deserializeSet(in, itemSerializer);
+            }
+
+            @Override
+            public long serializedSize(Set<V> t)
+            {
+                return serializedCollectionSize(t, itemSerializer);
+            }
+        };
+    }
+
     public static <V> UnversionedSerializer<List<V>> newListSerializer(UnversionedSerializer<V> itemSerializer)
     {
         return new UnversionedSerializer<List<V>>()
@@ -662,6 +689,30 @@ public class CollectionSerializers
             public long serializedSize(List<V> t)
             {
                 return serializedListSize(t, itemSerializer);
+            }
+        };
+    }
+
+    public static <K, V> IVersionedSerializer<Map<K, V>> newMapSerializer(IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer)
+    {
+        return new IVersionedSerializer<Map<K, V>>()
+        {
+            @Override
+            public void serialize(Map<K, V> map, DataOutputPlus out, int version) throws IOException
+            {
+                serializeMap(map, out, version, keySerializer, valueSerializer);
+            }
+
+            @Override
+            public Map<K, V> deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return deserializeMap(in, version, keySerializer, valueSerializer);
+            }
+
+            @Override
+            public long serializedSize(Map<K, V> map, int version)
+            {
+                return serializedMapSize(map, version, keySerializer, valueSerializer);
             }
         };
     }
