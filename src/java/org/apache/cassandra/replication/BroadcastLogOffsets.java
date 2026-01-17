@@ -19,6 +19,7 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -49,6 +50,11 @@ public class BroadcastLogOffsets
     boolean isEmpty()
     {
         return replicatedOffsets.isEmpty();
+    }
+
+    public List<Offsets.Immutable> getOffsets()
+    {
+        return Collections.unmodifiableList(replicatedOffsets);
     }
 
     @Override

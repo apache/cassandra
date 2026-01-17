@@ -503,7 +503,15 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
         else if (state.options.isIncremental())
         {
-            task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            // For keyspaces using mutation tracking, use the mutation tracking repair task
+            if (MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(state.keyspace))
+            {
+                task = new MutationTrackingIncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            }
+            else
+            {
+                task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            }
         }
         else
         {

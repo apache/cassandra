@@ -131,6 +131,8 @@ public class MutationTrackingService
     private final IncomingMutations incomingMutations = new IncomingMutations();
     private final OutgoingMutations outgoingMutations = new OutgoingMutations();
 
+    private final Map<String, Set<MutationTrackingSyncCoordinator>> syncCoordinatorsByKeyspace = new ConcurrentHashMap<>();
+
     private volatile boolean started = false;
 
     private MutationTrackingService()
@@ -305,6 +307,19 @@ public class MutationTrackingService
         try
         {
             getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
+
+            // Notify any registered sync coordinators about the offset update
+            Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(keyspace);
+            if (coordinators != null)
+            {
+                for (MutationTrackingSyncCoordinator coordinator : coordinators)
+                {
+                    if (range.intersects(coordinator.getRange()))
+                    {
+                        coordinator.onOffsetsReceived();
+                    }
+                }
+            }
         }
         finally
         {
@@ -365,6 +380,30 @@ public class MutationTrackingService
     public boolean registerMutationCallback(ShortMutationId mutationId, IncomingMutations.Callback callback)
     {
         return incomingMutations.subscribe(mutationId, callback);
+    }
+
+    /**
+     * Register a sync coordinator to be notified when offset updates arrive.
+     */
+    public void registerSyncCoordinator(MutationTrackingSyncCoordinator coordinator)
+    {
+        syncCoordinatorsByKeyspace.computeIfAbsent(coordinator.getKeyspace(), k -> ConcurrentHashMap.newKeySet())
+                                  .add(coordinator);
+    }
+
+    /**
+     * Unregister a sync coordinator.
+     */
+    public void unregisterSyncCoordinator(MutationTrackingSyncCoordinator coordinator)
+    {
+        Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(coordinator.getKeyspace());
+        if (coordinators != null)
+        {
+            coordinators.remove(coordinator);
+
+            if (coordinators.isEmpty())
+                syncCoordinatorsByKeyspace.remove(coordinator.getKeyspace(), coordinators);
+        }
     }
 
     public void executeTransfers(String keyspace, Set<SSTableReader> sstables, ConsistencyLevel cl)
@@ -493,6 +532,21 @@ public class MutationTrackingService
             shardLock.readLock().unlock();
         }
         return shards;
+    }
+
+    public void forEachShardInKeyspace(String keyspace, Consumer<Shard> consumer)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards ksShards = keyspaceShards.get(keyspace);
+            if (ksShards != null)
+                ksShards.forEachShard(consumer);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
     }
 
     public void collectLocallyMissingMutations(MutationSummary remoteSummary, Log2OffsetsMap.Mutable into)
