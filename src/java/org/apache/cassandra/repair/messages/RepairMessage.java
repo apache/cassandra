@@ -93,6 +93,8 @@ public abstract class RepairMessage
         map.put(Verb.FINALIZE_PROMISE_MSG, SUPPORTS_RETRY);
         map.put(Verb.FINALIZE_COMMIT_MSG, SUPPORTS_RETRY);
         map.put(Verb.FAILED_SESSION_MSG, SUPPORTS_RETRY);
+        // Mutation tracking messages
+        map.put(Verb.MT_SYNC_REQ, SUPPORTS_RETRY);
         VERB_TIMEOUT_VERSIONS = Collections.unmodifiableMap(map);
 
         EnumSet<Verb> allowsRetry = EnumSet.noneOf(Verb.class);
@@ -110,6 +112,8 @@ public abstract class RepairMessage
         allowsRetry.add(Verb.FINALIZE_PROMISE_MSG);
         allowsRetry.add(Verb.FINALIZE_COMMIT_MSG);
         allowsRetry.add(Verb.FAILED_SESSION_MSG);
+        // Mutation tracking messages
+        allowsRetry.add(Verb.MT_SYNC_REQ);
         ALLOWS_RETRY = Collections.unmodifiableSet(allowsRetry);
     }
 

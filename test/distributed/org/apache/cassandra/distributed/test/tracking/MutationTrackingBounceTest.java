@@ -31,6 +31,7 @@ import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.replication.MutationJournal;
+import org.junit.Ignore;
 import org.junit.Test;
 
 
@@ -45,48 +46,76 @@ public class MutationTrackingBounceTest extends FuzzTestBase
     {
         try (Cluster cluster = builder().withNodes(1).start())
         {
-            int tables = 10;
-            int writesPerKey = 2;
-            int pks = 100;
-            withRandom(rng -> {
-                cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1} " +
-                                                   "AND replication_type='tracked'",
-                                                   KEYSPACE));
+            bounceTest(cluster, 1, 1);
+        }
+    }
 
-                List<HistoryBuilder> builders = new ArrayList<>();
-                for (int i = 0; i < tables; i++)
-                {
-                    Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "mutation_tracking_bounce_" + (builders.size() + 1), POPULATION,
-                                                                                     SchemaSpec.optionsBuilder());
+    @Test
+    public void bounceTestMultiNode() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3).start())
+        {
+            bounceTest(cluster, 3, 1);
+        }
+    }
 
-                    SchemaSpec schema = schemaGen.generate(rng);
-                    cluster.schemaChange(schema.compile());
-                    builders.add(new ReplayingHistoryBuilder(schema.valueGenerators,
-                                                             hb -> InJvmDTestVisitExecutor.builder()
-                                                                                          .consistencyLevel(ConsistencyLevel.QUORUM)
-                                                                                          .build(schema, hb, cluster)));
-                }
+    @Ignore("https://issues.apache.org/jira/browse/CASSANDRA-21256")
+    @Test
+    public void doubleBounceTestMultiNode() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3).start())
+        {
+            bounceTest(cluster, 3, 2);
+        }
+    }
 
-                int counter = 0;
-                for (int pk = 0; pk < pks; pk++) {
-                    for (HistoryBuilder history : builders)
-                        for (int i = 0; i < writesPerKey; i++)
-                            history.insert(pk);
+    private void bounceTest(Cluster cluster, int rf, int bounces) throws Throwable
+    {
+        int tables = 10;
+        int writesPerKey = 2;
+        int pks = 100;
+        withRandom(rng -> {
+            cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d} " +
+                                               "AND replication_type='tracked'",
+                                               KEYSPACE, rf));
+
+            List<HistoryBuilder> builders = new ArrayList<>();
+            for (int i = 0; i < tables; i++)
+            {
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "mutation_tracking_bounce_" + (builders.size() + 1), POPULATION,
+                                                                                 SchemaSpec.optionsBuilder());
+
+                SchemaSpec schema = schemaGen.generate(rng);
+                cluster.schemaChange(schema.compile());
+                builders.add(new ReplayingHistoryBuilder(schema.valueGenerators,
+                                                         hb -> InJvmDTestVisitExecutor.builder()
+                                                                                      .consistencyLevel(ConsistencyLevel.QUORUM)
+                                                                                      .build(schema, hb, cluster)));
+            }
+
+            int counter = 0;
+            for (int pk = 0; pk < pks; pk++)
+            {
+                for (HistoryBuilder history : builders)
+                    for (int i = 0; i < writesPerKey; i++)
+                        history.insert(pk);
 
                     if (++counter % 10 == 0)
                         cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
                 }
 
+            for (int bounce = 0; bounce < bounces; bounce++)
+            {
                 ClusterUtils.stopUnchecked(cluster.get(1));
                 cluster.get(1).startup();
+            }
 
-                for (int pk = 0; pk < pks; pk++)
-                    for (HistoryBuilder history : builders)
-                        for (int i = 0; i < 10; i++)
-                            history.selectPartition(pk);
+            for (int pk = 0; pk < pks; pk++)
+                for (HistoryBuilder history : builders)
+                    for (int i = 0; i < 10; i++)
+                        history.selectPartition(pk);
 
-                cluster.get(1).runOnInstance(new MutationTrackingBounce_ValidateRunnable(tables * pks * writesPerKey));
-            });
-        }
+            cluster.get(1).runOnInstance(new MutationTrackingBounce_ValidateRunnable(tables * pks * writesPerKey));
+        });
     }
 }

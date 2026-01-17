@@ -153,7 +153,7 @@ public class MutationTrackingMigrationStateTest
         assertNotSame(state, completed);
 
         assertFalse(completed.hasMigratingKeyspaces());
-        assertNull(completed.getKeyspaceInfo("test_ks"));
+        assertFalse(completed.isMigrating("test_ks"));
     }
 
     @Test
@@ -169,7 +169,7 @@ public class MutationTrackingMigrationStateTest
         MutationTrackingMigrationState removed = state.dropKeyspaces(epoch, Collections.singleton("test_ks"));
 
         assertFalse(removed.hasMigratingKeyspaces());
-        assertNull(removed.getKeyspaceInfo("test_ks"));
+        assertFalse(removed.isMigrating("test_ks"));
     }
 
     @Test
@@ -253,7 +253,7 @@ public class MutationTrackingMigrationStateTest
         state = state.withRangesRepairedForTable("ks1", testTableId, Collections.singleton(fullRing), epoch);
 
         assertEquals(1, state.keyspaceInfo.size());
-        assertNull(state.getKeyspaceInfo("ks1"));
+        assertFalse(state.isMigrating("ks1"));
 
         // ks2 should still have full ring pending
         KeyspaceMigrationInfo expectedKs2AfterKs1Complete = createExpectedKeyspaceMigrationInfo(

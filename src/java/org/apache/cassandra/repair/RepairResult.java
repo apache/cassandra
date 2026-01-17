@@ -22,6 +22,8 @@ import java.util.List;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationRepairResult;
 
+import javax.annotation.Nullable;
+
 /**
  * RepairJob's result
  */
@@ -29,7 +31,9 @@ public class RepairResult
 {
     public final RepairJobDesc desc;
     public final List<SyncStat> stats;
+    @Nullable
     public final ConsensusMigrationRepairResult consensusMigrationRepairResult;
+    @Nullable
     public final MutationTrackingMigrationRepairResult mutationTrackingMigrationRepairResult;
 
     public RepairResult(RepairJobDesc desc, List<SyncStat> stats, ConsensusMigrationRepairResult consensusMigrationRepairResult, MutationTrackingMigrationRepairResult mutationTrackingMigrationRepairResult)

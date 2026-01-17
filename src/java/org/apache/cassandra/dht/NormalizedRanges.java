@@ -134,6 +134,19 @@ public class NormalizedRanges<T extends RingPosition<T>> extends AbstractList<Ra
         return isIn;
     }
 
+    /**
+     * Check if any of these ranges intersect with the given range.
+     */
+    public boolean intersects(Range<T> range)
+    {
+        for (Range<T> r : this)
+        {
+            if (r.intersects(range))
+                return true;
+        }
+        return false;
+    }
+
     public NormalizedRanges<T> subtract(NormalizedRanges<T> b)
     {
         if (b.isEmpty())

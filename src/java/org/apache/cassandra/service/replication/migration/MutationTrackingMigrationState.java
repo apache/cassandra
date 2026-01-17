@@ -256,6 +256,11 @@ public class MutationTrackingMigrationState implements MetadataValue<MutationTra
         return keyspaceInfo.get(keyspace);
     }
 
+    public boolean isMigrating(String keyspace)
+    {
+        return keyspaceInfo.containsKey(keyspace);
+    }
+
     public boolean hasMigratingKeyspaces()
     {
         return !keyspaceInfo.isEmpty();

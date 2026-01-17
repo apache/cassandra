@@ -47,7 +47,8 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
         {
             group = Keyspace.writeOrder.start();
 
-            MigrationRouter.validateUntrackedMutation(mutation);
+            if (!mutation.isReadRepair())
+                MigrationRouter.validateUntrackedMutation(mutation);
             // write the mutation to the commitlog and memtables
             CommitLogPosition position = null;
             if (makeDurable)

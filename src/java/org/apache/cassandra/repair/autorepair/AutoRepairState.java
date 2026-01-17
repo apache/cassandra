@@ -98,8 +98,8 @@ public abstract class AutoRepairState
 
     protected RepairCoordinator getRepairRunnable(String keyspace, RepairOption options)
     {
-        return new RepairCoordinator(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
-                                     options, keyspace, ClusterMetadata.current().epoch);
+        return RepairCoordinator.create(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
+                                        options, keyspace, ClusterMetadata.current().epoch);
     }
 
     public long getLastRepairTime()

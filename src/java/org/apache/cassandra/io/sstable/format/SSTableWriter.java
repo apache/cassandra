@@ -62,6 +62,8 @@ import org.apache.cassandra.io.util.MmappedRegionsCache;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -337,16 +339,28 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
-        // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces. 
+        // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces.
         boolean reconcile = txn.opType() != OperationType.STREAM;
 
+        // During migration, incremental repair handles repair status for ranges still pending migration.
+        // Only apply mutation tracking reconciliation for ranges NOT in the migration pending set.
+        // For SSTables whose range falls within pending migration ranges, IR sets pendingRepair/repairedAt.
         if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE && reconcile)
         {
-            Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
-            if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
+            KeyspaceMigrationInfo migrationInfo = ClusterMetadata.current().mutationTrackingMigrationState.getKeyspaceInfo(metadata().keyspace);
+            boolean inMigrationPendingRange = migrationInfo != null
+                                              && migrationInfo.isRangeInPendingMigration(metadata().id,
+                                                                                         first.getToken(),
+                                                                                         last.getToken());
+
+            if (!inMigrationPendingRange)
             {
-                repairedAt = Clock.Global.currentTimeMillis();
-                logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+                Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
+                if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
+                {
+                    repairedAt = Clock.Global.currentTimeMillis();
+                    logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+                }
             }
         }
 
