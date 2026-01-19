@@ -172,6 +172,12 @@ public class ProgressBarrier
             {
                 EndpointsForRange writes = metadata.placements.get(params).writes.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
                 EndpointsForRange reads = metadata.placements.get(params).reads.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
+                // Affected ranges can contain ranges which are the results of merging or splitting and may not exist
+                // as keys in the existing ReplicaGroups. As such, no replicas will be found for these ranges and so no
+                // WaitFor is necessary.
+                if (reads.isEmpty() && writes.isEmpty())
+                    continue;
+
                 reads.stream().map(Replica::endpoint).forEach(superset::add);
                 writes.stream().map(Replica::endpoint).forEach(superset::add);
 
