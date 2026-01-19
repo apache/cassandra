@@ -36,8 +36,6 @@ debian/files
 
 # IntelliJ
 .idea/
-!.idea/codeStyles/codeStyleConfig.xml
-!.idea/codeStyles/Project.xml
 *.eml
 **/*.iml
 *.ipr
