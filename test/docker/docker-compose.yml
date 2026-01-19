@@ -1,0 +1,29 @@
+services:
+  cassandra-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the Cassandra source code
+      - ../../:/cassandra:rw
+      # Cache Maven repository to avoid re-downloading dependencies
+      - ./.m2:/root/.m2
+    working_dir: /cassandra
+    # Run full suite by default, or specific test if TEST_NAME_REGEX is set
+    command: >
+      sh -c 'if [ -n "$TEST_NAME_REGEX" ]; then
+        .build/run-tests.sh -a test -t "$TEST_NAME_REGEX";
+      else
+        ant test;
+      fi'
+    environment:
+      # Set TEST_NAME_REGEX to run a specific test, e.g.:
+      # TEST_NAME_REGEX=GarbageCollectRepairedSSTablesTest docker compose up
+      - TEST_NAME_REGEX=${TEST_NAME_REGEX:-}
+    # Allow container to use more resources
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+        reservations:
+          memory: 4g
