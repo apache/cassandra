@@ -11,7 +11,7 @@ services:
     working_dir: /cassandra
     # Run full suite by default, or specific test if TEST_NAME_REGEX is set
     command: >
-      sh -c 'if [ -n "$TEST_NAME_REGEX" ]; then
+      sh -c 'rm -rf build/test/output/* && if [ -n "$TEST_NAME_REGEX" ]; then
         .build/run-tests.sh -a test -t "$TEST_NAME_REGEX";
       else
         ant test;
