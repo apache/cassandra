@@ -53,7 +53,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final TableMetadataRef metadata;
     protected final RegularAndStaticColumns columns;
     protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
-    protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
+    protected final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
@@ -147,13 +147,13 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                                        effectiveOwner);
     }
 
-    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
+    private Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
     {
         SSTableId nextGen = getNextId(directory, columnFamily);
         return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);
     }
 
-    private static SSTableId getNextId(File directory, final String columnFamily) throws IOException
+    private SSTableId getNextId(File directory, final String columnFamily) throws IOException
     {
         while (true)
         {
