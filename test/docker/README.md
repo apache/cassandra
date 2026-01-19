@@ -35,13 +35,3 @@ TEST_NAME_REGEX="GarbageCollectRepairedSSTablesTest,NeverPurgeTest" docker compo
 ```bash
 docker compose down
 ```
-
-## Test for the ConcurrentModificationException Fix
-
-To verify the fix for the ConcurrentModificationException bug in `performGarbageCollection()`:
-
-```bash
-TEST_NAME_REGEX=GarbageCollectRepairedSSTablesTest docker compose up --build
-```
-
-This test validates that garbage collection works correctly with mixed repaired/unrepaired SSTables when `only_purge_repaired_tombstones=true`.
