@@ -50,6 +50,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLI
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -797,6 +798,78 @@ public class DatabaseDescriptorTest
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         DatabaseDescriptor.applyReadThresholdsValidations(conf);
+    }
+
+    // write thresholds
+    @Test
+    public void testWriteSizeWarnThresholdEnabled()
+    {
+        Config conf = new Config();
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isEqualTo(conf.write_size_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isTrue();
+    }
+
+    @Test
+    public void testWriteSizeWarnThresholdDisabled()
+    {
+        Config conf = new Config();
+        conf.write_size_warn_threshold = null;
+        conf.write_thresholds_enabled = false;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isNull();
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isFalse();
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdEnabled()
+    {
+        Config conf = new Config();
+        conf.write_tombstone_warn_threshold = 1000;
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(1000);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isTrue();
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdDisabled()
+    {
+        Config conf = new Config();
+        conf.write_tombstone_warn_threshold = -1;
+        conf.write_thresholds_enabled = false;
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(-1);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isFalse();
+    }
+
+    @Test
+    public void testWriteThresholdsCanBeSetIndependently()
+    {
+        Config conf = new Config();
+        // Set size threshold only
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        conf.write_tombstone_warn_threshold = -1;
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isEqualTo(conf.write_size_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(-1);
+
+        // Set tombstone threshold only
+        conf.write_size_warn_threshold = null;
+        conf.write_tombstone_warn_threshold = 500;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isNull();
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(500);
     }
 
     @Test

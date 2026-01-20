@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.writes.thresholds;
 
+import java.util.Objects;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.service.thresholds.ThresholdCounter;
@@ -78,5 +80,29 @@ public class WriteWarningsSnapshot
     {
         return String.format("%d nodes detected write to partition with many tombstones; estimated count is %d (see write_tombstone_warn_threshold)",
                              nodes, tombstones);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WriteWarningsSnapshot that = (WriteWarningsSnapshot) o;
+        return Objects.equals(writeSize, that.writeSize) && Objects.equals(writeTombstone, that.writeTombstone);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(writeSize, writeTombstone);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "WriteWarningsSnapshot{" +
+               "writeSize=" + writeSize +
+               ", writeTombstone=" + writeTombstone +
+               '}';
     }
 }
