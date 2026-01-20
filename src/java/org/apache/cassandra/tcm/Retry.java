@@ -85,6 +85,11 @@ public class Retry implements WaitStrategy
         return true;
     }
 
+    public long computeWait()
+    {
+        return computeWait(attempts, TimeUnit.MILLISECONDS);
+    }
+
     @Override
     public long computeWaitUntil(int attempts)
     {

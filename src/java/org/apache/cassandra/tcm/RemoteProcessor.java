@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.codahale.metrics.Timer;
@@ -34,6 +35,7 @@ import com.codahale.metrics.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -42,15 +44,16 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.Discovery.DiscoveredNodes;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -78,10 +81,14 @@ public final class RemoteProcessor implements Processor
     {
         try
         {
-            Commit.Result result = sendWithCallback(Verb.TCM_COMMIT_REQ,
-                                                    new Commit(entryId, transform, lastKnown),
-                                                    new CandidateIterator(candidates(false)),
-                                                    retryPolicy);
+            Commit.Result result = sendWithRetries(Verb.TCM_COMMIT_REQ,
+                                                   new Commit(entryId, transform, lastKnown),
+                                                   (Commit.Result res) -> {
+                                                       if (res.isFailure() && !res.failure().rejected)
+                                                           throw new IllegalArgumentException(res.failure().message);
+                                                   },
+                                                   new CandidateIterator(candidates(false)),
+                                                   retryPolicy);
 
             log.append(result.logState());
 
@@ -171,11 +178,11 @@ public final class RemoteProcessor implements Processor
         {
             Promise<LogState> remoteRequest = new AsyncPromise<>();
             Epoch currentEpoch = log.metadata().epoch;
-            sendWithCallbackAsync(remoteRequest,
-                                  Verb.TCM_FETCH_CMS_LOG_REQ,
-                                  new FetchCMSLog(currentEpoch, ClusterMetadataService.state() == REMOTE),
-                                  candidates,
-                                  Retry.withNoTimeLimit(TCMMetrics.instance.fetchLogRetries));
+            sendWithRetries(Verb.TCM_FETCH_CMS_LOG_REQ,
+                            new FetchCMSLog(currentEpoch, ClusterMetadataService.state() == REMOTE),
+                            remoteRequest,
+                            candidates,
+                            Retry.withNoTimeLimit(TCMMetrics.instance.fetchLogRetries));
             return remoteRequest.map((replay) -> {
                 if (!replay.isEmpty())
                 {
@@ -188,14 +195,13 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    // todo rename to send with retries or something
-    public static <REQ, RSP> RSP sendWithCallback(Verb verb, REQ request, CandidateIterator candidates, WaitStrategy backoff)
+    public static <REQ, RSP> RSP sendWithRetries(Verb verb, REQ request, Consumer<RSP> check, CandidateIterator candidates, Retry retry)
     {
+        Promise<RSP> future = AsyncPromise.uncancellable();
+        sendWithRetries(verb, request, check, future, candidates, retry);
         try
         {
-            Promise<RSP> promise = new AsyncPromise<>();
-            sendWithCallbackAsync(promise, verb, request, candidates, backoff);
-            return promise.await().get();
+            return future.get();
         }
         catch (InterruptedException | ExecutionException e)
         {
@@ -203,47 +209,92 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    public static <REQ, RSP> void sendWithCallbackAsync(Promise<RSP> promise, Verb verb, REQ request, CandidateIterator candidates, WaitStrategy backoff)
+    public static <REQ, RSP> void sendWithRetries(Verb verb, REQ request, Promise<RSP> future, CandidateIterator candidates, Retry retry)
     {
-        //TODO (now): the retry defines how long to wait for a retry, but the old behavior scheduled the message right away... should this be delayed as well?
-        MessagingService.instance().<REQ, RSP>sendWithRetries(backoff, MessageDelivery.ImmediateRetryScheduler.instance,
-                                                              verb, request, candidates,
-                                                              (attempt, success, failure) -> {
-                                                                  if (failure != null) promise.tryFailure(failure);
-                                                                  else promise.trySuccess(success.payload);
-                                                              },
-                                                              (attempt, from, failure) -> {
-                                                                  if (promise.isDone() || promise.isCancelled())
-                                                                      return false;
-                                                                  if (failure.reason == RequestFailureReason.NOT_CMS)
-                                                                  {
-                                                                      logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
-                                                                      DiscoveredNodes cms = tryDiscover(from);
-                                                                      candidates.addCandidates(cms);
-                                                                      candidates.timeout(from);
-                                                                      logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
-                                                                  }
-                                                                  else
-                                                                  {
-                                                                      candidates.timeout(from);
-                                                                      logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, failure, verb, candidates);
-                                                                  }
-                                                                  return true;
-                                                              },
-                                                              (attempt, reason, from, failure) -> {
-                                                                  switch (reason)
-                                                                  {
-                                                                      case NoMoreCandidates:
-                                                                          return String.format("Ran out of candidates while sending %s: %s", verb, candidates);
-                                                                      case GiveUp:
-                                                                          return String.format("Could not succeed sending %s to %s; policy %s gave up", verb, candidates, backoff);
-                                                                      case Interrupted:
-                                                                      case FailedSchedule:
-                                                                          return null;
-                                                                      default:
-                                                                          throw new UnsupportedOperationException(reason.name());
-                                                                  }
-                                                              });
+        sendWithRetries(verb, request, ignore_ -> {}, future, candidates, retry);
+    }
+
+    /**
+     * Sends a request to given candidate nodes with retries, respecting the retry policy.
+     *
+     * If request handler expects node to be CMS, handles CMS discovery if a candidate node reports it's not a CMS member.
+     */
+    public static <REQ, RSP> void sendWithRetries(Verb verb, REQ request, Consumer<RSP> check, Promise<RSP> future, CandidateIterator candidates, Retry retry)
+    {
+        if (!candidates.hasNext())
+        {
+            future.setFailure(new MessageDelivery.NoMoreCandidatesException(String.format("Ran out of candidates while sending %s: %s", verb, candidates)));
+            return;
+        }
+        else if (retry.hasExpired())
+        {
+            future.setFailure(new MessageDelivery.GivingUpException(retry.attempts(), String.format("Could not succeed sending %s to %s; policy %s gave up", verb, candidates, retry)));
+            return;
+        }
+
+        InetAddressAndPort candidate = candidates.next();
+        long waitNanos = Math.min(verb.expiresAfterNanos(), Math.max(0, retry.remainingNanos()));
+        Message<REQ> msg = Message.outWithFlag(verb, request, MessageFlag.CALL_BACK_ON_FAILURE, Clock.Global.nanoTime() + waitNanos);
+        MessagingService.instance().sendWithCallback(msg, candidate, new RequestCallbackWithFailure<RSP>()
+        {
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
+            {
+                switch (failure.reason)
+                {
+                    case UNKNOWN:
+                        candidates.timeout(candidate);
+                        logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, failure, verb, candidates);
+                        break;
+                    case TIMEOUT:
+                        candidates.timeout(candidate);
+                        logger.warn("Got error from {}: timeout when sending {}, retrying on {}", candidate, verb, candidates);
+                        break;
+                    case NOT_CMS:
+                        logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
+                        DiscoveredNodes cms = tryDiscover(from);
+                        candidates.addCandidates(cms);
+                        candidates.timeout(from);
+                        logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
+                        break;
+                    default:
+                        // Unknown exception - add candidate back and retry
+                        candidates.timeout(candidate);
+                        logger.warn("Unexpected error ({}) sending {} to {}, retrying", failure, verb, candidate);
+                }
+
+                if (Thread.currentThread().isInterrupted()) // preserve interrupt status
+                {
+                    Thread.currentThread().interrupt();
+                    future.setFailure(new InterruptedException("Interrupted while sending " + verb));
+                }
+                else
+                {
+                    long waitFor = retry.computeWait();
+                    if (waitFor < 0)
+                    {
+                        // The retry strategy returns a negative wait to signal that its attempt budget is exhausted.
+                        future.setFailure(new MessageDelivery.GivingUpException(retry.attempts(), String.format("Could not succeed sending %s to %s; policy %s exhausted attempts", verb, candidates, retry)));
+                        return;
+                    }
+                    ScheduledExecutors.nonPeriodicTasks.schedule(() -> sendWithRetries(verb, request, check, future, candidates, retry), waitFor, TimeUnit.MILLISECONDS);
+                }
+            }
+
+            @Override
+            public void onResponse(Message<RSP> msg)
+            {
+                try
+                {
+                    check.accept(msg.payload);
+                    future.setSuccess(msg.payload);
+                }
+                catch (Throwable t)
+                {
+                    onFailure(msg.from(), new RequestFailure(RequestFailureReason.UNKNOWN, t));
+                }
+            }
+        });
     }
 
     private static DiscoveredNodes tryDiscover(InetAddressAndPort ep)

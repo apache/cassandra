@@ -254,6 +254,12 @@ public class Message<T> implements ResponseContext
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
     }
 
+    public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag, long expireAtNanos)
+    {
+        assert !verb.isResponse();
+        return outWithParam(nextId(), verb, expireAtNanos, payload, flag.addTo(0), null, null);
+    }
+
     public static <T> Message<T> outWithFlag(Verb verb, T payload, Dispatcher.RequestTime requestTime, MessageFlag flag)
     {
         return outWithFlags(verb, payload, requestTime, flag.addTo(0));
