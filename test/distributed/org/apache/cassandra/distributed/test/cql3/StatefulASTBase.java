@@ -371,13 +371,6 @@ public class StatefulASTBase extends TestBaseImpl
         }
         else
         {
-            // it's possible that the range was flipped, which is known bug with BETWEEN, so
-            // make sure the range is not flipped until that bug is fixed
-            if (IGNORED_ISSUES.contains(KnownIssue.BETWEEN_START_LARGER_THAN_END))
-            {
-                min = Literal.of(key.token.getLongValue());
-                max = Literal.of(Long.MIN_VALUE);
-            }
             select = Select.builder(state.metadata)
                            .between(tokenCall, min, max)
                            .build();

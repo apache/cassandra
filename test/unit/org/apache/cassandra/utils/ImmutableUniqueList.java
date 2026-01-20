@@ -95,6 +95,13 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
         return values[index];
     }
 
+    public T get(T value)
+    {
+        int idx = indexOf(value);
+        if (idx == -1) throw new IllegalArgumentException("Unable to find value " + value);
+        return get(idx);
+    }
+
     @Override
     public int indexOf(Object o)
     {

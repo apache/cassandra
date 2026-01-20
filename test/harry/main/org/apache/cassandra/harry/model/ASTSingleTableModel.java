@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -1580,7 +1581,7 @@ public class ASTSingleTableModel
         ImmutableUniqueList<Symbol> selectOrder = factory.selectionOrder;
         ImmutableUniqueList<Symbol> targetOrder = columns(select);
         if (select.where.isEmpty())
-            return SelectResult.ordered(targetOrder, filter(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)), selectOrder, targetOrder));
+            return SelectResult.ordered(targetOrder, filter(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit, select.orderBy)), selectOrder, targetOrder));
         LookupContext ctx = context(select);
         List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
@@ -1606,13 +1607,17 @@ public class ASTSingleTableModel
             // partial tested (handles many columns, tests are single column)
             primaryKeys = search(ctx);
         }
-        primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit);
+        primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit, select.orderBy);
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
         return new SelectResult(targetOrder, filter(getRowsAsByteBuffer(primaryKeys), selectOrder, targetOrder), ctx.unordered);
     }
 
-    private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys, Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt)
+    private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys,
+                                         Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt,
+                                         Optional<Select.OrderBy> orderBy)
     {
+        if (orderBy.isPresent() && shouldReverse(orderBy.get()))
+            primaryKeys = Lists.reverse(primaryKeys);
         if (perPartitionLimitOpt.isPresent())
         {
             int limit = Int32Type.instance.compose(eval(perPartitionLimitOpt.get()));
@@ -1638,6 +1643,18 @@ public class ASTSingleTableModel
                 primaryKeys = primaryKeys.subList(0, limit);
         }
         return primaryKeys;
+    }
+
+    private boolean shouldReverse(Select.OrderBy orderBy)
+    {
+        for (var block : orderBy.ordered)
+        {
+            Symbol col = (Symbol) block.expression; //TODO (coverage): do we support anything other than symbol?
+            col = factory.clusteringColumns.get(col); // switch to table symbol so we know if its reversed or not
+            if (col.reversed != (block.ordering == Select.OrderBy.Ordering.DESC))
+                return true;
+        }
+        return false;
     }
 
     private List<PrimaryKey> all()

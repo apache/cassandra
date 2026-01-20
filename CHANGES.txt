@@ -1,4 +1,5 @@
 5.1
+ * BETWEEN where token(Y) > token(Z) returns wrong answer (CASSANDRA-20154)
  * Optimize memtable flush logic (CASSANDRA-21083)
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
  * Include Level information for UnifiedCompactionStrategy in nodetool tablestats output (CASSANDRA-20820)

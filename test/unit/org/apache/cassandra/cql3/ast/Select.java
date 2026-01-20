@@ -417,7 +417,12 @@ FROM [keyspace_name.] table_name
 
         public T orderByColumn(String name, AbstractType<?> type, OrderBy.Ordering ordering)
         {
-            orderBy.add(new Symbol(name, type), ordering);
+            return orderByColumn(new Symbol(name, type), ordering);
+        }
+
+        public T orderByColumn(Symbol column, OrderBy.Ordering ordering)
+        {
+            orderBy.add(column, ordering);
             return (T) this;
         }
 

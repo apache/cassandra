@@ -586,11 +586,9 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c = ? AND d BETWEEN ? AND ? AND f = ?", 0, 1, 1, 5, 0);
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND c = ? AND d BETWEEN ? AND ? AND f = ?", 0, 0, 1, 1, 0, 5),
-                   row(0, 0, 1, 1, 1, 5));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND c = ? AND d BETWEEN ? AND ? AND f = ?", 0, 0, 1, 1, 0, 5));
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d BETWEEN ? AND ? AND f = ? ALLOW FILTERING", 0, 1, 1, 0, 5),
-                   row(0, 0, 1, 1, 1, 5));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d BETWEEN ? AND ? AND f = ? ALLOW FILTERING", 0, 1, 1, 0, 5));
     }
 
     @Test
@@ -1352,9 +1350,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                        row (0, 2, 2, "MA"),
                        row (0, 3, 3, "MA"));
 
-            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"),
-                       row (0, 2, 2, "MA"),
-                       row (0, 3, 3, "MA"));
+            assertEmpty(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"));
         });
 
         createTable("CREATE TABLE %s(p int, c int, c2 int, abbreviation ascii, PRIMARY KEY (p, c, c2)) WITH CLUSTERING ORDER BY (c DESC, c2 DESC)");
@@ -1369,9 +1365,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                        row(0, 3, 3, "MA"),
                        row(0, 2, 2, "MA"));
 
-            assertRows(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"),
-                       row(0, 3, 3, "MA"),
-                       row(0, 2, 2, "MA"));
+            assertEmpty(execute("SELECT * FROM %s WHERE c2 BETWEEN 3 AND 2 ALLOW FILTERING"));
         });
     }
 }
