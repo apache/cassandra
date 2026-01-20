@@ -58,6 +58,7 @@ import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
+import org.apache.cassandra.db.view.ViewUtils.ViewRowComparison;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryAnalyticsService;
@@ -582,12 +583,41 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             ViewUpdateGenerator generator = new ViewUpdateGenerator(view, builder.buildBasePartitionKey(), nowInSeconds);
             if (DatabaseDescriptor.getViewKeyRebuildViewReadEnabled())
             {
-                // TODO: read from view table as well for logging & strict rebuild
+                // Info only: shouldn't fail the flow
+                try
+                {
+                    // read from view table as well for logging purposes
+                    SinglePartitionReadCommand viewReadCommand = builder.buildViewTableReadCommand(partitionKeys.get(0), clusterings, nowInSeconds);
+                    Row viewRow;
+                    try (RowIterator iter = StorageProxy.readOne(viewReadCommand, readCL, requestTime))
+                    {
+                        viewRow = iter.hasNext() ? iter.next() : null;
+                    }
+
+                    // Compare base row and view row
+                    ViewRowComparison.Result res = ViewRowComparison.compare(view, baseRow, viewRow,
+                                                                             builder.buildBasePartitionKey(),
+                                                                             builder.buildNonPrimaryKeyValue(),
+                                                                             nowInSeconds);
+                    // TODO: metrics on comparison result
+                    if (DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled())
+                    {
+                        logger.info("rebuildMVKey view={} pk={} status={} {}",
+                                    view.name, builder.formatViewPrimaryKey(), res.status, res.summary);
+                        if (res.viewAhead)
+                            logger.warn("rebuildMVKey VIEW_AHEAD view={} pk={} - view has newer timestamp than base. {}",
+                                        view.name, builder.formatViewPrimaryKey(), res.summary);
+                    }
+                }
+                catch (Exception e)
+                {
+                    logger.error("failed to read view row during rebuildMVKey view={} pk={}",
+                                 view.name, builder.formatViewPrimaryKey(), e);
+                }
             }
-            else
-            {
-                generator.addBaseTableRowForReadRebuild(baseRow, builder.buildBaseClusteringKey(), readTimestamp, builder.buildNonPrimaryKeyValue());
-            }
+
+            // for now, we rebuild the view row from base table row
+            generator.addBaseTableRowForReadRebuild(baseRow, builder.buildBaseClusteringKey(), readTimestamp, builder.buildNonPrimaryKeyValue());
             Collection<PartitionUpdate> updates = generator.generateViewUpdates();
             List<Mutation> mutations = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
@@ -595,8 +625,17 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (mutations.isEmpty())
                 throw new InvalidRequestException("No mutations were generated for rebuildMVKey");
             if (DatabaseDescriptor.getViewKeyRebuildApplyMutationsEnabled())
+            {
                 StorageProxy.mutateWithTriggers(mutations, options.getConsistency(), false, requestTime);
-            logger.info("rebuildMVKey applied {} updates to view {}", updates.size(), viewCfs.name);
+                // TODO: metrics on successful mutations
+                if (DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled())
+                {
+                    for (PartitionUpdate update : updates)
+                    {
+                        logger.info("rebuildMVKey applied to view {}, mutation={}", viewCfs.name, update.toString());
+                    }
+                }
+            }
         }
         catch (Exception e)
         {

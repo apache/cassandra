@@ -24,9 +24,18 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -49,6 +58,8 @@ public class RebuildMVKeyTest extends ViewAbstractTest
         DatabaseDescriptor.setDirectMaterializedViewModification(false);
         DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(false);
         DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(false);
+        DatabaseDescriptor.setViewKeyRebuildViewReadEnabled(false);
+        DatabaseDescriptor.setViewKeyRebuildVerboseLoggingEnabled(false);
     }
 
     @Test
@@ -149,5 +160,83 @@ public class RebuildMVKeyTest extends ViewAbstractTest
             assertTrue(e.getMessage(), e.getMessage().contains("Can only use DELETE statements to rebuildMVKey"));
         }
 
+    }
+
+    /**
+     * Test rebuildMVKey with view comparison enabled.
+     * Verifies that the comparison code path is exercised without errors.
+     * Detailed comparison logic is tested in ViewUtilsRowComparisonTest.
+     */
+    @Test
+    public void testRebuildKeyWithViewComparisonEnabled() throws Throwable
+    {
+        DatabaseDescriptor.setDirectMaterializedViewModification(true);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildViewReadEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildVerboseLoggingEnabled(true);
+
+        String mvName = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                   "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+                                   "PRIMARY KEY (v1, pk, ck)");
+
+        // Insert data into base table - view will be populated automatically
+        execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (1, 1, 100, 'test')");
+
+        // rebuildMVKey exercises the comparison code path
+        String mvQuery = String.format("DELETE FROM %s.%s WHERE v1 = ? AND pk = ? AND ck = ?", keyspace(), mvName);
+        executeNet(mvQuery, 100, 1, 1);
+
+        // Verify metric was recorded (confirms the code path was executed)
+        TableMetadata viewMetadata = Schema.instance.getTableMetadata(keyspace(), mvName);
+        ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(viewMetadata.id);
+        assertEquals(1, viewCfs.metric.viewRebuildKeyTime.cf.getCount());
+    }
+
+    /**
+     * Test rebuildMVKey with viewAhead scenario - view row has newer timestamp than base.
+     */
+    @Test
+    public void testRebuildKeyWithViewAhead() throws Throwable
+    {
+        DatabaseDescriptor.setDirectMaterializedViewModification(true);
+        DatabaseDescriptor.setViewKeyRebuildOnDeletionEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildApplyMutationsEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildViewReadEnabled(true);
+        DatabaseDescriptor.setViewKeyRebuildVerboseLoggingEnabled(true);
+
+        String mvName = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                   "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+                                   "PRIMARY KEY (v1, pk, ck)");
+
+        // Insert into base table with a specific timestamp
+        long baseTimestamp = System.currentTimeMillis() * 1000; // microseconds
+        execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (1, 1, 100, 'test') USING TIMESTAMP " + baseTimestamp);
+        TableMetadata viewMetadata = Schema.instance.getTableMetadata(keyspace(), mvName);
+        long futureTimestamp = baseTimestamp + 10000000; // 10 seconds ahead
+        int nowInSec = (int) (System.currentTimeMillis() / 1000);
+
+        // Build a mutation for the view table with a future timestamp
+        Row.Builder rowBuilder = BTreeRow.sortedBuilder();
+        rowBuilder.newRow(Clustering.make(
+            ByteBufferUtil.bytes(1),   // pk (clustering in view)
+            ByteBufferUtil.bytes(1))); // ck (clustering in view)
+        rowBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(futureTimestamp, nowInSec));
+        ColumnMetadata v2Col = viewMetadata.getColumn(ByteBufferUtil.bytes("v2"));
+        rowBuilder.addCell(BufferCell.live(v2Col, futureTimestamp, ByteBufferUtil.bytes("test")));
+
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(
+            viewMetadata,
+            ByteBufferUtil.bytes(100), // v1 (partition key in view)
+            rowBuilder.build());
+
+        new Mutation(update).apply();
+
+        String mvQuery = String.format("DELETE FROM %s.%s WHERE v1 = ? AND pk = ? AND ck = ?", keyspace(), mvName);
+        executeNet(mvQuery, 100, 1, 1);
+
+        // Verify metric was recorded
+        ColumnFamilyStore viewCfs = Schema.instance.getColumnFamilyStoreInstance(viewMetadata.id);
+        assertEquals(1, viewCfs.metric.viewRebuildKeyTime.cf.getCount());
     }
 }

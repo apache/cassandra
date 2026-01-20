@@ -115,6 +115,44 @@ public class BaseReadCommandBuilder
         return viewRawDataMap.get(viewColumn);
     }
 
+    /**
+     * Returns a string representation of the view primary key (partition key + clustering key).
+     * Format: (col1=val1, col2=val2, ...)
+     */
+    public String formatViewPrimaryKey()
+    {
+        StringBuilder sb = new StringBuilder("(");
+        boolean first = true;
+
+        // Add partition key columns
+        for (ColumnMetadata col : viewMetadata.partitionKeyColumns())
+        {
+            if (!first) sb.append(", ");
+            first = false;
+            ByteBuffer value = viewRawDataMap.get(col);
+            sb.append(col.name).append('=').append(formatValue(col, value));
+        }
+
+        // Add clustering columns
+        for (ColumnMetadata col : viewMetadata.clusteringColumns())
+        {
+            if (!first) sb.append(", ");
+            first = false;
+            ByteBuffer value = viewRawDataMap.get(col);
+            sb.append(col.name).append('=').append(formatValue(col, value));
+        }
+
+        sb.append(')');
+        return sb.toString();
+    }
+
+    private String formatValue(ColumnMetadata col, ByteBuffer value)
+    {
+        if (value == null)
+            return "NULL";
+        return col.type.getString(value);
+    }
+
     Map<ColumnMetadata, ByteBuffer> getViewRawDataMap(ByteBuffer viewPartitionKey, Clustering<?> viewClustering)
     {
         Map<ColumnMetadata, ByteBuffer> map = new HashMap<>(viewMetadata.partitionKeyColumns().size() + viewMetadata.clusteringColumns().size());
@@ -151,6 +189,25 @@ public class BaseReadCommandBuilder
                                                            DataLimits.NONE,
                                                            buildBasePartitionKey(),
                                                            baseClusteringFilter,
+                                                           null,
+                                                           false);
+    }
+
+    public SinglePartitionReadCommand buildViewTableReadCommand(ByteBuffer viewPartitionKey, Clustering<?> viewClustering, int nowInSec)
+    {
+        ClusteringIndexNamesFilter viewClusteringFilter = new ClusteringIndexNamesFilter(FBUtilities.singleton(viewClustering,
+                                                                                                               viewMetadata.comparator),
+                                                                                         false);
+        return SinglePartitionReadCommand.createUnfiltered(false,
+                                                           0,
+                                                           false,
+                                                           viewMetadata,
+                                                           nowInSec,
+                                                           ColumnFilter.all(viewMetadata),
+                                                           RowFilter.NONE,
+                                                           DataLimits.NONE,
+                                                           viewMetadata.partitioner.decorateKey(viewPartitionKey),
+                                                           viewClusteringFilter,
                                                            null,
                                                            false);
     }

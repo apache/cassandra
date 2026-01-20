@@ -19,6 +19,9 @@
 package org.apache.cassandra.db.view;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -26,6 +29,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -278,5 +282,384 @@ public final class ViewUtils
                             : CompositeType.build(ByteBufferAccessor.instance, currentViewEntryPartitionKey);
 
         return viewMetadata.partitioner.decorateKey(rawKey);
+    }
+
+    /**
+     * Utility class for comparing base table rows with view rows.
+     * Used for MV key rebuild diagnostics.
+     */
+    public static final class ViewRowComparison
+    {
+        private ViewRowComparison() {}
+
+        /**
+         * Comparison status for base vs view row.
+         */
+        public enum Status
+        {
+            /** Both rows match (or both correctly absent/filtered) */
+            IDENTICAL,
+            /** View row exists but base is NULL or tombstone - safe to delete view row */
+            STALE_BASE_ABSENT,
+            /** View row exists but base doesn't qualify for view (clustering/non-PK) - safe to delete view row */
+            STALE_BASE_EXCLUDED,
+            /** View row exists at old clustering but non-PK column value changed - safe to delete view row */
+            STALE_VALUE_CHANGED,
+            /** View row is missing but should exist - safe to regenerate from base */
+            MISSING,
+            /** Both exist with differences - check viewAhead flag for safety */
+            MISMATCH,
+            /** Base row filtered by clustering restriction - view correctly absent */
+            CONSISTENT_FILTERED_CLUSTERING,
+            /** Base row filtered because non-PK column in view PK is null or dead - view correctly absent */
+            CONSISTENT_FILTERED_NONPK_COLUMN
+        }
+
+        /**
+         * Result of comparing a base table row with the corresponding view row.
+         */
+        public static class Result
+        {
+            public final Status status;
+            public final String summary;
+            /** True if view has newer timestamp than expected - DANGEROUS, cannot fix from base alone! */
+            public final boolean viewAhead;
+
+            private Result(Status status, String summary, boolean viewAhead)
+            {
+                this.status = status;
+                this.summary = summary;
+                this.viewAhead = viewAhead;
+            }
+
+            public static Result of(Status status, String summary)
+            {
+                return new Result(status, summary, false);
+            }
+
+            public static Result of(Status status, String summary, boolean viewAhead)
+            {
+                return new Result(status, summary, viewAhead);
+            }
+        }
+
+        /**
+         * Compares a base table row with the actual view row and reports differences.
+         *
+         * @param view the materialized view
+         * @param baseRow the base table row (may be null)
+         * @param actualViewRow the actual row read from the view table (may be null)
+         * @param basePartitionKey the base table partition key
+         * @param viewNonPKValueFromQuery the non-PK column value from view's clustering (if applicable)
+         * @param nowInSec current time in seconds
+         * @return comparison result with status and summary
+         */
+        public static Result compare(View view,
+                                     Row baseRow,
+                                     Row actualViewRow,
+                                     DecoratedKey basePartitionKey,
+                                     ByteBuffer viewNonPKValueFromQuery,
+                                     int nowInSec)
+        {
+            // Case 1: Base row is null or tombstone (no live data)
+            if (baseRow == null || !baseRow.hasLiveData(nowInSec, false))
+            {
+                String baseState = baseRow == null ? "NULL" : "tombstone";
+                if (actualViewRow == null)
+                    return Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is NULL");
+                else if (!actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
+                    return Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is dead");
+                else
+                    return Result.of(Status.STALE_BASE_ABSENT, "base row is " + baseState + " but view row exists");
+            }
+
+            // Case 2: Base row is live - check if it matches view filter (includes WHERE clause)
+            boolean matchesFilter = view.matchesViewFilter(basePartitionKey, baseRow, nowInSec);
+
+            if (!matchesFilter)
+            {
+                Result filterResult = describeWhyFilterFailed(view, baseRow, basePartitionKey, nowInSec);
+                // View row absent or dead is consistent with base being filtered out
+                if (actualViewRow == null || !actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
+                    return filterResult;
+                else
+                    return Result.of(Status.STALE_BASE_EXCLUDED, "filter failed: " + filterResult.summary);
+            }
+
+            // Case 3: Base matches filter but view row is absent or dead
+            if (actualViewRow == null || !actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
+            {
+                String viewState = actualViewRow == null ? "not found" : "dead";
+                return Result.of(Status.MISSING, "view row " + viewState);
+            }
+
+            // Case 4: Check non-PK column value mismatch (base row has different value than view clustering)
+            if (!view.hasSamePrimaryKeyColumnsAsBaseTable() && viewNonPKValueFromQuery != null)
+            {
+                ColumnMetadata col = view.baseNonPKColumnsInViewPK.get(0);
+                Cell<?> baseCell = baseRow.getCell(col);
+                if (isLive(baseCell, nowInSec))
+                {
+                    ByteBuffer actualValue = baseCell.buffer();
+                    if (ByteBufferUtil.compareUnsigned(actualValue, viewNonPKValueFromQuery) != 0)
+                    {
+                        LivenessInfo viewLiveness = actualViewRow.primaryKeyLivenessInfo();
+                        return Result.of(Status.STALE_VALUE_CHANGED, String.format(
+                            "NonPkCol=%s stale record, base=%s (ts=%d, ttl=%d, delTime=%d), view=%s (rowTs=%d, rowTtl=%d, rowExpTime=%d)",
+                            col.name, col.type.getString(actualValue),
+                            baseCell.timestamp(), baseCell.ttl(), baseCell.localDeletionTime(),
+                            col.type.getString(viewNonPKValueFromQuery),
+                            viewLiveness.timestamp(), viewLiveness.ttl(), viewLiveness.localExpirationTime()));
+                    }
+                } // !isLive cases already covered in filter check with primaryKeyColumnsNonNull
+            }
+
+            // Case 5: Both exist and aligned - compare details
+            Row expectedViewRow = ViewRowTranslator.translateBaseRowToViewRow(view, baseRow, basePartitionKey, nowInSec);
+            ComparisonDetails details = compareRowDetails(view, expectedViewRow, actualViewRow, nowInSec);
+
+            if (details.diffs.isEmpty())
+                return Result.of(Status.IDENTICAL, "");
+            else
+                return Result.of(Status.MISMATCH, String.join("; ", details.diffs), details.viewAhead);
+        }
+
+        /** Internal class to hold comparison details including timestamp analysis */
+        private static class ComparisonDetails
+        {
+            final List<String> diffs;
+            final boolean viewAhead;  // true if view has newer timestamp than expected
+
+            ComparisonDetails(List<String> diffs, boolean viewAhead)
+            {
+                this.diffs = diffs;
+                this.viewAhead = viewAhead;
+            }
+        }
+
+        /**
+         * Describes why a base row failed to match the view filter.
+         * matchesViewFilter() checks: clustering selection, non-PK column liveness (via IS NOT NULL in WHERE).
+         * @return Result with specific CONSISTENT_FILTERED_* status and reason
+         */
+        private static Result describeWhyFilterFailed(View view, Row baseRow, DecoratedKey basePartitionKey, int nowInSec)
+        {
+            // Check clustering selection
+            if (!view.getReadQuery().selectsClustering(basePartitionKey, baseRow.clustering()))
+                return Result.of(Status.CONSISTENT_FILTERED_CLUSTERING, "clustering not selected by view query");
+
+            // Check non-PK column in view PK (if view has one)
+            // Note: MV WHERE clause only allows IS NOT NULL on columns in view PK, which is covered here
+            if (!view.hasSamePrimaryKeyColumnsAsBaseTable())
+            {
+                ColumnMetadata col = view.baseNonPKColumnsInViewPK.get(0);
+                Cell<?> cell = baseRow.getCell(col);
+                if (cell == null)
+                    return Result.of(Status.CONSISTENT_FILTERED_NONPK_COLUMN, String.format("NonPKCol=%s is null", col.name));
+                else if (!cell.isLive(nowInSec))
+                    return Result.of(Status.CONSISTENT_FILTERED_NONPK_COLUMN, String.format("NonPKCol=%s is dead", col.name));
+            }
+
+            // Shouldn't reach here if matchesViewFilter returned false
+            throw new IllegalStateException("matchesViewFilter returned false but no filter condition matched for view " + view.name);
+        }
+
+        /**
+         * Compare row details between expected (from base) and actual (from view) view rows.
+         * Note: Clustering keys are NOT compared
+         *
+         * @return ComparisonDetails with diffs and whether view has newer timestamp (viewAhead)
+         */
+        private static ComparisonDetails compareRowDetails(View view, Row expected, Row actual, int nowInSec)
+        {
+            List<String> diffs = new ArrayList<>();
+            TableMetadata viewMetadata = view.getDefinition().metadata;
+            long maxExpectedTs = Long.MIN_VALUE;
+            long maxActualTs = Long.MIN_VALUE;
+
+            // Compare liveness info and track timestamps
+            LivenessInfo expLiveness = expected.primaryKeyLivenessInfo();
+            LivenessInfo actLiveness = actual.primaryKeyLivenessInfo();
+            compareLivenessInfo(expLiveness, actLiveness, diffs);
+            if (expLiveness != null && !expLiveness.isEmpty())
+                maxExpectedTs = Math.max(maxExpectedTs, expLiveness.timestamp());
+            if (actLiveness != null && !actLiveness.isEmpty())
+                maxActualTs = Math.max(maxActualTs, actLiveness.timestamp());
+
+            // Note: Row deletion time is not compared - this has no impact on user-visible differences
+            //       v1 MV sync job might have inserted tombstone with different deletion time
+
+            // Compare each regular/static column in the view
+            for (ColumnMetadata col : viewMetadata.regularAndStaticColumns())
+            {
+                ColumnData expData = expected.getColumnData(col);
+                ColumnData actData = actual.getColumnData(col);
+
+                if (expData == null && actData == null)
+                    continue;
+                if (expData == null)
+                {
+                    // If actual is also dead/tombstone, treat as both absent
+                    if (isColumnDataDead(actData, nowInSec))
+                        continue;
+                    diffs.add(String.format("%s: extra in view", col.name));
+                    // Track timestamp from actual (extra in view)
+                    maxActualTs = Math.max(maxActualTs, getMaxTimestamp(actData));
+                    continue;
+                }
+                if (actData == null)
+                {
+                    // If expected is also dead/tombstone, treat as both absent
+                    if (isColumnDataDead(expData, nowInSec))
+                        continue;
+                    diffs.add(String.format("%s: missing in view", col.name));
+                    maxExpectedTs = Math.max(maxExpectedTs, getMaxTimestamp(expData));
+                    continue;
+                }
+                compareColumnData(col, expData, actData, diffs);
+                maxExpectedTs = Math.max(maxExpectedTs, getMaxTimestamp(expData));
+                maxActualTs = Math.max(maxActualTs, getMaxTimestamp(actData));
+            }
+
+            // View is "ahead" if actual has strictly newer timestamp than expected
+            boolean viewAhead = maxActualTs > maxExpectedTs;
+            return new ComparisonDetails(diffs, viewAhead);
+        }
+
+        /** Check if column data is effectively dead (tombstone or expired) */
+        private static boolean isColumnDataDead(ColumnData data, int nowInSec)
+        {
+            if (data == null)
+                return true;
+            if (data instanceof Cell<?>)
+            {
+                Cell<?> cell = (Cell<?>) data;
+                return !cell.isLive(nowInSec);
+            }
+            if (data instanceof ComplexColumnData)
+            {
+                ComplexColumnData complex = (ComplexColumnData) data;
+                // Complex column is dead if all cells are dead
+                for (Cell<?> cell : complex)
+                {
+                    if (cell.isLive(nowInSec))
+                        return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        /** Get max timestamp from column data (handles simple and complex columns) */
+        private static long getMaxTimestamp(ColumnData data)
+        {
+            if (data == null)
+                return Long.MIN_VALUE;
+            if (data instanceof Cell)
+                return ((Cell<?>) data).timestamp();
+            // Complex column - find max across all cells
+            long max = Long.MIN_VALUE;
+            for (Cell<?> cell : (ComplexColumnData) data)
+                max = Math.max(max, cell.timestamp());
+            return max;
+        }
+
+        /**
+         * Compare liveness info between expected and actual view rows.
+         *
+         * Note: Write timestamp differences are NOT considered mismatches.
+         *       What matters for user-visible consistency is whether the row expires at the same time
+         */
+        private static void compareLivenessInfo(LivenessInfo expected, LivenessInfo actual, List<String> diffs)
+        {
+            boolean expEmpty = expected == null || expected.isEmpty();
+            boolean actEmpty = actual == null || actual.isEmpty();
+
+            // Determine if each is expiring
+            boolean expExpiring = !expEmpty && expected.isExpiring();
+            boolean actExpiring = !actEmpty && actual.isExpiring();
+
+            // If neither is expiring, no concern - both effectively live forever
+            if (!expExpiring && !actExpiring)
+                return;
+
+            // If one is expiring and other is not, they'll diverge
+            if (expExpiring != actExpiring)
+            {
+                diffs.add(String.format("liveness.expiring: expected=%s (expTime=%d) actual=%s (expTime=%d)",
+                                        expExpiring, expExpiring ? expected.localExpirationTime() : -1,
+                                        actExpiring, actExpiring ? actual.localExpirationTime() : -1));
+                return;
+            }
+
+            // Both are expiring - compare expiration times
+            if (expected.localExpirationTime() != actual.localExpirationTime())
+                diffs.add(String.format("liveness.expirationTime: expected=%d actual=%d",
+                                        expected.localExpirationTime(), actual.localExpirationTime()));
+        }
+
+        private static void compareColumnData(ColumnMetadata col, ColumnData expected, ColumnData actual, List<String> diffs)
+        {
+            if (col.isComplex())
+                compareComplexColumnData(col, (ComplexColumnData) expected, (ComplexColumnData) actual, diffs);
+            else
+                compareCell(col, (Cell<?>) expected, (Cell<?>) actual, diffs);
+        }
+
+        private static void compareComplexColumnData(ColumnMetadata col, ComplexColumnData expected,
+                                                     ComplexColumnData actual, List<String> diffs)
+        {
+            if (!expected.complexDeletion().equals(actual.complexDeletion()))
+                diffs.add(String.format("%s.deletion: expected=%s actual=%s",
+                                        col.name, expected.complexDeletion(), actual.complexDeletion()));
+
+            for (Cell<?> expCell : expected)
+            {
+                Cell<?> actCell = actual.getCell(expCell.path());
+                if (actCell == null)
+                    diffs.add(String.format("%s[%s]: missing in view", col.name, expCell.path()));
+                else
+                    compareCell(col, expCell, actCell, diffs);
+            }
+            for (Cell<?> actCell : actual)
+            {
+                if (expected.getCell(actCell.path()) == null)
+                    diffs.add(String.format("%s[%s]: extra in view", col.name, actCell.path()));
+            }
+        }
+
+        private static void compareCell(ColumnMetadata col, Cell<?> expected, Cell<?> actual, List<String> diffs)
+        {
+            String name = col.name.toString();
+            List<String> cellDiffs = new ArrayList<>();
+
+            // Value comparison
+            if (!Objects.equals(expected.buffer(), actual.buffer()))
+                cellDiffs.add(String.format("val='%s'->'%s'", formatValue(col, expected.buffer()), formatValue(col, actual.buffer())));
+
+            // Timestamp comparison
+            if (expected.timestamp() != actual.timestamp())
+                cellDiffs.add(String.format("ts=%d->%d", expected.timestamp(), actual.timestamp()));
+
+            // TTL comparison
+            if (expected.ttl() != actual.ttl())
+                cellDiffs.add(String.format("ttl=%d->%d", expected.ttl(), actual.ttl()));
+
+            // Deletion time comparison (for tombstones or expiring cells)
+            if (expected.localDeletionTime() != actual.localDeletionTime())
+                cellDiffs.add(String.format("delTime=%d->%d", expected.localDeletionTime(), actual.localDeletionTime()));
+
+            // Tombstone status
+            if (expected.isTombstone() != actual.isTombstone())
+                cellDiffs.add(String.format("tombstone=%s->%s", expected.isTombstone(), actual.isTombstone()));
+
+            if (!cellDiffs.isEmpty())
+                diffs.add(String.format("%s: {%s}", name, String.join(" ", cellDiffs)));
+        }
+
+        private static String formatValue(ColumnMetadata col, ByteBuffer value)
+        {
+            return value == null ? "NULL" : col.type.getString(value);
+        }
     }
 }
