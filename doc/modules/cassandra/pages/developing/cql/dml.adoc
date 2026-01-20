@@ -474,3 +474,96 @@ partly applied.
 
 Use the `COUNTER` option for batched counter updates. Unlike other
 updates in Cassandra, counter updates are not idempotent.
+
+=== BATCH vs Transactions
+
+While BATCH statements provide atomicity for multiple operations, they have limitations compared to Accord transactions. Understanding the differences helps you choose the right approach for your use case.
+
+==== BATCH Statement Capabilities
+
+BATCH statements offer:
+
+* **Single-partition atomicity**: All operations within a single partition succeed or fail together atomically
+* **Single partition isolation**: Operations on the same partition are isolated
+* **Network efficiency**: Multiple operations in one round-trip
+* **Automatic timestamps**: All operations use the same timestamp by default
+* **Conditional updates**: Batches support `IF` clauses for lightweight transactions (LWT/CAS) on a single partition. If any condition fails, the entire batch is rejected.
+* **Basic business rule enforcement**: `IF` clauses can validate conditions before applying changes, though limited to what CAS syntax supports
+
+==== BATCH Statement Limitations
+
+However, BATCH statements cannot provide:
+
+* **Cross-partition atomicity**: Multi-partition LOGGED batches use a batch log to ensure eventual completion, but are not truly atomic. There can be a window where only some operations are visible.
+* **Read-before-write patterns**: Cannot read data within the batch to make decisions based on current values
+* **Cross-partition conditional updates**: Conditional batches (using `IF` clauses) must operate on a single partition and table
+* **Complex conditional logic**: `IF` clauses are limited to simple equality/inequality checks on existing column values
+
+==== When to Use Accord Transactions Instead
+
+Consider using xref:developing/cql/transactions.adoc[Accord transactions] when you need:
+
+**Read-Modify-Write Patterns:**
+[source,cql]
+----
+-- BATCH cannot check balance before transfer
+BEGIN BATCH
+  UPDATE accounts SET balance = balance - 100 WHERE user_id = 1;
+  UPDATE accounts SET balance = balance + 100 WHERE user_id = 2;
+APPLY BATCH;
+
+-- Transaction can validate before transfer
+BEGIN TRANSACTION
+  LET sender = (SELECT balance FROM accounts WHERE user_id = 1);
+
+  IF sender.balance >= 100 THEN
+    UPDATE accounts SET balance = balance - 100 WHERE user_id = 1;
+    UPDATE accounts SET balance = balance + 100 WHERE user_id = 2;
+  END IF
+COMMIT TRANSACTION
+----
+
+**Complex Business Logic:**
+
+NOTE: Row reference arithmetic in SET clauses and comparing two row references are not currently supported. Pass values as parameters instead.
+
+[source,cql]
+----
+-- Application code:
+-- double productPrice = 50.00;  // Retrieved from products table
+
+-- Transaction can enforce multi-step business rules
+BEGIN TRANSACTION
+  LET user_account = (SELECT balance, status FROM accounts WHERE user_id = ?);
+  LET product_info = (SELECT quantity FROM products WHERE id = ?);
+
+  IF user_account.status = 'active'
+     AND user_account.balance >= ?  -- Pass product_price as parameter
+     AND product_info.quantity > 0 THEN
+
+    UPDATE accounts SET balance = balance - ? WHERE user_id = ?;  -- Pass product_price
+    UPDATE products SET quantity = quantity - 1 WHERE id = ?;
+    INSERT INTO orders (id, user_id, product_id, amount) VALUES (?, ?, ?, ?);  -- Pass product_price
+  END IF
+COMMIT TRANSACTION
+----
+
+**Error Prevention:**
+Transactions prevent invalid operations like:
+
+* Overdrawing accounts
+* Selling out-of-stock items
+* Creating duplicate records
+* Violating business constraints
+
+==== When to Continue Using BATCH
+
+BATCH statements remain appropriate for:
+
+* **Simple multi-table updates** without conditional logic
+* **Same-partition operations** where isolation is sufficient
+* **High-throughput scenarios** where transaction overhead isn't justified
+* **Counter updates** (transactions don't support counters)
+* **Backward compatibility** with existing applications
+
+For detailed transaction syntax and examples, see the xref:developing/cql/transactions.adoc[Transactions] and xref:developing/cql/transactions-examples.adoc[Transaction Examples] documentation.
