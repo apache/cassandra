@@ -35,7 +35,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 public interface LogReader
 {
     /**
-     * Gets all entries where epoch >= since - could be empty if since is a later epoch than the current highest seen
+     * Gets all entries where epoch > since - could be empty if since is a later epoch than the current highest seen
      */
     EntryHolder getEntries(Epoch since) throws IOException;
     EntryHolder getEntries(Epoch since, Epoch until) throws IOException;
