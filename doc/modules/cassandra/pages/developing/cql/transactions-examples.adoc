@@ -1,0 +1,496 @@
+= Accord Transaction Design Patterns
+:page-nav-title: Transaction Patterns
+
+This page provides common patterns and advanced design patterns for Accord transactions. These patterns solve common distributed system challenges that were difficult or impossible to address with eventual consistency.
+
+For basic syntax and getting started, see xref:developing/cql/transactions.adoc[Accord Transactions]. For migration from LWT/BATCH, see xref:developing/cql/transactions-migration.adoc[Transaction Migration].
+
+== Common Patterns
+
+=== Read-Modify-Write
+
+The fundamental transaction pattern: read current state, check a condition, then write. This covers conditional updates, conditional inserts, and any operation that must validate preconditions.
+
+**Conditional update (e.g., sufficient balance):**
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET sender_account = (SELECT balance FROM accounts WHERE id = ?);
+
+  IF sender_account.balance >= ? THEN
+    UPDATE accounts SET balance = balance - ? WHERE id = ?;
+    UPDATE accounts SET balance = balance + ? WHERE id = ?;
+
+    INSERT INTO transactions (id, from_account, to_account, amount, timestamp)
+    VALUES (?, ?, ?, ?, toTimestamp(now()));
+  END IF
+COMMIT TRANSACTION
+----
+
+**Conditional insert (e.g., prevent duplicates):**
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET existing_user = (SELECT user_id FROM email_index WHERE email = ? LIMIT 1);
+
+  IF existing_user IS NULL THEN
+    INSERT INTO users (id, email, created_at, status)
+    VALUES (?, ?, toTimestamp(now()), 'active');
+
+    INSERT INTO email_index (email, user_id) VALUES (?, ?);
+
+    INSERT INTO user_profiles (user_id, display_name)
+    VALUES (?, ?);
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Multi-Table Updates
+
+Maintain referential integrity across tables:
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  UPDATE users SET status = 'suspended', suspended_at = toTimestamp(now())
+  WHERE id = ?;
+
+  UPDATE orders SET status = 'cancelled'
+  WHERE order_id = ?;
+
+  INSERT INTO audit_log (id, user_id, action, timestamp)
+  VALUES (?, ?, 'user_suspended', toTimestamp(now()));
+COMMIT TRANSACTION
+----
+
+=== Cross-Partition Transactions
+
+Coordinate updates across different partitions (see xref:developing/cql/transactions.adoc#row-reference-limitations[row reference limitations] for parameter passing):
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
+
+  IF user_data.status = 'active' AND user_data.balance >= ? THEN
+    UPDATE users SET balance = balance - ? WHERE id = ?;
+
+    INSERT INTO orders (id, user_id, total, status, created_at)
+    VALUES (?, ?, ?, 'confirmed', toTimestamp(now()));
+
+    UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+== Pattern: Synchronous Unique Constraints
+
+Cassandra's primary key enforces uniqueness, but what if you need uniqueness on a non-primary-key column like `email` or `username`? This pattern uses user-maintained lookup tables to enforce multiple unique constraints atomically.
+
+=== The Challenge
+
+You have a `users` table keyed by `user_id`, but you also need:
+
+* Unique `email` addresses
+* Unique `username` values
+* The ability to **change** email or username while maintaining uniqueness
+
+=== Schema
+
+[source,cql]
+----
+CREATE TABLE users (
+  user_id uuid PRIMARY KEY,
+  username text,
+  email text,
+  display_name text,
+  created_at timestamp
+) WITH transactional_mode = 'full';
+
+-- Lookup tables for uniqueness enforcement
+CREATE TABLE username_index (
+  username text PRIMARY KEY,
+  user_id uuid
+) WITH transactional_mode = 'full';
+
+CREATE TABLE email_index (
+  email text PRIMARY KEY,
+  user_id uuid
+) WITH transactional_mode = 'full';
+----
+
+=== Creating a User with Unique Constraints
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET existing_username = (SELECT user_id FROM username_index WHERE username = ? LIMIT 1);
+  LET existing_email = (SELECT user_id FROM email_index WHERE email = ? LIMIT 1);
+
+  IF existing_username IS NULL AND existing_email IS NULL THEN
+    INSERT INTO users (user_id, username, email, display_name, created_at)
+    VALUES (?, ?, ?, ?, toTimestamp(now()));
+
+    INSERT INTO username_index (username, user_id) VALUES (?, ?);
+    INSERT INTO email_index (email, user_id) VALUES (?, ?);
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Changing a Username
+
+Renaming requires atomically: (1) verifying the new name is available, (2) deleting the old index entry, and (3) inserting the new one. Without transactions, a crash between steps could leave orphaned index entries or allow duplicates.
+
+[source,cql]
+----
+-- Application provides: user_id, old_username, new_username
+BEGIN TRANSACTION
+  LET current_user = (SELECT username FROM users WHERE user_id = ?);
+  LET new_name_owner = (SELECT user_id FROM username_index WHERE username = ? LIMIT 1);
+
+  -- Verify: user exists, old username matches, new username is available
+  IF current_user IS NOT NULL
+     AND current_user.username = ?  -- old_username parameter
+     AND new_name_owner IS NULL THEN
+
+    -- Update the user record
+    UPDATE users SET username = ? WHERE user_id = ?;  -- new_username
+
+    -- Atomically swap index entries
+    DELETE FROM username_index WHERE username = ?;  -- old_username
+    INSERT INTO username_index (username, user_id) VALUES (?, ?);  -- new_username, user_id
+  END IF
+COMMIT TRANSACTION
+----
+
+This pattern ensures the index tables are always consistent with the `users` table, even under concurrent modifications or partial failures.
+
+== Pattern: Distributed State Machine
+
+Many business objects follow a lifecycle with strict state transitions. An order might be `PENDING` -> `PAID` -> `SHIPPED` -> `DELIVERED`. Without transactions, concurrent operations (e.g., "cancel" and "ship") could both succeed, leaving the system in an invalid state.
+
+=== The Challenge
+
+* Ensure state transitions follow valid paths
+* Prevent race conditions between competing operations
+* Maintain audit trail of transitions
+
+NOTE: The `IN` and `OR` operators are not currently supported in transaction `IF` conditions. To check multiple valid states, use **numeric status codes** with range comparisons (e.g., `status_code < 30` to mean "any state before SHIPPED").
+
+=== Schema
+
+[source,cql]
+----
+CREATE TABLE orders (
+  order_id uuid PRIMARY KEY,
+  customer_id uuid,
+  status_code int,  -- 10=PENDING, 20=PAID, 30=SHIPPED, 40=DELIVERED, 99=CANCELLED
+  status_name text,
+  total_amount decimal,
+  updated_at timestamp
+) WITH transactional_mode = 'full';
+
+CREATE TABLE order_status_history (
+  order_id uuid,
+  transition_time timestamp,
+  from_status int,
+  to_status int,
+  actor_id uuid,
+  PRIMARY KEY (order_id, transition_time)
+) WITH transactional_mode = 'full';
+----
+
+=== Valid Transition: PAID -> SHIPPED
+
+[source,cql]
+----
+-- Application provides: order_id, actor_id
+BEGIN TRANSACTION
+  LET current_order = (SELECT status_code FROM orders WHERE order_id = ?);
+
+  -- Only allow transition from PAID (20) state
+  IF current_order IS NOT NULL AND current_order.status_code = 20 THEN
+    UPDATE orders
+    SET status_code = 30, status_name = 'SHIPPED', updated_at = toTimestamp(now())
+    WHERE order_id = ?;
+
+    INSERT INTO order_status_history (order_id, transition_time, from_status, to_status, actor_id)
+    VALUES (?, toTimestamp(now()), 20, 30, ?);
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Handling Cancellation (Competing Transition)
+
+Cancellation is only valid from certain states. If a "ship" and "cancel" operation race, exactly one will succeed.
+
+[source,cql]
+----
+-- Application provides: order_id, actor_id
+BEGIN TRANSACTION
+  LET current_order = (SELECT status_code, customer_id, total_amount FROM orders WHERE order_id = ?);
+
+  -- Cancellation allowed only from PENDING (10) or PAID (20) states.
+  -- Use range comparison (status_code <= 20) since IN/OR are not supported.
+  IF current_order IS NOT NULL
+     AND current_order.status_code <= 20 THEN
+
+    UPDATE orders
+    SET status_code = 99, status_name = 'CANCELLED', updated_at = toTimestamp(now())
+    WHERE order_id = ?;
+
+    INSERT INTO order_status_history (order_id, transition_time, from_status, to_status, actor_id)
+    VALUES (?, toTimestamp(now()), current_order.status_code, 99, ?);
+  END IF
+COMMIT TRANSACTION
+----
+
+If a concurrent "ship" operation already moved the order to `SHIPPED` (30), the `status_code <= 20` condition fails and the cancellation is rejected. The application can check the result and inform the user.
+
+== Pattern: Synchronous Denormalization
+
+Cassandra best practices often involve denormalizing data for read performance. Keeping summary tables in sync with detail tables has traditionally been eventually consistent. Accord enables **synchronous denormalization** where aggregates are always accurate.
+
+=== The Challenge
+
+You have a `posts` table and want to maintain accurate counts per author without using counters (which aren't supported in transactions) and without eventual consistency lag.
+
+=== Schema
+
+[source,cql]
+----
+CREATE TABLE posts (
+  post_id uuid PRIMARY KEY,
+  author_id uuid,
+  title text,
+  content text,
+  status text,  -- draft, published, archived
+  created_at timestamp
+) WITH transactional_mode = 'full';
+
+CREATE TABLE author_stats (
+  author_id uuid PRIMARY KEY,
+  draft_count bigint,
+  published_count bigint,
+  archived_count bigint,
+  last_post_at timestamp
+) WITH transactional_mode = 'full';
+----
+
+=== Publishing a New Post (Increment Count)
+
+This example demonstrates **idempotent creation**: if the application retries a failed publish request, the post won't be duplicated and the counter won't be incremented twice.
+
+[source,cql]
+----
+-- Application provides: post_id, author_id, title, content
+BEGIN TRANSACTION
+  -- Check if this post already exists (idempotency guard)
+  LET existing_post = (SELECT status FROM posts WHERE post_id = ?);
+
+  IF existing_post IS NULL THEN
+    -- Create the post
+    INSERT INTO posts (post_id, author_id, title, content, status, created_at)
+    VALUES (?, ?, ?, ?, 'published', toTimestamp(now()));
+
+    -- Synchronously update the count exactly once
+    UPDATE author_stats
+    SET published_count = published_count + 1,
+        last_post_at = toTimestamp(now())
+    WHERE author_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Changing Post Status (Transfer Between Counts)
+
+When a post moves from `published` to `archived`, both counts must update atomically.
+
+[source,cql]
+----
+-- Application provides: post_id, author_id
+BEGIN TRANSACTION
+  LET current_post = (SELECT status, author_id FROM posts WHERE post_id = ?);
+
+  IF current_post IS NOT NULL AND current_post.status = 'published' THEN
+    -- Update post status
+    UPDATE posts SET status = 'archived' WHERE post_id = ?;
+
+    -- Atomically transfer between counts
+    UPDATE author_stats
+    SET published_count = published_count - 1,
+        archived_count = archived_count + 1
+    WHERE author_id = ?;  -- author_id passed as parameter
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Deleting a Post (Decrement Count)
+
+[source,cql]
+----
+-- Application provides: post_id, author_id, current_status
+-- Application must query the post first to get status and author_id
+BEGIN TRANSACTION
+  LET current_post = (SELECT status FROM posts WHERE post_id = ?);
+
+  IF current_post IS NOT NULL AND current_post.status = ? THEN  -- current_status parameter
+    -- Delete the post
+    DELETE FROM posts WHERE post_id = ?;
+
+    -- Decrement the appropriate counter based on status
+    -- Application passes which counter to decrement based on current_status
+    UPDATE author_stats
+    SET published_count = published_count - ?  -- pass 1 if published, 0 otherwise
+    WHERE author_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+== Pattern: Multi-Entity Referential Integrity
+
+Relational databases use foreign keys to prevent orphaned records. In Cassandra, you can achieve similar guarantees with transactions.
+
+=== The Challenge
+
+* A `Task` must belong to an existing `Project`
+* When a `Project` is deleted, handle its `Tasks` appropriately
+* Prevent creating tasks for non-existent projects
+
+=== Schema
+
+[source,cql]
+----
+CREATE TABLE projects (
+  project_id uuid PRIMARY KEY,
+  name text,
+  owner_id uuid,
+  status text,  -- active, completed, deleted
+  task_count bigint,
+  created_at timestamp
+) WITH transactional_mode = 'full';
+
+CREATE TABLE tasks (
+  task_id uuid PRIMARY KEY,
+  project_id uuid,
+  title text,
+  status text,  -- open, in_progress, done
+  assignee_id uuid,
+  created_at timestamp
+) WITH transactional_mode = 'full';
+
+-- Index for finding tasks by project (for cleanup operations)
+CREATE TABLE tasks_by_project (
+  project_id uuid,
+  task_id uuid,
+  title text,
+  status text,
+  PRIMARY KEY (project_id, task_id)
+) WITH transactional_mode = 'full';
+----
+
+=== Creating a Task (Enforce Parent Exists)
+
+[source,cql]
+----
+-- Application provides: task_id, project_id, title, assignee_id
+BEGIN TRANSACTION
+  LET project = (SELECT status FROM projects WHERE project_id = ?);
+
+  -- Only create task if project exists and is active
+  IF project IS NOT NULL AND project.status = 'active' THEN
+    INSERT INTO tasks (task_id, project_id, title, status, assignee_id, created_at)
+    VALUES (?, ?, ?, 'open', ?, toTimestamp(now()));
+
+    INSERT INTO tasks_by_project (project_id, task_id, title, status)
+    VALUES (?, ?, ?, 'open');
+
+    UPDATE projects SET task_count = task_count + 1 WHERE project_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Soft-Deleting a Project
+
+Rather than cascading deletes (which would require iterating over all tasks), mark the project as deleted. Tasks can be cleaned up asynchronously or remain for audit purposes.
+
+[source,cql]
+----
+-- Application provides: project_id
+BEGIN TRANSACTION
+  LET project = (SELECT status FROM projects WHERE project_id = ?);
+
+  IF project IS NOT NULL AND project.status = 'active' THEN
+    UPDATE projects
+    SET status = 'deleted'
+    WHERE project_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+Future task operations will fail the `project.status = 'active'` check, preventing modifications to a deleted project's tasks.
+
+=== Moving a Task Between Projects
+
+This pattern ensures both projects exist and are active, and maintains accurate task counts.
+
+[source,cql]
+----
+-- Application provides: task_id, old_project_id, new_project_id, task_title, task_status
+BEGIN TRANSACTION
+  LET task = (SELECT project_id, title, status FROM tasks WHERE task_id = ?);
+  LET old_project = (SELECT status FROM projects WHERE project_id = ?);  -- old_project_id
+  LET new_project = (SELECT status FROM projects WHERE project_id = ?);  -- new_project_id
+
+  IF task IS NOT NULL
+     AND task.project_id = ?  -- verify task belongs to old_project_id
+     AND old_project.status = 'active'
+     AND new_project.status = 'active' THEN
+
+    -- Update task's project reference
+    UPDATE tasks SET project_id = ? WHERE task_id = ?;  -- new_project_id
+
+    -- Update denormalized index: remove from old, add to new
+    DELETE FROM tasks_by_project WHERE project_id = ? AND task_id = ?;  -- old_project_id
+    INSERT INTO tasks_by_project (project_id, task_id, title, status)
+    VALUES (?, ?, ?, ?);  -- new_project_id, task_id, task_title, task_status
+
+    -- Update counts on both projects
+    UPDATE projects SET task_count = task_count - 1 WHERE project_id = ?;  -- old_project_id
+    UPDATE projects SET task_count = task_count + 1 WHERE project_id = ?;  -- new_project_id
+  END IF
+COMMIT TRANSACTION
+----
+
+== Summary
+
+These patterns demonstrate how Accord transactions solve problems that were previously difficult in Cassandra:
+
+|===
+| Pattern | Problem Solved | Key Technique
+
+| Synchronous Unique Constraints
+| Non-primary-key uniqueness
+| Lookup index tables with atomic swap
+
+| Distributed State Machine
+| Race conditions in status changes
+| IF condition guards valid transitions
+
+| Synchronous Denormalization
+| Stale aggregate counts, duplicate increments on retry
+| Idempotent creation with atomic detail + summary updates
+
+| Multi-Entity Referential Integrity
+| Orphaned child records
+| Parent existence check before child operations
+|===
+
+All patterns share common principles:
+
+* **Read what you need**: Use LET to capture current state
+* **Guard with IF**: Validate preconditions before modifications
+* **Atomic updates**: All changes succeed or fail together
+* **Pass computed values as parameters**: Row-reference arithmetic in SET/VALUES is not supported

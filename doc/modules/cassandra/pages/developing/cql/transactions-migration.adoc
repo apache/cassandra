@@ -1,0 +1,289 @@
+= Migrating to Accord Transactions
+:page-nav-title: Transaction Migration
+
+This page covers migrating existing CQL patterns to Accord transactions, including LWT (Paxos), BATCH statements, and multi-statement workflows.
+
+For transaction syntax and usage, see xref:developing/cql/transactions.adoc[Accord Transactions]. For design patterns, see xref:developing/cql/transactions-examples.adoc[Transaction Patterns].
+
+== From Light Weight Transactions (LWT)
+
+=== IF EXISTS
+
+**Before (LWT):**
+[source,cql]
+----
+UPDATE accounts SET balance = balance - 100
+WHERE user_id = 12345
+IF EXISTS;
+----
+
+**After (Accord):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET account_data = (SELECT balance FROM accounts WHERE user_id = 12345);
+
+  IF account_data IS NOT NULL THEN
+    UPDATE accounts SET balance = balance - 100 WHERE user_id = 12345;
+  END IF
+COMMIT TRANSACTION
+----
+
+=== IF NOT EXISTS
+
+**Before (LWT):**
+[source,cql]
+----
+INSERT INTO users (id, email, status)
+VALUES (?, ?, 'active')
+IF NOT EXISTS;
+----
+
+**After (Accord):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET existing_user = (SELECT id FROM users WHERE id = ? LIMIT 1);
+
+  IF existing_user IS NULL THEN
+    INSERT INTO users (id, email, status) VALUES (?, ?, 'active');
+  END IF
+COMMIT TRANSACTION
+----
+
+=== IF column = null (NULL Comparison)
+
+[IMPORTANT]
+====
+LWT and Accord handle `IF column = null` differently. See <<Null Handling>> for complete details.
+====
+
+LWT treats `column = null` as "column is null," but Accord follows SQL semantics where `column = null` is always FALSE.
+
+**Before (LWT):**
+[source,cql]
+----
+-- LWT: Matches when email is null/missing
+UPDATE users SET email = 'default@example.com'
+WHERE id = ?
+IF email = null;
+----
+
+**After (Accord):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT email FROM users WHERE id = ?);
+
+  -- Must use IS NULL, not = null
+  IF user_data IS NOT NULL AND user_data.email IS NULL THEN
+    UPDATE users SET email = 'default@example.com' WHERE id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Complex CAS with Multiple Operations
+
+**Before (Multiple LWT operations with race condition risk):**
+[source,cql]
+----
+UPDATE accounts SET balance = balance - 50
+WHERE user_id = 12345 AND balance >= 50
+IF balance >= 50;
+
+-- Separate operation (not atomic with above)
+INSERT INTO transaction_log (id, user_id, amount, timestamp)
+VALUES (?, 12345, -50, toTimestamp(now()));
+----
+
+**After (Single atomic transaction):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET account = (SELECT balance FROM accounts WHERE user_id = 12345);
+
+  IF account.balance >= 50 THEN
+    UPDATE accounts SET balance = balance - 50 WHERE user_id = 12345;
+
+    INSERT INTO transaction_log (id, user_id, amount, timestamp)
+    VALUES (?, 12345, -50, toTimestamp(now()));
+  END IF
+COMMIT TRANSACTION
+----
+
+== From BATCH Statements
+
+Single-partition BATCH provides atomicity (all mutations apply or none do). Multi-partition (LOGGED) BATCH does not guarantee atomicity — it uses a batchlog for best-effort delivery. CAS can be used with BATCH for conditional checks, but only on a single partition, and if the condition fails the entire batch is rejected.
+
+Accord transactions provide atomicity across multiple partitions with richer conditional logic:
+
+**Before (Multi-partition BATCH - no atomicity guarantee, no condition checking):**
+[source,cql]
+----
+BEGIN BATCH
+  UPDATE users SET balance = 400 WHERE id = ?;  -- Application pre-computes new balance
+  INSERT INTO orders (id, user_id, amount) VALUES (?, ?, 100);
+APPLY BATCH;
+-- Problem: No atomicity across partitions, can't check if balance is sufficient!
+-- Application had to read balance separately, race condition possible.
+----
+
+**After (Transaction with condition and cross-partition atomicity):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance FROM users WHERE id = ?);
+
+  IF user_data.balance >= 100 THEN
+    UPDATE users SET balance = balance - 100 WHERE id = ?;
+    INSERT INTO orders (id, user_id, amount) VALUES (?, ?, 100);
+  END IF
+COMMIT TRANSACTION
+----
+
+For single-partition operations that already use CAS BATCH, transactions provide equivalent guarantees with more flexible conditions:
+
+**Before (CAS BATCH - single partition, single table only; condition fails = nothing applies):**
+[source,cql]
+----
+BEGIN BATCH
+  UPDATE users SET balance = balance - 100 WHERE id = ?
+  IF balance >= 100;
+  UPDATE users SET last_action = 'debit' WHERE id = ?;
+APPLY BATCH;
+----
+
+**After (Transaction - same guarantees, works across partitions and tables):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance FROM users WHERE id = ?);
+
+  IF user_data.balance >= 100 THEN
+    UPDATE users SET balance = balance - 100 WHERE id = ?;
+    INSERT INTO user_history (user_id, action) VALUES (?, 'debit');
+  END IF
+COMMIT TRANSACTION
+----
+
+== Null Handling
+
+[IMPORTANT]
+====
+Accord transactions follow SQL standard null semantics, which differ from LWT (Paxos) behavior. This is a critical difference when migrating from LWT to Accord.
+====
+
+=== LWT vs Accord: NULL Comparison Behavior
+
+|===
+| Condition | Column Value | LWT (Paxos) Result | Accord Result
+
+| `IF column = null`
+| Column is NULL/missing
+| **TRUE** (matches)
+| **FALSE** (never matches)
+
+| `IF column = null`
+| Column has a value
+| FALSE
+| FALSE
+
+| `IF column IS NULL`
+| Column is NULL/missing
+| TRUE
+| TRUE
+
+| `IF column != null`
+| Column is NULL/missing
+| FALSE
+| **FALSE** (null comparisons always false)
+
+| `IF column != null`
+| Column has a value
+| TRUE
+| TRUE
+|===
+
+=== Why the Difference?
+
+**LWT (Paxos) behavior:** LWT treats `column = null` as a special case meaning "column is null or missing." This is a Cassandra-specific convenience that deviates from SQL standards.
+
+**Accord behavior:** Accord follows SQL standard semantics where `NULL` represents an unknown value. Comparing anything to `NULL` using `=`, `!=`, `<`, `>`, etc. always returns `FALSE` (or more precisely, `UNKNOWN`, which is treated as `FALSE` in conditionals). This is because you cannot know if an unknown value equals another value.
+
+=== Migration from LWT
+
+If your LWT code uses `IF column = null`, you must update it when migrating to Accord transaction syntax.
+
+NOTE: This does not affect LWT statements executed on Accord-enabled tables. Those statements retain their original LWT null semantics.
+
+**Before (LWT):**
+[source,cql]
+----
+-- LWT: This returns TRUE when balance is null/missing
+UPDATE users SET balance = 100 WHERE id = ? IF balance = null;
+----
+
+**After (Accord):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance FROM users WHERE id = ?);
+
+  -- Use IS NULL for null checks
+  IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
+    UPDATE users SET balance = 100 WHERE id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
+TIP: Null checks are recursive. If `user_data` is null (row doesn't exist), then `user_data.balance` is also null. So `IF user_data.balance IS NULL` will be true both when the row doesn't exist AND when the row exists but the column is null. Use `user_data IS NOT NULL` first only if you need to distinguish between these cases.
+
+=== Common Null Patterns
+
+**Check if a column is null (row missing OR column unset):**
+[source,cql]
+----
+IF user_data.balance IS NULL THEN
+  -- Either row doesn't exist, OR row exists but balance is null
+END IF
+----
+
+**Check if a row exists (regardless of column value):**
+[source,cql]
+----
+IF user_data IS NOT NULL THEN
+  -- Row exists (balance could be null or have a value)
+END IF
+----
+
+**Check if a column is null but row exists:**
+[source,cql]
+----
+IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
+  -- Row exists AND balance is null (distinguishes from missing row)
+END IF
+----
+
+**Check if a column has a specific value:**
+[source,cql]
+----
+IF user_data IS NOT NULL AND user_data.balance = 100 THEN
+  -- Row exists AND balance equals 100
+END IF
+----
+
+**Check if a row does not exist:**
+[source,cql]
+----
+IF user_data IS NULL THEN
+  -- Row does not exist
+END IF
+----
+
+=== Null Propagation Rules
+
+* Any comparison with null using `=`, `!=`, `<`, `>`, `<=`, `>=` returns **FALSE**
+* Only `IS NULL` and `IS NOT NULL` can meaningfully test for null
+* Arithmetic operations with null return null
+* Null columns in row references return null (not errors)
+* Accessing a field on a null row reference (e.g., `missing_row.column`) returns null
