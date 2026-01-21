@@ -56,15 +56,13 @@ import static org.junit.Assert.fail;
 public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
 {
     /**
-     * Tests that garbage collection completes without ConcurrentModificationException
-     * when there are mixed repaired and unrepaired SSTables with only_purge_repaired_tombstones=true.
+     * Tests that garbage collection completes
+     * when there are mixed repaired and unrepaired SSTables with only_purge_repaired_tombstones=true
      *
      * Before the fix, this would fail with:
      * java.util.ConcurrentModificationException
      *     at java.util.HashMap$HashIterator.nextNode(HashMap.java:1597)
      *     at org.apache.cassandra.db.compaction.CompactionManager$6.filterSSTables(CompactionManager.java:691)
-     * Tests that garbage collection completes
-     * when there are mixed repaired and unrepaired SSTables with only_purge_repaired_tombstones=true
      */
     @Test
     public void testOnlyPurgeRepaired() throws Throwable
