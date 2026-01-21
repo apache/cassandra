@@ -636,6 +636,16 @@ public class CursorCompactor extends CompactionInfo.Holder
         ReusableLivenessInfo cellLiveness = cellCursor.cellLiveness;
         DataOutputBuffer tempCellBuffer = null;
 
+        if (!metadata().regularAndStaticColumns().contains(cellCursor.cellColumn))
+        {
+            for (int i = 0; i < cellMergeLimit; i++)
+            {
+                if (sstableCursors[i].state() == CELL_VALUE_START)
+                    sstableCursors[i].skipCellValue();
+            }
+            return isRowDropped;
+        }
+
         if (cellCursor.cellColumn.isComplex())
             throw new UnsupportedOperationException("TODO: Not ready for complex cells.");
         if (cellCursor.cellColumn.isCounterColumn())
