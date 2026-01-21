@@ -689,7 +689,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
                 {
                     // Copy originals to avoid ConcurrentModificationException when cancel()
-                    // modifies the underlying collection
+                    // modifies the underlying collection when calling `cancel(..)`
                     for (SSTableReader sstable : new ArrayList<>(transaction.originals()))
                     {
                         if (!sstable.isRepaired())

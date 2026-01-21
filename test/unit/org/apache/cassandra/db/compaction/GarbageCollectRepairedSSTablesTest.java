@@ -53,7 +53,7 @@ import static org.junit.Assert.fail;
  * iterated directly over transaction.originals() while calling transaction.cancel()
  * inside the loop, causing the underlying collection to be modified during iteration.
  */
-public class GarbageCollectRepairedSSTablesTest extends CQLTester
+public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
 {
     /**
      * Tests that garbage collection completes without ConcurrentModificationException
@@ -63,9 +63,11 @@ public class GarbageCollectRepairedSSTablesTest extends CQLTester
      * java.util.ConcurrentModificationException
      *     at java.util.HashMap$HashIterator.nextNode(HashMap.java:1597)
      *     at org.apache.cassandra.db.compaction.CompactionManager$6.filterSSTables(CompactionManager.java:691)
+     * Tests that garbage collection completes
+     * when there are mixed repaired and unrepaired SSTables with only_purge_repaired_tombstones=true
      */
     @Test
-    public void testGarbageCollectWithMixedRepairedUnrepairedSSTables() throws Throwable
+    public void testOnlyPurgeRepaired() throws Throwable
     {
         // Create table with UnifiedCompactionStrategy and only_purge_repaired_tombstones=true
         createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
@@ -151,7 +153,7 @@ public class GarbageCollectRepairedSSTablesTest extends CQLTester
      * In this case, no cancellation happens, so no risk of ConcurrentModificationException.
      */
     @Test
-    public void testGarbageCollectAllRepaired() throws Throwable
+    public void testAllRepaired() throws Throwable
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                     "WITH gc_grace_seconds=0 " +
@@ -185,7 +187,7 @@ public class GarbageCollectRepairedSSTablesTest extends CQLTester
      * This code path doesn't involve the problematic iteration with cancel().
      */
     @Test
-    public void testGarbageCollectWithoutOnlyPurgeRepaired() throws Throwable
+    public void testWithoutOnlyPurgeRepaired() throws Throwable
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                     "WITH gc_grace_seconds=0 " +
@@ -206,7 +208,7 @@ public class GarbageCollectRepairedSSTablesTest extends CQLTester
      * the original behavior reported in CASSANDRA-14204.
      */
     @Test
-    public void testGarbageCollectWithSTCS() throws Throwable
+    public void testSTCS() throws Throwable
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                     "WITH gc_grace_seconds=0 " +
@@ -236,7 +238,7 @@ public class GarbageCollectRepairedSSTablesTest extends CQLTester
      * all compaction strategies.
      */
     @Test
-    public void testGarbageCollectWithLCS() throws Throwable
+    public void testLCS() throws Throwable
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                     "WITH gc_grace_seconds=0 " +
