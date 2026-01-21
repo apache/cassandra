@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
 
 public class MutationTrackingSyncCoordinator
 {
@@ -134,11 +133,6 @@ public class MutationTrackingSyncCoordinator
         return range;
     }
 
-    public Future<Void> awaitCompletion()
-    {
-        return completionFuture;
-    }
-
     /**
      * Blocks until sync completes or timeout is reached.
      *
@@ -189,11 +183,8 @@ public class MutationTrackingSyncCoordinator
 
         void captureTargets()
         {
-            BroadcastLogOffsets current = shard.collectReplicatedOffsets(false);
-            for (Offsets.Immutable logOffsets : current.getOffsets())
-            {
-                targets.put(logOffsets.logId(), logOffsets);
-            }
+            Map<CoordinatorLogId, Offsets.Immutable> unionOffsets = shard.collectUnionOfWitnessedOffsetsPerLog();
+            targets.putAll(unionOffsets);
         }
 
         boolean isComplete()

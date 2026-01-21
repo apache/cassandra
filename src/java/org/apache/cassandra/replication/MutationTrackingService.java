@@ -307,23 +307,23 @@ public class MutationTrackingService
         try
         {
             getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
-
-            // Notify any registered sync coordinators about the offset update
-            Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(keyspace);
-            if (coordinators != null)
-            {
-                for (MutationTrackingSyncCoordinator coordinator : coordinators)
-                {
-                    if (range.intersects(coordinator.getRange()))
-                    {
-                        coordinator.onOffsetsReceived();
-                    }
-                }
-            }
         }
         finally
         {
             shardLock.readLock().unlock();
+        }
+
+        // Notify any registered sync coordinators about the offset update
+        Set<MutationTrackingSyncCoordinator> coordinators = syncCoordinatorsByKeyspace.get(keyspace);
+        if (coordinators != null)
+        {
+            for (MutationTrackingSyncCoordinator coordinator : coordinators)
+            {
+                if (range.intersects(coordinator.getRange()))
+                {
+                    coordinator.onOffsetsReceived();
+                }
+            }
         }
     }
 

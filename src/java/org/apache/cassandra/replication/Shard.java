@@ -424,6 +424,22 @@ public class Shard
         return result;
     }
 
+    /**
+     * Returns the UNION of witnessed offsets from all participants for each coordinator log.
+     * Union = all offsets that ANY replica has witnessed.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> collectUnionOfWitnessedOffsetsPerLog()
+    {
+        Map<CoordinatorLogId, Offsets.Immutable> result = new HashMap<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable union = log.collectUnionOfWitnessedOffsets();
+            if (union != null && !union.isEmpty())
+                result.put(log.logId, union);
+        }
+        return result;
+    }
+
     public DebugInfo getDebugInfo()
     {
         SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logDebugState = new TreeMap<>(Comparator.comparing(CoordinatorLogId::asLong));
