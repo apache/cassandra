@@ -43,26 +43,45 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
     private static final String KS_NAME = "sync_test_ks";
     private static final String TBL_NAME = "sync_test_tbl";
 
+    private void createTrackedKeyspace(Cluster cluster, String keyspaceSuffix)
+    {
+        String ksName = KS_NAME + keyspaceSuffix;
+        cluster.schemaChange("CREATE KEYSPACE " + ksName + " WITH replication = " +
+                             "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                             "AND replication_type='tracked'");
+        cluster.schemaChange("CREATE TABLE " + ksName + '.' + TBL_NAME + " (k int PRIMARY KEY, v int)");
+    }
+
+    private String tableName(String suffix)
+    {
+        return KS_NAME + suffix + '.' + TBL_NAME;
+    }
+
+    private void pauseOffsetBroadcasts(Cluster cluster, boolean pause)
+    {
+        for (int i = 1; i <= cluster.size(); i++)
+            cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.pauseOffsetBroadcast(pause));
+    }
+
+    private static Range<Token> fullTokenRange()
+    {
+        return new Range<>(
+            new Murmur3Partitioner.LongToken(Long.MIN_VALUE),
+            new Murmur3Partitioner.LongToken(Long.MAX_VALUE)
+        );
+    }
+
     @Test
     public void testSyncCoordinatorCompletesWhenNoShards() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(3).start())
         {
-            // Create a tracked keyspace
-            cluster.schemaChange("CREATE KEYSPACE " + KS_NAME + " WITH replication = " +
-                                 "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                 "AND replication_type='tracked'");
-            cluster.schemaChange("CREATE TABLE " + KS_NAME + '.' + TBL_NAME + " (k int PRIMARY KEY, v int)");
+            createTrackedKeyspace(cluster, "");
 
             // Create a sync coordinator for a range that has no data
             // It should complete immediately since there are no offsets to sync
             Boolean completed = cluster.get(1).callOnInstance(() -> {
-                Range<Token> fullRange = new Range<>(
-                    new Murmur3Partitioner.LongToken(Long.MIN_VALUE),
-                    new Murmur3Partitioner.LongToken(Long.MAX_VALUE)
-                );
-
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME, fullRange);
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME, fullTokenRange());
                 coordinator.start();
 
                 try
@@ -85,17 +104,13 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withNodes(6).start())
         {
-            // Create a tracked keyspace
-            cluster.schemaChange("CREATE KEYSPACE " + KS_NAME + "2 WITH replication = " +
-                                 "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                 "AND replication_type='tracked'");
-            cluster.schemaChange("CREATE TABLE " + KS_NAME + "2.tbl (k int PRIMARY KEY, v int)");
+            createTrackedKeyspace(cluster, "2");
 
             // Insert some data to create mutations
             for (int i = 0; i < 10000; i++)
             {
                 cluster.coordinator(1).execute(
-                    "INSERT INTO " + KS_NAME + "2.tbl (k, v) VALUES (?, ?)",
+                    "INSERT INTO " + tableName("2") + " (k, v) VALUES (?, ?)",
                     ConsistencyLevel.ALL, i, i
                 );
             }
@@ -104,12 +119,7 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
 
             // Create a sync coordinator - should complete since all data is synced (CL.ALL)
             Boolean completed = cluster.get(1).callOnInstance(() -> {
-                Range<Token> fullRange = new Range<>(
-                    new Murmur3Partitioner.LongToken(Long.MIN_VALUE),
-                    new Murmur3Partitioner.LongToken(Long.MAX_VALUE)
-                );
-
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '2', fullRange);
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '2', fullTokenRange());
                 coordinator.start();
 
                 try
@@ -129,37 +139,69 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
     }
 
     @Test
+    public void testSyncCoordinatorWaitsForAllReplicasMutations() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(6).start())
+        {
+            createTrackedKeyspace(cluster, "3");
+
+            // Pause broadcasts so nodes don't share offsets yet
+            pauseOffsetBroadcasts(cluster, true);
+
+            // Write from different nodes with CL.ONE - each node has different mutations
+            // Different coordinators create mutations that only their local replica group knows about initially
+            cluster.coordinator(1).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (1, 1)", ConsistencyLevel.ONE);
+            cluster.coordinator(2).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (2, 2)", ConsistencyLevel.ONE);
+            cluster.coordinator(3).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (3, 3)", ConsistencyLevel.ONE);
+
+            // Resume broadcasts so nodes can share their offsets
+            pauseOffsetBroadcasts(cluster, false);
+
+            // Trigger broadcasts to share offsets between nodes
+            for (int i = 1; i <= 6; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+
+            Thread.sleep(500); // Wait for broadcasts to propagate
+
+            Boolean completed = cluster.get(4).callOnInstance(() -> {
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + "3", fullTokenRange());
+                coordinator.start();
+
+                try
+                {
+                    return coordinator.awaitCompletion(30, TimeUnit.SECONDS);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            });
+
+            assertTrue("Sync should complete after all mutations from all nodes are reconciled", completed);
+        }
+    }
+
+    @Test
     public void testSyncCoordinatorCancel() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(3).start())
         {
-            // Create a tracked keyspace with data so there are shards to sync
-            cluster.schemaChange("CREATE KEYSPACE cancel_test_ks WITH replication = " +
-                                 "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
-                                 "AND replication_type='tracked'");
-            cluster.schemaChange("CREATE TABLE cancel_test_ks.tbl (k int PRIMARY KEY, v int)");
+            createTrackedKeyspace(cluster, "4");
 
             // Pause offset broadcasts on all nodes to prevent sync from completing
-            for (int i = 1; i <= 3; i++)
-            {
-                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.pauseOffsetBroadcast(true));
-            }
+            pauseOffsetBroadcasts(cluster, true);
 
             for (int i = 0; i < 100; i++)
             {
                 cluster.coordinator(1).execute(
-                    "INSERT INTO cancel_test_ks.tbl (k, v) VALUES (?, ?)",
+                    "INSERT INTO " + tableName("4") + " (k, v) VALUES (?, ?)",
                     ConsistencyLevel.ONE, i, i);
             }
 
             // Start coordinator - it will be stuck waiting for offsets
             Boolean wasCancelled = cluster.get(1).callOnInstance(() -> {
-                Range<Token> fullRange = new Range<>(
-                    new Murmur3Partitioner.LongToken(Long.MIN_VALUE),
-                    new Murmur3Partitioner.LongToken(Long.MAX_VALUE)
-                );
-
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator("cancel_test_ks", fullRange);
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + "4", fullTokenRange());
                 coordinator.start();
 
                 try
@@ -187,7 +229,7 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
                 }
                 catch (RuntimeException e)
                 {
-                    return e.getMessage() != null  && e.getMessage().contains("cancelled");
+                    return e.getMessage() != null && e.getMessage().contains("cancelled");
                 }
             });
             assertTrue("Sync coordinator should be cancelled", wasCancelled);
