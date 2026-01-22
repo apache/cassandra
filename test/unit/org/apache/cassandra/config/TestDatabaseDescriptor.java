@@ -29,16 +29,12 @@ import static org.apache.cassandra.utils.Throwables.merge;
 /**
  * Test utilities for DatabaseDescriptor that require server-side classes.
  * These methods are separated from DatabaseDescriptor to avoid loading
- * server classes (like CompactionManager) during client initialization.
+ * server classes during initialization.
  */
 public class TestDatabaseDescriptor
 {
     /**
      * Sets the global SSTable format after safely pausing all compactions.
-     * <p>
-     * This method is named "Unsafe" to signal that it modifies global state
-     * that affects all tables across the entire Cassandra instance.
-     * The implementation is actually safe due to the compaction pausing logic.
      *
      * @param name the SSTable format name (e.g., "big" or "bti")
      */
