@@ -152,8 +152,18 @@ public class CoordinatorWarningsState<S>
         try
         {
             S state = threadLocal.get();
-            if (state == null || state == initSentinel || !stateChecker.shouldProcess(state))
+
+            if (state == null || state == initSentinel)
+            {
                 return;
+            }
+
+            boolean shouldProcess = stateChecker.shouldProcess(state);
+
+            if (!shouldProcess)
+            {
+                return;
+            }
 
             processor.accept(state);
         }

@@ -141,6 +141,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
@@ -303,12 +304,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
+        CoordinatorWriteWarnings.init();
         try
         {
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
 
             if (result != null)
                 result.setWarnings(ClientWarn.instance.getWarnings());
@@ -317,11 +320,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         catch (Exception | Error e)
         {
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
             throw e;
         }
         finally
         {
             CoordinatorWarnings.reset();
+            CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
     }

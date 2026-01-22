@@ -77,16 +77,19 @@ public class CoordinatorWriteWarnings
     public static void update(IMutation mutation, WriteWarningsSnapshot snapshot)
     {
         if (snapshot.isEmpty())
+        {
             return;
+        }
 
         Warnings warnings = STATE.getMutableState(() -> EMPTY);
         if (warnings == EMPTY)
+        {
             return;
+        }
 
         for (PartitionUpdate update : mutation.getPartitionUpdates())
         {
-            Pair<TableId, DecoratedKey> key = Pair.create(update.metadata().id, update.partitionKey());
-            warnings.merge(key, snapshot);
+            warnings.merge(update.metadata().id, update.partitionKey(), snapshot);
         }
     }
 
@@ -97,7 +100,7 @@ public class CoordinatorWriteWarnings
     public static void done()
     {
         STATE.processAndReset(
-        warnings -> warnings.partitions != null && !warnings.partitions.isEmpty(),
+        w -> w.partitions != null && !w.partitions.isEmpty(),
         CoordinatorWriteWarnings::processWarnings,
         (state, e) -> logger.error("Error processing write warnings", e)
         );
@@ -120,10 +123,13 @@ public class CoordinatorWriteWarnings
 
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.left);
             if (cfs == null)
+            {
+                logger.warn("ColumnFamilyStore is null for table {}, skipping", key.left);
                 continue;
+            }
 
             TableMetadata metadata = cfs.metadata();
-            String partitionKey = metadata.partitionKeyType.getString(key.right.getKey());
+            String partitionKey = metadata.partitionKeyType.toCQLString(key.right.getKey());
 
             sendWarnings(metadata, partitionKey, snapshot);
             updateMetrics(cfs, snapshot);
@@ -179,12 +185,11 @@ public class CoordinatorWriteWarnings
         @Nullable
         Map<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> partitions;
 
-        void merge(Pair<TableId, DecoratedKey> key, WriteWarningsSnapshot snapshot)
+        void merge(TableId id, DecoratedKey partitionKey, WriteWarningsSnapshot snapshot)
         {
             if (partitions == null)
                 partitions = new HashMap<>();
-
-            partitions.merge(key, snapshot, WriteWarningsSnapshot::merge);
+            partitions.merge(Pair.create(id, partitionKey), snapshot, WriteWarningsSnapshot::merge);
         }
     }
 }

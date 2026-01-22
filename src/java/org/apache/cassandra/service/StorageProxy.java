@@ -82,6 +82,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
+import org.apache.cassandra.db.WriteThresholds;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -131,6 +132,7 @@ import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.PartitionDenylist;
@@ -172,6 +174,7 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -2023,7 +2026,25 @@ public class StorageProxy implements StorageProxyMBean
             {
                 try
                 {
+                    MessageParams.reset();
+
+                    // Check thresholds before applying mutation locally (same as MutationVerbHandler does for remote writes)
+                    if (description instanceof Mutation)
+                    {
+                        WriteThresholds.checkWriteThresholds((Mutation) description);
+                    }
+
                     runnable.run();
+
+                    // Capture params from local write and update warning context
+                    Map<ParamType, Object> params = MessageParams.capture();
+                    if (handler instanceof AbstractWriteResponseHandler &&
+                        WriteWarningContext.isSupported(params.keySet()))
+                    {
+                        AbstractWriteResponseHandler<?> writeHandler = (AbstractWriteResponseHandler<?>) handler;
+                        writeHandler.getWarningContext().updateCounters(params, FBUtilities.getBroadcastAddressAndPort());
+                    }
+
                     handler.onResponse(null);
                 }
                 catch (Exception ex)
@@ -2031,6 +2052,10 @@ public class StorageProxy implements StorageProxyMBean
                     if (!(ex instanceof WriteTimeoutException) && !(ex instanceof RetryOnDifferentSystemException))
                         logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
+                }
+                finally
+                {
+                    MessageParams.reset();
                 }
             }
 

@@ -32,6 +32,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -58,10 +59,9 @@ public class CoordinatorHelper
         prepared.validate(QueryState.forInternalCalls().getClientState());
         prepared.validate(clientState);
 
-        // Start capturing warnings on this thread. Note that this will implicitly clear out any previous
-        // warnings as it sets a new State instance on the ThreadLocal.
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
+        CoordinatorWriteWarnings.init();
         try
         {
             ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
@@ -74,21 +74,26 @@ public class CoordinatorHelper
                                                                      ProtocolVersion.CURRENT,
                                                                      null),
                                                  requestTime);
-            // Collect warnings reported during the query.
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
+            List<String> warnings = ClientWarn.instance.getWarnings();
             if (res != null)
-                res.setWarnings(ClientWarn.instance.getWarnings());
+            {
+                res.setWarnings(warnings);
+            }
 
-            return RowUtil.toQueryResult(res);
+            return RowUtil.toQueryResult(res, warnings);
         }
         catch (Exception | Error e)
         {
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
             throw e;
         }
         finally
         {
             CoordinatorWarnings.reset();
+            CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
     }

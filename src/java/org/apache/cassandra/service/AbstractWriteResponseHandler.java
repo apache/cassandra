@@ -184,16 +184,17 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         if (replicaPlan.stillAppliesTo(ClusterMetadata.current()))
         {
-            WriteWarningContext warnings = warningContext;
-            if (warnings != null)
+            if (warningContext != null)
             {
-                WriteWarningsSnapshot snapshot = warnings.snapshot();
-                if (!snapshot.isEmpty() && hintOnFailure != null)
+                WriteWarningsSnapshot snapshot = warningContext.snapshot();
+                if (!snapshot.isEmpty())
                 {
-                    CoordinatorWriteWarnings.update(hintOnFailure.get(), snapshot);
+                    if (hintOnFailure != null)
+                    {
+                        CoordinatorWriteWarnings.update(hintOnFailure.get(), snapshot);
+                    }
                 }
             }
-            return;
         }
     }
 

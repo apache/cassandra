@@ -33,6 +33,8 @@ public class WarnCounter
 
     void addWarning(InetAddressAndPort from, long value)
     {
+        // call add last so concurrent reads see empty even if values > 0; if done in different order then
+        // size=1 could have values == 0
         maxWarningValue.accumulateAndGet(value, Math::max);
         warnings.add(from);
     }

@@ -67,6 +67,7 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+write_thresholds_enabled: true
 write_size_warn_threshold: 4096KiB
 write_tombstone_warn_threshold: 1000
 

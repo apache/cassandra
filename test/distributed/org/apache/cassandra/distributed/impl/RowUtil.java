@@ -31,7 +31,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -44,7 +43,17 @@ public class RowUtil
         return toQueryResult(res, true);
     }
 
+    public static SimpleQueryResult toQueryResult(ResultMessage res, List<String> explicitWarnings)
+    {
+        return toQueryResult(res, true, explicitWarnings);
+    }
+
     public static SimpleQueryResult toQueryResult(ResultMessage res, boolean deserialize)
+    {
+        return toQueryResult(res, deserialize, null);
+    }
+
+    public static SimpleQueryResult toQueryResult(ResultMessage res, boolean deserialize, List<String> explicitWarnings)
     {
         if (res != null && res.kind == ResultMessage.Kind.ROWS)
         {
@@ -52,20 +61,15 @@ public class RowUtil
             String[] names = getColumnNames(rows.result.metadata.requestNames());
             Object[][] results = toObjects(rows, deserialize);
 
-            // Warnings may be null here, due to ClientWarn#getWarnings() handling of empty warning lists.
-            List<String> warnings = res.getWarnings();
+            List<String> warnings = explicitWarnings != null ? explicitWarnings : res.getWarnings();
 
             return new SimpleQueryResult(names, results, warnings == null ? Collections.emptyList() : warnings);
         }
         else
         {
-            if (res != null)
-            {
-                List<String> warnings = res.getWarnings();
-                return new SimpleQueryResult(new String[0], null, warnings == null ? Collections.emptyList() : warnings);
-            }
-            else
-                return QueryResults.empty();
+            List<String> warnings = explicitWarnings != null ? explicitWarnings : (res != null ? res.getWarnings() : null);
+            SimpleQueryResult result = new SimpleQueryResult(new String[0], null, warnings == null ? Collections.emptyList() : warnings);
+            return result;
         }
     }
 
