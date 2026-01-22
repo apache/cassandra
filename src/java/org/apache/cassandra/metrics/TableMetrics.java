@@ -185,6 +185,16 @@ public class TableMetrics
     public final TableTimer viewExistingReadTime;
     /** time taken to rebuild a View key */
     public final TableTimer viewRebuildKeyTime;
+    /** number of failures during view key rebuilds */
+    public final Counter viewRebuildKeyFailures;
+    /** number of IDENTICAL/CONSISTENT_FILTERED_CLUSTERING/CONSISTENT_FILTERED_NONPK_COLUMN scenarios */
+    public final Counter viewRebuildConsistent;
+    /** number of MISSING scenarios */
+    public final Counter viewRebuildMissing;
+    /** number of MISMATCH scenarios */
+    public final Counter viewRebuildMismatch;
+    /** number of STALE_BASE_ABSENT/STALE_BASE_EXCLUDED/STALE_VALUE_CHANGED scenarios */
+    public final Counter viewRebuildStale;
     /** Number of delete statements without specifying all primary key columns for MV base table */
     public final Counter viewBaseTableDeleteStatementWithoutFullPrimaryKey;
     /** Number of batch statements used for MV base table */
@@ -1048,6 +1058,11 @@ public class TableMetrics
             viewExistingReadTime = null;
             // viewRebuildKeyTime can only be issue towards a view
             viewRebuildKeyTime = createTableTimer("ViewRebuildKeyTime", cfs.keyspace.metric.viewRebuildKeyTime);
+            viewRebuildKeyFailures = createTableCounter("ViewRebuildKeyFailures");
+            viewRebuildConsistent = createTableCounter("ViewRebuildConsistent");
+            viewRebuildMissing = createTableCounter("ViewRebuildMissing");
+            viewRebuildMismatch = createTableCounter("ViewRebuildMismatch");
+            viewRebuildStale = createTableCounter("ViewRebuildStale");
         }
         else
         {
@@ -1055,6 +1070,11 @@ public class TableMetrics
             viewReadTime = createTableTimer("ViewReadTime", cfs.keyspace.metric.viewReadTime);
             viewExistingReadTime = createTableTimer("ViewExistingReadTime", cfs.keyspace.metric.viewExistingReadTime);
             viewRebuildKeyTime = null;
+            viewRebuildKeyFailures = null;
+            viewRebuildConsistent = null;
+            viewRebuildMissing = null;
+            viewRebuildMismatch = null;
+            viewRebuildStale = null;
         }
 
         // MV base table metrics used by determine if a base table is qualified to convert to strict_mv_consistency mode

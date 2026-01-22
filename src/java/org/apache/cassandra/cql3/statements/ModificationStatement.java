@@ -594,12 +594,13 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                         viewRow = iter.hasNext() ? iter.next() : null;
                     }
 
-                    // Compare base row and view row
+                    // Compare base row and view row (metrics are recorded inside compare)
                     ViewRowComparison.Result res = ViewRowComparison.compare(view, baseRow, viewRow,
                                                                              builder.buildBasePartitionKey(),
                                                                              builder.buildNonPrimaryKeyValue(),
-                                                                             nowInSeconds);
-                    // TODO: metrics on comparison result
+                                                                             nowInSeconds,
+                                                                             viewCfs.metric);
+
                     if (DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled())
                     {
                         logger.info("rebuildMVKey view={} pk={} status={} {}",
@@ -627,7 +628,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (DatabaseDescriptor.getViewKeyRebuildApplyMutationsEnabled())
             {
                 StorageProxy.mutateWithTriggers(mutations, options.getConsistency(), false, requestTime);
-                // TODO: metrics on successful mutations
                 if (DatabaseDescriptor.getViewKeyRebuildVerboseLoggingEnabled())
                 {
                     for (PartitionUpdate update : updates)
@@ -639,6 +639,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
         catch (Exception e)
         {
+            viewCfs.metric.viewRebuildKeyFailures.inc();
             logger.error("rebuildMVKey failed: ", e);
             throw e;
         }
@@ -666,12 +667,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
                          requestTime);
-        
+
         if (!mutations.isEmpty())
         {
             long startTime = MonotonicClock.Global.preciseTime.now();
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
-            
+
             // Emit Query Analytics metrics for write operations
             try
             {

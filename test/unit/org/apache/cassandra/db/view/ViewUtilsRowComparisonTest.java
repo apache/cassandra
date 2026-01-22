@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -76,27 +77,96 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
     private static class TestContext
     {
         final ColumnFamilyStore baseCfs;
+        final ColumnFamilyStore viewCfs;
         final View view;
         final TableMetadata baseMetadata;
         final TableMetadata viewMetadata;
+        final TableMetrics viewMetrics;
         final DecoratedKey basePartitionKey;
         final int nowInSec;
         final long timestamp;
+
+        // Track metric counts before each comparison to verify increments
+        private long consistentCountBefore;
+        private long missingCountBefore;
+        private long mismatchCountBefore;
+        private long staleCountBefore;
 
         TestContext(ColumnFamilyStore baseCfs, String viewName, int partitionKeyValue)
         {
             this.baseCfs = baseCfs;
             this.view = baseCfs.keyspace.viewManager.getByName(viewName);
+            this.viewCfs = baseCfs.keyspace.getColumnFamilyStore(viewName);
             this.baseMetadata = baseCfs.metadata();
             this.viewMetadata = view.getDefinition().metadata;
+            this.viewMetrics = viewCfs.metric;
             this.basePartitionKey = baseMetadata.partitioner.decorateKey(ByteBufferUtil.bytes(partitionKeyValue));
             this.nowInSec = FBUtilities.nowInSeconds();
             this.timestamp = System.currentTimeMillis() * 1000;
         }
 
+        /**
+         * Compares rows and records metrics. Call this method to test that metrics are properly recorded.
+         */
         ViewUtils.ViewRowComparison.Result compare(Row baseRow, Row viewRow, ByteBuffer nonPKValue)
         {
-            return ViewUtils.ViewRowComparison.compare(view, baseRow, viewRow, basePartitionKey, nonPKValue, nowInSec);
+            snapshotMetricCounts();
+            return ViewUtils.ViewRowComparison.compare(view, baseRow, viewRow, basePartitionKey, nonPKValue, nowInSec, viewMetrics);
+        }
+
+        /**
+         * Snapshot current metric counts before comparison.
+         */
+        private void snapshotMetricCounts()
+        {
+            consistentCountBefore = viewMetrics.viewRebuildConsistent.getCount();
+            missingCountBefore = viewMetrics.viewRebuildMissing.getCount();
+            mismatchCountBefore = viewMetrics.viewRebuildMismatch.getCount();
+            staleCountBefore = viewMetrics.viewRebuildStale.getCount();
+        }
+
+        /**
+         * Verify that the consistent metric was incremented by 1 and others unchanged.
+         */
+        void verifyConsistentMetricIncremented()
+        {
+            assertEquals("viewRebuildConsistent should be incremented", consistentCountBefore + 1, viewMetrics.viewRebuildConsistent.getCount());
+            assertEquals("viewRebuildMissing should not change", missingCountBefore, viewMetrics.viewRebuildMissing.getCount());
+            assertEquals("viewRebuildMismatch should not change", mismatchCountBefore, viewMetrics.viewRebuildMismatch.getCount());
+            assertEquals("viewRebuildStale should not change", staleCountBefore, viewMetrics.viewRebuildStale.getCount());
+        }
+
+        /**
+         * Verify that the missing metric was incremented by 1 and others unchanged.
+         */
+        void verifyMissingMetricIncremented()
+        {
+            assertEquals("viewRebuildConsistent should not change", consistentCountBefore, viewMetrics.viewRebuildConsistent.getCount());
+            assertEquals("viewRebuildMissing should be incremented", missingCountBefore + 1, viewMetrics.viewRebuildMissing.getCount());
+            assertEquals("viewRebuildMismatch should not change", mismatchCountBefore, viewMetrics.viewRebuildMismatch.getCount());
+            assertEquals("viewRebuildStale should not change", staleCountBefore, viewMetrics.viewRebuildStale.getCount());
+        }
+
+        /**
+         * Verify that the mismatch metric was incremented by 1 and others unchanged.
+         */
+        void verifyMismatchMetricIncremented()
+        {
+            assertEquals("viewRebuildConsistent should not change", consistentCountBefore, viewMetrics.viewRebuildConsistent.getCount());
+            assertEquals("viewRebuildMissing should not change", missingCountBefore, viewMetrics.viewRebuildMissing.getCount());
+            assertEquals("viewRebuildMismatch should be incremented", mismatchCountBefore + 1, viewMetrics.viewRebuildMismatch.getCount());
+            assertEquals("viewRebuildStale should not change", staleCountBefore, viewMetrics.viewRebuildStale.getCount());
+        }
+
+        /**
+         * Verify that the stale metric was incremented by 1 and others unchanged.
+         */
+        void verifyStaleMetricIncremented()
+        {
+            assertEquals("viewRebuildConsistent should not change", consistentCountBefore, viewMetrics.viewRebuildConsistent.getCount());
+            assertEquals("viewRebuildMissing should not change", missingCountBefore, viewMetrics.viewRebuildMissing.getCount());
+            assertEquals("viewRebuildMismatch should not change", mismatchCountBefore, viewMetrics.viewRebuildMismatch.getCount());
+            assertEquals("viewRebuildStale should be incremented", staleCountBefore + 1, viewMetrics.viewRebuildStale.getCount());
         }
     }
 
@@ -134,12 +204,13 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
 
     // ==================== Assertion Helpers ====================
 
-    private void assertStatus(ViewUtils.ViewRowComparison.Result result, ViewUtils.ViewRowComparison.Status expected)
+    private void assertStatus(TestContext ctx, ViewUtils.ViewRowComparison.Result result, ViewUtils.ViewRowComparison.Status expected)
     {
         assertEquals(expected, result.status);
+        verifyMetricForStatus(ctx, expected);
     }
 
-    private void assertStatusAndContains(ViewUtils.ViewRowComparison.Result result,
+    private void assertStatusAndContains(TestContext ctx, ViewUtils.ViewRowComparison.Result result,
                                          ViewUtils.ViewRowComparison.Status expected,
                                          String... containsStrings)
     {
@@ -148,6 +219,35 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         {
             assertTrue("Summary should contain '" + s + "' but was: " + result.summary,
                       result.summary.contains(s));
+        }
+        verifyMetricForStatus(ctx, expected);
+    }
+
+    /**
+     * Verify that the correct metric was incremented based on the status.
+     */
+    private void verifyMetricForStatus(TestContext ctx, ViewUtils.ViewRowComparison.Status status)
+    {
+        switch (status)
+        {
+            case IDENTICAL:
+            case CONSISTENT_FILTERED_NONPK_COLUMN:
+            case CONSISTENT_FILTERED_CLUSTERING:
+                ctx.verifyConsistentMetricIncremented();
+                break;
+            case MISSING:
+                ctx.verifyMissingMetricIncremented();
+                break;
+            case MISMATCH:
+                ctx.verifyMismatchMetricIncremented();
+                break;
+            case STALE_VALUE_CHANGED:
+            case STALE_BASE_EXCLUDED:
+            case STALE_BASE_ABSENT:
+                ctx.verifyStaleMetricIncremented();
+                break;
+            default:
+                throw new IllegalStateException("Unknown status: " + status);
         }
     }
 
@@ -159,7 +259,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
     {
         TestContext ctx = setupStandardView("test_view");
         ViewUtils.ViewRowComparison.Result result = ctx.compare(null, null, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
         assertEquals("base row is NULL, view row is NULL", result.summary);
     }
 
@@ -174,7 +274,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         // Create a view row that exists but is dead (all cells are tombstones, no PK liveness)
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2Tombstone().withoutPKLiveness().build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(null, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
         assertEquals("base row is NULL, view row is dead", result.summary);
     }
 
@@ -186,7 +286,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
     }
 
     // ==================== STALE Cases ====================
@@ -198,7 +298,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         TestContext ctx = setupStandardView("stale_view1");
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(null, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.STALE_BASE_ABSENT, "base row is NULL but view row exists");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.STALE_BASE_ABSENT, "base row is NULL but view row exists");
     }
 
     /** Test STALE_BASE_EXCLUDED status when non-PK column is null/dead but view row exists. */
@@ -209,7 +309,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV2("test").build(); // no v1
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.STALE_BASE_EXCLUDED, "filter failed", "v1");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.STALE_BASE_EXCLUDED, "filter failed", "v1");
     }
 
     /** Test STALE_VALUE_CHANGED status when non-PK column value changed but stale view row exists at old clustering. */
@@ -220,7 +320,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(200).withV2("test").build(); // v1=200
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").build(); // stale at v1=100
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.STALE_VALUE_CHANGED, "NonPkCol", "stale");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.STALE_VALUE_CHANGED, "NonPkCol", "stale");
     }
 
     // ==================== MISSING Cases ====================
@@ -232,7 +332,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         TestContext ctx = setupStandardView("missing_view");
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, null, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISSING, "view row not found");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISSING, "view row not found");
     }
 
     // ==================== MISMATCH Cases ====================
@@ -245,7 +345,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("updated").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("original").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.MISMATCH);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH);
         assertTrue(!result.summary.isEmpty());
     }
 
@@ -257,7 +357,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").withTimestamp(ctx.timestamp - 10000000).build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.MISMATCH);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH);
         assertFalse("viewAhead should be false when view is older", result.viewAhead);
     }
 
@@ -269,7 +369,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").withTimestamp(ctx.timestamp + 10000000).build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.MISMATCH);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH);
         assertTrue("viewAhead should be true when view has newer timestamp", result.viewAhead);
     }
 
@@ -285,7 +385,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row viewRow = viewRowSamePKBuilder(ctx).withC(10).withK(1).withV("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, null);
         // Neither is expiring, so no liveness diff - cells keep both alive
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
     }
 
     /**
@@ -302,7 +402,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row viewRow = viewRowSamePKBuilder(ctx).withC(10).withK(1).withV("test").withoutPKLiveness().build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, null);
         // Neither is expiring, so no liveness diff - cells keep both alive
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
     }
 
     /**
@@ -316,7 +416,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test").withTTL(3600).build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "liveness.expiring");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "liveness.expiring");
     }
 
     /**
@@ -333,7 +433,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("test").withTimestamp(ctx.timestamp - 5000000).build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
         // Cell timestamps differ - this is still a mismatch (queryable via WRITETIME)
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2:", "ts=");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2:", "ts=");
     }
 
     /** Test MISMATCH when map columns have different values. */
@@ -344,7 +444,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowWithMapBuilder(ctx).withV1(100).withMapEntry("key1", "value1").build();
         Row viewRow = viewRowWithMapBuilder(ctx).withK(1).withMapEntry("key1", "value2").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m");
     }
 
     /** Test MISMATCH when map column has extra entry in view. */
@@ -355,7 +455,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).build(); // no map
         Row viewRow = viewRowWithMapBuilder(ctx).withK(1).withMapEntry("key1", "value1").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m", "extra");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m", "extra");
     }
 
     /** Test MISMATCH when map columns have different complex deletions. */
@@ -366,7 +466,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowWithMapBuilder(ctx).withV1(100).withMapEntry("key1", "value1").build();
         Row viewRow = viewRowWithMapBuilder(ctx).withK(1).withMapEntry("key1", "value1").withComplexDeletion(ctx.timestamp - 1000).build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m", "deletion");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "m", "deletion");
     }
 
     /** Test MISMATCH when view row has extra column not present in expected. */
@@ -377,7 +477,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).build(); // no v2
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2("extra_value").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2", "extra");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2", "extra");
     }
 
     /** Test MISMATCH when expected row has column but view row doesn't. */
@@ -388,7 +488,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test_value").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).build(); // no v2
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2", "missing");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2", "missing");
     }
 
     /** Test MISMATCH when cell is tombstone in view but live in expected. */
@@ -399,7 +499,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowBuilder(ctx).withV1(100).withV2("test_value").build();
         Row viewRow = viewRowBuilder(ctx).withK(1).withV2Tombstone().build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.MISMATCH, "v2");
     }
 
     // ==================== FILTERED Cases ====================
@@ -411,7 +511,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         TestContext ctx = setupStandardView("filtered_view");
         Row baseRow = baseRowBuilder(ctx).withV2("test").build(); // no v1
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, null, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_NONPK_COLUMN);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_NONPK_COLUMN);
     }
 
     /** Test FILTERED when non-PK column (v1) has expired due to TTL and view row is correctly null. */
@@ -421,7 +521,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         TestContext ctx = setupStandardView("filtered_view2");
         Row baseRow = baseRowBuilder(ctx).withExpiredV1(100).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, null, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_NONPK_COLUMN);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_NONPK_COLUMN);
     }
 
     /** Test FILTERED when clustering key restriction (c > 50) is not satisfied. */
@@ -434,7 +534,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         TestContext ctx = new TestContext(getCurrentColumnFamilyStore(), "clustering_restrict_view", 1);
         Row baseRow = baseRowWithClusteringBuilder(ctx).withC(30).withV1(100).withV2("test").build(); // c=30 fails c>50
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, null, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_CLUSTERING, "clustering not selected");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.CONSISTENT_FILTERED_CLUSTERING, "clustering not selected");
     }
 
     // ==================== STALE with Filter Failure Cases ====================
@@ -447,7 +547,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowWithClusteringBuilder(ctx).withC(10).withV1(100).withV2("test").build();
         Row viewRow = viewRowWithClusteringBuilder(ctx).withV1(100).withK(1).withC(10).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatus(result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
+        assertStatus(ctx, result, ViewUtils.ViewRowComparison.Status.IDENTICAL);
     }
 
     /** Test STALE_BASE_EXCLUDED when clustering key restriction not satisfied but stale view row exists. */
@@ -461,7 +561,7 @@ public class ViewUtilsRowComparisonTest extends ViewAbstractTest
         Row baseRow = baseRowWithClusteringBuilder(ctx).withC(30).withV1(100).withV2("test").build(); // c=30 fails c>50
         Row viewRow = viewRowWithClusteringBuilder(ctx).withV1(100).withK(1).withC(30).withV2("test").build();
         ViewUtils.ViewRowComparison.Result result = ctx.compare(baseRow, viewRow, ByteBufferUtil.bytes(100));
-        assertStatusAndContains(result, ViewUtils.ViewRowComparison.Status.STALE_BASE_EXCLUDED, "filter failed", "clustering not selected");
+        assertStatusAndContains(ctx, result, ViewUtils.ViewRowComparison.Status.STALE_BASE_EXCLUDED, "filter failed", "clustering not selected");
     }
 
     // ==================== Row Builders ====================

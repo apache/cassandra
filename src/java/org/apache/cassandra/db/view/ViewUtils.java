@@ -43,6 +43,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 
 public final class ViewUtils
@@ -345,6 +346,7 @@ public final class ViewUtils
 
         /**
          * Compares a base table row with the actual view row and reports differences.
+         * Optionally records metrics based on the comparison result.
          *
          * @param view the materialized view
          * @param baseRow the base table row (may be null)
@@ -352,6 +354,7 @@ public final class ViewUtils
          * @param basePartitionKey the base table partition key
          * @param viewNonPKValueFromQuery the non-PK column value from view's clustering (if applicable)
          * @param nowInSec current time in seconds
+         * @param viewMetrics the view table metrics to record (may be null to skip metrics recording)
          * @return comparison result with status and summary
          */
         public static Result compare(View view,
@@ -359,18 +362,19 @@ public final class ViewUtils
                                      Row actualViewRow,
                                      DecoratedKey basePartitionKey,
                                      ByteBuffer viewNonPKValueFromQuery,
-                                     int nowInSec)
+                                     int nowInSec,
+                                     TableMetrics viewMetrics)
         {
             // Case 1: Base row is null or tombstone (no live data)
             if (baseRow == null || !baseRow.hasLiveData(nowInSec, false))
             {
                 String baseState = baseRow == null ? "NULL" : "tombstone";
                 if (actualViewRow == null)
-                    return Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is NULL");
+                    return recordAndReturn(Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is NULL"), viewMetrics);
                 else if (!actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
-                    return Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is dead");
+                    return recordAndReturn(Result.of(Status.IDENTICAL, "base row is " + baseState + ", view row is dead"), viewMetrics);
                 else
-                    return Result.of(Status.STALE_BASE_ABSENT, "base row is " + baseState + " but view row exists");
+                    return recordAndReturn(Result.of(Status.STALE_BASE_ABSENT, "base row is " + baseState + " but view row exists"), viewMetrics);
             }
 
             // Case 2: Base row is live - check if it matches view filter (includes WHERE clause)
@@ -381,16 +385,16 @@ public final class ViewUtils
                 Result filterResult = describeWhyFilterFailed(view, baseRow, basePartitionKey, nowInSec);
                 // View row absent or dead is consistent with base being filtered out
                 if (actualViewRow == null || !actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
-                    return filterResult;
+                    return recordAndReturn(filterResult, viewMetrics);
                 else
-                    return Result.of(Status.STALE_BASE_EXCLUDED, "filter failed: " + filterResult.summary);
+                    return recordAndReturn(Result.of(Status.STALE_BASE_EXCLUDED, "filter failed: " + filterResult.summary), viewMetrics);
             }
 
             // Case 3: Base matches filter but view row is absent or dead
             if (actualViewRow == null || !actualViewRow.hasLiveData(nowInSec, view.enforceStrictLiveness()))
             {
                 String viewState = actualViewRow == null ? "not found" : "dead";
-                return Result.of(Status.MISSING, "view row " + viewState);
+                return recordAndReturn(Result.of(Status.MISSING, "view row " + viewState), viewMetrics);
             }
 
             // Case 4: Check non-PK column value mismatch (base row has different value than view clustering)
@@ -404,12 +408,12 @@ public final class ViewUtils
                     if (ByteBufferUtil.compareUnsigned(actualValue, viewNonPKValueFromQuery) != 0)
                     {
                         LivenessInfo viewLiveness = actualViewRow.primaryKeyLivenessInfo();
-                        return Result.of(Status.STALE_VALUE_CHANGED, String.format(
+                        return recordAndReturn(Result.of(Status.STALE_VALUE_CHANGED, String.format(
                             "NonPkCol=%s stale record, base=%s (ts=%d, ttl=%d, delTime=%d), view=%s (rowTs=%d, rowTtl=%d, rowExpTime=%d)",
                             col.name, col.type.getString(actualValue),
                             baseCell.timestamp(), baseCell.ttl(), baseCell.localDeletionTime(),
                             col.type.getString(viewNonPKValueFromQuery),
-                            viewLiveness.timestamp(), viewLiveness.ttl(), viewLiveness.localExpirationTime()));
+                            viewLiveness.timestamp(), viewLiveness.ttl(), viewLiveness.localExpirationTime())), viewMetrics);
                     }
                 } // !isLive cases already covered in filter check with primaryKeyColumnsNonNull
             }
@@ -419,9 +423,50 @@ public final class ViewUtils
             ComparisonDetails details = compareRowDetails(view, expectedViewRow, actualViewRow, nowInSec);
 
             if (details.diffs.isEmpty())
-                return Result.of(Status.IDENTICAL, "");
+                return recordAndReturn(Result.of(Status.IDENTICAL, ""), viewMetrics);
             else
-                return Result.of(Status.MISMATCH, String.join("; ", details.diffs), details.viewAhead);
+                return recordAndReturn(Result.of(Status.MISMATCH, String.join("; ", details.diffs), details.viewAhead), viewMetrics);
+        }
+
+        /**
+         * Records the comparison result metric if viewMetrics is provided, then returns the result.
+         */
+        private static Result recordAndReturn(Result result, TableMetrics viewMetrics)
+        {
+            if (viewMetrics != null)
+                recordMetric(viewMetrics, result.status);
+            return result;
+        }
+
+        /**
+         * Records the appropriate metric counter based on the comparison status.
+         *
+         * @param viewMetrics the view table metrics to record
+         * @param status the comparison status
+         */
+        public static void recordMetric(TableMetrics viewMetrics, Status status)
+        {
+            switch (status)
+            {
+                case IDENTICAL:
+                case CONSISTENT_FILTERED_NONPK_COLUMN:
+                case CONSISTENT_FILTERED_CLUSTERING:
+                    viewMetrics.viewRebuildConsistent.inc();
+                    break;
+                case MISMATCH:
+                    viewMetrics.viewRebuildMismatch.inc();
+                    break;
+                case STALE_VALUE_CHANGED:
+                case STALE_BASE_EXCLUDED:
+                case STALE_BASE_ABSENT:
+                    viewMetrics.viewRebuildStale.inc();
+                    break;
+                case MISSING:
+                    viewMetrics.viewRebuildMissing.inc();
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown ViewRowComparison.Result.Status " + status);
+            }
         }
 
         /** Internal class to hold comparison details including timestamp analysis */
