@@ -826,9 +826,14 @@ public class ClusterMetadataService
             return metadata;
 
         Epoch ourEpoch = metadata.epoch;
-
         if (ourEpoch.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Retry deadline = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
         // responses for ALL withhout knowing we have pending
@@ -864,6 +869,12 @@ public class ClusterMetadataService
             awaitAtLeast.isBefore(Epoch.FIRST))
             return ImmediateFuture.success(current);
 
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return ImmediateFuture.success(current);
+        }
+
         return peerLogFetcher.asyncFetchLog(from, awaitAtLeast);
     }
 
@@ -890,6 +901,13 @@ public class ClusterMetadataService
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return metadata;
+        }
+
         return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
     }
 
@@ -944,6 +962,12 @@ public class ClusterMetadataService
     {
         if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer or CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
