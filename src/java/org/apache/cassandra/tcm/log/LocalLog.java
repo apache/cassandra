@@ -395,6 +395,11 @@ public abstract class LocalLog implements Closeable
         paused.set(false);
     }
 
+    public boolean isPaused()
+    {
+        return paused.get();
+    }
+
     public void append(Entry entry)
     {
         maybeAppend(entry);
@@ -488,7 +493,7 @@ public abstract class LocalLog implements Closeable
     {
         if (paused.get())
         {
-            logger.trace("Entry processing is paused, returning without scanning pending buffer");
+            logger.info("Metadata log entry processing is paused, returning without scanning pending buffer");
             return;
         }
 
