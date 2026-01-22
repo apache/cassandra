@@ -111,6 +111,17 @@ public abstract class QueryOptions
         return new OptionsWithColumnSpecifications(options, columnSpecs);
     }
 
+    // This function overwrite the serial consistency based on the consistency level
+    // This is mainly for strict MV consistency use cases
+    public void overwriteSerialConsistencyLevel()
+    {
+        if (getConsistency() != null)
+        {
+            ConsistencyLevel serialConsistency = getConsistency().isDatacenterLocal() ? ConsistencyLevel.LOCAL_SERIAL : ConsistencyLevel.SERIAL;
+            getSpecificOptions().setSerialConsistency(serialConsistency);
+        }
+    }
+
     public abstract ConsistencyLevel getConsistency();
     public abstract void setConsistency(ConsistencyLevel cl);
     public abstract List<ByteBuffer> getValues();
@@ -499,7 +510,7 @@ public abstract class QueryOptions
 
         private final int pageSize;
         private final PagingState state;
-        private final ConsistencyLevel serialConsistency;
+        private ConsistencyLevel serialConsistency;
         private final long timestamp;
         private final String keyspace;
         private final int nowInSeconds;
@@ -522,6 +533,12 @@ public abstract class QueryOptions
         public SpecificOptions withNowInSec(int nowInSec)
         {
             return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec);
+        }
+
+        public void setSerialConsistency(ConsistencyLevel serialConsistencyLevel)
+        {
+            assert serialConsistencyLevel.isSerialConsistency();
+            this.serialConsistency = serialConsistencyLevel;
         }
     }
 

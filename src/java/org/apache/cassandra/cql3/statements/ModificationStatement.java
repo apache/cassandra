@@ -711,6 +711,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private ResultMessage executeWithStrictMVConsistency(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         assert Paxos.useV2(); // strict MV consistency requires Paxos V2
+        options.overwriteSerialConsistencyLevel();
         ResultMessage result = executeWithCondition(queryState, options, requestTime);
         if (hasConditions())
         {

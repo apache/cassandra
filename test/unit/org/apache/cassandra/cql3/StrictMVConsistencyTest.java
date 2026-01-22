@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -30,8 +31,10 @@ import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class StrictMVConsistencyTest extends CQLTester
 {
@@ -126,5 +129,38 @@ public class StrictMVConsistencyTest extends CQLTester
             return;
         }
         Assert.fail("Expecting InvalidRequestException but didn't get it.");
+    }
+
+    /**
+     * Test that overwriteSerialConsistencyLevel correctly converts consistency levels
+     * to the appropriate serial consistency level based on whether they are datacenter-local.
+     * Datacenter-local CLs (LOCAL_QUORUM, LOCAL_ONE, LOCAL_SERIAL, NODE_LOCAL) -> LOCAL_SERIAL
+     * Non-local CLs (QUORUM, ONE, ALL, EACH_QUORUM, ANY, TWO, THREE, SERIAL) -> SERIAL
+     */
+    @Test
+    public void testOverwriteSerialConsistencyLevel()
+    {
+        // Test all consistency levels
+        for (ConsistencyLevel cl : ConsistencyLevel.values())
+        {
+            ConsistencyLevel expectedSerial = cl.isDatacenterLocal() ? ConsistencyLevel.LOCAL_SERIAL : ConsistencyLevel.SERIAL;
+            // Use the opposite serial CL as initial to verify it gets overwritten
+            ConsistencyLevel initialSerial = cl.isDatacenterLocal() ? ConsistencyLevel.SERIAL : ConsistencyLevel.LOCAL_SERIAL;
+
+            QueryOptions options = createQueryOptions(cl, initialSerial);
+            Assert.assertEquals(initialSerial, options.getSerialConsistency());
+
+            options.overwriteSerialConsistencyLevel();
+            Assert.assertEquals("Failed for consistency level: " + cl, expectedSerial, options.getSerialConsistency());
+
+            // Verify idempotency - calling again should have no effect
+            options.overwriteSerialConsistencyLevel();
+            Assert.assertEquals("Idempotency failed for: " + cl, expectedSerial, options.getSerialConsistency());
+        }
+    }
+
+    private QueryOptions createQueryOptions(ConsistencyLevel cl, ConsistencyLevel serialCl)
+    {
+        return QueryOptions.create(cl, Collections.emptyList(), false, -1, null, serialCl, ProtocolVersion.CURRENT, null);
     }
 }
