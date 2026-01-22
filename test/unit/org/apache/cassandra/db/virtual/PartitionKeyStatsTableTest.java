@@ -41,7 +41,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
@@ -73,7 +73,7 @@ public class PartitionKeyStatsTableTest extends CQLTester
     public void before()
     {
         if (useBtiFormat)
-            DatabaseDescriptor.setSelectedSSTableFormat(new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap()));
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap()));
 
         PartitionKeyStatsTable primaryIdTable = new PartitionKeyStatsTable(KS_NAME);
         scanned = new AtomicInteger();
