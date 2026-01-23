@@ -122,6 +122,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ClusterUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(ClusterUtils.class);
+
+    /**
+     * Pattern to match gossip endpoint addresses in both formats:
+     * - "/127.0.0.1" (hostname not resolved)
+     * - "localhost/127.0.0.1" (hostname cached after getHostName() call)
+     * - "localhost/127.0.0.1:7000" (with port)
+     *
+     * Java's InetAddress caches hostname at the object level. Once any code path calls
+     * getHostName() on gossip endpoint InetAddress objects, subsequent toString() calls
+     * return "hostname/IP" instead of "/IP".
+     *
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-21097">CASSANDRA-21097</a>
+     */
+    private static final Pattern GOSSIP_ENDPOINT_PATTERN = Pattern.compile("^[^\\s/]*/(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})(:\\d+)?$");
     /**
      * Start the instance with the given System Properties, after the instance has started, the properties will be cleared.
      */
@@ -1270,14 +1284,15 @@ public class ClusterUtils
         Assert.assertEquals(Long.toString(expectedHeartbeat), gossipState.get("heartbeat")); //TODO do we really mix these two?
     }
 
-    private static Map<String, Map<String, String>> parseGossipInfo(String str)
+    @VisibleForTesting
+    static Map<String, Map<String, String>> parseGossipInfo(String str)
     {
         Map<String, Map<String, String>> map = new HashMap<>();
         String[] lines = str.split("\n");
         String currentInstance = null;
         for (String line : lines)
         {
-            if (line.startsWith("/"))
+            if (GOSSIP_ENDPOINT_PATTERN.matcher(line).matches())
             {
                 // start of new instance
                 currentInstance = line;
