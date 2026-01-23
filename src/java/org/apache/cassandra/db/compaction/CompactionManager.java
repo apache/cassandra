@@ -1176,7 +1176,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         // for ourselves to finish/acknowledge cancellation before continuing.
         CompactionTasks tasks = cfStore.getCompactionStrategyManager().getMaximalTasks(gcBefore, splitOutput, permittedParallelism, operationType);
 
-        if (tasks.isEmpty())
+        if (tasks == null || tasks.isEmpty())
             return Collections.emptyList();
 
         List<Future<?>> futures = new ArrayList<>();
