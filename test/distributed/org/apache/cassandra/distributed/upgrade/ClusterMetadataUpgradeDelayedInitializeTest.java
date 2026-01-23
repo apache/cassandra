@@ -181,7 +181,7 @@ public class ClusterMetadataUpgradeDelayedInitializeTest extends UpgradeTestBase
             try
             {
                 new ByteBuddy().rebase(ClusterMetadata.class)
-                               .method(named("initializeClusterIdentifier"))
+                               .method(named("forceInitializedState"))
                                .intercept(MethodDelegation.to(ClusterMetadataUpgradeDelayedInitializeTest.BBInterceptor.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -201,13 +201,13 @@ public class ClusterMetadataUpgradeDelayedInitializeTest extends UpgradeTestBase
     public static class BBInterceptor
     {
         @SuppressWarnings("unused")
-        public static ClusterMetadata initializeClusterIdentifier(@SuperCall Callable<ClusterMetadata> zuper)
+        public static ClusterMetadata forceInitializedState(@SuperCall Callable<ClusterMetadata> zuper)
         {
             try
             {
-                logger.info("initializeClusterIdentifier waiting...");
+                logger.info("forceInitializedState waiting...");
                 BBState.latch.await(60, TimeUnit.SECONDS);
-                logger.info("initializeClusterIdentifier continuing...");
+                logger.info("forceInitializedState continuing...");
                 return zuper.call();
             }
             catch (Throwable e)

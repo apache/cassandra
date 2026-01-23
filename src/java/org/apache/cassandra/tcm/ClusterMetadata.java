@@ -362,10 +362,38 @@ public class ClusterMetadata
                                    capLastModified(cmsMembership, epoch));
     }
 
-    public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier,
-                                                       NodeAddresses addresses,
-                                                       NodeVersion version,
-                                                       Location location)
+    /**
+     * To be used only during the execute of PRE_INITIALIZE_CMS, this sets the DataPlacement for the metadata keyspace
+     * so that the global log can be initialized and the subsequent entry containing the INITIALIZE_CMS transformation
+     * can be committed.
+     * @param initialCMSPlacement Expected to be a singleton placement identifying the local node as the sole replica
+     *                            for the metadata keyspace
+     * @return ClusterMetadata instance in the correct state to constitute the result of the PRE_INITIALIZE_CMS
+     *         transformation
+     */
+    public ClusterMetadata forcePreInitializedState(DataPlacement initialCMSPlacement)
+    {
+        assert epoch.isEqualOrBefore(Epoch.FIRST);
+        // double check that all metadata elements have had the last modified epoch set correctly
+        ClusterMetadata initial = forceEpoch(Epoch.FIRST);
+        initial.cmsDataPlacement = initialCMSPlacement;
+        return initial;
+    }
+
+    /**
+     * Produce a ClusterMetadata suitable for use as the base state in the INITIALIZE_CMS transformation. This should
+     * only be used on the first CMS node when bootstrapping the CMS after upgrade or in a brand new cluster.
+     * @param clusterIdentifier Unique identifier for split brain detection & protection
+     * @param addresses The NodeAddresses of the first CMS node.
+     * @param version Version info for the first CMS node.
+     * @param location The rack & DC of the first CMS node.
+     * @return ClusterMetadata instance in the correct state to constitute the base state of the INITIALIZE_CMS
+     *         transformation
+     */
+    public ClusterMetadata forceInitializedState(int clusterIdentifier,
+                                                 NodeAddresses addresses,
+                                                 NodeVersion version,
+                                                 Location location)
     {
         if (this.metadataIdentifier != EMPTY_METADATA_IDENTIFIER)
             throw new IllegalStateException(String.format("Can only initialize cluster identifier once, but it was already set to %d", this.metadataIdentifier));

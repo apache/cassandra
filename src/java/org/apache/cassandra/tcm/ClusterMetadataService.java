@@ -178,6 +178,7 @@ public class ClusterMetadataService
         // the distributed metadata table.
         if (metadata.epoch.isEqualOrBefore(Epoch.FIRST) || ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
             return LOCAL;
+
         return REMOTE;
     }
 

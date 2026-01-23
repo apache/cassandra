@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm.transformations.cms;
 
 import java.io.IOException;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -29,12 +31,10 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -72,7 +72,6 @@ public class PreInitialize implements Transformation
         assert metadata.epoch.isBefore(Epoch.FIRST);
 
         ClusterMetadata.Transformer transformer = metadata.transformer();
-
         // This null check is a leftover from previous implementations. In earlier versions the address and datacenter
         // were not be included in the serialized form of this transform and so were not written to the local or
         // distributed logs nor included in the log entries sent over the wire between peers.
@@ -84,30 +83,33 @@ public class PreInitialize implements Transformation
         // PRE_INITIALIZE_CMS becomes irrelevant.
         if (addr != null)
         {
-            DataPlacement.Builder dataPlacementBuilder = DataPlacement.builder();
-            Replica replica = new Replica(addr,
-                                          MetaStrategy.partitioner.getMinimumToken(),
-                                          MetaStrategy.partitioner.getMinimumToken(),
-                                          true);
-            dataPlacementBuilder.reads.withReplica(Epoch.FIRST, replica);
-            dataPlacementBuilder.writes.withReplica(Epoch.FIRST, replica);
-            DataPlacements initialPlacement = metadata.placements.unbuild()
-                                                                 .with(ReplicationParams.simpleMeta(1, datacenter),
-                                                                       dataPlacementBuilder.build()).build();
-
-            transformer.with(initialPlacement);
             // create the distributed metadata keyspace in schema with replication settings based on the DC of the
             // initial CMS node
             Keyspaces updated = metadata.schema.getKeyspaces()
                                                .withAddedOrReplaced(DistributedMetadataLogKeyspace.initialMetadata(datacenter));
             transformer.with(new DistributedSchema(updated, Epoch.FIRST));
+            ClusterMetadata.Transformer.Transformed transformed = transformer.build();
+
+            // This is required to bootstrap the initialization process. Because committing to the metadata log uses the
+            // previous ClusterMetadata to identify CMS members who form the consensus group, the first CMS member must
+            // be routable at that point. After the INITIALIZE_CMS is committed, and on instances other than the first
+            // CMS member, this placement is derived from the CMS membership list of node ids.
+            DataPlacement.Builder initialPlacement = DataPlacement.builder();
+            Replica replica = new Replica(addr,
+                                          MetaStrategy.partitioner.getMinimumToken(),
+                                          MetaStrategy.partitioner.getMinimumToken(),
+                                          true);
+            initialPlacement.reads.withReplica(Epoch.FIRST, replica);
+            initialPlacement.writes.withReplica(Epoch.FIRST, replica);
+            metadata = transformed.metadata.forcePreInitializedState(initialPlacement.build());
+        }
+        else
+        {
+            metadata = metadata.forceEpoch(Epoch.FIRST);
         }
 
-        ClusterMetadata.Transformer.Transformed transformed = transformer.build();
-        metadata = transformed.metadata.forceEpoch(Epoch.FIRST);
         assert metadata.epoch.is(Epoch.FIRST) : metadata.epoch;
-
-        return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
+        return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, ImmutableSet.of());
     }
 
     @Override
