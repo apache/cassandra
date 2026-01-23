@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -102,17 +103,19 @@ public class CompactionHistoryTest extends CQLTester
         ImmutableList.Builder<String> builder = ImmutableList.builder();
         List<String> cmds = builder.addAll(cmd).add(keyspace()).add(currentTable()).build();
 
-        Map<String, String> expectedProperties = ImmutableMap.of("strategy", "SizeTieredCompactionStrategy");
+        Map<String, String> baseProperties = ImmutableMap.of("strategy", "SizeTieredCompactionStrategy");
+        Map<String, String> expectedProperties = new HashMap<>(baseProperties);
+        expectedProperties.put("compaction_type", compactionType);
 
         compactionHistoryResultVerify(keyspace(), currentTable(), expectedProperties, compactionType, cmds);
 
-        String cql = "select keyspace_name,columnfamily_name,compaction_properties,compaction_type from system." + SystemKeyspace.COMPACTION_HISTORY +
+        String cql = "select keyspace_name,columnfamily_name,compaction_properties from system." + SystemKeyspace.COMPACTION_HISTORY +
                      " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
 
         Object[][] objects = new Object[systemTableRecord][];
         for (int i = 0; i != systemTableRecord; ++i)
         {
-            objects[i] = row(keyspace(), currentTable(), expectedProperties, compactionType);
+            objects[i] = row(keyspace(), currentTable(), expectedProperties);
         }
         assertRows(execute(cql), objects);
     }
@@ -131,10 +134,27 @@ public class CompactionHistoryTest extends CQLTester
     {
         String stdout = toolHistory.getStdout();
         String[] resultArray = stdout.split(System.lineSeparator());
-        assertTrue(Arrays.stream(resultArray)
-                         .anyMatch(result -> result.contains('{' + FBUtilities.toString(properties) + '}')
-                                             && result.contains(keyspace)
-                                             && result.contains(table)
-                                             && result.contains(compType)));
+
+        boolean matchFound = Arrays.stream(resultArray).anyMatch(result -> {
+            if (!result.contains(keyspace) || !result.contains(table) || !result.contains(compType))
+            {
+                return false;
+            }
+
+            for (Map.Entry<String, String> entry : properties.entrySet())
+            {
+                if (!result.contains(entry.getKey()) || !result.contains(entry.getValue()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        assertTrue("Output did not contain expected data.\nExpected KS: " + keyspace +
+                   "\nTable: " + table +
+                   "\nType: " + compType +
+                   "\nProps: " + properties +
+                   "\nActual Output:\n" + stdout, matchFound);
     }
 }

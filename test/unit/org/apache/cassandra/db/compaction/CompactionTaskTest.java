@@ -94,7 +94,7 @@ public class CompactionTaskTest
             task.execute(CompactionManager.instance.active);
         }
 
-        UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id, compaction_type, compaction_properties FROM system.%s where id = %s",
+        UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id, compaction_properties FROM system.%s where id = %s",
                                                                       SystemKeyspace.COMPACTION_HISTORY,
                                                                       id.toString()));
 
@@ -106,11 +106,9 @@ public class CompactionTaskTest
 
         Assert.assertEquals(id, persistedId);
 
-        String type = one.getString("compaction_type");
-        Assert.assertEquals("Compaction", type);
-
         Map<String, String> properties = one.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance);
         Assert.assertTrue("Strategy missing in properties", properties.containsKey("strategy"));
+        Assert.assertEquals("Compaction", properties.get("compaction_type"));
     }
 
     @Test

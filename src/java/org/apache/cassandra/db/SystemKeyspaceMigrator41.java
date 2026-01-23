@@ -177,8 +177,7 @@ public class SystemKeyspaceMigrator41
                                    "compacted_at",
                                    "keyspace_name",
                                    "rows_merged",
-                                   "compaction_properties",
-                                   "compaction_type" },
+                                   "compaction_properties" },
                      row -> Collections.singletonList(new Object[]{ row.getTimeUUID("id") ,
                                                                     row.has("bytes_in") ? row.getLong("bytes_in") : null,
                                                                     row.has("bytes_out") ? row.getLong("bytes_out") : null,
@@ -186,8 +185,7 @@ public class SystemKeyspaceMigrator41
                                                                     row.has("compacted_at") ? row.getTimestamp("compacted_at") : null,
                                                                     row.has("keyspace_name") ? row.getString("keyspace_name") : null,
                                                                     row.has("rows_merged") ? row.getMap("rows_merged", Int32Type.instance, LongType.instance) : null,
-                                                                    row.has("compaction_properties") ? row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance) : ImmutableMap.of(),
-                                                                    row.has("compaction_type") ? row.getString("compaction_type") : null })
+                                                                    row.has("compaction_properties") ? row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance) : ImmutableMap.of() })
         );
     }
 

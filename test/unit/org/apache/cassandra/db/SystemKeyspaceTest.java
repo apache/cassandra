@@ -174,6 +174,9 @@ public class SystemKeyspaceTest
         Map<String, String> props = Collections.singletonMap("strategy", "STCS");
         String compactionType = "TestMajor";
 
+        Map<String, String> propertiesWithType = new HashMap<>(props);
+        propertiesWithType.put("compaction_type", compactionType);
+
         SystemKeyspace.updateCompactionHistory(
             TimeUUID.Generator.nextTimeUUID(),
             ks,
@@ -182,14 +185,15 @@ public class SystemKeyspaceTest
             1000,
             500,
             rowsMerged,
-            props,
-            compactionType
+            propertiesWithType
         );
 
-        UntypedResultSet result = executeInternal("SELECT compaction_type FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING", ks, cf);
+        UntypedResultSet result = executeInternal("SELECT compaction_properties FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING", ks, cf);
 
         assertNotNull(result);
-        assertEquals(compactionType, result.one().getString("compaction_type"));
+
+        Map<String, String> resProps = result.one().getMap("compaction_properties", org.apache.cassandra.db.marshal.UTF8Type.instance, org.apache.cassandra.db.marshal.UTF8Type.instance);
+        assertEquals(compactionType, resProps.get("compaction_type"));
     }
 
     private String getOlderVersionString()

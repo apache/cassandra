@@ -375,7 +375,6 @@ public final class SystemKeyspace
                 + "keyspace_name text,"
                 + "rows_merged map<int, bigint>,"
                 + "compaction_properties frozen<map<text, text>>,"
-                + "compaction_type text,"
                 + "PRIMARY KEY ((id)))")
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
                 .build();
@@ -721,13 +720,12 @@ public final class SystemKeyspace
                                                long bytesIn,
                                                long bytesOut,
                                                Map<Integer, Long> rowsMerged,
-                                               Map<String, String> compactionProperties,
-                                               String compactionType)
+                                               Map<String, String> compactionProperties)
     {
         // don't write anything when the history table itself is compacted, since that would in turn cause new compactions
         if (ksname.equals("system") && cfname.equals(COMPACTION_HISTORY))
             return;
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties, compaction_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
                         taskId,
                         ksname,
@@ -736,8 +734,7 @@ public final class SystemKeyspace
                         bytesIn,
                         bytesOut,
                         rowsMerged,
-                        compactionProperties,
-                        compactionType);
+                        compactionProperties);
     }
 
     public static TabularData getCompactionHistory() throws OpenDataException
