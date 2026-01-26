@@ -21,6 +21,7 @@ package org.apache.cassandra.replication;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,7 +52,7 @@ public class MutationTrackingSyncCoordinator
     private volatile long startTimeMs;
 
     // Per-shard state: tracks what each node has reported for that shard
-    private final Map<Range<Token>, ShardSyncState> shardStates = new ConcurrentHashMap<>();
+    private final Map<Range<Token>, ShardSyncState> shardStates = new HashMap<>();
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean completed = new AtomicBoolean(false);
@@ -93,15 +94,15 @@ public class MutationTrackingSyncCoordinator
             allParticipants.add(localAddress);
         }
 
-        // Register to receive offset updates
-        MutationTrackingService.instance.registerSyncCoordinator(this);
-
         // Initialize state for each shard
         for (Shard shard : overlappingShards)
         {
             ShardSyncState state = new ShardSyncState(shard);
             shardStates.put(shard.range, state);
         }
+
+        // Register to receive offset updates
+        MutationTrackingService.instance.registerSyncCoordinator(this);
 
         // Mark self as reported and capture local targets
         reportedParticipants.add(localAddress);
