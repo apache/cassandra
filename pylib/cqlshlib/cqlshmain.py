@@ -2125,14 +2125,57 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
 
 
 def get_docspath(path):
-    cqldocs_url = Shell.DEFAULT_CQLDOCS_URL
-    if os.path.exists(path + '/doc/cql3/CQL.html'):
-        # default location of local CQL.html
-        cqldocs_url = 'file://' + path + '/doc/cql3/CQL.html'
-    elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
-        # fallback to package file
-        cqldocs_url = 'file:///usr/share/doc/cassandra/CQL.html'
-    return cqldocs_url
+    """
+    Determine the URL for CQL documentation.
+
+    Priority order:
+    1. Local development/tarball path: {path}/doc/cql3/CQL.html
+    2. Linux package path: /usr/share/doc/cassandra/CQL.html
+    3. macOS path: /usr/local/share/doc/cassandra/CQL.html
+    4. Bundled package resource (for pip installs, etc.)
+    5. Online documentation URL (fallback)
+    """
+    # Check local dev/tarball path
+    local_path = os.path.join(path, 'doc', 'cql3', 'CQL.html')
+    if os.path.exists(local_path):
+        return 'file://' + os.path.abspath(local_path)
+
+    # Check system package installation paths
+    for system_path in ['/usr/share/doc/cassandra/CQL.html',
+                        '/usr/local/share/doc/cassandra/CQL.html']:
+        if os.path.exists(system_path):
+            return 'file://' + system_path
+
+    # Try to load from package resources
+    resource_url = _get_docs_from_package_resource()
+    if resource_url:
+        return resource_url
+
+    # Fall back to online documentation
+    return Shell.DEFAULT_CQLDOCS_URL
+
+
+def _get_docs_from_package_resource():
+    """
+    Attempt to load CQL documentation from package resources.
+    Returns a file:// URL to the resource, or None if unavailable.
+    """
+    try:
+        if sys.version_info >= (3, 9):
+            from importlib.resources import files, as_file
+            resource = files('cqlshlib.resources').joinpath('CQL.html')
+            with as_file(resource) as path:
+                if path.exists():
+                    return 'file://' + str(path.resolve())
+        else:
+            # Python 3.8 compatibility
+            from importlib.resources import path as resource_path
+            with resource_path('cqlshlib.resources', 'CQL.html') as path:
+                if path.exists():
+                    return 'file://' + str(path.resolve())
+    except Exception:
+        pass
+    return None
 
 
 def insert_driver_hooks():

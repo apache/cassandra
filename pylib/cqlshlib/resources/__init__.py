@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from distutils.core import setup
+"""
+Bundled resources for cqlshlib.
 
-
-def get_extensions():
-    if "--no-compile" in sys.argv:
-        return []
-
-    from Cython.Build import cythonize
-    return cythonize("cqlshlib/copyutil.py")
-
-
-setup(
-    name="cassandra-pylib",
-    description="Cassandra Python Libraries",
-    packages=["cqlshlib", "cqlshlib.resources"],
-    package_data={
-        "cqlshlib.resources": ["CQL.html", "CQL.css"],
-    },
-    include_package_data=True,
-    ext_modules=get_extensions(),
-)
+This package contains static resources (like CQL documentation) that are
+bundled with cqlshlib for distribution as a Python package. These resources
+are used as fallbacks when the documentation cannot be found in the standard
+installation paths.
+"""

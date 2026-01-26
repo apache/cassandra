@@ -65,6 +65,7 @@
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
+    <property name="pylib.resources" value="${basedir}/pylib/cqlshlib/resources"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.lib" value="${build.dir}/test/lib"/>
@@ -458,6 +459,8 @@
         <delete dir="${version.properties.dir}" />
         <delete dir="${jacoco.export.dir}" />
         <delete dir="${jacoco.partials.dir}"/>
+        <delete file="${pylib.resources}/CQL.html"/>
+        <delete file="${pylib.resources}/CQL.css"/>
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -504,6 +507,16 @@
                 <include name="doc/cql3/*.textile"/>
             </fileset>
         </wikitext-to-html>
+    </target>
+
+    <target name="copy-cql-docs-to-pylib" depends="generate-cql-html"
+            description="Copy CQL documentation to pylib resources for packaging">
+        <copy todir="${pylib.resources}" failonerror="true">
+            <fileset dir="doc/cql3">
+                <include name="CQL.html"/>
+                <include name="CQL.css"/>
+            </fileset>
+        </copy>
     </target>
 
     <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
@@ -586,7 +599,7 @@
         </javac>
     </target>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
+    <target depends="init,gen-cql3-grammar,copy-cql-docs-to-pylib,generate-jflex-java"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->

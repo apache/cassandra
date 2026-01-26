@@ -12,6 +12,8 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/
+pylib/cqlshlib/resources/CQL.html
+pylib/cqlshlib/resources/CQL.css
 lib/
 pylib/src/
 **/cqlshlib.xml
