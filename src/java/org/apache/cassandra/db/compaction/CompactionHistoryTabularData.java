@@ -42,7 +42,8 @@ public class CompactionHistoryTabularData
 
     private static final String[] ITEM_DESCS = new String[]{ "time uuid", "keyspace name",
                                                              "column family name", "compaction finished at",
-                                                             "total bytes in", "total bytes out", "total rows merged", "compaction properties" };
+                                                             "total bytes in", "total bytes out", "total rows merged",
+                                                             "compaction properties" };
 
     private static final String TYPE_NAME = "CompactionHistory";
 
@@ -53,10 +54,10 @@ public class CompactionHistoryTabularData
     private static final CompositeType COMPOSITE_TYPE;
 
     private static final TabularType TABULAR_TYPE;
-    
+
     public static final String COMPACTION_TYPE_PROPERTY = "compaction_type";
-    
-    static 
+
+    static
     {
         try
         {
