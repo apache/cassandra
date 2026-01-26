@@ -92,11 +92,7 @@ public class MutationTrackingSyncCoordinator
         {
             allParticipants.addAll(shard.remoteReplicas());
             allParticipants.add(localAddress);
-        }
 
-        // Initialize state for each shard
-        for (Shard shard : overlappingShards)
-        {
             ShardSyncState state = new ShardSyncState(shard);
             shardStates.put(shard.range, state);
         }
@@ -138,9 +134,51 @@ public class MutationTrackingSyncCoordinator
 
     private void recaptureTargets()
     {
+        if (checkForTopologyChange())
+            return;
+
         for (ShardSyncState state : shardStates.values())
         {
             state.captureTargets();
+        }
+    }
+
+    /**
+     * Checks if any of the shards we're tracking have changed due to topology updates.
+     * @return true if topology changed (and repair was failed), false if all shards are still current
+     */
+    private boolean checkForTopologyChange()
+    {
+        for (ShardSyncState state : shardStates.values())
+        {
+            Shard currentShard = getCurrentShard(state.shard.range);
+            if (currentShard != state.shard)
+            {
+                failWithTopologyChange();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Shard getCurrentShard(Range<Token> shardRange)
+    {
+        Shard[] result = new Shard[1];
+        MutationTrackingService.instance.forEachShardInKeyspace(keyspace, shard -> {
+            if (shard.range.equals(shardRange))
+                result[0] = shard;
+        });
+        return result[0];
+    }
+
+    private void failWithTopologyChange()
+    {
+        if (completed.compareAndSet(false, true))
+        {
+            logger.warn("Sync coordinator for keyspace {} range {} failed due to topology change",
+                        keyspace, range);
+            MutationTrackingService.instance.unregisterSyncCoordinator(this);
+            completionFuture.setFailure(new RuntimeException("Repair failed: topology changed during sync"));
         }
     }
 
@@ -151,7 +189,7 @@ public class MutationTrackingSyncCoordinator
      */
     private void checkIfReadyToComplete()
     {
-        if (completed.get())
+        if (completed.get() || checkForTopologyChange())
             return;
 
         if (hasNoTargets() && (System.currentTimeMillis() - startTimeMs) > EMPTY_TARGETS_TIMEOUT_MS)
