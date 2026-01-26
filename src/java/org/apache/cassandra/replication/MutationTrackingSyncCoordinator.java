@@ -19,9 +19,13 @@
 package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,21 +34,30 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 public class MutationTrackingSyncCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingSyncCoordinator.class);
 
+    private static final long EMPTY_TARGETS_TIMEOUT_MS = 3000;
+    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
     private final String keyspace;
     private final Range<Token> range;
     private final AsyncPromise<Void> completionFuture = new AsyncPromise<>();
+    private volatile long startTimeMs;
 
     // Per-shard state: tracks what each node has reported for that shard
     private final Map<Range<Token>, ShardSyncState> shardStates = new ConcurrentHashMap<>();
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean completed = new AtomicBoolean(false);
+
+    private final Set<InetAddressAndPort> allParticipants = new HashSet<>();
+    private final Set<InetAddressAndPort> reportedParticipants = ConcurrentHashMap.newKeySet();
 
     public MutationTrackingSyncCoordinator(String keyspace, Range<Token> range)
     {
@@ -56,6 +69,8 @@ public class MutationTrackingSyncCoordinator
     {
         if (!started.compareAndSet(false, true))
             throw new IllegalStateException("Sync coordinator already started");
+
+        startTimeMs = System.currentTimeMillis();
 
         List<Shard> overlappingShards;
 
@@ -71,25 +86,35 @@ public class MutationTrackingSyncCoordinator
             return;
         }
 
+        InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
+        for (Shard shard : overlappingShards)
+        {
+            allParticipants.addAll(shard.remoteReplicas());
+            allParticipants.add(localAddress);
+        }
+
         // Register to receive offset updates
         MutationTrackingService.instance.registerSyncCoordinator(this);
 
-        // Initialize state for each shard and capture targets
+        // Initialize state for each shard
         for (Shard shard : overlappingShards)
         {
             ShardSyncState state = new ShardSyncState(shard);
-            state.captureTargets();
             shardStates.put(shard.range, state);
         }
 
-        if (checkIfComplete())
-        {
-            complete();
-            return;
-        }
+        // Mark self as reported and capture local targets
+        reportedParticipants.add(localAddress);
+        recaptureTargets();
 
-        logger.info("Sync coordinator started for keyspace {} range {}, tracking {} shards",
-                   keyspace, range, overlappingShards.size());
+        logger.info("Sync coordinator started for keyspace {} range {}, tracking {} shards, waiting for {} participants",
+                   keyspace, range, overlappingShards.size(), allParticipants.size());
+
+        // Check if we're the only participant and already complete
+        checkIfReadyToComplete();
+
+        // Schedule a delayed check for the empty targets timeout case
+        scheduler.schedule(this::checkIfReadyToComplete, EMPTY_TARGETS_TIMEOUT_MS + 100, TimeUnit.MILLISECONDS);
     }
 
     private void complete()
@@ -110,17 +135,78 @@ public class MutationTrackingSyncCoordinator
         return true;
     }
 
-    public void onOffsetsReceived()
+    private void recaptureTargets()
+    {
+        for (ShardSyncState state : shardStates.values())
+        {
+            state.captureTargets();
+        }
+    }
+
+    /**
+     * Check if we're ready to complete. We can complete when:
+     * 1. All participants have reported their offsets AND all targets are reconciled, OR
+     * 2. No targets have been discovered after the timeout (no data to sync anywhere)
+     */
+    private void checkIfReadyToComplete()
     {
         if (completed.get())
             return;
 
-        // The underlying CoordinatorLog already updates its reconciled offsets.
-        // We just need to re-check if we're now complete.
+        if (hasNoTargets() && (System.currentTimeMillis() - startTimeMs) > EMPTY_TARGETS_TIMEOUT_MS)
+        {
+            logger.info("Sync coordinator completed for keyspace {} range {} - no targets discovered after {}ms",
+                        keyspace, range, EMPTY_TARGETS_TIMEOUT_MS);
+            complete();
+            return;
+        }
+
+        // Wait until all participants have reported
+        if (!reportedParticipants.containsAll(allParticipants))
+        {
+            logger.trace("Sync coordinator waiting for participants. Reported: {}, All: {}",
+                         reportedParticipants.size(), allParticipants.size());
+            return;
+        }
+
+        // All participants have reported, check if targets are reconciled
         if (checkIfComplete())
         {
+            logger.info("Sync coordinator completed for keyspace {} range {}", keyspace, range);
             complete();
         }
+    }
+
+    private boolean hasNoTargets()
+    {
+        for (ShardSyncState state : shardStates.values())
+        {
+            if (!state.targets.isEmpty())
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Called when offset updates are received from a participant.
+     * @param from The participant that sent the offsets
+     */
+    public void onOffsetsReceived(InetAddressAndPort from)
+    {
+        if (completed.get())
+            return;
+
+        boolean newParticipant = reportedParticipants.add(from);
+
+        if (newParticipant)
+        {
+            logger.trace("Sync coordinator received offsets from new participant {}. Reported: {}/{}",
+                         from, reportedParticipants.size(), allParticipants.size());
+        }
+
+        recaptureTargets(); // Recapture targets to include any new coordinator logs
+
+        checkIfReadyToComplete();
     }
 
     public String getKeyspace()

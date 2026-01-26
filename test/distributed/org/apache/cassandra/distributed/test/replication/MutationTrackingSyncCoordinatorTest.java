@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.distributed.test.replication;
 
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
@@ -29,6 +31,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
+import org.awaitility.Awaitility;
 
 import static org.junit.Assert.*;
 
@@ -100,85 +103,91 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
     }
 
     @Test
-    public void testSyncCoordinatorCompletesAfterDataSync() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(6).start())
-        {
-            createTrackedKeyspace(cluster, "2");
-
-            // Insert some data to create mutations
-            for (int i = 0; i < 10000; i++)
-            {
-                cluster.coordinator(1).execute(
-                    "INSERT INTO " + tableName("2") + " (k, v) VALUES (?, ?)",
-                    ConsistencyLevel.ALL, i, i
-                );
-            }
-
-            Thread.sleep(500); // Wait for offset broadcasts to propagate
-
-            // Create a sync coordinator - should complete since all data is synced (CL.ALL)
-            Boolean completed = cluster.get(1).callOnInstance(() -> {
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '2', fullTokenRange());
-                coordinator.start();
-
-                try
-                {
-                    // Give it enough time for broadcasts to arrive
-                    return coordinator.awaitCompletion(15, TimeUnit.SECONDS);
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            });
-
-            assertTrue("Sync coordinator should complete after data is fully replicated", completed);
-        }
-    }
-
-    @Test
     public void testSyncCoordinatorWaitsForAllReplicasMutations() throws Throwable
     {
-        try (Cluster cluster = builder().withNodes(6).start())
+        try (Cluster cluster = builder().withNodes(3).start())
         {
             createTrackedKeyspace(cluster, "3");
 
-            // Pause broadcasts so nodes don't share offsets yet
-            pauseOffsetBroadcasts(cluster, true);
+            // Block all messages FROM node 1 to prevent write replication
+            // This ensures that write only succeeds locally on node 1
+            cluster.filters().allVerbs().from(1).drop();
 
-            // Write from different nodes with CL.ONE - each node has different mutations
-            // Different coordinators create mutations that only their local replica group knows about initially
-            cluster.coordinator(1).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (1, 1)", ConsistencyLevel.ONE);
-            cluster.coordinator(2).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (2, 2)", ConsistencyLevel.ONE);
-            cluster.coordinator(3).execute("INSERT INTO " + tableName("3") + " (k, v) VALUES (3, 3)", ConsistencyLevel.ONE);
+            cluster.coordinator(1).execute(
+                "INSERT INTO " + tableName("3") + " (k, v) VALUES (1, 1)",
+                ConsistencyLevel.ONE
+            );
 
-            // Resume broadcasts so nodes can share their offsets
-            pauseOffsetBroadcasts(cluster, false);
-
-            // Trigger broadcasts to share offsets between nodes
-            for (int i = 1; i <= 6; i++)
-                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
-
-            Thread.sleep(500); // Wait for broadcasts to propagate
-
-            Boolean completed = cluster.get(4).callOnInstance(() -> {
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + "3", fullTokenRange());
+            // Start MutationTrackingSyncCoordinator on node 2 in a separate thread
+            // It should wait for offsets to sync since node 1's data hasn't propagated yet
+            CompletableFuture<Boolean> coordinatorFuture = CompletableFuture.supplyAsync(() -> cluster.get(2).callOnInstance(() -> {
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '3', fullTokenRange());
                 coordinator.start();
 
                 try
                 {
-                    return coordinator.awaitCompletion(30, TimeUnit.SECONDS);
+                    return coordinator.awaitCompletion(10, TimeUnit.SECONDS);
                 }
                 catch (InterruptedException e)
                 {
                     Thread.currentThread().interrupt();
                     return false;
                 }
-            });
+            }));
 
-            assertTrue("Sync should complete after all mutations from all nodes are reconciled", completed);
+            // Wait until node 1 has the data
+            Awaitility.await()
+                      .atMost(Duration.ofSeconds(5))
+                      .pollInterval(Duration.ofMillis(100))
+                      .untilAsserted(() -> {
+                          Object[][] results = cluster.get(1).executeInternal(
+                          "SELECT k, v FROM " + tableName("3") + " WHERE k = 1");
+                          assertEquals("Node 1 should have the data", 1, results.length);
+                      });
+
+            // Verify other nodes shouldn't have the data yet since we have blocked messages
+            for (int i = 2; i <= 3; i++)
+            {
+                Object[][] results = cluster.get(i).executeInternal(
+                    "SELECT k, v FROM " + tableName("3") + " WHERE k = 1"
+                );
+                assertEquals("Node " + i + " should not have data yet", 0, results.length);
+            }
+
+            // Verify coordinator stays blocked for at least 2 seconds
+            Awaitility.await()
+                      .during(Duration.ofSeconds(2))
+                      .atMost(Duration.ofSeconds(3))
+                      .until(() -> !coordinatorFuture.isDone());
+
+            cluster.filters().reset();
+
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+
+            // Wait for coordinator to complete
+            Awaitility.await()
+                      .atMost(Duration.ofSeconds(30))
+                      .pollInterval(Duration.ofMillis(200))
+                      .until(coordinatorFuture::isDone);
+
+            assertTrue("Coordinator should complete successfully", coordinatorFuture.get());
+
+            // Verify data propagated to all replicas
+            for (int i = 1; i <= 3; i++)
+            {
+                final int nodeId = i;
+                Awaitility.await()
+                          .atMost(Duration.ofSeconds(10))
+                          .pollInterval(Duration.ofMillis(100))
+                          .untilAsserted(() -> {
+                              Object[][] results = cluster.get(nodeId).executeInternal(
+                              "SELECT k, v FROM " + tableName("3") + " WHERE k = 1");
+                              assertEquals("Node " + nodeId + " should have the data", 1, results.length);
+                              assertEquals(1, results[0][0]);
+                              assertEquals(1, results[0][1]);
+                          });
+            }
         }
     }
 
@@ -201,7 +210,7 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
 
             // Start coordinator - it will be stuck waiting for offsets
             Boolean wasCancelled = cluster.get(1).callOnInstance(() -> {
-                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + "4", fullTokenRange());
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '4', fullTokenRange());
                 coordinator.start();
 
                 try

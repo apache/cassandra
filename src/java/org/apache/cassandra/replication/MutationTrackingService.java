@@ -321,7 +321,7 @@ public class MutationTrackingService
             {
                 if (range.intersects(coordinator.getRange()))
                 {
-                    coordinator.onOffsetsReceived();
+                    coordinator.onOffsetsReceived(onHost);
                 }
             }
         }
