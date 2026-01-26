@@ -61,6 +61,8 @@ import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -104,6 +106,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import org.apache.cassandra.cql3.statements.ModificationStatement.RowKey;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.AUTO_READ;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.RETURNING;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.USER;
@@ -130,6 +133,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
+    public static final String DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE = "Transaction contains update to the same key";
     public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
     public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
     public static final String WRITE_TXN_EMPTY_WITH_IGNORED_READS = "Write txn produced no mutation, and its reads do not return to the caller; ignoring...";
@@ -554,6 +558,36 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (returningSelect != null && returningSelect.select.getRestrictions().keyIsInRelation())
         {
             checkTrue(returningSelect.select.getLimit(options) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", returningSelect.select.source);
+        }
+
+        // check that within a transaction we don't have multiple updates to the same primary key, column pair
+        HashMap<RowKey, Columns> seenRegularColumns = new HashMap<>();
+        HashMap<DecoratedKey, Columns> seenStaticColumns = new HashMap<>();
+
+        for (ModificationStatement statement : updates)
+        {
+            List<RowKey> rowKeys = statement.getRowKeys(state.getClientState(), options);
+            Columns regularColumns = statement.updatedColumns().columns(false);
+            Columns staticColumns = statement.updatedColumns().columns(true);
+
+            for (RowKey rowKey : rowKeys)
+            {
+                Columns existingRegularColumns = seenRegularColumns.putIfAbsent(rowKey, regularColumns);
+                if (existingRegularColumns != null)
+                {
+                    for (ColumnMetadata column : regularColumns)
+                        checkFalse(existingRegularColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
+                    seenRegularColumns.put(rowKey, existingRegularColumns.mergeTo(regularColumns));
+                }
+
+                Columns existingStaticColumns = seenStaticColumns.putIfAbsent(rowKey.partitionKey(), staticColumns);
+                if (existingStaticColumns != null)
+                {
+                    for (ColumnMetadata column : staticColumns)
+                        checkFalse(existingStaticColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
+                    seenStaticColumns.put(rowKey.partitionKey(), existingStaticColumns.mergeTo(staticColumns));
+                }
+            }
         }
 
         Txn txn = createTxn(state.getClientState(), options);

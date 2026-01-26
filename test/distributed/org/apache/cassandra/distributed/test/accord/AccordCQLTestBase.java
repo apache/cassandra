@@ -206,6 +206,81 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
+    public void testRejectTransactionWithUpdatesToSamePrimaryKeySameColumns() throws Exception
+    {
+        test(cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2);
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1 AND c = 1;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testRejectTransactionWithUpdatesToSamePrimaryKeyWithInClause() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, j int, primary key (k, c, v)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 1, 3, 5);
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 2, 2, 2, 3, 5);
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET j = 5 WHERE k = 1 AND c = 1 AND v IN (1, 2);\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET j = 3 WHERE k = 1 AND c = 1 AND v = 2;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSamePrimaryKeyButDifferentColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 3);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET r = 10 WHERE k = 1 AND c = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSamePrimaryKeyDisjointColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, j int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 3, 5);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET r = 2, j = 5 WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1 AND c = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
     public void testCounterCreateTableTransactionalModeFails() throws Exception
     {
         try

@@ -1006,6 +1006,60 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return fragments;
     }
 
+    public List<RowKey> getRowKeys(ClientState state, QueryOptions options)
+    {
+        List<RowKey> rowKeys = new ArrayList<>();
+        List<PartitionUpdate> updates = getTxnUpdate(state, options);
+        for (PartitionUpdate update : updates)
+        {
+            DecoratedKey key = update.partitionKey();
+            List<Clustering<?>> clusteringColumns = txnClusterings(options, state);
+            for (Clustering<?> clustering : clusteringColumns)
+                rowKeys.add(new RowKey(key, clustering));
+        }
+        return rowKeys;
+    }
+
+    public static class RowKey
+    {
+        public final DecoratedKey key;
+        public final Clustering<?> clustering;
+
+        public RowKey(DecoratedKey key, Clustering<?> clustering)
+        {
+            this.key = key;
+            this.clustering = clustering;
+        }
+
+        public DecoratedKey partitionKey()
+        {
+            return key;
+        }
+
+        public Clustering<?> clustering()
+        {
+            return clustering;
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (other == this)
+                return true;
+            if (!(other instanceof RowKey))
+                return false;
+
+            RowKey that = (RowKey) other;
+            return this.partitionKey().equals(that.partitionKey()) && this.clustering().equals(that.clustering());
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return partitionKey().hashCode() * 31 + clustering().hashCode();
+        }
+    }
+
     final void addUpdates(UpdatesCollector collector,
                           List<ByteBuffer> keys,
                           ClientState state,
