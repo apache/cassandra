@@ -368,6 +368,10 @@ public class AsyncProfilerService implements AsyncProfilerMBean
     @Override
     public String status()
     {
+        if (!ASYNC_PROFILER_ENABLED.getBoolean())
+        {
+             return "Async Profiler is not enabled. Enable it by setting " + ASYNC_PROFILER_ENABLED.getKey() + " property to true.";
+        }
         return run(new ThrowingFunction<>()
         {
             @Override
