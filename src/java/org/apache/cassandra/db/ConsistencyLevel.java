@@ -23,6 +23,7 @@ import java.util.Locale;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.InRemoteDc;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -31,6 +32,7 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.utils.FBUtilities;
 
 import java.util.Optional;
 
@@ -49,7 +51,8 @@ public enum ConsistencyLevel
     SERIAL      (8),
     LOCAL_SERIAL(9, true),
     LOCAL_ONE   (10, true),
-    NODE_LOCAL  (11, true);
+    NODE_LOCAL  (11, true),
+    REMOTE_QUORUM (12);
 
     // Used by the binary protocol
     public final int code;
@@ -168,6 +171,8 @@ public enum ConsistencyLevel
                 {
                     return quorumFor(replicationStrategy);
                 }
+            case REMOTE_QUORUM:
+                return localQuorumFor(replicationStrategy, FBUtilities.getTargetRemoteDcOrLocal());
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
@@ -203,6 +208,9 @@ public enum ConsistencyLevel
             case SERIAL:
             case ALL:
                 blockFor += pendingToAdd.size();
+                break;
+            case REMOTE_QUORUM:
+                blockFor += pendingToAdd.count(InRemoteDc.replicas());
         }
         return blockFor;
     }
@@ -264,6 +272,8 @@ public enum ConsistencyLevel
             case SERIAL:
             case LOCAL_SERIAL:
                 throw new InvalidRequestException(this + " is not supported as conditional update commit consistency. Use ANY if you mean \"make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads\"");
+            case REMOTE_QUORUM:
+                throw new InvalidRequestException(this + " is not supported as conditional update commit consistency.");
         }
     }
 
@@ -282,6 +292,9 @@ public enum ConsistencyLevel
     {
         if (this == ConsistencyLevel.ANY)
             throw new InvalidRequestException("Consistency level ANY is not yet supported for counter table " + metadata.name);
+
+        if (this == ConsistencyLevel.REMOTE_QUORUM)
+            throw new InvalidRequestException("Consistency level REMOTE is not yet supported for counter table " + metadata.name);
 
         if (isSerialConsistency())
             throw new InvalidRequestException("Counter operations are inherently non-serializable");

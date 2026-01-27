@@ -5572,4 +5572,34 @@ public class DatabaseDescriptor
     {
         return conf.client_query_logging_execution_time_threshold;
     }
+
+    public static void setRemoteQuorumWriteOverrideEnabled(boolean enabled)
+    {
+        conf.enable_remote_quorum_write_override = enabled;
+    }
+
+    public static void setRemoteQuorumReadOverrideEnabled(boolean enabled)
+    {
+        conf.enable_remote_quorum_read_override = enabled;
+    }
+
+    public static void setRemoteQuorumTargetDcs(Map<String, String> remoteQuorumTargetDcs)
+    {
+        conf.remote_quorum_target_data_centers = remoteQuorumTargetDcs;
+    }
+
+    public static boolean getRemoteQuorumWriteOverrideEnabled()
+    {
+        return conf.enable_remote_quorum_write_override;
+    }
+
+    public static boolean getRemoteQuorumReadOverrideEnabled()
+    {
+        return conf.enable_remote_quorum_read_override;
+    }
+
+    public static Map<String, String> getRemoteQuorumTargetDcs()
+    {
+        return conf.remote_quorum_target_data_centers;
+    }
 }

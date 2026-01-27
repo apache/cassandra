@@ -849,6 +849,17 @@ public class FBUtilities
         }
     }
 
+    /**
+     * Returns the configured target remote datacenter for REMOTE_QUORUM, or the local datacenter
+     * if no mapping is configured.
+     */
+    public static String getTargetRemoteDcOrLocal()
+    {
+        Map<String, String> targetDcs = DatabaseDescriptor.getRemoteQuorumTargetDcs();
+        String localDc = DatabaseDescriptor.getLocalDataCenter();
+        return targetDcs != null ? targetDcs.getOrDefault(localDc, localDc) : localDc;
+    }
+
     public static List<String> fromJsonList(String json)
     {
         try

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.function.Consumer;
+import java.util.Map;
 
 
 import com.google.common.base.Throwables;
@@ -882,5 +883,41 @@ public class DatabaseDescriptorTest
         conf.minimum_cassandra_version_for_any_cluster_node = version;
         DatabaseDescriptor.setMinimumCassandraVersionForAnyClusterNode(null);
         assertNull(conf.minimum_cassandra_version_for_any_cluster_node);
+    }
+
+    @Test
+    public void testRemoteQuorumWriteOverrideEnabled()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.enable_remote_quorum_write_override = true;
+        assertTrue(DatabaseDescriptor.getRemoteQuorumWriteOverrideEnabled());
+
+        DatabaseDescriptor.setRemoteQuorumWriteOverrideEnabled(false);
+        assertFalse(conf.enable_remote_quorum_write_override);
+        assertFalse(DatabaseDescriptor.getRemoteQuorumWriteOverrideEnabled());
+    }
+
+    @Test
+    public void testRemoteQuorumReadOverrideEnabled()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.enable_remote_quorum_read_override = true;
+        assertTrue(DatabaseDescriptor.getRemoteQuorumReadOverrideEnabled());
+
+        DatabaseDescriptor.setRemoteQuorumReadOverrideEnabled(false);
+        assertFalse(conf.enable_remote_quorum_read_override);
+        assertFalse(DatabaseDescriptor.getRemoteQuorumReadOverrideEnabled());
+    }
+
+    @Test
+    public void testRemoteQuorumTargetDcs()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.remote_quorum_target_data_centers = null;
+        assertNull(DatabaseDescriptor.getRemoteQuorumTargetDcs());
+
+        Map<String, String> targetDcs = Map.of("datacenter1","datacenter2");
+        DatabaseDescriptor.setRemoteQuorumTargetDcs(targetDcs);
+        assertEquals(targetDcs, DatabaseDescriptor.getRemoteQuorumTargetDcs());
     }
 }

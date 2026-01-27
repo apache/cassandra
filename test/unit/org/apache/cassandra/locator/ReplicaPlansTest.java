@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.junit.Test;
@@ -111,9 +112,62 @@ public class ReplicaPlansTest
             DatabaseDescriptor.setEndpointSnitch(stash);
         }
 
-        {
-            // test simple
+        // test simple
+    }
 
+    @Test
+    public void testWriteRemoteQuorum()
+    {
+        IEndpointSnitch stashSnitch = DatabaseDescriptor.getEndpointSnitch();
+        final Token token = tk(1L);
+        try
+        {
+            // all full natural
+            {
+                // EP1, EP2, EP3 are DC1, the rest are DC2.
+                Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
+                // Configure mapping from local DC1 -> DC2 for remote quorum
+                String localDc = DatabaseDescriptor.getLocalDataCenter();
+                DatabaseDescriptor.setRemoteQuorumTargetDcs(ImmutableMap.of(localDc, "DC2"));
+
+                EndpointsForToken natural = EndpointsForToken.of(token, full(EP4), full(EP5));
+                EndpointsForToken pending = EndpointsForToken.empty(token);
+
+                ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.REMOTE_QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+                assertEquals(natural, plan.liveAndDown);
+                assertEquals(natural, plan.live);
+                assertEquals(natural, plan.contacts());
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setEndpointSnitch(stashSnitch);
+        }
+    }
+
+    @Test(expected = UnavailableException.class)
+    public void testWriteRemoteQuorumUnavailable()
+    {
+        IEndpointSnitch stashSnitch = DatabaseDescriptor.getEndpointSnitch();
+        final Token token = tk(1L);
+        try
+        {
+            // EP1, EP2, EP3 are DC1, EP4..EP6 are DC2; RF=3 per DC
+            Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
+            // Configure mapping from local DC -> DC2 for remote quorum
+            String localDc = DatabaseDescriptor.getLocalDataCenter();
+            DatabaseDescriptor.setRemoteQuorumTargetDcs(ImmutableMap.of(localDc, "DC2"));
+
+            // Provide only a single DC2 replica: insufficient for REMOTE_QUORUM (needs 2 of 3)
+            EndpointsForToken natural = EndpointsForToken.of(token, full(EP4));
+            EndpointsForToken pending = EndpointsForToken.empty(token);
+
+            // Expect Unavailable due to insufficient remote replicas
+            ReplicaPlans.forWrite(ks, ConsistencyLevel.REMOTE_QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+        }
+        finally
+        {
+            DatabaseDescriptor.setEndpointSnitch(stashSnitch);
         }
     }
 

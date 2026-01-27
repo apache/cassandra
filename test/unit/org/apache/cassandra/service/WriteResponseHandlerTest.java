@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.Map;
 
 import com.google.common.base.Predicates;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -221,6 +222,36 @@ public class WriteResponseHandlerTest
     }
 
     /**
+     * Validate that DatacenterWriteResponseHandler does the right thing on success.
+     * @throws Throwable
+     */
+    @Test
+    public void idealCLDatacenterWriteResponeHandlerRemoteWorks() throws Throwable
+    {
+        Map<String, String> targetDcs = Map.of("datacenter1","datacenter2");
+        DatabaseDescriptor.setRemoteQuorumTargetDcs(targetDcs);
+
+        long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.REMOTE_QUORUM);
+
+        //Fail in local DC
+        awr.onResponse(createDummyMessage(0));
+        awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.TIMEOUT);
+        awr.onFailure(targets.get(2).endpoint(), RequestFailureReason.TIMEOUT);
+
+        // there are not enough responses for ideal REMOTE_QUORUM yet
+        assertEquals(startingCount, ks.metric.idealCLWriteLatency.latency.getCount());
+
+        //Succeed in remote DC
+        awr.onResponse(createDummyMessage(3));
+        awr.onResponse(createDummyMessage(4));
+
+        // there are enough responses for ideal REMOTE_QUORUM, we should not wait for all responses
+        assertEquals(0, ks.metric.writeFailedIdealCL.getCount());
+        assertEquals(startingCount + 1, ks.metric.idealCLWriteLatency.latency.getCount());
+    }
+
+    /**
      * Validate that failing to achieve ideal CL increments the failure counter
      * @throws Throwable
      */
@@ -280,7 +311,7 @@ public class WriteResponseHandlerTest
 
         // Failure in local DC
         awr.onResponse(createDummyMessage(0));
-        
+
         awr.expired();
         awr.expired();
 

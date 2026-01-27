@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -56,6 +57,7 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.db.ConsistencyLevel.REMOTE_QUORUM;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -129,6 +131,100 @@ public class AssureSufficientLiveNodesTest
         ).as("Unavailable should be thrown given 3 live nodes is less than a quorum of 6")
          .isInstanceOf(UnavailableException.class)
          .hasMessageContaining("Cannot achieve consistency level QUORUM");
+    }
+
+    @Test
+    public void insufficientLiveNodesWithRemoteQuorumTest()
+    {
+        final KeyspaceParams largeRF = KeyspaceParams.nts(DC2, 6);
+        String localDc = DatabaseDescriptor.getLocalDataCenter();
+        DatabaseDescriptor.setRemoteQuorumTargetDcs(ImmutableMap.of(localDc, DC2));
+
+        // write failed
+        assertThatThrownBy(() ->
+                raceOfReplicationStrategyTest(largeRF, largeRF, 1,
+                        keyspace -> ReplicaPlans.forWrite(keyspace, REMOTE_QUORUM, tk, ReplicaPlans.writeNormal))
+        ).as("Unavailable should be thrown given 3 live nodes is less than a remote_quorum of 6")
+                .isInstanceOf(UnavailableException.class)
+                .hasMessageContaining("Cannot achieve consistency level REMOTE_QUORUM");
+
+        // read failed
+        assertThatThrownBy(() ->
+                raceOfReplicationStrategyTest(largeRF, largeRF, 1,
+                        keyspace -> ReplicaPlans.forRead(keyspace, tk, REMOTE_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE))
+        ).as("Unavailable should be thrown given 3 live nodes is less than a remote_quorum of 6")
+                .isInstanceOf(UnavailableException.class)
+                .hasMessageContaining("Cannot achieve consistency level REMOTE_QUORUM");
+    }
+
+    @Test
+    public void sufficientLiveNodesWithRemoteQuorumTest() throws Throwable
+    {
+        String localDc = DatabaseDescriptor.getLocalDataCenter();
+        DatabaseDescriptor.setRemoteQuorumTargetDcs(ImmutableMap.of(localDc, DC2));
+        // write
+        raceOfReplicationStrategyTest(
+                // init
+                KeyspaceParams.nts(DC1, 3, DC2, 3, DC3, 6),
+                // alter to
+                KeyspaceParams.nts(DC1, 3, DC2, 3, DC3, 6),
+                // test
+                1, keyspace -> ReplicaPlans.forWrite(keyspace, REMOTE_QUORUM, tk, ReplicaPlans.writeNormal)
+        );
+        // read
+        raceOfReplicationStrategyTest(
+                // init
+                KeyspaceParams.nts(DC1, 3, DC2, 3),
+                // alter to
+                KeyspaceParams.nts(DC1, 3, DC2, 3),
+                // test
+                1, keyspace -> ReplicaPlans.forRead(keyspace, tk, REMOTE_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+        );
+    }
+
+    @Test
+    public void insufficientLocalLiveNodesWithFailoverEnabledTest() throws Throwable
+    {
+        final KeyspaceParams localUnavailableRF = KeyspaceParams.nts(DC1, 6, DC2, 3);
+        String localDc = DatabaseDescriptor.getLocalDataCenter();
+        DatabaseDescriptor.setRemoteQuorumTargetDcs(ImmutableMap.of(localDc, DC2));
+        // write
+        DatabaseDescriptor.setRemoteQuorumWriteOverrideEnabled(false);
+        assertThatThrownBy(() ->
+                raceOfReplicationStrategyTest(localUnavailableRF, localUnavailableRF, 1,
+                        keyspace -> ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeNormal))
+        ).as("Unavailable should be thrown given 3 live nodes is less than a local_quorum of 6")
+                .isInstanceOf(UnavailableException.class)
+                .hasMessageContaining("Cannot achieve consistency level LOCAL_QUORUM");
+        // validate write with local quorum failed, failover to remote quorum
+        DatabaseDescriptor.setRemoteQuorumWriteOverrideEnabled(true);
+        raceOfReplicationStrategyTest(
+                // init
+                localUnavailableRF,
+                // alter to
+                localUnavailableRF,
+                // test
+                1, keyspace -> ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeNormal)
+        );
+
+        // read
+        DatabaseDescriptor.setRemoteQuorumReadOverrideEnabled(false);
+        assertThatThrownBy(() ->
+                raceOfReplicationStrategyTest(localUnavailableRF, localUnavailableRF, 1,
+                        keyspace -> ReplicaPlans.forRead(keyspace, tk, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE))
+        ).as("Unavailable should be thrown given 3 live nodes is less than a local_quorum of 6")
+                .isInstanceOf(UnavailableException.class)
+                .hasMessageContaining("Cannot achieve consistency level LOCAL_QUORUM");
+        // validate read with local quorum failed, failover to remote quorum
+        DatabaseDescriptor.setRemoteQuorumReadOverrideEnabled(true);
+        raceOfReplicationStrategyTest(
+                // init
+                localUnavailableRF,
+                // alter to
+                localUnavailableRF,
+                // test
+                1, keyspace -> ReplicaPlans.forRead(keyspace, tk, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+        );
     }
 
     @Test

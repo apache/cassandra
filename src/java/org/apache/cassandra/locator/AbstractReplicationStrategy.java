@@ -44,6 +44,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.DatacenterRemoteWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
@@ -189,6 +190,11 @@ public abstract class AbstractReplicationStrategy
         {
             // block for in this context will be localnodes block.
             resultResponseHandler = new DatacenterWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
+        }
+        else if (replicaPlan.consistencyLevel() == ConsistencyLevel.REMOTE_QUORUM && (this instanceof NetworkTopologyStrategy))
+        {
+            // block for the configured remote DC
+            resultResponseHandler = new DatacenterRemoteWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
         else if (replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM && (this instanceof NetworkTopologyStrategy))
         {

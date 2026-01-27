@@ -31,7 +31,8 @@ public enum ConsistencyLevel
     SERIAL(8),
     LOCAL_SERIAL(9),
     LOCAL_ONE(10),
-    NODE_LOCAL(11);
+    NODE_LOCAL(11),
+    REMOTE_QUORUM (12);
 
     public final int code;
     ConsistencyLevel(int code)

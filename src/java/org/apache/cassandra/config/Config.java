@@ -1066,6 +1066,12 @@ public class Config
     public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
+    // (Uber specific) Enable fallback from LOCAL_QUORUM to REMOTE_QUORUM when local DC is unavailable.
+    public volatile boolean enable_remote_quorum_write_override = false;
+    // (Uber specific) Enable fallback from LOCAL_QUORUM to REMOTE_QUORUM when local DC is unavailable.
+    public volatile boolean enable_remote_quorum_read_override = false;
+    // (Uber specific) Enable fallback from LOCAL_QUORUM to REMOTE_QUORUM when local DC is unavailable.
+    public volatile Map<String, String> remote_quorum_target_data_centers = new HashMap<>();
     /**
      * (Uber specific) Different level of enforcement for consistency:
      * 1. hard: queries with insufficiently restrictive CL will be rejected

@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
 
@@ -77,10 +78,24 @@ public class Replicas
 
     public static ReplicaCount countInOurDc(ReplicaCollection<?> replicas)
     {
+        return countForDc(DatabaseDescriptor.getLocalDataCenter(), replicas, false);
+    }
+
+    public static ReplicaCount countInRemoteDc(ReplicaCollection<?> replicas)
+    {
+        String remoteDc = FBUtilities.getTargetRemoteDcOrLocal();
+        return countForDc(remoteDc, replicas, true);
+    }
+
+    /**
+     * count the number of full and transient replicas, separately, for each DC
+     */
+    public static ReplicaCount countForDc(String dataCenter, Iterable<Replica> replicas, boolean inRemoteDC)
+    {
         ReplicaCount count = new ReplicaCount();
-        Predicate<Replica> inOurDc = InOurDc.replicas();
+        Predicate<Replica> dcFilter = inRemoteDC ? InRemoteDc.replicas() : InOurDc.replicas();
         for (Replica replica : replicas)
-            if (inOurDc.test(replica))
+            if (dcFilter.test(replica))
                 count.increment(replica);
         return count;
     }
