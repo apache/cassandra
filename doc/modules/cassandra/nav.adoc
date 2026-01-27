@@ -45,6 +45,7 @@
 *** xref:cassandra:developing/cql/dml.adoc[Data manipulation (DML)]
 *** xref:cassandra:developing/cql/transactions.adoc[Transactions]
 *** xref:cassandra:developing/cql/transactions-examples.adoc[Transaction examples]
+*** xref:cassandra:developing/cql/transactions-limitations.adoc[Transaction limitations]
 *** xref:cassandra:developing/cql/dynamic-data-masking.adoc[]
 *** xref:cassandra:developing/cql/operators.adoc[Operators]
 *** xref:cassandra:developing/cql/indexing/indexing-concepts.adoc[]

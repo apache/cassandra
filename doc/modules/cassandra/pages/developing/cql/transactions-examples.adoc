@@ -97,7 +97,7 @@ Many business objects follow a lifecycle with strict state transitions. An order
 * Prevent race conditions between competing operations
 * Maintain audit trail of transitions
 
-NOTE: The `IN` and `OR` operators are not currently supported in transaction `IF` conditions. To check multiple valid states, use **numeric status codes** with range comparisons (e.g., `status_code < 30` to mean "any state before SHIPPED").
+NOTE: The `IN` and `OR` operators are not currently supported in transaction `IF` conditions. To check multiple valid states, use **numeric status codes** with range comparisons (e.g., `status_code < 30` to mean "any state before SHIPPED"). See xref:developing/cql/transactions-limitations.adoc#_in_and_or_in_if_conditions[Transaction Limitations] for details.
 
 === Schema
 
@@ -414,3 +414,5 @@ All patterns share common principles:
 * **Guard with IF**: Validate preconditions before modifications
 * **Atomic updates**: All changes succeed or fail together
 * **Pass computed values as parameters**: Row-reference arithmetic in SET/VALUES is not supported
+
+For syntax that is not yet supported and how to work around it, see xref:developing/cql/transactions-limitations.adoc[Transaction Limitations].

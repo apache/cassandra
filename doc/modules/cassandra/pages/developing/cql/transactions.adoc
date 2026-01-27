@@ -176,7 +176,7 @@ COMMIT TRANSACTION
 [[row-reference-limitations]]
 **Row Reference Limitations:**
 
-Row reference arithmetic in SET clauses and row references in VALUES are not currently supported. Pass values as parameters instead:
+Row reference arithmetic in SET clauses and row references in VALUES are not currently supported. Pass values as parameters instead. See xref:developing/cql/transactions-limitations.adoc[Transaction Limitations] for complete details on unsupported syntax and workarounds.
 
 [source,cql]
 ----
@@ -798,6 +798,8 @@ DELETE [columns] FROM table WHERE conditions;
 * Must target single partitions (no range operations)
 
 == Restrictions & Limitations for BEGIN TRANSACTION
+
+NOTE: For detailed information about common syntax that doesn't work and practical workarounds, see xref:developing/cql/transactions-limitations.adoc[Transaction Limitations].
 
 === Schema Restrictions
 
