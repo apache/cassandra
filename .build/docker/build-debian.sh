@@ -32,5 +32,5 @@ echo
 #
 # Creates the debian package
 
-$(dirname "$0")/_docker_run.sh bullseye-build.docker docker/_build-debian.sh $1
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker docker/_build-debian.sh $1
 exit $?

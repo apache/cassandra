@@ -267,7 +267,7 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
 
     run_kubectl_command(kubeconfig, kubecontext, kube_ns,
                         ["exec", DEFAULT_POD_NAME, "--",
-                        "curl", "-sS", "https://svn.apache.org/repos/asf/comdev/project-logos/originals/cassandra-6.svg",
+                        "curl", "-sS", "https://www.apache.org/logos/originals/cassandra-4.svg",
                         "-o", "/var/jenkins_cache/war/images/svgs/logo.svg"])
 
     if result.returncode != 0:

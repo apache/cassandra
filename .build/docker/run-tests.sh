@@ -21,10 +21,24 @@
 
 [ $DEBUG ] && set -x
 
+# variables, with defaults
+[ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname -- "$0")/../..)"
+[ "x${cassandra_dtest_dir}" != "x" ] || cassandra_dtest_dir="${cassandra_dir}/../cassandra-dtest"
+[ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
+[ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
+[ "x${docker_timeout_hours}" != "x" ] || docker_timeout_hours="1"
+[ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }
+[ -d "${m2_dir}" ] || { mkdir -p "${m2_dir}" ; }
+
+# source TARGET_TYPES from the non-docker scripts
+_target_test_types="$(grep '^TARGET_TYPES=' "${cassandra_dir}/.build/run-tests.sh" | cut -d'"' -f2)"
+_target_dtest_types="$(cd ${cassandra_dir}; bash <(sed -n "/^TARGET_TYPES=/,/^done$/p" .build/run-python-dtests.sh; echo 'echo ${TARGET_TYPES}'))"
+TARGET_TYPES="${_target_test_types} ${_target_dtest_types}"
+
 print_help() {
   echo ""
   echo "Usage: $0 [-a|-t|-c|-j|-h] [extra arguments]"
-  echo "   -a Test target type: test, test-compression, test-cdc, ..."
+  echo "   -a Test target type: ${TARGET_TYPES}"
   echo "   -t Test name regexp to run."
   echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
   echo "   -j Java version. Default java_version is what 'java.default' specifies in build.xml."
@@ -39,21 +53,20 @@ error() {
 }
 
 # legacy argument handling
-case ${1} in
-  "build_dtest_jars" | "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
-    test_type="-a ${1}"
-    if [[ -z ${2} ]]; then
-      test_list=""
-    elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
-      test_list="-c ${2}";
-    else
-      test_list="-t ${2}";
-    fi
-    if [[ -n ${3} ]]; then java_version="-j ${3}"; else java_version=""; fi
-    echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version}"
-    $0 ${test_type} ${test_list} ${java_version}
-    exit $?
-esac
+if [[ " ${TARGET_TYPES} " =~ " ${1} " ]]; then
+  test_type="-a ${1}"
+  if [[ -z ${2} ]]; then
+    test_list=""
+  elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
+    test_list="-c ${2}";
+  else
+    test_list="-t ${2}";
+  fi
+  if [[ -n ${3} ]]; then java_version="-j ${3}"; else java_version=""; fi
+  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version}"
+  $0 ${test_type} ${test_list} ${java_version}
+  exit $?
+fi
 
 env_vars=""
 while getopts ":a:t:c:e:hj:" opt; do
@@ -61,6 +74,7 @@ while getopts ":a:t:c:e:hj:" opt; do
   # Invalid flags check disabled as we'll pass them to other scripts
   case $opt in
     a ) test_target="$OPTARG"
+        [[ " ${TARGET_TYPES} " =~ " ${test_target/-repeat/} " ]] || error 1 "Invalid test target type '${test_target}'. Valid types: ${TARGET_TYPES}"
         ;;
     t ) test_name_regexp="$OPTARG"
         ;;
@@ -78,14 +92,6 @@ while getopts ":a:t:c:e:hj:" opt; do
         ;;
   esac
 done
-
-# variables, with defaults
-[ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname "$0")/../..)"
-[ "x${cassandra_dtest_dir}" != "x" ] || cassandra_dtest_dir="${cassandra_dir}/../cassandra-dtest"
-[ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
-[ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
-[ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }
-[ -d "${m2_dir}" ] || { mkdir -p "${m2_dir}" ; }
 
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { error 1 "docker needs to be installed"; }
@@ -186,14 +192,14 @@ case ${test_target/-repeat/} in
         [[ ${mem} -gt $((1 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 1g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     # test-burn doesn't have enough tests in it to split beyond 8, and burn and long we want a bit more resources anyway
-    "microbench" | "test-burn" | "long-test" | "cqlsh-test" )
+    "test-burn" | "long-test" | "cqlsh-test" )
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
-    "simulator-dtest")
+    "microbench" | "microbench-test" | "simulator-dtest")
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
         docker_flags="-m 15g --memory-swap 15g"
     ;;
-    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-large-latest" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
+    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-large-latest" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-large-novnode" | "dtest-large-novnode-latest")
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { error 1 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; }
         test_script="run-python-dtests.sh"
         docker_mounts="${docker_mounts} -v ${cassandra_dtest_dir}:/home/cassandra/cassandra-dtest"
@@ -204,7 +210,7 @@ case ${test_target/-repeat/} in
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     *)
-        error 1 "unrecognized test type \"${target}\""
+        error 1 "docker resource limits unconfigured for test type \"${target}\""
     ;;
 esac
 
@@ -231,7 +237,7 @@ chmod -R ag+rwx "${build_dir}"
 
 # define testtag.extra so tests can be aggregated together. (jdk is already appended in build.xml)
 case "${target}" in
-    "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-novnode-large" )
+    "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-large-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
         # intentionally not TMP_DIR
         DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
@@ -286,7 +292,7 @@ docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_versi
             \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh -a ${target} ${split_chunk_arg} ${test_name_regexp_arg} ${env_vars} ; exit \$?"
 
 # start the container, timeout after 4 hours
-docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_envs} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep 4h)
+docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_envs} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep ${docker_timeout_hours}h)
 
 echo "Running container ${container_name} ${docker_id}"
 

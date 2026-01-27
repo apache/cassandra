@@ -18,5 +18,5 @@
 #
 # Build the jars
 
-$(dirname "$0")/_docker_run.sh bullseye-build.docker build-jars.sh $1
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker build-jars.sh $1
 exit $?

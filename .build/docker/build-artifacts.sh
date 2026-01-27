@@ -18,5 +18,5 @@
 #
 # Creates the tarball artifact
 
-$(dirname "$0")/_docker_run.sh bullseye-build.docker build-artifacts.sh $1
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker build-artifacts.sh $1
 exit $?

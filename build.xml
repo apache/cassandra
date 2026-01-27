@@ -1981,14 +1981,6 @@
       </concat>
   </target>
 
-  <target name="microbench" depends="jar">
-    <antcall target="-microbench" inheritrefs="true"/>
-  </target>
-
-  <target name="microbench-with-profiler" depends="jar">
-    <antcall target="-microbench-with-profiler" inheritrefs="true"/>
-  </target>
-
   <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
       ant run-main -Dmainclass=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dvmargs="-Xmx30m -XX:-UseGCOverheadLimit"
   -->

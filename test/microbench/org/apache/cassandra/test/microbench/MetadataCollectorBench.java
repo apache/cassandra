@@ -36,6 +36,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundary;
@@ -70,6 +71,7 @@ public class MetadataCollectorBench
     @Setup
     public void setup()
     {
+        CQLTester.setUpClass();
         TableMetadata.Builder tableMetadataBuilder = TableMetadata.builder("k", "t")
                                                                   .addPartitionKeyColumn("pk", LongType.instance)
                                                                   .addRegularColumn("rc", LongType.instance);

@@ -27,8 +27,11 @@ set -o pipefail
 [ $DEBUG ] && set -x
 
 # variables, with defaults
-[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
+
+# target types
+TARGET_TYPES="build_dtest_jars stress-test fqltool-test sstableloader-test microbench microbench-test test-burn long-test cqlsh-test simulator-dtest test test-cdc test-compression test-oa test-system-keyspace-directory test-latest jvm-dtest jvm-dtest-upgrade jvm-dtest-novnode jvm-dtest-upgrade-novnode"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { error 1 "ant needs to be installed"; }
@@ -47,7 +50,7 @@ error() {
 
 print_help() {
   echo "Usage: $0 [-a|-t|-c|-e|-i|-b|-s|-h]"
-  echo "   -a Test target type: test, test-compression, test-cdc, ..."
+  echo "   -a Test target type: ${TARGET_TYPES}"
   echo "   -t Test name regexp to run."
   echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
@@ -65,20 +68,19 @@ print_help() {
 
 
 # legacy argument handling
-case ${1} in
-  "build_dtest_jars" | "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
-    test_type="-a ${1}"
-    if [[ -z ${2} ]]; then
-      test_list=""
-    elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
-      test_list="-c ${2}";
-    else
-      test_list="-t ${2}";
-    fi
-    echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list}"
-    $0 ${test_type} ${test_list}
-    exit $?
-esac
+if [[ " ${TARGET_TYPES} " =~ " ${1} " ]]; then
+  test_type="-a ${1}"
+  if [[ -z ${2} ]]; then
+    test_list=""
+  elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
+    test_list="-c ${2}";
+  else
+    test_list="-t ${2}";
+  fi
+  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list}"
+  $0 ${test_type} ${test_list}
+  exit $?
+fi
 
 
 env_vars=""
@@ -88,6 +90,7 @@ detect_changed_tests=true
 while getopts "a:t:c:e:ib:shj:" opt; do
   case $opt in
     a ) test_target="$OPTARG"
+        [[ " ${TARGET_TYPES} " =~ " ${test_target/-repeat/} " ]] || error 1 "Invalid test target type '${test_target}'. Valid types: ${TARGET_TYPES}"
         ;;
     t ) test_name_regexp="$OPTARG"
         ;;
@@ -349,8 +352,9 @@ _main() {
       ant sstableloader-build-test ${ANT_TEST_OPTS}
       ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
-    "microbench")
-      ant $target ${ANT_TEST_OPTS} -Dmaven.test.failure.ignore=true
+    "microbench" | "microbench-test")
+      [[ "x${test_name_regexp}" != "x" ]] && test_name_regexp="-Dbenchmark.name=${test_name_regexp}"
+      ant $target ${ANT_TEST_OPTS} ${test_name_regexp} -Dmaven.test.failure.ignore=true
       ;;
     "test")
       _run_testlist "unit" "testclasslist" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.timeout')" "${repeat_count}"
@@ -413,7 +417,7 @@ _main() {
       ./pylib/cassandra-cqlsh-tests.sh $(pwd)
       ;;
     *)
-      error 1 "unrecognized test type \"${target}\""
+      error 1 "unconfigured build command for test type \"${target}\""
       ;;
   esac
 

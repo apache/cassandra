@@ -20,4 +20,4 @@
 
 export CASSANDRA_DOCKER_ANT_OPTS="-Ddependency-check.home.base=/tmp"
 
-$(dirname "$0")/_docker_run.sh bullseye-build.docker check-code.sh $1
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker check-code.sh $1

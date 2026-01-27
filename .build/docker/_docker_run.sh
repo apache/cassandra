@@ -29,7 +29,7 @@
 [ $DEBUG ] && set -x
 
 # variables, with defaults
-[ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname "$0")/../..)"
+[ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname -- "$0")/../..)"
 [ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
 [ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
 [ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }

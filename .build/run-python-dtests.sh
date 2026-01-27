@@ -27,11 +27,24 @@
 
 [ $DEBUG ] && set -x
 
+# target types
+TARGET_TYPES="dtest dtest-upgrade"
+for base in ${TARGET_TYPES}; do
+  for large in "" "-large"; do
+    for novnode in "" "-novnode"; do
+      for latest in "" "-latest"; do
+        variant="${large}${novnode}${latest}"
+        [[ -n "${variant}" ]] && TARGET_TYPES="${TARGET_TYPES} ${base}${variant}"
+      done
+    done
+  done
+done
+
 # help
 if [ "$#" -lt 1 ] || [ "$1" == "-h" ]; then
     echo ""
     echo "Usage: $0 [-a|-t|-c|-j|-h]"
-    echo "   -a Test target type: dtest, dtest-latest, ..."
+    echo "   -a Test target type: ${TARGET_TYPES}"
     echo "   -t Test name regexp to run."
     echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
     echo ""
@@ -46,6 +59,7 @@ DTEST_TARGET="dtest"
 while getopts "a:t:c:hj:" opt; do
   case $opt in
     a ) DTEST_TARGET="$OPTARG"
+        [[ " ${TARGET_TYPES} " =~ " ${DTEST_TARGET/-repeat/} " ]] || error 1 "Invalid test target type '${DTEST_TARGET}'. Valid types: ${TARGET_TYPES}"
         ;;
     t ) DTEST_SPLIT_CHUNK="$OPTARG"
         ;;
@@ -65,7 +79,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 # variables, with defaults
-[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="$(readlink -f ${CASSANDRA_DIR}/../cassandra-dtest)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 [ "x${TMPDIR}" != "x" ] || { TMPDIR_SET=1 && export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)" ; }
@@ -87,7 +101,7 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 command -v virtualenv >/dev/null 2>&1 || { echo >&2 "virtualenv needs to be installed"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 [ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
-ALLOWED_DTEST_VARIANTS="novnode|large|latest|upgrade"
+ALLOWED_DTEST_VARIANTS="large|latest|upgrade|novnode|latest"
 [[ "${DTEST_TARGET}" =~ ^dtest(-(${ALLOWED_DTEST_VARIANTS}))*$ ]] || { echo >&2 "Unknown dtest target: ${DTEST_TARGET}. Allowed variants are ${ALLOWED_DTEST_VARIANTS}"; exit 1; }
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')

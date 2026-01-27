@@ -22,7 +22,7 @@
 ################################
 
 # variables, w/ defaults, w/ checks
-[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 [ "x${RPM_BUILD_DIR}" != "x" ] || RPM_BUILD_DIR="$(mktemp -d /tmp/rpmbuild.XXXXXX)"
 

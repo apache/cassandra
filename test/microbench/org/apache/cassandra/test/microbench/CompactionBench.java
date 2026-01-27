@@ -80,7 +80,7 @@ public class CompactionBench extends CQLTester
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        CQLTester.prepareServer();
+        CQLTester.setUpClass();
         DatabaseDescriptor.setCursorCompactionEnabled(isCursor);
         DatabaseDescriptor.setCompactionThroughputMebibytesPerSec(10*1024); // no rate limiting
         createSStables();

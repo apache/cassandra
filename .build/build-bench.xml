@@ -41,11 +41,22 @@
     <property name="test.profiler.opts.default" value="event=cpu;threads=true;output=flamegraph;simple=true;ann=true"/>
     <property name="test.profiler.output" value="${build.test.dir}/profiler"/>
 
-    <target name="-microbench">
+    <target name="microbench" depends="maybe-build-test">
         <jmh/>
     </target>
 
-    <target name="-microbench-with-profiler" depends="-fetch-async-profiler">
+    <target name="microbench-test" depends="maybe-build-test" description="test each microbench runs once">
+        <!-- Only used to test jmh classes run without error.  Not to be used for actual performance tests -->
+        <jmh>
+            <extra-args>
+                <arg value="-f"/><arg value="1"/>
+                <arg value="-wi"/><arg value="0"/>
+                <arg value="-i"/><arg value="1"/>
+            </extra-args>
+        </jmh>
+    </target>
+
+    <target name="microbench-with-profiler" depends="maybe-build-test,-fetch-async-profiler">
         <condition property="test.profiler.opts" value="${test.profiler.opts.default}" else="${profiler.opts}">
             <or>
                 <not>
@@ -83,6 +94,10 @@
                 <jvmarg line="${_std-test-jvmargs}"/>
                 <jvmarg line="${test.jvm.args}"/>
 
+                <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+                <!-- note! this is used for both the JMH runner and VMH fork -->
+                <jvmarg value="-Xmx1G"/>
+
                 <arg value="-foe"/>
                 <arg value="true"/>
                 <arg value="-rf"/>
@@ -97,8 +112,9 @@
                 <extra-args/>
 
                 <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
+                <!-- The classes listed below are broken, and so currently ignored, see CASSANDRA-18873 -->
                 <arg value="-e" if:blank="${benchmark.name}"/>
-                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench" if:blank="${benchmark.name}"/>
+                <arg value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|CompactionWideRowBench|FastThreadLocalBench|KeyLookupBench|(instance.*Bench)|LatencyTrackingBench|MessageOutBench|MutationBench|ReadWriteBench|SSTablePipeCursorBench|SSTableReadingCursorBench|SSTableReadingFileBench|SSTableReadingFileCursorBench|ZeroCopyStreamingBench" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>
