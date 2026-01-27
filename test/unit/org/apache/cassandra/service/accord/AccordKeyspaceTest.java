@@ -75,7 +75,7 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import static accord.local.Command.Committed.committed;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat;
+import static org.apache.cassandra.config.TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.setMemtable;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -147,7 +147,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         qt().check(rs -> {
             AccordKeyspace.unsafeClear();
             // control SSTable format
-            setSelectedSSTableFormat(sstableFormats.get(rs.pick(sstableFormatNames)));
+            setUnsafeSelectedSSTableFormat(sstableFormats.get(rs.pick(sstableFormatNames)));
             // control memtable format
             setMemtable(ACCORD_KEYSPACE_NAME, "commands_for_key", rs.pick(memtableFormats));
 

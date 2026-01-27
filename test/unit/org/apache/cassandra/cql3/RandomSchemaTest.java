@@ -37,6 +37,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CursorCompactor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -79,7 +80,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
             resetSchema();
 
             // TODO : when table level override of sstable format is allowed, migrate to that
-            if (!STRESS_CURSOR_COMPACTION) DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatGen.generate(random));
+            if (!STRESS_CURSOR_COMPACTION) TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(sstableFormatGen.generate(random));
 
             Gen<String> udtName = Generators.unique(IDENTIFIER_GEN);
 

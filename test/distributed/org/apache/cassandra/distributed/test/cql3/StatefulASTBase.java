@@ -49,6 +49,7 @@ import accord.utils.RandomSource;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
@@ -442,7 +443,7 @@ public class StatefulASTBase extends TestBaseImpl
             createTable(metadata);
 
             String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
-            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatName)));
+            cluster.forEach(i -> i.runOnInstance(() -> TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(sstableFormatName)));
         }
 
         public boolean hasPartitions()

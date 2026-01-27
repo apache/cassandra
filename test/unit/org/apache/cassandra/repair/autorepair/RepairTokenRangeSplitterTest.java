@@ -38,6 +38,7 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DataStorageSpec.LongMebibytesBound;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -94,7 +95,7 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     public void setUp()
     {
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(RepairType.FULL, true);
-        DatabaseDescriptor.setSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(sstableFormat));
+        TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(DatabaseDescriptor.getSSTableFormats().get(sstableFormat));
         repairRangeSplitter = new RepairTokenRangeSplitter(RepairType.FULL, Collections.emptyMap());
         tableName = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT)");
         // ensure correct format is selected.
