@@ -468,6 +468,37 @@ BEGIN TRANSACTION
 COMMIT TRANSACTION
 ----
 
+==== IF column = null (NULL Comparison)
+
+[IMPORTANT]
+====
+LWT and Accord handle `IF column = null` differently. See <<Null Handling>> for complete details.
+====
+
+LWT treats `column = null` as "column is null," but Accord follows SQL semantics where `column = null` is always FALSE.
+
+**Before (LWT):**
+[source,cql]
+----
+-- LWT: Matches when email is null/missing
+UPDATE users SET email = 'default@example.com'
+WHERE id = ?
+IF email = null;
+----
+
+**After (Accord):**
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT email FROM users WHERE id = ?);
+
+  -- Must use IS NULL, not = null
+  IF user_data IS NOT NULL AND user_data.email IS NULL THEN
+    UPDATE users SET email = 'default@example.com' WHERE id = ?;
+  END IF
+COMMIT TRANSACTION
+----
+
 ==== Complex CAS with Multiple Operations
 
 **Before (Multiple LWT operations with race condition risk):**
@@ -565,33 +596,123 @@ COMMIT TRANSACTION
 
 === Null Handling
 
-Transactions use strict null semantics, different from Paxos CAS:
+[IMPORTANT]
+====
+Accord transactions follow SQL standard null semantics, which differ from LWT (Paxos) behavior. This is a critical difference when migrating from LWT to Accord.
+====
 
+==== LWT vs Accord: NULL Comparison Behavior
+
+|===
+| Condition | Column Value | LWT (Paxos) Result | Accord Result
+
+| `IF column = null`
+| Column is NULL/missing
+| **TRUE** (matches)
+| **FALSE** (never matches)
+
+| `IF column = null`
+| Column has a value
+| FALSE
+| FALSE
+
+| `IF column IS NULL`
+| Column is NULL/missing
+| TRUE
+| TRUE
+
+| `IF column != null`
+| Column is NULL/missing
+| FALSE
+| **FALSE** (null comparisons always false)
+
+| `IF column != null`
+| Column has a value
+| TRUE
+| TRUE
+|===
+
+==== Why the Difference?
+
+**LWT (Paxos) behavior:** LWT treats `column = null` as a special case meaning "column is null or missing." This is a Cassandra-specific convenience that deviates from SQL standards.
+
+**Accord behavior:** Accord follows SQL standard semantics where `NULL` represents an unknown value. Comparing anything to `NULL` using `=`, `!=`, `<`, `>`, etc. always returns `FALSE` (or more precisely, `UNKNOWN`, which is treated as `FALSE` in conditionals). This is because you cannot know if an unknown value equals another value.
+
+==== Migration from LWT
+
+If your LWT code uses `IF column = null`, you must update it when migrating to Accord:
+
+**Before (LWT):**
 [source,cql]
 ----
--- CAS behavior (Paxos): balance = null returns true when balance IS null
+-- LWT: This returns TRUE when balance is null/missing
 UPDATE users SET balance = 100 WHERE id = ? IF balance = null;
 ----
 
-In transactions, `balance = null` is always FALSE. Use `IS NULL` instead:
-
+**After (Accord):**
 [source,cql]
 ----
 BEGIN TRANSACTION
   LET user_data = (SELECT balance FROM users WHERE id = ?);
 
-  -- Check for null, then check value
+  -- Use IS NULL for null checks
   IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
     UPDATE users SET balance = 100 WHERE id = ?;
   END IF
 COMMIT TRANSACTION
 ----
 
-**Null Propagation Rules:**
+TIP: Null checks are recursive. If `user_data` is null (row doesn't exist), then `user_data.balance` is also null. So `IF user_data.balance IS NULL` will be true both when the row doesn't exist AND when the row exists but the column is null. Use `user_data IS NOT NULL` first only if you need to distinguish between these cases.
 
-* Any comparison with null returns false (except IS NULL/IS NOT NULL)
+==== Common Patterns
+
+**Check if a column is null (row missing OR column unset):**
+[source,cql]
+----
+IF user_data.balance IS NULL THEN
+  -- Either row doesn't exist, OR row exists but balance is null
+END IF
+----
+
+**Check if a row exists (regardless of column value):**
+[source,cql]
+----
+IF user_data IS NOT NULL THEN
+  -- Row exists (balance could be null or have a value)
+END IF
+----
+
+**Check if a column is null but row exists:**
+[source,cql]
+----
+IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
+  -- Row exists AND balance is null (distinguishes from missing row)
+END IF
+----
+
+**Check if a column has a specific value:**
+[source,cql]
+----
+IF user_data IS NOT NULL AND user_data.balance = 100 THEN
+  -- Row exists AND balance equals 100
+END IF
+----
+
+**Check if a row does not exist:**
+[source,cql]
+----
+IF user_data IS NULL THEN
+  -- Row does not exist
+END IF
+----
+
+==== Null Propagation Rules
+
+* Any comparison with null using `=`, `!=`, `<`, `>`, `<=`, `>=` returns **FALSE**
+* Only `IS NULL` and `IS NOT NULL` can meaningfully test for null
 * Arithmetic operations with null return null
 * Null columns in row references return null (not errors)
+* Accessing a field on a null row reference (e.g., `missing_row.column`) returns null
 
 === Multi-Partition Coordination
 
