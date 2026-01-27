@@ -264,14 +264,13 @@ public class AsyncProfilerServiceTest
     }
 
     @Test
-    public void testProfilerDisabledThrowsException()
+    public void testProfilerDisabledReturnsMessage()
     {
         try (WithProperties properties = new WithProperties().set(ASYNC_PROFILER_UNSAFE_MODE, true).set(ASYNC_PROFILER_ENABLED, false))
         {
-            assertThatThrownBy(() -> {
-                AsyncProfilerService profiler = getProfiler(true);
-                profiler.status();
-            }).hasMessageContaining("Async Profiler is not enabled. Enable it by setting cassandra.async_profiler.enabled property to true.");
+            AsyncProfilerService profiler = getProfiler(true);
+            String status = profiler.status();
+            assertTrue(status.contains("Async Profiler is not enabled. Enable it by setting " + ASYNC_PROFILER_ENABLED.getKey() + " property to true."));
         }
     }
 
