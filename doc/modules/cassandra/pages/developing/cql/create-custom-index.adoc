@@ -5,7 +5,7 @@ include::cassandra:partial$sai/support-databases.adoc[]
 
 Creates a Storage-Attached Indexing (SAI) index.
 You can create multiple secondary indexes on the same database table, with each SAI index based on any column in the table.
-All column date types except the following are supported for SAI indexes:
+All column data types except the following are supported for SAI indexes:
 
 * `counter`
 * geospatial types: `PointType`, `LineStringType`, `PolygonType`
