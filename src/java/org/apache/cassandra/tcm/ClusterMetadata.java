@@ -32,6 +32,7 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -52,6 +53,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.CMSIdentifierMismatchException;
 import org.apache.cassandra.schema.DistributedSchema;
@@ -73,7 +75,6 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
@@ -119,7 +120,8 @@ public class ClusterMetadata
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
     private Set<NodeId> fullCMSIds;
-    private DataPlacements writePlacementAllSettled;
+    private volatile Map<ReplicationParams, RangesAtEndpoint> localRangesAllSettled = null;
+    private static final RangesAtEndpoint EMPTY_LOCAL_RANGES = RangesAtEndpoint.empty(FBUtilities.getBroadcastAddressAndPort());
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -317,21 +319,72 @@ public class ClusterMetadata
         return epoch.nextEpoch();
     }
 
-    public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
+    public RangesAtEndpoint localWriteRangesAllSettled(KeyspaceMetadata ksm)
     {
-        if (writePlacementAllSettled == null)
+        // Local strategy ranges are constant
+        if (ksm.params.replication.isLocal())
+            return localWriteRanges(ksm);
+
+        if (localRangesAllSettled != null)
+            return localRangesAllSettled.getOrDefault(ksm.params.replication, EMPTY_LOCAL_RANGES);
+
+        ClusterMetadata metadata = this;
+        NodeId localId = metadata.myNodeId();
+        synchronized (this)
         {
-            ClusterMetadata metadata = this;
-            Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
-            while (iter.hasNext())
+            if (localRangesAllSettled != null)
+                return localRangesAllSettled.get(ksm.params.replication);
+
+            Map<ReplicationParams, RangesAtEndpoint> builder = Maps.newHashMapWithExpectedSize(this.placements.size());
+            DataPlacements settled = placementsAllSettledForNode(localId, metadata);
+            settled.forEach((replication, placement) -> {
+                builder.put(replication, placement.writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()));
+            });
+            localRangesAllSettled = builder;
+        }
+        return localRangesAllSettled.getOrDefault(ksm.params.replication, EMPTY_LOCAL_RANGES);
+    }
+
+    /**
+     * Run through all inflight MultiStepOperations in the supplied metadata and if any impact the specifed node,
+     * apply their metadata transformations. Only used outside of tests by @{link localWriteRangesAllSettled} to
+     * identify how placements for the local node will be affected by in flight operations. In that case, the result
+     * is cached so this should be called at most once for a given ClusterMetadata instance.
+     */
+    @VisibleForTesting
+    public static DataPlacements placementsAllSettledForNode(NodeId peer, ClusterMetadata metadata)
+    {
+        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+        while (iter.hasNext())
+        {
+            MultiStepOperation<?> operation = iter.next();
+            // Check whether the MSO materially affects the local ranges of the target node.
+            boolean isRelevantOperation = operationAffectsLocalRangesOfPeer(peer,
+                                                                            operation,
+                                                                            metadata.directory);
+            if (isRelevantOperation)
             {
-                Transformation.Result result = iter.next().applyTo(metadata);
+                logger.debug("Operation {} affects node {}, calculating local ranges after application",
+                             operation.sequenceKey(), peer);
+                Transformation.Result result = operation.applyTo(metadata);
                 assert result.isSuccess();
                 metadata = result.success().metadata;
             }
-            writePlacementAllSettled = metadata.placements;
         }
-        return writePlacementAllSettled.get(ksm.params.replication);
+        return metadata.placements;
+    }
+
+    public static boolean operationAffectsLocalRangesOfPeer(NodeId peer,
+                                                            MultiStepOperation<?> operation,
+                                                            Directory directory)
+    {
+        return operation.affectedPeers(directory).contains(peer);
+    }
+
+    @VisibleForTesting
+    public void unsafeClearLocalRangesAllSettled()
+    {
+        localRangesAllSettled = null;
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
@@ -352,14 +405,14 @@ public class ClusterMetadata
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
-    public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
+    public RangesAtEndpoint localWriteRanges(KeyspaceMetadata metadata)
     {
         return writeRanges(metadata, FBUtilities.getBroadcastAddressAndPort());
     }
 
-    public Collection<Range<Token>> writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
+    public RangesAtEndpoint writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
     {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer).ranges();
+        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges

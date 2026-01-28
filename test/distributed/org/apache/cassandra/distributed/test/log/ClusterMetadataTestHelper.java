@@ -1018,6 +1018,12 @@ public class ClusterMetadataTestHelper
     {
         return prepareLeave(nodeId(idx));
     }
+
+    public static PrepareLeave prepareLeave(int idx, boolean force)
+    {
+        return new PrepareLeave(nodeId(idx), force, new UniformRangePlacement(), LeaveStreams.Kind.UNBOOTSTRAP);
+    }
+
     public static PrepareLeave prepareLeave(NodeId nodeId)
     {
         return new PrepareLeave(nodeId,
@@ -1026,10 +1032,15 @@ public class ClusterMetadataTestHelper
                                 LeaveStreams.Kind.UNBOOTSTRAP);
     }
 
+    public static PrepareMove prepareMove(int idx, Token newToken)
+    {
+        return prepareMove(nodeId(idx), newToken);
+    }
+
     public static PrepareMove prepareMove(NodeId id, Token newToken)
     {
         return new PrepareMove(id,
-                               Collections.singleton(Murmur3Partitioner.instance.getRandomToken()),
+                               Collections.singleton(newToken),
                                new UniformRangePlacement(),
                                false);
     }
@@ -1101,6 +1112,11 @@ public class ClusterMetadataTestHelper
     public static BootstrapAndReplace getReplacePlan(NodeId nodeId, ClusterMetadata metadata)
     {
         return (BootstrapAndReplace) metadata.inProgressSequences.get(nodeId);
+    }
+
+    public static Move getMovePlan(int peer)
+    {
+        return getMovePlan(addr(peer));
     }
 
     public static Move getMovePlan(InetAddressAndPort addr)

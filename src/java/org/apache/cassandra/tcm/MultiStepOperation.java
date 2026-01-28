@@ -19,9 +19,17 @@
 package org.apache.cassandra.tcm;
 
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
@@ -57,6 +65,8 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
  */
 public abstract class MultiStepOperation<CONTEXT>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MultiStepOperation.class);
+
     public enum Kind
     {
         @Deprecated(since = "CEP-21")
@@ -154,6 +164,39 @@ public abstract class MultiStepOperation<CONTEXT>
      * Apply the remaining steps of this MSO - resulting metadata will have epoch = metadata.epoch + 1
      */
     public abstract Transformation.Result applyTo(ClusterMetadata metadata);
+
+    /**
+     * Return the id of any peer known to be involved in the execution of the operation.
+     * For example, in the case of a new node bootstrapping this would include all current and proposed replicas of the
+     * affected ranges.
+     * Important: this currently requires a Directory to be supplied as many MSO implementations are endpoint-centric
+     * The directory is used to convert endpoints to node ids, but this will become unnecessary as placements & deltas
+     * evolve away from endpoints to use ids directly.
+     * @return Node ids of the peers involved in the operation
+     */
+    public abstract Set<NodeId> affectedPeers(Directory directory);
+
+    /**
+     * Helper method for affectedPeers implementations to convert from endpoints to node ids
+     * @return set of node ids which map to the supplied endpoints using the directory. Any endpoints without a
+     *         corresponding id are ignored
+     */
+    protected Set<NodeId> endpointsToIds(Set<InetAddressAndPort> endpoints, Directory directory)
+    {
+        Set<NodeId> affectedNodes = Sets.newHashSetWithExpectedSize(endpoints.size());
+        for (InetAddressAndPort endpoint : endpoints)
+        {
+            NodeId id = directory.peerId(endpoint);
+            // TODO should we error here?
+            if (id == null)
+                logger.warn("No node id found for endpoint {} in directory with epoch {} " +
+                            "by MultiStepOperation {} with sequence key {}",
+                            endpoint, directory.lastModified().getEpoch(), kind(), sequenceKey());
+            else
+                affectedNodes.add(id);
+        }
+        return affectedNodes;
+    }
 
     /**
      * Helper method for the standard applyTo implementations where we just execute a list of transformations, starting at `next`

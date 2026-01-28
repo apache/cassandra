@@ -96,11 +96,11 @@ public class DropAccordTableTest
 
             cms.commit(new PrepareDropAccordTable(table));
 
-            // This is only here because "applyTo" is not touched without it...
-            for (KeyspaceMetadata ks : cms.metadata().schema.getKeyspaces())
-                cms.metadata().writePlacementAllSettled(ks);
-
             Assertions.assertThat(cms.metadata().inProgressSequences.isEmpty()).isFalse();
+            MultiStepOperation<?> operation = cms.metadata().inProgressSequences.get(table);
+            Assertions.assertThat(operation).isNotNull();
+            Assertions.assertThat(operation.kind() == MultiStepOperation.Kind.DROP_ACCORD_TABLE).isTrue();
+
             InProgressSequences.finishInProgressSequences(table);
             Assertions.assertThat(cms.metadata().inProgressSequences.isEmpty()).isTrue();
 

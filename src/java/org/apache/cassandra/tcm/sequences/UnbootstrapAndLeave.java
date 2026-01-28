@@ -19,7 +19,9 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -31,12 +33,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -154,6 +158,16 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
         return applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave));
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
+        affectedEndpoints.addAll(startLeave.affectedEndpoints());
+        affectedEndpoints.addAll(midLeave.affectedEndpoints());
+        affectedEndpoints.addAll(finishLeave.affectedEndpoints());
+        return endpointsToIds(affectedEndpoints, directory);
     }
 
     @Override

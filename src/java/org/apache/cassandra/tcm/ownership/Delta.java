@@ -19,10 +19,13 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -50,6 +53,13 @@ public class Delta
     public Delta onlyRemovals()
     {
         return new Delta(removals, RangesByEndpoint.EMPTY);
+    }
+
+    public Set<InetAddressAndPort> allEndpoints()
+    {
+        Set<InetAddressAndPort> endpoints = new HashSet<>(removals.keySet());
+        endpoints.addAll(additions.keySet());
+        return endpoints;
     }
 
     /**

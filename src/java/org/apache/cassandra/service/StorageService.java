@@ -418,7 +418,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Collection<Range<Token>> getLocalAndPendingRanges(String ks)
     {
-        return ClusterMetadata.current().localWriteRanges(Keyspace.open(ks).getMetadata());
+        return ClusterMetadata.current().localWriteRanges(Keyspace.open(ks).getMetadata()).ranges();
     }
 
     public OwnedRanges getNormalizedLocalRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
