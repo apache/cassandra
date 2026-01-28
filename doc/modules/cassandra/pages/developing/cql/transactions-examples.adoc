@@ -7,7 +7,7 @@ For basic syntax, getting started, and migration guides, see xref:developing/cql
 
 == Pattern: Synchronous Unique Constraints
 
-Cassandra's primary key enforces uniqueness, but what if you need uniqueness on a non-primary-key column like `email` or `username`? This pattern uses sidecar index tables to enforce multiple unique constraints atomically.
+Cassandra's primary key enforces uniqueness, but what if you need uniqueness on a non-primary-key column like `email` or `username`? This pattern uses user-maintained lookup tables to enforce multiple unique constraints atomically.
 
 === The Challenge
 

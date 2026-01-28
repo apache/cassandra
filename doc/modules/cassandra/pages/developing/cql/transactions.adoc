@@ -28,7 +28,7 @@ While normal CQL operations are automatically transactional with `transactional_
 
 Accord ensures data integrity through:
 
-* **Snapshot Isolation**: Each transaction sees a consistent snapshot of data
+* **Strict Serializability**: Transactions execute as if in a single, total order that respects real-time ordering
 * **Conflict Detection**: Automatic handling of concurrent access to the same data
 * **Atomic Commitment**: All changes commit together or none at all
 * **Durable Writes**: Committed transactions survive node failures
@@ -640,7 +640,9 @@ Accord transactions follow SQL standard null semantics, which differ from LWT (P
 
 ==== Migration from LWT
 
-If your LWT code uses `IF column = null`, you must update it when migrating to Accord:
+If your LWT code uses `IF column = null`, you must update it when migrating to Accord transaction syntax.
+
+NOTE: This does not affect LWT statements executed on Accord-enabled tables. Those statements retain their original LWT null semantics.
 
 **Before (LWT):**
 [source,cql]
@@ -945,7 +947,7 @@ LET receiver_data = (SELECT balance FROM accounts WHERE user_id = 2);
 
 **High latency investigation:**
 
-. Check transaction complexity (LET count < 5, partitions < 3)
+. Check transaction complexity (LET count < 5, partitions < 3)footnote:[These are suggested starting points, not empirically derived limits.]
 . Monitor cross-datacenter operations
 . Check for high contention on specific keys
 
