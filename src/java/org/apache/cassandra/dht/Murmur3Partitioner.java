@@ -34,6 +34,8 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 import accord.primitives.Ranges;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -398,6 +400,7 @@ public class Murmur3Partitioner implements IPartitioner
         return value ^ 0x8000000000000000L;
     }
 
+    @Inline // inline to help JIT with escape analysis and long[] heap allocation elimination
     private long[] getHash(ByteBuffer key)
     {
         long[] hash = new long[2];
@@ -405,6 +408,7 @@ public class Murmur3Partitioner implements IPartitioner
         return hash;
     }
 
+    @Inline // inline to help JIT with escape analysis and long[] heap allocation elimination
     private void populateHash(ByteBuffer key, long[] hash)
     {
         MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, hash);

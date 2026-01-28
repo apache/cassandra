@@ -39,12 +39,13 @@ public class SerializationHelper
     private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> regulars = null;
 
     // reusable fields to avoid extra allocation during cells processing
-    // within org.apache.cassandra.db.rows.UnfilteredSerializer.serializeRowBody
+    // within org.apache.cassandra.db.rows.UnfilteredSerializer.serializeRowBody and serializedRowBodySize
     int flags;
     LivenessInfo pkLiveness;
 
     DataOutputPlus out;
     SearchIterator<ColumnMetadata, ColumnMetadata> si;
+    boolean hasComplexDeletion;
 
     public SerializationHelper(SerializationHeader header)
     {

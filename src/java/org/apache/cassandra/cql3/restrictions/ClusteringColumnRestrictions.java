@@ -104,6 +104,14 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
+        // fast path, a typical case when a single full restriction is used
+        // for example, when we specify a single clustering key (a single row) to insert/update
+        if (restrictions.size() == 1 && !restrictions.hasIN())
+        {
+            SingleRestriction r = restrictions.lastRestriction();
+            List<ClusteringElements> values = r.values(options);
+            return MultiCBuilder.build(comparator, values);
+        }
         MultiCBuilder builder = new MultiCBuilder(comparator);
         for (SingleRestriction r : restrictions)
         {
