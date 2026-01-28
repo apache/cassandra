@@ -44,6 +44,10 @@ public class MutationTrackingSyncCoordinator
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingSyncCoordinator.class);
 
     private static final long EMPTY_TARGETS_TIMEOUT_MS = 3000;
+    // Must be >= TRANSIENT_BROADCAST_INTERVAL_MILLIS (200ms) + network buffer
+    // to ensure we receive at least one fresh broadcast from each participant
+    private static final long MIN_BROADCAST_WAIT_MS = 300;
+    private static final long PARTICIPANT_TIMEOUT_MS = 10000;
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final String keyspace;
@@ -192,7 +196,10 @@ public class MutationTrackingSyncCoordinator
         if (completed.get() || checkForTopologyChange())
             return;
 
-        if (hasNoTargets() && (System.currentTimeMillis() - startTimeMs) > EMPTY_TARGETS_TIMEOUT_MS)
+        long elapsedMs = System.currentTimeMillis() - startTimeMs;
+
+        // Handle the empty targets
+        if (hasNoTargets() && elapsedMs > EMPTY_TARGETS_TIMEOUT_MS)
         {
             logger.info("Sync coordinator completed for keyspace {} range {} - no targets discovered after {}ms",
                         keyspace, range, EMPTY_TARGETS_TIMEOUT_MS);
@@ -200,18 +207,46 @@ public class MutationTrackingSyncCoordinator
             return;
         }
 
-        // Wait until all participants have reported
-        if (!reportedParticipants.containsAll(allParticipants))
+        // Ensuring we have waited long enough for fresh broadcasts from all replicas - happens-before situation
+        if (elapsedMs < MIN_BROADCAST_WAIT_MS)
         {
-            logger.trace("Sync coordinator waiting for participants. Reported: {}, All: {}",
-                         reportedParticipants.size(), allParticipants.size());
+            long remainingMs = MIN_BROADCAST_WAIT_MS - elapsedMs + 10;
+            logger.trace("Sync coordinator waiting for broadcast cycle. Elapsed: {}ms, Required: {}ms",
+                         elapsedMs, MIN_BROADCAST_WAIT_MS);
+            scheduler.schedule(this::checkIfReadyToComplete, remainingMs, TimeUnit.MILLISECONDS);
             return;
         }
 
-        // All participants have reported, check if targets are reconciled
+        // Wait until all participants have reported or timeout
+        if (!reportedParticipants.containsAll(allParticipants))
+        {
+            if (elapsedMs < PARTICIPANT_TIMEOUT_MS)
+            {
+                logger.trace("Sync coordinator waiting for participants. Reported: {}, All: {}",
+                             reportedParticipants.size(), allParticipants.size());
+                // Schedule a retry to check again after timeout
+                long remainingMs = PARTICIPANT_TIMEOUT_MS - elapsedMs + 100;
+                scheduler.schedule(this::checkIfReadyToComplete, remainingMs, TimeUnit.MILLISECONDS);
+                return;
+            }
+
+            Set<InetAddressAndPort> missing = new HashSet<>(allParticipants);
+            missing.removeAll(reportedParticipants);
+            logger.warn("Sync coordinator timed out waiting for participants: {}. Proceeding with available offsets.",
+                        missing);
+        }
+
+        // All participants have reported (or timed out), check if targets are reconciled
         if (checkIfComplete())
         {
             logger.info("Sync coordinator completed for keyspace {} range {}", keyspace, range);
+            complete();
+        }
+        else if (elapsedMs >= PARTICIPANT_TIMEOUT_MS)
+        {
+            // Participant timeout reached but targets not reconciled - complete anyway
+            logger.warn("Sync coordinator completing for keyspace {} range {} after timeout, some targets may not be reconciled",
+                        keyspace, range);
             complete();
         }
     }

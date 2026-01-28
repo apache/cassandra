@@ -120,6 +120,7 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
 
             // Start MutationTrackingSyncCoordinator on node 2 in a separate thread
             // It should wait for offsets to sync since node 1's data hasn't propagated yet
+            long syncStartTime = System.currentTimeMillis();
             CompletableFuture<Boolean> coordinatorFuture = CompletableFuture.supplyAsync(() -> cluster.get(2).callOnInstance(() -> {
                 MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(KS_NAME + '3', fullTokenRange());
                 coordinator.start();
@@ -188,6 +189,11 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
                               assertEquals(1, results[0][1]);
                           });
             }
+
+            // Verify the sync respected the minimum broadcast wait time (MIN_BROADCAST_WAIT_MS = 300ms)
+            long syncDuration = System.currentTimeMillis() - syncStartTime;
+            assertTrue("Sync should wait at least MIN_BROADCAST_WAIT_MS (300ms). Actual: " + syncDuration + "ms",
+                       syncDuration >= 300);
         }
     }
 
@@ -242,6 +248,54 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
                 }
             });
             assertTrue("Sync coordinator should be cancelled", wasCancelled);
+        }
+    }
+
+    @Test
+    public void testSyncCoordinatorTimesOutOnUnresponsiveParticipant() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3).start())
+        {
+            createTrackedKeyspace(cluster, "5");
+
+            cluster.coordinator(1).execute(
+                "INSERT INTO " + tableName("5") + " (k, v) VALUES (1, 1)",
+                ConsistencyLevel.ALL
+            );
+
+            // Broadcast from all nodes first so they're in sync
+            for (int i = 1; i <= cluster.size(); i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
+
+            // Block all messages FROM node 3 permanently - it will never report
+            cluster.filters().allVerbs().from(3).drop();
+
+            long syncStartTime = System.currentTimeMillis();
+
+            // Start sync coordinator on node 1 - it should time out waiting for node 3
+            Boolean completed = cluster.get(1).callOnInstance(() -> {
+                MutationTrackingSyncCoordinator coordinator = new MutationTrackingSyncCoordinator(
+                    KS_NAME + '5', fullTokenRange());
+                coordinator.start();
+
+                try
+                {
+                    // Wait longer than PARTICIPANT_TIMEOUT_MS (10s) + buffer
+                    return coordinator.awaitCompletion(20, TimeUnit.SECONDS);
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            });
+
+            long syncDuration = System.currentTimeMillis() - syncStartTime;
+
+            assertTrue("Sync coordinator should complete after timeout", completed);
+            // Should have taken at least PARTICIPANT_TIMEOUT_MS (10s)
+            assertTrue("Sync should have timed out waiting for participant. Actual: " + syncDuration + "ms",
+                       syncDuration >= 10000);
         }
     }
 }
