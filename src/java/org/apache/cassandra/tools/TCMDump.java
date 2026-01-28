@@ -19,13 +19,18 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -41,6 +46,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogReader;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -254,30 +260,36 @@ public class TCMDump implements Runnable
             {
                 try
                 {
-                    Files.walk(tempDir)
-                         .sorted(Comparator.reverseOrder())
-                         .forEach(path -> {
-                             try
-                             {
-                                 Files.deleteIfExists(path);
-                             }
-                             catch (IOException e)
-                             {
-                                 // Best effort cleanup
-                             }
-                         });
-                    if (verbose)
+                    Files.walkFileTree(tempDir, new SimpleFileVisitor<>()
                     {
-                        output.out.println("Cleaned up temporary directory: " + tempDir);
-                    }
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                        throws IOException
+                        {
+                            Files.deleteIfExists(file);
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult postVisitDirectory(Path dir, IOException exc)
+                        throws IOException
+                        {
+                            Files.deleteIfExists(dir);
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
                 }
                 catch (IOException e)
                 {
-                    // Best effort cleanup
                     if (verbose)
                     {
-                        output.err.println("Warning: Failed to fully cleanup temp directory: " + tempDir);
+                        output.err.println("Warning: Failed to fully cleanup temp directory: " + tempDir + " (" + e.getMessage() + ")");
                     }
+                }
+                finally
+                {
+                    // Avoid accidental reuse
+                    tempDir = null;
                 }
             }
         }
@@ -298,20 +310,64 @@ public class TCMDump implements Runnable
 
         /**
          * Gets the log state from system keyspace, optionally filtered to a target epoch.
+         * Unlike SystemKeyspaceStorage.getLogStateBetween(), this method logs gaps in epochs
+         * instead of throwing an exception, allowing the tool to still output available epochs.
          */
         private LogState getLogState()
         {
             MetadataSnapshots snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
             SystemKeyspaceStorage storage = new SystemKeyspaceStorage(() -> snapshotManager);
 
-            LogState logState = storage.getPersistedLogState();
+            ClusterMetadata base = snapshotManager.getLatestSnapshot();
+            Epoch baseEpoch = base == null ? Epoch.EMPTY : base.epoch;
+            Epoch endEpoch = targetEpoch != null ? Epoch.create(targetEpoch) : Epoch.create(Long.MAX_VALUE);
 
-            if (!logState.isEmpty() && targetEpoch != null)
+            try
             {
-                logState = LogState.getForRecovery(Epoch.create(targetEpoch));
-            }
+                LogReader.EntryHolder entryHolder = storage.getEntries(baseEpoch, endEpoch);
+                ImmutableList.Builder<Entry> entries = ImmutableList.builder();
+                Epoch prevEpoch = baseEpoch;
+                List<String> gaps = new ArrayList<>();
 
-            return logState;
+                for (Entry e : (Iterable<Entry>) entryHolder::iterator)
+                {
+                    if (!prevEpoch.nextEpoch().is(e.epoch))
+                    {
+                        gaps.add(String.format("Gap detected: expected epoch %d but found %d",
+                                               prevEpoch.getEpoch() + 1, e.epoch.getEpoch()));
+                    }
+                    prevEpoch = e.epoch;
+                    entries.add(e);
+                }
+
+                if (!gaps.isEmpty())
+                {
+                    output.err.println("WARNING: Found " + gaps.size() + " gap(s) in the epoch sequence:");
+                    for (String gap : gaps)
+                    {
+                        output.err.println("  " + gap);
+                    }
+                    output.err.println("Proceeding with available epochs...");
+                }
+
+                ImmutableList<Entry> entryList = entries.build();
+                // If there's a gap between the base state and the first entry, we need to pass null
+                // as the base state to avoid the LogState constructor invariant check failing
+                ClusterMetadata effectiveBase = base;
+                if (effectiveBase != null && !entryList.isEmpty() && !entryList.get(0).epoch.isDirectlyAfter(effectiveBase.epoch))
+                {
+                    output.err.println("WARNING: Gap between snapshot (epoch " + effectiveBase.epoch.getEpoch() +
+                                       ") and first log entry (epoch " + entryList.get(0).epoch.getEpoch() +
+                                       "). Proceeding without base snapshot.");
+                    effectiveBase = null;
+                }
+
+                return new LogState(effectiveBase, entryList);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Failed to read log entries", e);
+            }
         }
 
         /**
