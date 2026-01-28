@@ -27,8 +27,10 @@ import java.util.Arrays;
  *
  * A MD5 is really just a byte[] but arrays are a no go as map keys. We could
  * wrap it in a ByteBuffer but:
- *   1. MD5Digest is a more explicit name than ByteBuffer to represent a md5.
- *   2. Using our own class allows to use our FastByteComparison for equals.
+ * <ol>
+ *   <li>MD5Digest is a more explicit name than ByteBuffer to represent a md5.</li>
+ *   <li> Using our own class allows to use our FastByteComparison for equals.</li>
+ * </ol>
  */
 public class MD5Digest
 {
