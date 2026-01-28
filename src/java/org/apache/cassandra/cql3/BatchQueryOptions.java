@@ -152,19 +152,20 @@ public abstract class BatchQueryOptions
 
     private static class WithPerStatementVariables extends BatchQueryOptions
     {
-        private final List<QueryOptions> perStatementOptions;
+        private final QueryOptions[] perStatementOptions;
 
         private WithPerStatementVariables(QueryOptions wrapped, List<byte[][]> variables, List<Object> queryOrIdList)
         {
             super(wrapped, queryOrIdList);
-            this.perStatementOptions = new ArrayList<>(variables.size());
+            this.perStatementOptions = new QueryOptions[variables.size()];
+            int i = 0;
             for (final byte[][] vars : variables)
-                perStatementOptions.add(new BatchQueryOptionsWrapper(wrapped, vars));
+                perStatementOptions[i++] = new BatchQueryOptionsWrapper(wrapped, vars);
         }
 
         public QueryOptions forStatement(int i)
         {
-            return perStatementOptions.get(i);
+            return perStatementOptions[i];
         }
 
         @Override
@@ -172,10 +173,10 @@ public abstract class BatchQueryOptions
         {
             if (isPreparedStatement(i))
             {
-                QueryOptions options = perStatementOptions.get(i);
+                QueryOptions options = perStatementOptions[i];
                 options.prepare(boundNames);
                 options = QueryOptions.addColumnSpecifications(options, boundNames);
-                perStatementOptions.set(i, options);
+                perStatementOptions[i] = options;
             }
             else
             {

@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -35,6 +36,8 @@ import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -43,6 +46,7 @@ import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A set of restrictions on the partition key.
@@ -191,6 +195,22 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     private List<ByteBuffer> nonTokenRestrictionValues(QueryOptions options, ClientState state)
     {
+        // fast path, a typical case when a single full restriction is used
+        // for example, when we specify a single partition key to modify
+        if (restrictions.size() == 1 && !restrictions.hasIN())
+        {
+            SingleRestriction r = restrictions.lastRestriction();
+            List<ClusteringElements> values = r.values(options);
+            if (values.size() == 1)
+            {
+                ClusteringElements elements = values.get(0);
+                validatePartitionKey(elements);
+                ByteBuffer pk = serializeAsPartitionKey(elements);
+                return Collections.singletonList(pk);
+            }
+            return toByteBuffers(MultiCBuilder.build(comparator, values));
+        }
+
         MultiCBuilder builder = new MultiCBuilder(comparator);
         for (SingleRestriction r : restrictions)
         {
@@ -205,8 +225,44 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
         return toByteBuffers(builder.build());
     }
 
+    private ByteBuffer serializeAsPartitionKey(ClusteringElements elements)
+    {
+        // Single-column partition key: just return the value directly
+        if (elements.size() == 1)
+            return elements.get(0);
+
+        // Composite partition key: need to build composite
+        return CompositeType.build(ByteBufferAccessor.instance, elements.toArray(new ByteBuffer[elements.size()]));
+    }
+
+    // repeats the logic of ClusteringPrefix.validate()
+    private void validatePartitionKey(ClusteringElements partitionKey)
+    {
+        int sum = 0;
+        for (ByteBuffer columnValue : partitionKey)
+        {
+            int size = columnValue != null ? columnValue.remaining() : 0;
+            if (size > FBUtilities.MAX_UNSIGNED_SHORT)
+                throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                                size,
+                                                                FBUtilities.MAX_UNSIGNED_SHORT));
+            sum += size;
+        }
+        if (sum > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                            sum,
+                                                            FBUtilities.MAX_UNSIGNED_SHORT));
+    }
+
     private List<ByteBuffer> toByteBuffers(SortedSet<? extends ClusteringPrefix<?>> clusterings)
     {
+        if (clusterings.size() == 1)
+        {
+            ClusteringPrefix<?> clustering = clusterings.first();
+            clustering.validate();
+            return Collections.singletonList(clustering.serializeAsPartitionKey());
+        }
+
         List<ByteBuffer> l = new ArrayList<>(clusterings.size());
         for (ClusteringPrefix<?> clustering : clusterings)
         {

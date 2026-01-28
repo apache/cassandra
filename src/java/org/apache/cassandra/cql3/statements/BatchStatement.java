@@ -142,27 +142,62 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         this.attrs = attrs;
 
         boolean hasConditions = false;
-        MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
-        RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
         boolean updateRegular = false;
         boolean updateStatic = false;
         boolean updatesVirtualTables = false;
 
+        boolean sameTableAndColumnsNoConditions = true;
+        TableMetadata tableMetadata = null;
+        RegularAndStaticColumns regularAndStaticColumns = null;
+        // we check initially if it is a typical scenario:
+        // when many similar rows for the same table are written unconditionally
+        // in this case we can avoid columns info merging and builders allocation
         for (ModificationStatement stmt : statements)
         {
-            regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+            if (tableMetadata == null)
+                tableMetadata = stmt.metadata();
+            if (regularAndStaticColumns == null)
+                regularAndStaticColumns = stmt.updatedColumns();
+
+            if (tableMetadata != stmt.metadata()
+                || regularAndStaticColumns != stmt.updatedColumns()
+                || stmt.hasConditions())
+            {
+                sameTableAndColumnsNoConditions = false;
+                break;
+            }
+
             updateRegular |= stmt.updatesRegularRows();
             updatesVirtualTables |= stmt.isVirtual();
-            if (stmt.hasConditions())
-            {
-                hasConditions = true;
-                conditionBuilder.addAll(stmt.conditionColumns());
-                updateStatic |= stmt.updatesStaticRow();
-            }
+            updateStatic |= stmt.updatesStaticRow();
         }
 
-        this.updatedColumns = regularBuilder.build();
-        this.conditionColumns = conditionBuilder.build();
+        if (sameTableAndColumnsNoConditions && tableMetadata != null)
+        {
+            this.updatedColumns = Collections.singletonMap(tableMetadata.id(), regularAndStaticColumns);
+            this.conditionColumns = RegularAndStaticColumns.NONE;
+        }
+        else
+        {
+
+            MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
+            RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
+            for (ModificationStatement stmt : statements)
+            {
+                regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+                updateRegular |= stmt.updatesRegularRows();
+                updatesVirtualTables |= stmt.isVirtual();
+                if (stmt.hasConditions())
+                {
+                    hasConditions = true;
+                    conditionBuilder.addAll(stmt.conditionColumns());
+                    updateStatic |= stmt.updatesStaticRow();
+                }
+            }
+
+            this.updatedColumns = regularBuilder.build();
+            this.conditionColumns = conditionBuilder.build();
+        }
         this.updatesRegularRows = updateRegular;
         this.updatesStaticRow = updateStatic;
         this.hasConditions = hasConditions;

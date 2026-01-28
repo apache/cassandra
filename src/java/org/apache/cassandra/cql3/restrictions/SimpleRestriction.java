@@ -258,9 +258,21 @@ public final class SimpleRestriction implements SingleRestriction
 
     private List<ClusteringElements> bindAndGetSingleTermClusteringElements(QueryOptions options)
     {
+        if (values.isSingleTerm(options))
+        {
+            ByteBuffer value = bindAndGetSingle(options);
+            return Collections.singletonList(ClusteringElements.of(columnsExpression.columnSpecification(), value, isOnToken()));
+        }
+
         List<ByteBuffer> values = bindAndGet(options);
         if (values.isEmpty())
             return Collections.emptyList();
+
+        if (values.size() == 1)
+        {
+            ClusteringElements value = ClusteringElements.of(columnsExpression.columnSpecification(), values.get(0), isOnToken());
+            return Collections.singletonList(value);
+        }
 
         List<ClusteringElements> elements = new ArrayList<>(values.size());
         for (int i = 0; i < values.size(); i++)
@@ -286,6 +298,13 @@ public final class SimpleRestriction implements SingleRestriction
         validate(buffers);
         buffers.forEach(this::validate);
         return buffers;
+    }
+
+    private ByteBuffer bindAndGetSingle(QueryOptions options)
+    {
+        ByteBuffer buffer = values.bindAndGetSingleTermValue(options);
+        validate(buffer);
+        return buffer;
     }
 
     private List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)

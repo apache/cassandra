@@ -1,4 +1,5 @@
 5.1
+ * Reduce memory allocation during transformation of BatchStatement to Mutation (CASSANDRA-21141)
  * Direct I/O support for compaction reads (CASSANDRA-19987)
  * Support custom StartupCheck implementations via SPI (CASSANDRA-21093)
  * Make sstableexpiredblockers support human-readable output with SSTable sizes (CASSANDRA-20448)

@@ -191,6 +191,11 @@ public final class MultiCBuilder
         if (hasMissingElements)
             return BTreeSet.empty(comparator);
 
+        return build(comparator, clusterings);
+    }
+
+    public static NavigableSet<Clustering<?>> build(ClusteringComparator comparator, List<ClusteringElements> clusterings)
+    {
         if (clusterings.isEmpty())
             return BTreeSet.of(comparator, Clustering.EMPTY);
 
