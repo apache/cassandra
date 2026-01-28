@@ -204,11 +204,14 @@ final class HintsDispatchExecutor
         private final HintsStore store;
         private final UUID hostId;
         private final RateLimiter rateLimiter;
+        private final boolean isTransfer;
+        private volatile double lastThrottleInBytesPerSecond;
 
         DispatchHintsTask(HintsStore store, UUID hostId, boolean isTransfer)
         {
             this.store = store;
             this.hostId = hostId;
+            this.isTransfer = isTransfer;
 
             // Rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
             // Max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272), unless we are transferring
@@ -216,14 +219,33 @@ final class HintsDispatchExecutor
             // The goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node. This is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = isTransfer ? 1 : Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
-            double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
-            this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
+            double throttleInBytes = throttleInBytesPerSecond();
+            this.lastThrottleInBytesPerSecond = throttleInBytes;
+            this.rateLimiter = RateLimiter.create(throttleInBytes);
         }
 
         DispatchHintsTask(HintsStore store, UUID hostId)
         {
             this(store, hostId, false);
+        }
+
+        private double throttleInBytesPerSecond()
+        {
+            int nodesCount = isTransfer ? 1 : Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
+            // RateLimiter requires a strictly positive rate; use a very large value if throttle is disabled (0 in yaml).
+            return throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes;
+        }
+
+        private void maybeUpdateRateLimiter()
+        {
+            double throttleInBytes = throttleInBytesPerSecond();
+            // Avoid calling setRate on every loop iteration unless the value actually changed.
+            if (throttleInBytes != lastThrottleInBytesPerSecond)
+            {
+                rateLimiter.setRate(throttleInBytes);
+                lastThrottleInBytesPerSecond = throttleInBytes;
+            }
         }
 
 
@@ -245,6 +267,9 @@ final class HintsDispatchExecutor
             {
                 if (isPaused.get())
                     break;
+
+                // Support runtime updates (nodetool sethintedhandoffthrottlekb) without needing pause/resume.
+                maybeUpdateRateLimiter();
 
                 HintsDescriptor descriptor = store.poll();
                 if (descriptor == null)

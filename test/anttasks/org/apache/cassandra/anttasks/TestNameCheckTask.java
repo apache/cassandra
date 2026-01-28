@@ -29,6 +29,7 @@ import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -90,16 +91,43 @@ public class TestNameCheckTask
 
     public void execute()
     {
-        List<URL> scanClassPathUrls = Arrays.stream(scanClassPath.split(File.pathSeparator)).map(Paths::get).map(path -> {
-            try
-            {
-                return path.toUri().toURL();
-            }
-            catch (MalformedURLException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }).collect(toList());
+        List<URL> scanClassPathUrls = new ArrayList<>();
+
+        // URLs to scan for classes (typically build/test/classes etc.)
+        scanClassPathUrls.addAll(Arrays.stream(scanClassPath.split(File.pathSeparator))
+                                       .map(Paths::get)
+                                       .map(path -> {
+                                           try
+                                           {
+                                               return path.toUri().toURL();
+                                           }
+                                           catch (MalformedURLException e)
+                                           {
+                                               throw new RuntimeException(e);
+                                           }
+                                       })
+                                       .collect(toList()));
+
+        // Ensure the classloader can resolve referenced types that are not present in scanClassPath,
+        // such as those provided by test-only dependency jars (e.g. dtest-api).
+        // This keeps the scan scope small (we still constrain by packageName), while preventing CNFE/NCDFF errors.
+        String javaClassPath = System.getProperty("java.class.path");
+        if (javaClassPath != null && !javaClassPath.isEmpty())
+        {
+            scanClassPathUrls.addAll(Arrays.stream(javaClassPath.split(File.pathSeparator))
+                                           .map(Paths::get)
+                                           .map(path -> {
+                                               try
+                                               {
+                                                   return path.toUri().toURL();
+                                               }
+                                               catch (MalformedURLException e)
+                                               {
+                                                   throw new RuntimeException(e);
+                                               }
+                                           })
+                                           .collect(toList()));
+        }
 
         Reflections reflections = new Reflections(new ConfigurationBuilder()
                                                   .forPackage(packageName)
