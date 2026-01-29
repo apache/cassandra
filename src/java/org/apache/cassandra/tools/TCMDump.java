@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -157,6 +158,76 @@ public class TCMDump implements Runnable
         public boolean debug;
 
         private Path tempDir;
+
+        /**
+         * Gets the log state from the given storage, detecting and logging gaps in epochs.
+         * <p>
+         * It detects gaps in the epoch sequence and logs warnings instead of throwing exceptions, allowing the tool to
+         * still output all available epochs.
+         *
+         * @param storage         the storage to read entries from
+         * @param snapshotManager the snapshot manager for base state
+         * @param targetEpoch     optional target epoch to filter to (null for all epochs)
+         * @param out             the output to write warnings to
+         * @return the LogState with all available entries
+         */
+        @VisibleForTesting
+        static LogState getLogState(SystemKeyspaceStorage storage,
+                                    MetadataSnapshots snapshotManager,
+                                    Long targetEpoch,
+                                    Output out)
+        {
+            ClusterMetadata base = snapshotManager.getLatestSnapshot();
+            Epoch baseEpoch = base == null ? Epoch.EMPTY : base.epoch;
+            Epoch endEpoch = targetEpoch != null ? Epoch.create(targetEpoch) : Epoch.create(Long.MAX_VALUE);
+
+            try
+            {
+                LogReader.EntryHolder entryHolder = storage.getEntries(baseEpoch, endEpoch);
+                ImmutableList.Builder<Entry> entries = ImmutableList.builder();
+                Epoch prevEpoch = baseEpoch;
+                List<String> gaps = new ArrayList<>();
+
+                for (Entry e : (Iterable<Entry>) entryHolder::iterator)
+                {
+                    if (!prevEpoch.nextEpoch().is(e.epoch))
+                    {
+                        gaps.add(String.format("Gap detected: expected epoch %d but found %d",
+                                               prevEpoch.getEpoch() + 1, e.epoch.getEpoch()));
+                    }
+                    prevEpoch = e.epoch;
+                    entries.add(e);
+                }
+
+                if (!gaps.isEmpty())
+                {
+                    out.err.println("WARNING: Found " + gaps.size() + " gap(s) in the epoch sequence:");
+                    for (String gap : gaps)
+                    {
+                        out.err.println("  " + gap);
+                    }
+                    out.err.println("Proceeding with available epochs...");
+                }
+
+                ImmutableList<Entry> entryList = entries.build();
+                // If there's a gap between the base state and the first entry, we need to pass null
+                // as the base state to avoid the LogState constructor invariant check failing
+                ClusterMetadata effectiveBase = base;
+                if (effectiveBase != null && !entryList.isEmpty() && !entryList.get(0).epoch.isDirectlyAfter(effectiveBase.epoch))
+                {
+                    out.err.println("WARNING: Gap between snapshot (epoch " + effectiveBase.epoch.getEpoch() +
+                                    ") and first log entry (epoch " + entryList.get(0).epoch.getEpoch() +
+                                    "). Proceeding without base snapshot.");
+                    effectiveBase = null;
+                }
+
+                return new LogState(effectiveBase, entryList);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Failed to read log entries", e);
+            }
+        }
 
         @Override
         public void run()
@@ -310,64 +381,12 @@ public class TCMDump implements Runnable
 
         /**
          * Gets the log state from system keyspace, optionally filtered to a target epoch.
-         * Unlike SystemKeyspaceStorage.getLogStateBetween(), this method logs gaps in epochs
-         * instead of throwing an exception, allowing the tool to still output available epochs.
          */
         private LogState getLogState()
         {
             MetadataSnapshots snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
             SystemKeyspaceStorage storage = new SystemKeyspaceStorage(() -> snapshotManager);
-
-            ClusterMetadata base = snapshotManager.getLatestSnapshot();
-            Epoch baseEpoch = base == null ? Epoch.EMPTY : base.epoch;
-            Epoch endEpoch = targetEpoch != null ? Epoch.create(targetEpoch) : Epoch.create(Long.MAX_VALUE);
-
-            try
-            {
-                LogReader.EntryHolder entryHolder = storage.getEntries(baseEpoch, endEpoch);
-                ImmutableList.Builder<Entry> entries = ImmutableList.builder();
-                Epoch prevEpoch = baseEpoch;
-                List<String> gaps = new ArrayList<>();
-
-                for (Entry e : (Iterable<Entry>) entryHolder::iterator)
-                {
-                    if (!prevEpoch.nextEpoch().is(e.epoch))
-                    {
-                        gaps.add(String.format("Gap detected: expected epoch %d but found %d",
-                                               prevEpoch.getEpoch() + 1, e.epoch.getEpoch()));
-                    }
-                    prevEpoch = e.epoch;
-                    entries.add(e);
-                }
-
-                if (!gaps.isEmpty())
-                {
-                    output.err.println("WARNING: Found " + gaps.size() + " gap(s) in the epoch sequence:");
-                    for (String gap : gaps)
-                    {
-                        output.err.println("  " + gap);
-                    }
-                    output.err.println("Proceeding with available epochs...");
-                }
-
-                ImmutableList<Entry> entryList = entries.build();
-                // If there's a gap between the base state and the first entry, we need to pass null
-                // as the base state to avoid the LogState constructor invariant check failing
-                ClusterMetadata effectiveBase = base;
-                if (effectiveBase != null && !entryList.isEmpty() && !entryList.get(0).epoch.isDirectlyAfter(effectiveBase.epoch))
-                {
-                    output.err.println("WARNING: Gap between snapshot (epoch " + effectiveBase.epoch.getEpoch() +
-                                       ") and first log entry (epoch " + entryList.get(0).epoch.getEpoch() +
-                                       "). Proceeding without base snapshot.");
-                    effectiveBase = null;
-                }
-
-                return new LogState(effectiveBase, entryList);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Failed to read log entries", e);
-            }
+            return getLogState(storage, snapshotManager, targetEpoch, output);
         }
 
         /**
