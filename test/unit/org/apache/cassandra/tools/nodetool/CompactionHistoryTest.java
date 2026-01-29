@@ -85,7 +85,7 @@ public class CompactionHistoryTest extends CQLTester
     @Test
     public void testCompactionProperties() throws Throwable
     {
-        createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id)))");
+        createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id))) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         cfs.disableAutoCompaction();
         // write SSTables for the specific key
