@@ -30,6 +30,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.config.Config;
+import org.jctools.maps.NonBlockingHashMapLong;
 
 import accord.utils.Invariants;
 import org.agrona.collections.Long2LongHashMap;
@@ -52,7 +54,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.jctools.maps.NonBlockingHashMapLong;
 
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
@@ -353,7 +354,18 @@ public class MutationJournal
         @Override
         public FlushMode flushMode()
         {
-            return FlushMode.PERIODIC;
+            Config.CommitLogSync mode = DatabaseDescriptor.getCommitLogSync();
+            switch (DatabaseDescriptor.getCommitLogSync())
+            {
+                case batch:
+                    return FlushMode.BATCH;
+                case periodic:
+                    return FlushMode.PERIODIC;
+                case group:
+                    return FlushMode.GROUP;
+                default:
+                    throw new IllegalStateException("Unhandled flush mode: " + mode);
+            }
         }
 
         @Override
