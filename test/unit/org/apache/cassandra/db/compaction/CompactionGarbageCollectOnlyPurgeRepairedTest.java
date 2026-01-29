@@ -284,7 +284,7 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
             // Install leak detector callback
             Ref.setOnLeak(state -> {
                 detectedLeaks.add(state);
-                System.err.println("LEAK DETECTED in test: " + state);
+                LOGGER.error("LEAK DETECTED in test: " + state);
             });
 
             createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
@@ -322,7 +322,7 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
             catch (ConcurrentModificationException e)
             {
                 exceptionThrown = true;
-                System.err.println("ConcurrentModificationException caught (bug is present): " + e.getMessage());
+                LOGGER.error("ConcurrentModificationException caught (bug is present): " + e.getMessage());
             }
 
             // Force garbage collection to trigger leak detection
@@ -341,8 +341,8 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
             if (exceptionThrown)
             {
                 // Bug is present - we may see leaks due to improper cleanup
-                System.err.println("Bug detected: ConcurrentModificationException was thrown.");
-                System.err.println("Leaks detected: " + detectedLeaks.size());
+                LOGGER.error("Bug detected: ConcurrentModificationException was thrown.");
+                LOGGER.error("Leaks detected: " + detectedLeaks.size());
                 fail("ConcurrentModificationException was thrown, indicating the bug is present. " +
                      "This can cause reference leaks.");
             }
@@ -389,7 +389,7 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
                 leakDetected.set(true);
                 String detail = "LEAK DETECTED: " + state;
                 leakDetails.add(detail);
-                System.err.println(detail);
+                LOGGER.error(detail);
             });
 
             createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
@@ -427,11 +427,11 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
                       });
 
             // Report findings
-            System.err.println("Leak detection confirmed!");
-            System.err.println("Leaks detected: " + leakDetails.size());
+            LOGGER.error("Leak detection confirmed!");
+            LOGGER.error("Leaks detected: " + leakDetails.size());
             for (String detail : leakDetails)
             {
-                System.err.println("  - " + detail);
+                LOGGER.error("  - " + detail);
             }
 
             assertThat(leakDetails.size())
@@ -466,7 +466,7 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
                 leakDetected.set(true);
                 String detail = "LEAK DETECTED: " + state;
                 leakDetails.add(detail);
-                System.err.println(detail);
+                LOGGER.error(detail);
             });
 
             createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
@@ -505,8 +505,8 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
                       });
 
             // Final confirmation
-            System.err.println("No leak detection confirmed - references were properly managed!");
-            System.err.println("Leaks detected: " + leakDetails.size());
+            LOGGER.error("No leak detection confirmed - references were properly managed!");
+            LOGGER.error("Leaks detected: " + leakDetails.size());
 
             assertThat(leakDetails.size())
                 .as("No leaks should be detected when references are properly released")
