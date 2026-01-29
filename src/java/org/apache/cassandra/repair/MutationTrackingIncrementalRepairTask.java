@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
@@ -36,7 +37,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 /** Incremental repair task for keyspaces using mutation tracking */
 public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
 {
-    private static final long SYNC_TIMEOUT_MINUTES = 30;
+    private static final long SYNC_TIMEOUT_MINUTES = CassandraRelevantProperties.REPAIR_SYNC_TIMEOUT_MINUTES.getLong();
 
     private final TimeUUID parentSession;
     private final RepairCoordinator.NeighborsAndRanges neighborsAndRanges;
@@ -140,7 +141,13 @@ public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
         else
         {
             // Pure mutation tracking - create successful result
-            resultPromise.trySuccess(CoordinatedRepairResult.create(rangeCollections, List.of()));
+            List<RepairSessionResult> results = new ArrayList<>();
+            for (int i = 0; i < rangeCollections.size(); i++)
+            {
+                Collection<Range<Token>> ranges = rangeCollections.get(i);
+                results.add(new RepairSessionResult(parentSession, keyspace, ranges, List.of(), false));
+            }
+            resultPromise.trySuccess(CoordinatedRepairResult.create(rangeCollections, results));
         }
     }
 

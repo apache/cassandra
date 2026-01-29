@@ -263,11 +263,16 @@ public class MutationTrackingSyncCoordinatorTest extends TestBaseImpl
                 ConsistencyLevel.ALL
             );
 
-            // Broadcast from all nodes first so they're in sync
+            // Pause broadcasts on node 3 BEFORE any broadcasts - this ensures node 3
+            // never sends any offset broadcasts to the coordinator, simulating an unresponsive node
+            cluster.get(3).runOnInstance(() -> MutationTrackingService.instance.pauseOffsetBroadcast(true));
+
+            // Broadcast from all nodes - node 3's broadcast is a no-op because it's paused
             for (int i = 1; i <= cluster.size(); i++)
                 cluster.get(i).runOnInstance(() -> MutationTrackingService.instance.broadcastOffsetsForTesting());
 
-            // Block all messages FROM node 3 permanently - it will never report
+            // Also block messages FROM node 3 to ensure even if periodic broadcasts resume,
+            // they won't reach the coordinator
             cluster.filters().allVerbs().from(3).drop();
 
             long syncStartTime = System.currentTimeMillis();
