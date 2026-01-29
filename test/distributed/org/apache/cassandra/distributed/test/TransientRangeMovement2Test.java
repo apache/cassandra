@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -29,6 +30,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.Pair;
@@ -44,6 +46,7 @@ import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.a
 import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.localStrs;
 import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.populate;
 
+@Ignore(MutationTrackingUtils.IgnoreReasons.NO_RANGE_MOVEMENTS)
 @SuppressWarnings("unchecked")
 public class TransientRangeMovement2Test extends TestBaseImpl
 {

@@ -56,6 +56,13 @@ public class MutationTrackingUtils
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingUtils.class);
     private static final int VERSION = MessagingService.current_version;
 
+    public static class IgnoreReasons
+    {
+        public static final String NO_RANGE_MOVEMENTS = "NO_RANGE_MOVEMENTS";
+
+
+    }
+
     public static byte[] encodeId(MutationId id)
     {
         int size = Ints.checkedCast(MutationId.serializer.serializedSize(id, VERSION));
