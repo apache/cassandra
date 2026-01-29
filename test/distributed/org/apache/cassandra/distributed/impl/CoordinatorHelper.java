@@ -59,6 +59,8 @@ public class CoordinatorHelper
         prepared.validate(QueryState.forInternalCalls().getClientState());
         prepared.validate(clientState);
 
+        // Start capturing warnings on this thread. Note that this will implicitly clear out any previous
+        // warnings as it sets a new State instance on the ThreadLocal.
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
         CoordinatorWriteWarnings.init();
@@ -74,15 +76,18 @@ public class CoordinatorHelper
                                                                      ProtocolVersion.CURRENT,
                                                                      null),
                                                  requestTime);
+            // Collect warnings reported during the query.
             CoordinatorWarnings.done();
             CoordinatorWriteWarnings.done();
-            List<String> warnings = ClientWarn.instance.getWarnings();
-            if (res != null)
-            {
-                res.setWarnings(warnings);
-            }
 
-            return RowUtil.toQueryResult(res, warnings);
+            // Convert null result to ResultMessage.Void, matching QueryProcessor.processStatement() behavior
+            // This is necessary to attach warnings to INSERT/UPDATE/DELETE statements which return null
+            if (res == null)
+                res = new ResultMessage.Void();
+
+            res.setWarnings(ClientWarn.instance.getWarnings());
+
+            return RowUtil.toQueryResult(res);
         }
         catch (Exception | Error e)
         {

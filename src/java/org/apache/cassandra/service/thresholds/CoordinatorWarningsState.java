@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.thresholds;
 
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -40,6 +39,7 @@ public class CoordinatorWarningsState<S>
     private final S initSentinel;
     private final S emptySentinel;
     private final Supplier<S> stateFactory;
+    private final Supplier<S> fallbackSupplier;
     private final Logger logger;
     private final String name;
     private final boolean enableDefensiveChecks;
@@ -51,6 +51,7 @@ public class CoordinatorWarningsState<S>
      * @param initSentinel sentinel value indicating initialized but empty state
      * @param emptySentinel sentinel value indicating cleared state
      * @param stateFactory factory to create new mutable state instances
+     * @param fallbackSupplier supplies fallback state if init() was not called
      * @param logger logger for diagnostic messages
      * @param enableDefensiveChecks whether to enable defensive checks
      */
@@ -58,6 +59,7 @@ public class CoordinatorWarningsState<S>
                                     S initSentinel,
                                     @Nullable S emptySentinel,
                                     Supplier<S> stateFactory,
+                                    Supplier<S> fallbackSupplier,
                                     Logger logger,
                                     boolean enableDefensiveChecks)
     {
@@ -65,24 +67,25 @@ public class CoordinatorWarningsState<S>
         this.initSentinel = initSentinel;
         this.emptySentinel = emptySentinel;
         this.stateFactory = stateFactory;
+        this.fallbackSupplier = fallbackSupplier;
         this.logger = logger;
         this.enableDefensiveChecks = enableDefensiveChecks;
         this.threadLocal = new FastThreadLocal<>();
     }
 
     /**
-     * Initialize state for this thread.
-     * Must be called at the start of a client request.
+     * Initialize state for this thread. Must be called at the start of a client request.
      */
     public void init()
     {
         if (logger.isTraceEnabled())
             logger.trace("{}.init()", name);
 
-        S current = threadLocal.get();
-        if (current != null && enableDefensiveChecks)
+        if (enableDefensiveChecks)
         {
-            throw new AssertionError(name + ".init called while state is not null: " + current);
+            S current = threadLocal.get();
+            if (current != null)
+                throw new AssertionError(name + ".init called while state is not null: " + current);
         }
         threadLocal.set(initSentinel);
     }
@@ -102,13 +105,12 @@ public class CoordinatorWarningsState<S>
     }
 
     /**
-     * Get current state, creating mutable state if needed.
-     * Transitions from initSentinel to mutable state on first access.
+     * Gets the mutable state for this thread, lazily creating it if needed.
+     * Transitions from initSentinel to a new mutable instance on first access.
      *
-     * @param fallbackSupplier supplies fallback state if not initialized
-     * @return current mutable state
+     * @return mutable state instance
      */
-    public S getMutableState(Supplier<S> fallbackSupplier)
+    public S mutable()
     {
         S state = threadLocal.get();
 
@@ -129,64 +131,25 @@ public class CoordinatorWarningsState<S>
     }
 
     /**
-     * Check if state is initialized and not empty.
-     */
-    public boolean isActive()
-    {
-        S state = threadLocal.get();
-        return state != null && state != initSentinel && state != emptySentinel;
-    }
-
-    /**
      * Process accumulated state and reset.
-     * Typical pattern for done() implementations.
+     * Must be called at the end of a client request.
+     * The reset will occur even if the processor throws an exception.
      *
-     * @param stateChecker checks if state should be processed (e.g., isEmpty())
      * @param processor processes the state
-     * @param errorHandler handles any errors during processing
      */
-    public void processAndReset(StateChecker<S> stateChecker,
-                                Consumer<S> processor,
-                                BiConsumer<S, Exception> errorHandler)
+    public void processAndReset(Consumer<S> processor)
     {
         try
         {
             S state = threadLocal.get();
-
             if (state == null || state == initSentinel)
-            {
                 return;
-            }
-
-            boolean shouldProcess = stateChecker.shouldProcess(state);
-
-            if (!shouldProcess)
-            {
-                return;
-            }
 
             processor.accept(state);
-        }
-        catch (Exception e)
-        {
-            S state = threadLocal.get();
-            if (errorHandler != null)
-                errorHandler.accept(state, e);
-            else
-                logger.error("Error processing " + name, e);
         }
         finally
         {
             reset();
         }
-    }
-
-    /**
-     * Functional interface for checking if state should be processed.
-     */
-    @FunctionalInterface
-    public interface StateChecker<S>
-    {
-        boolean shouldProcess(S state);
     }
 }

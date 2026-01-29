@@ -37,13 +37,6 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
 import org.apache.cassandra.utils.Pair;
 
-/**
- * ThreadLocal manager for write warnings at the coordinator.
- * Accumulates warnings from multiple write operations in a single client request,
- * then sends them to the client and updates metrics.
- *
- * REFACTORED VERSION: Uses CoordinatorWarningsState for state management.
- */
 public class CoordinatorWriteWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWriteWarnings.class);
@@ -56,12 +49,12 @@ public class CoordinatorWriteWarnings
                                    INIT,
                                    EMPTY,
                                    Warnings::new,
+                                   () -> EMPTY,
                                    logger,
                                    false);
 
     /**
-     * Initialize coordinator write warnings for this thread.
-     * Must be called at the start of a client request.
+     * Initialize coordinator write warnings for this thread. Must be called at the start of a client request.
      */
     public static void init()
     {
@@ -81,7 +74,7 @@ public class CoordinatorWriteWarnings
             return;
         }
 
-        Warnings warnings = STATE.getMutableState(() -> EMPTY);
+        Warnings warnings = STATE.mutable();
         if (warnings == EMPTY)
         {
             return;
@@ -99,11 +92,7 @@ public class CoordinatorWriteWarnings
      */
     public static void done()
     {
-        STATE.processAndReset(
-        w -> w.partitions != null && !w.partitions.isEmpty(),
-        CoordinatorWriteWarnings::processWarnings,
-        (state, e) -> logger.error("Error processing write warnings", e)
-        );
+        STATE.processAndReset(CoordinatorWriteWarnings::processWarnings);
     }
 
     /**
@@ -116,6 +105,9 @@ public class CoordinatorWriteWarnings
 
     private static void processWarnings(Warnings warnings)
     {
+        if (warnings.partitions == null || warnings.partitions.isEmpty())
+            return;
+
         for (Map.Entry<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> entry : warnings.partitions.entrySet())
         {
             Pair<TableId, DecoratedKey> key = entry.getKey();
@@ -131,13 +123,13 @@ public class CoordinatorWriteWarnings
             TableMetadata metadata = cfs.metadata();
             String partitionKey = metadata.partitionKeyType.toCQLString(key.right.getKey());
 
-            sendWarnings(metadata, partitionKey, snapshot);
-            updateMetrics(cfs, snapshot);
+            recordWarnings(partitionKey, cfs, snapshot);
         }
     }
 
-    private static void sendWarnings(TableMetadata metadata, String partitionKey, WriteWarningsSnapshot snapshot)
+    private static void recordWarnings(String partitionKey, ColumnFamilyStore cfs, WriteWarningsSnapshot snapshot)
     {
+        TableMetadata metadata = cfs.metadata();
         if (!snapshot.writeSize.instances.isEmpty())
         {
             String msg = String.format("Write to %s.%s partition %s: %s",
@@ -148,6 +140,9 @@ public class CoordinatorWriteWarnings
                                        snapshot.writeSize.instances.size(),
                                        snapshot.writeSize.maxValue));
             ClientWarn.instance.warn(msg);
+            logger.warn(msg);
+            cfs.metric.writeSizeWarnings.mark();
+            cfs.metric.writeSize.update(snapshot.writeSize.maxValue);
         }
 
         if (!snapshot.writeTombstone.instances.isEmpty())
@@ -160,19 +155,7 @@ public class CoordinatorWriteWarnings
                                        snapshot.writeTombstone.instances.size(),
                                        snapshot.writeTombstone.maxValue));
             ClientWarn.instance.warn(msg);
-        }
-    }
-
-    private static void updateMetrics(ColumnFamilyStore cfs, WriteWarningsSnapshot snapshot)
-    {
-        if (!snapshot.writeSize.instances.isEmpty())
-        {
-            cfs.metric.writeSizeWarnings.mark();
-            cfs.metric.writeSize.update(snapshot.writeSize.maxValue);
-        }
-
-        if (!snapshot.writeTombstone.instances.isEmpty())
-        {
+            logger.warn(msg);
             cfs.metric.writeTombstoneWarnings.mark();
         }
     }

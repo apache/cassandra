@@ -2028,23 +2028,21 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     MessageParams.reset();
 
-                    // Check thresholds before applying mutation locally (same as MutationVerbHandler does for remote writes)
-                    if (description instanceof Mutation)
-                    {
+                    boolean trackWriteWarnings = description instanceof Mutation && handler instanceof AbstractWriteResponseHandler;
+                    if (trackWriteWarnings)
                         WriteThresholds.checkWriteThresholds((Mutation) description);
-                    }
-
                     runnable.run();
 
-                    // Capture params from local write and update warning context
-                    Map<ParamType, Object> params = MessageParams.capture();
-                    if (handler instanceof AbstractWriteResponseHandler &&
-                        WriteWarningContext.isSupported(params.keySet()))
+                    if (trackWriteWarnings)
                     {
-                        AbstractWriteResponseHandler<?> writeHandler = (AbstractWriteResponseHandler<?>) handler;
-                        writeHandler.getWarningContext().updateCounters(params, FBUtilities.getBroadcastAddressAndPort());
+                        // Capture params from local write and update warning context
+                        Map<ParamType, Object> params = MessageParams.capture();
+                        if (WriteWarningContext.isSupported(params.keySet()))
+                        {
+                            AbstractWriteResponseHandler<?> writeHandler = (AbstractWriteResponseHandler<?>) handler;
+                            writeHandler.getWarningContext().updateCounters(params, FBUtilities.getBroadcastAddressAndPort());
+                        }
                     }
-
                     handler.onResponse(null);
                 }
                 catch (Exception ex)

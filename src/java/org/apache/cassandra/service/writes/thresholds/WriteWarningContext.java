@@ -47,8 +47,7 @@ public class WriteWarningContext
     }
 
     /**
-     * Update counters from replica response parameters.
-     * Writes never abort, so this always returns without throwing.
+     * Update counters from replica response parameters. Writes never abort, so this always returns without throwing.
      */
     public void updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
     {

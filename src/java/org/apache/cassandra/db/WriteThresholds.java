@@ -87,6 +87,7 @@ public class WriteThresholds
 
         long estimatedSize = cfs.topPartitions.topSizes().getEstimate(key);
         long estimatedTombstones = cfs.topPartitions.topTombstones().getEstimate(key);
+
         TableMetadata meta = update.metadata();
 
         if (sizeWarnBytes != -1 && estimatedSize > sizeWarnBytes)

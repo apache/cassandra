@@ -25,8 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.service.thresholds.ThresholdCounter;
 
 /**
- * Immutable snapshot of write warnings.
- * Simpler than WarningsSnapshot since writes never abort (warnings only).
+ * Immutable snapshot of write warnings. Simpler than WarningsSnapshot since writes never abort (warnings only).
  */
 public class WriteWarningsSnapshot
 {

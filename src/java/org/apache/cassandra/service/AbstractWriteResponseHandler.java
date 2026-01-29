@@ -187,13 +187,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             if (warningContext != null)
             {
                 WriteWarningsSnapshot snapshot = warningContext.snapshot();
-                if (!snapshot.isEmpty())
-                {
-                    if (hintOnFailure != null)
-                    {
-                        CoordinatorWriteWarnings.update(hintOnFailure.get(), snapshot);
-                    }
-                }
+                if (!snapshot.isEmpty() && hintOnFailure != null)
+                    CoordinatorWriteWarnings.update(hintOnFailure.get(), snapshot);
             }
         }
     }

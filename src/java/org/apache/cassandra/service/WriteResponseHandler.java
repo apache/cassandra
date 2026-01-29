@@ -65,13 +65,14 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
         {
             Map<ParamType, Object> params = m.header.params();
             if (WriteWarningContext.isSupported(params.keySet()))
-            {
                 getWarningContext().updateCounters(params, m.from());
-            }
         }
         replicaPlan.collectSuccess(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
         if (responsesUpdater.decrementAndGet(this) == 0)
             signal();
+        //Must be last after all subclass processing
+        //The two current subclasses both assume logResponseToIdealCLDelegate is called
+        //here.
         logResponseToIdealCLDelegate(m);
     }
 

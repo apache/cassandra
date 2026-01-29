@@ -19,9 +19,12 @@
 package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.List;
 
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -40,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
 {
     private static final long WARN_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5MB
+    private static final Logger log = LoggerFactory.getLogger(WriteSizeWarningTest.class);
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -72,11 +76,23 @@ public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
             // Get the ColumnFamilyStore
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
 
-            // Populate TopPartitionTracker with the partition size
-            if (cfs.topPartitions != null)
+            // If topPartitions is null, create it using reflection
+            if (cfs.topPartitions == null)
             {
-                cfs.topPartitions.topSizes().track(key, sizeBytes);
+                try
+                {
+                    Field field = ColumnFamilyStore.class.getDeclaredField("topPartitions");
+                    field.setAccessible(true);
+                    field.set(cfs, new org.apache.cassandra.metrics.TopPartitionTracker(cfs.metadata()));
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException("Failed to initialize topPartitions for testing", e);
+                }
             }
+
+            // Populate TopPartitionTracker with the partition size
+            cfs.topPartitions.topSizes().track(key, sizeBytes);
         }));
     }
 

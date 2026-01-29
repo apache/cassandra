@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test.thresholds;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Random;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.SimpleStatement;
@@ -48,7 +47,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
 {
-    private static final Random RANDOM = new Random(0);
     protected static ICluster<IInvokableInstance> CLUSTER;
     protected static com.datastax.driver.core.Cluster JAVA_DRIVER;
     protected static com.datastax.driver.core.Session JAVA_DRIVER_SESSION;
@@ -273,9 +271,7 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
 
     protected static ByteBuffer bytes(int size)
     {
-        byte[] b = new byte[size];
-        RANDOM.nextBytes(b);
-        return ByteBuffer.wrap(b);
+        return ByteBuffer.wrap(new byte[size]);
     }
 
     protected static ResultSet driverQueryAll(String cql)

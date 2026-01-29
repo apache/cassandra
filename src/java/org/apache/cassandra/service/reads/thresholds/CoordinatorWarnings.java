@@ -35,11 +35,6 @@ import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED;
 
-/**
- * ThreadLocal manager for read warnings at the coordinator.
- * <p>
- * REFACTORED VERSION: Uses CoordinatorWarningsState for state management.
- */
 public class CoordinatorWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
@@ -50,12 +45,15 @@ public class CoordinatorWarnings
     private static final CoordinatorWarningsState<Map<ReadCommand, WarningsSnapshot>> STATE =
     new CoordinatorWarningsState<>("CoordinatorWarnings",
                                    INIT,
-                                   null, // use remove() instead of setting to null
+                                   null, // reset() calls threadLocal.remove() when emptySentinel is null
                                    HashMap::new,
+                                   IgnoreMap::get,
                                    logger,
                                    ENABLE_DEFENSIVE_CHECKS);
 
-    private CoordinatorWarnings() {}
+    private CoordinatorWarnings()
+    {
+    }
 
     public static void init()
     {
@@ -72,12 +70,11 @@ public class CoordinatorWarnings
         if (logger.isTraceEnabled())
             logger.trace("CoordinatorTrackWarnings.update({}, {})", cmd.metadata(), snapshot);
 
-        Map<ReadCommand, WarningsSnapshot> map = STATE.getMutableState(IgnoreMap::get);
+        Map<ReadCommand, WarningsSnapshot> map = STATE.mutable();
 
         WarningsSnapshot previous = map.get(cmd);
         WarningsSnapshot update = WarningsSnapshot.merge(previous, snapshot);
-
-        if (update == null) // null happens when the merge had null input or EMPTY input
+        if (update == null) // null happens when the merge had null input or EMPTY input... remove the command from the map
             map.remove(cmd);
         else
             map.put(cmd, update);
@@ -85,15 +82,14 @@ public class CoordinatorWarnings
 
     public static void done()
     {
-        STATE.processAndReset(
-        map -> map != INIT && !map.isEmpty(),
-        CoordinatorWarnings::processWarnings,
-        null // use default error handler
-        );
+        STATE.processAndReset(CoordinatorWarnings::processWarnings);
     }
 
     private static void processWarnings(Map<ReadCommand, WarningsSnapshot> map)
     {
+        if (map == INIT || map.isEmpty())
+            return;
+
         if (logger.isTraceEnabled())
             logger.trace("CoordinatorTrackWarnings.done() with state {}", map);
 
@@ -105,7 +101,6 @@ public class CoordinatorWarnings
 
             String cql = command.toCQLString();
             String loggableTokens = command.loggableTokens();
-
             recordAborts(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneAborts, WarningsSnapshot::tombstoneAbortMessage);
             recordWarnings(merged.tombstones, cql, loggableTokens, cfs.metric.clientTombstoneWarnings, WarningsSnapshot::tombstoneWarnMessage);
 
@@ -120,6 +115,7 @@ public class CoordinatorWarnings
         });
     }
 
+    // utility interface to let callers use static functions
     @FunctionalInterface
     private interface ToString
     {

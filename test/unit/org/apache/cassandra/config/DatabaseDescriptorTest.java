@@ -688,7 +688,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("coordinator_read_size_fail_threshold (1KiB) must be greater than or equal to coordinator_read_size_warn_threshold (2KiB)");
     }
@@ -699,7 +699,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -708,7 +708,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -717,7 +717,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     // local read
@@ -728,7 +728,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("local_read_size_fail_threshold (1KiB) must be greater than or equal to local_read_size_warn_threshold (2KiB)");
     }
@@ -739,7 +739,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -748,7 +748,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -757,7 +757,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     // row index entry
@@ -768,7 +768,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("row_index_read_size_fail_threshold (1KiB) must be greater than or equal to row_index_read_size_warn_threshold (2KiB)");
     }
@@ -779,7 +779,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -788,7 +788,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -797,7 +797,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     // write thresholds
