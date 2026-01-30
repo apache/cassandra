@@ -414,6 +414,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             Guardrails.userTimestampsEnabled.ensureEnabled(state);
     }
 
+    @Override
+    public void validatePrepare(ClientState state)
+    {
+        Guardrails.preparedStatementsRequireParameters.guard(this, restrictions, state, metadata.keyspace, metadata.getTableName());
+    }
+
     public void validateDiskUsage(QueryOptions options, ClientState state)
     {
 

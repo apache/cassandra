@@ -2343,6 +2343,16 @@ drop_compact_storage_enabled: false
 # This would also apply to system keyspaces.
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when a statement is prepared without bind markers (parameters).
+# This prevents the Prepared Statement Cache from being flooded with unique entries caused
+# by hardcoded literals.
+#
+# prepared_statements_require_parameters_warned: When true, logs a warning on the usage of misprepared statements.
+# prepared_statements_require_parameters_enabled: When true, rejects misprepared statements with an error.
+#
+# prepared_statements_require_parameters_warned: true
+# prepared_statements_require_parameters_enabled: false
 
 #role_name_policy:
 #  # Implementation class of a validator. When not in form of FQCN, the

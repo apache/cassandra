@@ -345,6 +345,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     }
 
     @Override
+    public void validatePrepare(ClientState state)
+    {
+        Guardrails.preparedStatementsRequireParameters.guard(this, restrictions, state, table.keyspace, table.getTableName());
+    }
+
+    @Override
     public ResultMessage.Rows execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         ConsistencyLevel cl = options.getConsistency();
