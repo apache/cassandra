@@ -339,6 +339,15 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     }
 
     @Override
+    public void validatePrepare(ClientState state)
+    {
+        for (ModificationStatement statement : statements)
+        {
+            statement.validatePrepare(state);
+        }
+    }
+
+    @Override
     public List<ModificationStatement> getStatements()
     {
         return statements;

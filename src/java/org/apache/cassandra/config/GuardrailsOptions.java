@@ -1403,6 +1403,36 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.minimum_client_driver_versions_disallowed = x);
     }
 
+    @Override
+    public boolean getPreparedStatementsRequireParametersWarned()
+    {
+        return config.prepared_statements_require_parameters_warned;
+    }
+
+    @Override
+    public boolean getPreparedStatementsRequireParametersEnabled()
+    {
+        return config.prepared_statements_require_parameters_enabled;
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersWarned(boolean warned)
+    {
+        updatePropertyWithLogging("prepared_statements_require_parameters_warned",
+                                  warned,
+                                  () -> config.prepared_statements_require_parameters_warned,
+                                  x -> config.prepared_statements_require_parameters_warned = x);
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("prepared_statements_require_parameters_enabled",
+                                  enabled,
+                                  () -> config.prepared_statements_require_parameters_enabled,
+                                  x -> config.prepared_statements_require_parameters_enabled = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();

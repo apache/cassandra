@@ -709,6 +709,9 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
                    "unset minimum frequency of training for dictionary compressor");
 
+    public static final PreparedStatementParameterRequirementGuardrail preparedStatementsRequireParameters =
+    new PreparedStatementParameterRequirementGuardrail();
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -1919,6 +1922,30 @@ public final class Guardrails implements GuardrailsMBean
         {
             throw new RuntimeException("Unable to deserialize minimum_client_driver_versions_disallowed: " + t.getMessage());
         }
+    }
+
+    @Override
+    public boolean getPreparedStatementsRequireParametersWarned()
+    {
+        return DEFAULT_CONFIG.getPreparedStatementsRequireParametersWarned();
+    }
+
+    @Override
+    public boolean getPreparedStatementsRequireParametersEnabled()
+    {
+        return DEFAULT_CONFIG.getPreparedStatementsRequireParametersEnabled();
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersWarned(boolean warned)
+    {
+        DEFAULT_CONFIG.setPreparedStatementsRequireParametersWarned(warned);
+    }
+
+    @Override
+    public void setPreparedStatementsRequireParametersEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setPreparedStatementsRequireParametersEnabled(enabled);
     }
 
     private static String toCSV(Set<String> values)
