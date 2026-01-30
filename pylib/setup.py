@@ -34,6 +34,5 @@ setup(
     package_data={
         "cqlshlib.resources": ["CQL.html", "CQL.css"],
     },
-    include_package_data=True,
     ext_modules=get_extensions(),
 )
