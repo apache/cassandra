@@ -2182,6 +2182,8 @@ def _get_docs_from_package_resource():
                 if resource_path.is_file():
                     return 'file://' + str(resource_path.resolve())
     except Exception:
+        # Any error while loading the bundled CQL docs is non-fatal;
+        # pass to fall back to other locations.
         pass
     return None
 
