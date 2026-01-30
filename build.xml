@@ -511,6 +511,7 @@
 
     <target name="copy-cql-docs-to-pylib" depends="generate-cql-html"
             description="Copy CQL documentation to pylib resources for packaging">
+        <mkdir dir="${pylib.resources}"/>
         <copy todir="${pylib.resources}" failonerror="true">
             <fileset dir="doc/cql3">
                 <include name="CQL.html"/>
