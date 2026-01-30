@@ -138,3 +138,52 @@ class TestGetDocsFromPackageResource(BaseTestCase):
             with patch('importlib.resources.files', side_effect=Exception("Test error")):
                 result = _get_docs_from_package_resource()
                 self.assertIsNone(result)
+
+    def test_python38_returns_none_on_import_error(self):
+        """Should return None if importlib.resources is not available on Python 3.8."""
+        with patch.dict('sys.modules', {'importlib.resources': None}):
+            with patch('cqlshlib.cqlshmain.sys.version_info', (3, 8)):
+                with patch('builtins.__import__', side_effect=ImportError):
+                    result = _get_docs_from_package_resource()
+                    self.assertIsNone(result)
+
+    def test_python38_returns_none_when_resource_not_found(self):
+        """Should return None if the resource file doesn't exist on Python 3.8."""
+        from unittest.mock import MagicMock
+        from contextlib import contextmanager
+
+        @contextmanager
+        def mock_resource_path(package, resource):
+            mock_path = MagicMock()
+            mock_path.exists.return_value = False
+            yield mock_path
+
+        with patch('cqlshlib.cqlshmain.sys.version_info', (3, 8)):
+            with patch('importlib.resources.path', mock_resource_path):
+                result = _get_docs_from_package_resource()
+                self.assertIsNone(result)
+
+    def test_python38_exception_handling(self):
+        """Should handle exceptions gracefully and return None on Python 3.8."""
+        with patch('cqlshlib.cqlshmain.sys.version_info', (3, 8)):
+            with patch('importlib.resources.path', side_effect=Exception("Test error")):
+                result = _get_docs_from_package_resource()
+                self.assertIsNone(result)
+
+    def test_python38_returns_file_url_when_resource_exists(self):
+        """Should return file:// URL when resource exists on Python 3.8."""
+        from unittest.mock import MagicMock
+        from contextlib import contextmanager
+        from pathlib import Path
+
+        @contextmanager
+        def mock_resource_path(package, resource):
+            mock_path = MagicMock(spec=Path)
+            mock_path.exists.return_value = True
+            mock_path.resolve.return_value = Path('/fake/path/CQL.html')
+            yield mock_path
+
+        with patch('cqlshlib.cqlshmain.sys.version_info', (3, 8)):
+            with patch('importlib.resources.path', mock_resource_path):
+                result = _get_docs_from_package_resource()
+                self.assertEqual(result, 'file:///fake/path/CQL.html')
