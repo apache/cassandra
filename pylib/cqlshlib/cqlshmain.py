@@ -2159,20 +2159,28 @@ def _get_docs_from_package_resource():
     """
     Attempt to load CQL documentation from package resources.
     Returns a file:// URL to the resource, or None if unavailable.
+
+    Note: This only works for packages installed on the filesystem.
+    For zipped packages, returns None and the caller falls back to online docs.
     """
     try:
+        from pathlib import Path
         if sys.version_info >= (3, 9):
-            from importlib.resources import files, as_file
+            from importlib.resources import files
             resource = files('cqlshlib.resources').joinpath('CQL.html')
-            with as_file(resource) as path:
-                if path.exists():
-                    return 'file://' + str(path.resolve())
+            # Convert to path and check if it exists on the real filesystem.
+            # For zipped packages, this path won't exist, so we fall back to online docs.
+            resource_path = Path(str(resource))
+            if resource_path.is_file():
+                return 'file://' + str(resource_path.resolve())
         else:
-            # Python 3.8 compatibility
-            from importlib.resources import path as resource_path
-            with resource_path('cqlshlib.resources', 'CQL.html') as path:
-                if path.exists():
-                    return 'file://' + str(path.resolve())
+            # Python 3.8 compatibility: locate the package directory directly
+            import importlib.util
+            spec = importlib.util.find_spec('cqlshlib.resources')
+            if spec and spec.origin:
+                resource_path = Path(spec.origin).parent / 'CQL.html'
+                if resource_path.is_file():
+                    return 'file://' + str(resource_path.resolve())
     except Exception:
         pass
     return None
