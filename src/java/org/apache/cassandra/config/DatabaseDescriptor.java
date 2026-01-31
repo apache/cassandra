@@ -223,6 +223,8 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode compactionReadDiskAccessMode;
 
+    private static DiskAccessMode compactionWriteDiskAccessMode;
+
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
@@ -898,6 +900,10 @@ public class DatabaseDescriptor
 
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
+
+        initializeCompactionWriteDiskAccessMode();
+        if (compactionWriteDiskAccessMode != conf.compaction_write_disk_access_mode)
+            logger.info("compaction_write_disk_access_mode resolved to: {}", compactionWriteDiskAccessMode);
 
         if (conf.memtable_flush_writers == 0)
         {
@@ -3351,6 +3357,88 @@ public class DatabaseDescriptor
         Pair<DiskAccessMode, Boolean> accessModeDirectIoPair = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
         validateCommitLogWriteDiskAccessMode(accessModeDirectIoPair);
         commitLogWriteDiskAccessMode = accessModeDirectIoPair.left;
+    }
+
+    /**
+     * Return compaction write disk access mode.
+     */
+    public static DiskAccessMode getCompactionWriteDiskAccessMode()
+    {
+        return compactionWriteDiskAccessMode;
+    }
+
+    @VisibleForTesting
+    public static void setCompactionWriteDiskAccessMode(DiskAccessMode diskAccessMode)
+    {
+        compactionWriteDiskAccessMode = diskAccessMode;
+        conf.compaction_write_disk_access_mode = diskAccessMode;
+    }
+
+    /**
+     * Return the aligned write buffer size for Direct IO compaction writes.
+     * @return buffer size in bytes
+     */
+    public static int getCompactionDirectIOWriteBufferSize()
+    {
+        return conf.compaction_direct_io_write_buffer_size.toBytes();
+    }
+
+    @VisibleForTesting
+    public static void initializeCompactionWriteDiskAccessMode()
+    {
+        DiskAccessMode providedMode = conf.compaction_write_disk_access_mode;
+
+        // For 'auto', default to standard (conservative, safe default)
+        if (providedMode == DiskAccessMode.auto)
+        {
+            providedMode = DiskAccessMode.standard;
+        }
+
+        // Validate Direct IO is supported on ALL data directories if requested
+        if (providedMode == DiskAccessMode.direct)
+        {
+            // Only check Direct IO support if not running as a tool
+            if (!toolInitialized)
+            {
+                List<String> unsupportedLocations = new ArrayList<>();
+
+                for (String dataDir : conf.data_file_directories)
+                {
+                    try
+                    {
+                        File dataDirFile = new File(dataDir);
+                        PathUtils.createDirectoriesIfNotExists(dataDirFile.toPath());
+
+                        if (!FileUtils.isDirectIOSupported(dataDirFile))
+                        {
+                            unsupportedLocations.add(dataDir);
+                        }
+                    }
+                    catch (RuntimeException e)
+                    {
+                        logger.warn("Unable to determine Direct IO support for data directory {}: {}", dataDir, e.getMessage());
+                        unsupportedLocations.add(dataDir + " (check failed: " + e.getMessage() + ")");
+                    }
+                }
+
+                if (!unsupportedLocations.isEmpty())
+                {
+                    throw new ConfigurationException(
+                        String.format("compaction_write_disk_access_mode is set to 'direct', but the following data directories " +
+                                      "do not support Direct I/O: %s. Either change compaction_write_disk_access_mode to 'standard' " +
+                                      "in cassandra.yaml, or ensure all data directories are on filesystems that support Direct I/O.",
+                                      unsupportedLocations), false);
+                }
+            }
+        }
+
+        // Only 'standard' and 'direct' are valid for compaction writes
+        if (providedMode != DiskAccessMode.standard && providedMode != DiskAccessMode.direct)
+        {
+            throw new ConfigurationException("compaction_write_disk_access_mode must be 'standard', 'direct', or 'auto'. Got: " + providedMode, false);
+        }
+
+        compactionWriteDiskAccessMode = providedMode;
     }
 
     public static String getSavedCachesLocation()

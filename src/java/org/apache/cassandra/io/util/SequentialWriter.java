@@ -20,7 +20,11 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.LongConsumer;
 
 import org.apache.cassandra.io.FSReadError;
@@ -109,25 +113,36 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     }
 
     // TODO: we should specify as a parameter if we permit an existing file or not
-    private static FileChannel openChannel(File file)
+    private static FileChannel openChannel(File file, OpenOption... extraOptions)
     {
         try
         {
+            Set<OpenOption> options = new LinkedHashSet<>(Arrays.asList(StandardOpenOption.READ, StandardOpenOption.WRITE));
+            options.addAll(Arrays.asList(extraOptions));
+
             if (file.exists())
             {
-                return FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                return FileChannel.open(file.toPath(), options.toArray(OpenOption[]::new));
             }
             else
             {
-                FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                options.add(StandardOpenOption.CREATE_NEW);
+                FileChannel channel = FileChannel.open(file.toPath(), options.toArray(OpenOption[]::new));
                 try
                 {
                     SyncUtil.trySyncDir(file.parent());
                 }
                 catch (Throwable t)
                 {
-                    try { channel.close(); }
-                    catch (Throwable t2) { t.addSuppressed(t2); }
+                    try
+                    {
+                        channel.close();
+                    }
+                    catch (Throwable t2)
+                    {
+                        t.addSuppressed(t2);
+                    }
+                    throw t;
                 }
                 return channel;
             }
@@ -170,15 +185,24 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this(file, option.allocateBuffer(), option, strictFlushing);
     }
 
-    protected SequentialWriter(File file, ByteBuffer buffer, SequentialWriterOption option, boolean strictFlushing)
+    /**
+     * Constructor that accepts a buffer and optional open options for the file channel.
+     * This allows subclasses to provide custom buffers and specify options like O_DIRECT for Direct IO.
+     *
+     * @param file the file being written
+     * @param buffer write buffer
+     * @param option writer options
+     * @param strictFlushing whether to enforce strict flushing
+     * @param extraOpenOptions additional options to pass to FileChannel.open (e.g., ExtendedOpenOption.DIRECT)
+     */
+    protected SequentialWriter(File file, ByteBuffer buffer, SequentialWriterOption option, boolean strictFlushing,
+                               OpenOption... extraOpenOptions)
     {
-        super(openChannel(file), buffer);
+        super(openChannel(file, extraOpenOptions), buffer);
         this.strictFlushing = strictFlushing;
-        this.fchannel = (FileChannel)channel;
-
+        this.fchannel = (FileChannel) this.channel;
         this.file = file;
         this.filePath = file.absolutePath();
-
         this.option = option;
     }
 

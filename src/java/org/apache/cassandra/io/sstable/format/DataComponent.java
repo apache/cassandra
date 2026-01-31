@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.FlushCompression;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.DirectCompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
@@ -46,13 +49,30 @@ public class DataComponent
         {
             final CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
 
-            return new CompressedSequentialWriter(descriptor.fileFor(Components.DATA),
-                                                  descriptor.fileFor(Components.COMPRESSION_INFO),
-                                                  descriptor.fileFor(Components.DIGEST),
-                                                  options,
-                                                  compressionParams,
-                                                  metadataCollector,
-                                                  compressionDictionaryManager);
+            // Use Direct IO for compaction writes if configured
+            // Only apply to non-flush operations (compaction, streaming, etc.)
+            // Flushes may benefit from page cache and have different performance characteristics
+            DiskAccessMode writeMode = DatabaseDescriptor.getCompactionWriteDiskAccessMode();
+            if (writeMode == DiskAccessMode.direct && operationType != OperationType.FLUSH)
+            {
+                return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
+                                                            descriptor.fileFor(Components.COMPRESSION_INFO),
+                                                            descriptor.fileFor(Components.DIGEST),
+                                                            options,
+                                                            compressionParams,
+                                                            metadataCollector,
+                                                            compressionDictionaryManager);
+            }
+            else
+            {
+                return new CompressedSequentialWriter(descriptor.fileFor(Components.DATA),
+                                                      descriptor.fileFor(Components.COMPRESSION_INFO),
+                                                      descriptor.fileFor(Components.DIGEST),
+                                                      options,
+                                                      compressionParams,
+                                                      metadataCollector,
+                                                      compressionDictionaryManager);
+            }
         }
         else
         {
