@@ -67,7 +67,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
 
-            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(), "UNKNOWN");
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(), "{}");
 
             // force compact
             cluster.stream().forEach(node -> node.nodetool("compact"));
