@@ -36,6 +36,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.CassandraAuthorizer;
 import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.auth.PasswordAuthenticator;
@@ -82,6 +83,7 @@ public class AuditLoggerAuthTest
 
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
         embedded = ServerTestUtils.startEmbeddedCassandraService();
+        AuthTestUtils.waitForExistingRoles();
 
         executeWithCredentials(
         Arrays.asList(getCreateRoleCql(TEST_USER, true, false, false),
@@ -368,6 +370,8 @@ public class AuditLoggerAuthTest
             }
             catch (AuthenticationException e)
             {
+                if (expectedType == null)
+                    throw e;
                 authFailed = true;
             }
             catch (UnauthorizedException ue)

@@ -44,6 +44,7 @@ import org.apache.cassandra.audit.AuditEvent;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.DiagnosticEventAuditLogger;
+import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -78,6 +79,8 @@ public class CQLUserAuditTest
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
+        AuthTestUtils.waitForExistingRoles();
+
 
         executeAs(Arrays.asList("CREATE ROLE testuser WITH LOGIN = true AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE ROLE testuser_nologin WITH LOGIN = false AND SUPERUSER = false AND PASSWORD = 'foo'",
@@ -214,20 +217,23 @@ public class CQLUserAuditTest
                                                    AuditLogEntryType expectedAuthType) throws Exception
     {
         boolean authFailed = false;
-        Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
+        try(Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
                                  .withoutJMXReporting()
                                  .withCredentials(username, password)
-                                 .withPort(DatabaseDescriptor.getNativeTransportPort()).build();
-        try (Session session = cluster.connect())
+                                 .withPort(DatabaseDescriptor.getNativeTransportPort()).build())
         {
-            for (String query : queries)
-                session.execute(query);
+            try (Session session = cluster.connect())
+            {
+                for (String query : queries)
+                    session.execute(query);
+            }
+            catch (AuthenticationException e)
+            {
+                if (expectedAuthType == null)
+                    throw e;
+                authFailed = true;
+            }
         }
-        catch (AuthenticationException e)
-        {
-            authFailed = true;
-        }
-        cluster.close();
 
         if (expectedAuthType == null) return null;
 
