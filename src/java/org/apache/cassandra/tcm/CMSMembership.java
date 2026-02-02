@@ -20,10 +20,7 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.SortedSet;
-import java.util.TreeSet;
-
-import com.google.common.collect.ImmutableSet;
+import java.util.Set;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -49,7 +46,7 @@ public class CMSMembership implements MetadataValue<CMSMembership>
 
     /**
      * Used to derive a CMSMembership when deserializing a ClusterMetadata instance written with a metadata version
-     * prior to V7. At that time, CMS membership was always inferred from the data placements of the distributed
+     * prior to V9. At that time, CMS membership was always inferred from the data placements of the distributed
      * cluster metadata keyspace. Read replicas are full members of the CMS and write-only replicas are in the process
      * of joining. Note: every read replica must also be a write replica, leaving the CMS is atomic in respect of the
      * placements.
@@ -59,14 +56,15 @@ public class CMSMembership implements MetadataValue<CMSMembership>
      */
     public static CMSMembership reconstruct(DataPlacement placement, Directory directory)
     {
-        SortedSet<NodeId> full = new TreeSet<>();
-        SortedSet<NodeId> joining = new TreeSet<>();
+        BTreeSet.Builder<NodeId> fullMembersBuilder = BTreeSet.builder(NodeId::compareTo);
+        BTreeSet.Builder<NodeId> joiningMembersBuilder = BTreeSet.builder(NodeId::compareTo);
         Epoch lm = Epoch.EMPTY;
         for (VersionedEndpoints.ForRange endpoints : placement.reads.endpoints)
         {
             lm = endpoints.lastModified().isAfter(lm) ? endpoints.lastModified() : lm;
-            endpoints.get().endpoints().forEach(e -> full.add(directory.peerId(e)));
+            endpoints.get().endpoints().forEach(e -> fullMembersBuilder.add(directory.peerId(e)));
         }
+        BTreeSet<NodeId> full = fullMembersBuilder.build();
 
         for (VersionedEndpoints.ForRange endpoints : placement.writes.endpoints)
         {
@@ -74,10 +72,12 @@ public class CMSMembership implements MetadataValue<CMSMembership>
             endpoints.get().endpoints().forEach(e -> {
                 NodeId id = directory.peerId(e);
                 if (!full.contains(id))
-                    joining.add(id);
+                    joiningMembersBuilder.add(id);
             });
         }
-        return new CMSMembership(lm, BTreeSet.of(full), BTreeSet.of(joining));
+        BTreeSet<NodeId> joining = joiningMembersBuilder.build();
+
+        return new CMSMembership(lm, full, joining);
     }
 
     public DataPlacement toPlacement(Directory directory)
@@ -123,14 +123,14 @@ public class CMSMembership implements MetadataValue<CMSMembership>
         return lastModified;
     }
 
-    public ImmutableSet<NodeId> joiningMembers()
+    public Set<NodeId> joiningMembers()
     {
-        return ImmutableSet.copyOf(joiningMembers);
+        return joiningMembers;
     }
 
-    public ImmutableSet<NodeId> fullMembers()
+    public Set<NodeId> fullMembers()
     {
-        return ImmutableSet.copyOf(fullMembers);
+        return fullMembers;
     }
 
     public CMSMembership startJoining(NodeId id)
@@ -225,16 +225,16 @@ public class CMSMembership implements MetadataValue<CMSMembership>
             Epoch lastModified = Epoch.serializer.deserialize(in, version);
 
             int fullMemberCount = in.readUnsignedVInt32();
-            SortedSet<NodeId> fullMembers = new TreeSet<>();
+            BTreeSet.Builder<NodeId> fullMembers = BTreeSet.builder(NodeId::compareTo);
             for (int i = 0; i < fullMemberCount; i++)
                 fullMembers.add(NodeId.serializer.deserialize(in, version));
 
             int joiningMemberCount = in.readUnsignedVInt32();
-            SortedSet<NodeId> joiningMembers = new TreeSet<>();
+            BTreeSet.Builder<NodeId> joiningMembers = BTreeSet.builder(NodeId::compareTo);
             for (int i = 0; i < joiningMemberCount; i++)
                 joiningMembers.add(NodeId.serializer.deserialize(in, version));
 
-            return new CMSMembership(lastModified, BTreeSet.of(fullMembers), BTreeSet.of(joiningMembers)) ;
+            return new CMSMembership(lastModified, fullMembers.build(), joiningMembers.build()) ;
         }
 
         @Override
