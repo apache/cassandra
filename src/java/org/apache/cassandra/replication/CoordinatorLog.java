@@ -283,6 +283,24 @@ public abstract class CoordinatorLog
         }
     }
 
+    /**
+     * Returns the UNION of all witnessed offsets from all participants.
+     * This represents all offsets that ANY replica has witnessed.
+     */
+    Offsets.Immutable collectUnionOfWitnessedOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Offsets.Mutable union = witnessedOffsets.union();
+            return union.isEmpty() ? null : Offsets.Immutable.copy(union);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     public long getUnreconciledCount()
     {
         lock.readLock().lock();
