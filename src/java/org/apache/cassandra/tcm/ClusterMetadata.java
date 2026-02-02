@@ -237,9 +237,7 @@ public class ClusterMetadata
             return fullCMSMembers().contains(endpoint);
 
         // special case to handle initialization of the CMS for the first time
-        return epoch.isEqualOrBefore(Epoch.FIRST) && cmsDataPlacement.reads.byEndpoint()
-                                                                           .keySet()
-                                                                           .contains(endpoint);
+        return cmsDataPlacement.reads.byEndpoint().keySet().contains(endpoint);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
