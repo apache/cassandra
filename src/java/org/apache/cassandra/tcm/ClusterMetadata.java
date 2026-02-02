@@ -290,7 +290,7 @@ public class ClusterMetadata
             else
             {
                 // This cluster did not previously upgrade from a gossip based version (i.e. pre-6.0) but did at some point
-                // run a version prior to MetadataVersion.V7 where we started to encode CMS membership directly. This
+                // run a version prior to MetadataVersion.V9 where we started to encode CMS membership directly. This
                 // condition implies that we are reconstructing a serialized cluster metadata during replay or else the
                 // directory should not be empty after Epoch.FIRST as the base state in INITIALIZE_CMS now includes the
                 // first CMS node. Similarly, if the cluster had previously been running a gossip-based version, the
