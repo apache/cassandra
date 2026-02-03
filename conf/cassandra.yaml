@@ -2934,13 +2934,3 @@ compression_dictionary_cache_size: 10
 # Expired dictionaries will be removed from memory but can be reloaded if needed.
 # Min unit: s
 compression_dictionary_cache_expire: 24h
-
-# Enable automatic dictionary training based on sampling of write operations.
-# When enabled, the system will automatically collect samples and train new dictionaries.
-# Manual training via nodetool is always available regardless of this setting.
-compression_dictionary_training_auto_train_enabled: false
-
-# Sampling rate for automatic dictionary training (0.01-1).
-# Value of 0.01 means 1% of writes are sampled. Lower values reduce overhead but may
-# result in less representative sample data for dictionary training.
-compression_dictionary_training_sampling_rate: 0.01

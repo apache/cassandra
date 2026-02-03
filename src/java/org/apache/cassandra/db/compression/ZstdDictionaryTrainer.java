@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -31,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
@@ -56,9 +54,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     private final AtomicLong sampleCount;
     private final int compressionLevel; // optimal if using the same level for training as when compressing.
 
-    // Sampling rate can be updated during training
-    private volatile float samplingRate;
-
     // Minimum number of samples required by ZSTD library
     private static final int MIN_SAMPLES_REQUIRED = 11;
 
@@ -71,28 +66,12 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
 
     public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel)
     {
-        this(keyspaceName,
-             tableName,
-             compressionLevel,
-             DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate());
-    }
-
-    @VisibleForTesting
-    public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel, float samplingRate)
-    {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
         this.totalSampleSize = new AtomicLong(0);
         this.sampleCount = new AtomicLong(0);
         this.compressionLevel = compressionLevel;
-        this.samplingRate = samplingRate;
         this.currentTrainingStatus = TrainingStatus.NOT_STARTED;
-    }
-
-    @Override
-    public boolean shouldSample()
-    {
-        return zstdTrainer != null && ThreadLocalRandom.current().nextFloat() < samplingRate;
     }
 
     @Override
@@ -304,16 +283,15 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public boolean start(boolean manualTraining, CompressionDictionaryTrainingConfig trainingConfig)
+    public boolean start(CompressionDictionaryTrainingConfig trainingConfig)
     {
-        if (closed || !(manualTraining || shouldAutoStartTraining()))
+        if (closed)
             return false;
 
         try
         {
             // reset on starting; a new zstdTrainer instance is created during reset
             reset(trainingConfig);
-            logger.info("Started dictionary training for {}.{}", keyspaceName, tableName);
             currentTrainingStatus = TrainingStatus.SAMPLING;
             failureMessage = null; // Clear any previous failure message
             return true;
@@ -325,14 +303,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             currentTrainingStatus = TrainingStatus.FAILED;
         }
         return false;
-    }
-
-    /**
-     * Determines if training should auto-start based on configuration.
-     */
-    private boolean shouldAutoStartTraining()
-    {
-        return DatabaseDescriptor.getCompressionDictionaryTrainingAutoTrainEnabled();
     }
 
     @Override
@@ -363,16 +333,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     public void setDictionaryTrainedListener(Consumer<CompressionDictionary> listener)
     {
         this.dictionaryTrainedListener = listener;
-    }
-
-    @Override
-    public void updateSamplingRate(float newSamplingRate)
-    {
-        if (newSamplingRate <= 0.0f || newSamplingRate > 1.0f)
-            throw new IllegalArgumentException("Sampling rate has to be between (0.0;1], it is " + newSamplingRate);
-
-        this.samplingRate = newSamplingRate;
-        logger.debug("Updated sampling rate to {} for {}.{}", newSamplingRate, keyspaceName, tableName);
     }
 
     /**

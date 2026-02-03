@@ -524,10 +524,6 @@ public class Config
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
 
-    // Dictionary training settings
-    public volatile boolean compression_dictionary_training_auto_train_enabled = false;
-    public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
-
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
     public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
