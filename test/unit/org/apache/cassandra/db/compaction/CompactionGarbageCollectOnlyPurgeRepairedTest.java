@@ -28,6 +28,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.awaitility.Awaitility;
 
 import org.apache.cassandra.Util;
@@ -55,6 +57,8 @@ import static org.junit.Assert.fail;
  */
 public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
 {
+    public static final Logger LOGGER = LoggerFactory.getLogger(CompactionGarbageCollectOnlyPurgeRepairedTest.class);
+
     /**
      * Tests that garbage collection completes
      * when there are mixed repaired and unrepaired SSTables with only_purge_repaired_tombstones=true
