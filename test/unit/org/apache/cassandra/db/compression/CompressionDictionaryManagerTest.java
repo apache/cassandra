@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.junit.After;
@@ -37,7 +36,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionDictionaryManagerTest
@@ -118,7 +116,7 @@ public class CompressionDictionaryManagerTest
         TrainingState trainingState = TrainingState.fromCompositeData(managerWithDict.getTrainingState());
         assertThat(trainingState.getStatus())
         .as("Training status should be valid")
-        .isEqualTo(TrainingStatus.NOT_STARTED);
+        .isEqualTo(TrainingStatus.SAMPLING);
     }
 
     @Test
@@ -188,23 +186,6 @@ public class CompressionDictionaryManagerTest
         assertThat(newTrainer)
         .as("Should create new trainer when compression level changes")
         .isNotSameAs(initialTrainer);
-    }
-
-    @Test
-    public void testAddSample()
-    {
-        ByteBuffer sample = ByteBuffer.wrap("test sample data".getBytes());
-        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
-
-        // Should not throw for dictionary-enabled table
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(sample));
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(null));
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(emptyBuffer));
-
-        // Should not throw for non-dictionary table (graceful handling)
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(sample));
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(null));
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(emptyBuffer));
     }
 
     @Test

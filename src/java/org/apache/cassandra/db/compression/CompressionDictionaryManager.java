@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
@@ -88,7 +86,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
             scheduler.scheduleRefreshTask();
 
-            trainer.start(false, createTrainingConfig());
+            trainer.start(createTrainingConfig());
         }
 
         if (registerBookkeeping && isEnabled)
@@ -148,7 +146,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             // Start trainer if it exists
             if (trainer != null)
             {
-                trainer.start(false, createTrainingConfig());
+                trainer.start(createTrainingConfig());
             }
             return;
         }
@@ -162,21 +160,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         {
             logger.warn("Failed to close CompressionDictionaryManager on disabling " +
                         "dictionary-based compression for table {}.{}", keyspaceName, tableName);
-        }
-    }
-
-    /**
-     * Adds a sample to the dictionary trainer for learning compression patterns.
-     * Samples are randomly selected to avoid bias and improve dictionary quality.
-     *
-     * @param sample the sample data to potentially add for training
-     */
-    public void addSample(ByteBuffer sample)
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        if (dictionaryTrainer != null && dictionaryTrainer.shouldSample())
-        {
-            dictionaryTrainer.addSample(sample);
         }
     }
 
@@ -252,7 +235,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
                     keyspaceName, tableName, sstables.size());
 
-        trainer.start(true, trainingConfig);
+        trainer.start(trainingConfig);
         scheduler.scheduleSSTableBasedTraining(trainer, sstables, trainingConfig, force);
     }
 
@@ -389,7 +372,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                .builder()
                .maxDictionarySize(getCompressionDictionaryTrainingMaxDictionarySize(compressionParams, parameters))
                .maxTotalSampleSize(getCompressionDictionaryTrainingMaxTotalSampleSize(compressionParams, parameters))
-               .samplingRate(DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate())
                .chunkSize(compressionParams.chunkLength())
                .build();
     }

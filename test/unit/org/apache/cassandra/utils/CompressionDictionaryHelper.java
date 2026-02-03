@@ -56,9 +56,9 @@ public class CompressionDictionaryHelper
                                                      .maxTotalSampleSize(1024 * 1024) // 1MB total
                                                      .build();
 
-        try (ZstdDictionaryTrainer trainer = new ZstdDictionaryTrainer(keyspace, table, 3, 100))
+        try (ZstdDictionaryTrainer trainer = new ZstdDictionaryTrainer(keyspace, table, 3))
         {
-            trainer.start(true, config);
+            trainer.start(config);
             for (int i = 0; i < 25000; i++)
             {
                 trainer.addSample(UTF8Type.instance.fromString(CompressionDictionaryHelper.INSTANCE.getRandomSample()));
