@@ -144,7 +144,6 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
     /**
      * Tests that garbage collection works when ALL SSTables are repaired.
      * In this case, no cancellation happens, so no risk of ConcurrentModificationException.
-     * Basic sanity check to ensure status quo.
      */
     @Test
     public void testAllRepaired() throws Throwable
@@ -179,7 +178,6 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
     /**
      * Tests garbage collection without only_purge_repaired_tombstones (baseline test).
      * This code path doesn't involve the problematic iteration with cancel().
-     * Basic sanity check to ensure status quo.
      */
     @Test
     public void testWithoutOnlyPurgeRepaired() throws Throwable
