@@ -403,6 +403,8 @@ There are these four commands for now related to compression dictionaries:
 * export - a user can export a compression dictionary of a keyspace and a table, either the last one or
 by a specific id, to a file.
 * import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
+* cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped).
+A user can inspect which dictionaries are orphaned by `-d / --dry` flag without deleting them.
 
 For `train` subcommand, it is possible to specify:
 

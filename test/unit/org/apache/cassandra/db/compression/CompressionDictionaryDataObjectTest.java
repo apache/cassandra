@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import javax.management.openmbean.CompositeData;
@@ -38,6 +39,7 @@ public class CompressionDictionaryDataObjectTest
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tb";
+    private static final String TABLE_ID = UUID.randomUUID().toString();
     private static final CompressionDictionary COMPRESSION_DICTIONARY = CompressionDictionaryHelper.INSTANCE.trainDictionary(KEYSPACE, TABLE);
     private static final CompressionDictionaryDataObject VALID_OBJECT = createValidObject();
 
@@ -59,7 +61,7 @@ public class CompressionDictionaryDataObjectTest
     @Test
     public void testConversionOfCompressionDictionaryToDataObject()
     {
-        CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromCompressionDictionary(KEYSPACE, TABLE, COMPRESSION_DICTIONARY);
+        CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromCompressionDictionary(KEYSPACE, TABLE, TABLE_ID, COMPRESSION_DICTIONARY);
         CompressionDictionaryDataObject dataObject = CompressionDictionaryDetailsTabularData.fromCompositeData(compositeData);
 
         assertEquals(KEYSPACE, dataObject.keyspace);
@@ -76,6 +78,7 @@ public class CompressionDictionaryDataObjectTest
     {
         LightweightCompressionDictionary lightweight = new LightweightCompressionDictionary(KEYSPACE,
                                                                                             TABLE,
+                                                                                            TABLE_ID,
                                                                                             COMPRESSION_DICTIONARY.dictId(),
                                                                                             COMPRESSION_DICTIONARY.checksum(),
                                                                                             COMPRESSION_DICTIONARY.rawDictionary().length);
@@ -84,6 +87,7 @@ public class CompressionDictionaryDataObjectTest
 
         assertEquals(KEYSPACE, compositeData.get(CompressionDictionaryDetailsTabularData.KEYSPACE_NAME));
         assertEquals(TABLE, compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_NAME));
+        assertEquals(TABLE_ID, compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_ID_NAME));
         assertEquals(COMPRESSION_DICTIONARY.dictId().id, compositeData.get(CompressionDictionaryDetailsTabularData.DICT_ID_NAME));
         assertNull(compositeData.get(CompressionDictionaryDetailsTabularData.DICT_NAME));
         assertEquals(COMPRESSION_DICTIONARY.dictId().kind.name(), compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME));
@@ -96,6 +100,7 @@ public class CompressionDictionaryDataObjectTest
     {
         assertInvalid(modifier -> modifier.withKeyspace(null), "Keyspace not specified.");
         assertInvalid(modifier -> modifier.withTable(null), "Table not specified.");
+        assertInvalid(modifier -> modifier.withTableId(null), "Table id not specified");
         assertInvalid(modifier -> modifier.withDictId(-1), "Provided dictionary id must be positive but it is '-1'.");
         assertInvalid(modifier -> modifier.withDict(null), "Provided dictionary byte array is null or empty.");
         assertInvalid(modifier -> modifier.withDict(new byte[0]), "Provided dictionary byte array is null or empty.");
@@ -127,6 +132,7 @@ public class CompressionDictionaryDataObjectTest
     {
         return new CompressionDictionaryDataObject("ks",
                                                    "tb",
+                                                   TABLE_ID,
                                                    123,
                                                    COMPRESSION_DICTIONARY.rawDictionary(),
                                                    CompressionDictionary.Kind.ZSTD.name(),
@@ -140,6 +146,7 @@ public class CompressionDictionaryDataObjectTest
     {
         private String keyspace;
         private String table;
+        private String tableId;
         private long dictId;
         private byte[] dict;
         private String kind;
@@ -150,6 +157,7 @@ public class CompressionDictionaryDataObjectTest
         {
             withKeyspace(from.keyspace);
             withTable(from.table);
+            withTableId(from.tableId);
             withDictId(from.dictId);
             withDict(from.dict);
             withKind(from.kind);
@@ -159,7 +167,7 @@ public class CompressionDictionaryDataObjectTest
 
         public CompressionDictionaryDataObject build()
         {
-            return new CompressionDictionaryDataObject(keyspace, table, dictId, dict, kind, dictChecksum, dictLength);
+            return new CompressionDictionaryDataObject(keyspace, table, tableId, dictId, dict, kind, dictChecksum, dictLength);
         }
 
         public DataObjectModifier withKeyspace(String keyspace)
@@ -171,6 +179,12 @@ public class CompressionDictionaryDataObjectTest
         public DataObjectModifier withTable(String table)
         {
             this.table = table;
+            return this;
+        }
+
+        public DataObjectModifier withTableId(String tableId)
+        {
+            this.tableId = tableId;
             return this;
         }
 

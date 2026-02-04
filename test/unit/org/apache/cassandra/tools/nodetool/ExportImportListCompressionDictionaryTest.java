@@ -63,7 +63,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         importDictionary(pair.right);
 
         list(pair.left, firstTable);
-        list(pair.left, secondTable);
+        list(export(secondTable, null).left, secondTable);
     }
 
     @Test
@@ -87,6 +87,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         // test non-existing keyspace / table
         serializeToJsonFile(new CompressionDictionaryDataObject("abc",
                                                                 "def",
+                                                                "123",
                                                                 pair.left.dictId,
                                                                 pair.left.dict,
                                                                 pair.left.kind,
@@ -177,6 +178,7 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
     {
         serializeToJsonFile(new CompressionDictionaryDataObject(pair.left.keyspace,
                                                                 table,
+                                                                pair.left.tableId,
                                                                 pair.left.dictId,
                                                                 pair.left.dict,
                                                                 pair.left.kind,

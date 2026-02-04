@@ -1400,4 +1400,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Mutates the repaired state of all SSTables for the given SSTables */
     public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);
+
+    TabularData getOrphanedCompressionDictionaries();
+
+    void clearOrphanedCompressionDictionaries();
 }

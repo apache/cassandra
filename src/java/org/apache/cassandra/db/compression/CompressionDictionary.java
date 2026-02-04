@@ -261,11 +261,13 @@ public interface CompressionDictionary
         int size = row.getInt("dict_length");
         String keyspaceName = row.getString("keyspace_name");
         String tableName = row.getString("table_name");
+        String tableId = row.getString("table_id");
 
         try
         {
             return new LightweightCompressionDictionary(keyspaceName,
                                                         tableName,
+                                                        tableId,
                                                         new DictId(CompressionDictionary.Kind.valueOf(kindStr), dictId),
                                                         checksum,
                                                         size);
@@ -430,21 +432,37 @@ public interface CompressionDictionary
     {
         public final String keyspaceName;
         public final String tableName;
+        public final String tableId;
         public final DictId dictId;
         public final int checksum;
         public final int size;
 
         public LightweightCompressionDictionary(String keyspaceName,
                                                 String tableName,
+                                                String tableId,
                                                 DictId dictId,
                                                 int checksum,
                                                 int size)
         {
             this.keyspaceName = keyspaceName;
             this.tableName = tableName;
+            this.tableId = tableId;
             this.dictId = dictId;
             this.checksum = checksum;
             this.size = size;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "LightweightCompressionDictionary{" +
+                   "keyspaceName='" + keyspaceName + '\'' +
+                   ", tableName='" + tableName + '\'' +
+                   ", tableId='" + tableId + '\'' +
+                   ", dictId=" + dictId +
+                   ", checksum=" + checksum +
+                   ", size=" + size +
+                   '}';
         }
     }
 }

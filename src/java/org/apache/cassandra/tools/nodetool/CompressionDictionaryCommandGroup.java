@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
@@ -37,6 +38,7 @@ import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.Trainin
 import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
@@ -61,7 +63,8 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MA
          subcommands = { CompressionDictionaryCommandGroup.TrainDictionary.class,
                          CompressionDictionaryCommandGroup.ListDictionaries.class,
                          CompressionDictionaryCommandGroup.ExportDictionary.class,
-                         CompressionDictionaryCommandGroup.ImportDictionary.class })
+                         CompressionDictionaryCommandGroup.ImportDictionary.class,
+                         CompressionDictionaryCommandGroup.CleanupDictionaries.class})
 public class CompressionDictionaryCommandGroup
 {
     @Command(name = "train",
@@ -216,40 +219,43 @@ public class CompressionDictionaryCommandGroup
         @Override
         protected void execute(NodeProbe probe)
         {
-            try
+            ListingHelper.list(probe,
+                               () ->
+                               {
+                                   try
+                                   {
+                                       return probe.listCompressionDictionaries(keyspace, table);
+                                   }
+                                   catch (Throwable t)
+                                   {
+                                       throw new RuntimeException(t);
+                                   }
+                               },
+                               List.of(CompressionDictionaryDetailsTabularData.TABULAR_DATA_TYPE_TABLE_ID_INDEX,
+                                       CompressionDictionaryDetailsTabularData.TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX));
+        }
+    }
+
+    @Command(name = "cleanup", description = "Clean up orphaned dictionaries by deleting them from " + SystemDistributedKeyspace.NAME
+                                             + '.' + SystemDistributedKeyspace.COMPRESSION_DICTIONARIES +
+                                             " table, these are ones for which a table they were trained for was dropped.")
+    public static class CleanupDictionaries extends AbstractCommand
+    {
+        @Option(names = {"-d", "--dry"}, description = "Only display orphaned dictionaries, do not remove them.")
+        private boolean dry;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            if (dry)
             {
-                TableBuilder tableBuilder = new TableBuilder();
-                TabularData tabularData = probe.listCompressionDictionaries(keyspace, table);
-                List<String> indexNames = tabularData.getTabularType().getIndexNames();
-
-                List<String> columns = new ArrayList<>(indexNames);
-                // ignore raw dict
-                columns.remove(CompressionDictionaryDetailsTabularData.TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX);
-                tableBuilder.add(columns);
-
-                for (Object eachDict : tabularData.keySet())
-                {
-                    final List<?> dictRow = (List<?>) eachDict;
-
-                    List<String> rowValues = new ArrayList<>();
-
-                    for (int i = 0; i < dictRow.size(); i++)
-                    {
-                        // ignore raw dict
-                        if (i == CompressionDictionaryDetailsTabularData.TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX)
-                            continue;
-
-                        rowValues.add(dictRow.get(i).toString());
-                    }
-                    tableBuilder.add(rowValues);
-                }
-
-                tableBuilder.printTo(probe.output().out);
+                ListingHelper.list(probe,
+                                   probe::getOrphanedCompressionDictionaries,
+                                   List.of(CompressionDictionaryDetailsTabularData.TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX));
             }
-            catch (Exception e)
+            else
             {
-                probe.output().err.printf("Failed to list dictionaries: %s%n", e.getMessage());
-                System.exit(1);
+                probe.clearOrphanedCompressionDictionaries();
             }
         }
     }
@@ -364,6 +370,68 @@ public class CompressionDictionaryCommandGroup
             if (!dictionaryFile.isReadable())
             {
                 probe.output().err.printf("Path %s is not readable.%n", dictionaryPath);
+                System.exit(1);
+            }
+        }
+    }
+
+    private static class ListingHelper
+    {
+        /**
+         * Lists dictionaries, the concrete mean of querying them is delegated to a specific subcommand.
+         *
+         * @param probe probe to query Cassandra with
+         * @param tabularDataSupplier supplier of tabular data containing dictionaries to display
+         * @param removedColumnsIndices supplier of an array with indexes of columns in tabular data to be ignored
+         *                              when displaying them
+         */
+        public static void list(NodeProbe probe,
+                                Supplier<TabularData> tabularDataSupplier,
+                                List<Integer> removedColumnsIndices)
+        {
+            try
+            {
+                TableBuilder tableBuilder = new TableBuilder();
+                TabularData tabularData = tabularDataSupplier.get();
+                List<String> indexNames = tabularData.getTabularType().getIndexNames();
+
+                // ignore columns not meant to be displayed to a user
+                List<String> columns = new ArrayList<>();
+                for (int i = 0; i < indexNames.size(); i++)
+                {
+                    if (!removedColumnsIndices.contains(i))
+                    {
+                        columns.add(indexNames.get(i));
+                    }
+                }
+
+                tableBuilder.add(columns);
+
+                boolean hasOuput = false;
+                for (Object eachDict : tabularData.keySet())
+                {
+                    final List<?> dictRow = (List<?>) eachDict;
+
+                    List<String> rowValues = new ArrayList<>();
+
+                    for (int i = 0; i < dictRow.size(); i++)
+                    {
+                        // ignore columns not meant to be displayed to a user
+                        if (removedColumnsIndices.contains(i))
+                            continue;
+
+                        rowValues.add(dictRow.get(i).toString());
+                        hasOuput = true;
+                    }
+                    tableBuilder.add(rowValues);
+                }
+
+                if (hasOuput)
+                    tableBuilder.printTo(probe.output().out);
+            }
+            catch (Exception e)
+            {
+                probe.output().err.printf("Failed to list dictionaries: %s%n", e.getMessage());
                 System.exit(1);
             }
         }
