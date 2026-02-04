@@ -336,7 +336,7 @@ public class TrieMemoryIndex extends MemoryIndex
         }
 
         Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
-        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
+        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, null, false).valueIterator();
 
         while (values.hasNext())
             cd.processContent(values.next());
