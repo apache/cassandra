@@ -2819,6 +2819,20 @@ public class NodeProbe implements AutoCloseable
         return TrainingState.fromCompositeData(compositeData);
     }
 
+    /**
+     * Gets all compression dictionaries which are orphaned, that is a table they were trained for was dropped.
+     * @return tabular data of orphaned dictionaries
+     */
+    public TabularData getOrphanedCompressionDictionaries()
+    {
+        return ssProxy.getOrphanedCompressionDictionaries();
+    }
+
+    public void clearOrphanedCompressionDictionaries()
+    {
+        ssProxy.clearOrphanedCompressionDictionaries();
+    }
+
     private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
     {
         // Construct table-specific MBean name

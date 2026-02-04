@@ -41,14 +41,23 @@ public class CompressionDictionaryDetailsTabularData
 {
     /**
      * Position inside index names of tabular type of tabular data returned upon
+     * listing dictionaries where table id is expected to be located.
+     * We do not need to process this entry at all time, e.g. when not listing
+     * orphaned compression dictionaries.
+     */
+    public static final int TABULAR_DATA_TYPE_TABLE_ID_INDEX = 2;
+
+    /**
+     * Position inside index names of tabular type of tabular data returned upon
      * listing dictionaries where raw dictionary is expected to be located.
      * We do not need to process this entry as listing does not contain any raw dictionary,
      * only exporting does.
      */
-    public static final int TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX = 3;
+    public static final int TABULAR_DATA_TYPE_RAW_DICTIONARY_INDEX = 4;
 
     public static final String KEYSPACE_NAME = "Keyspace";
     public static final String TABLE_NAME = "Table";
+    public static final String TABLE_ID_NAME = "TableId";
     public static final String DICT_ID_NAME = "DictId";
     public static final String DICT_NAME = "Dict";
     public static final String KIND_NAME = "Kind";
@@ -58,6 +67,7 @@ public class CompressionDictionaryDetailsTabularData
 
     private static final String[] ITEM_NAMES = new String[]{ KEYSPACE_NAME,
                                                              TABLE_NAME,
+                                                             TABLE_ID_NAME,
                                                              DICT_ID_NAME,
                                                              DICT_NAME,
                                                              KIND_NAME,
@@ -66,6 +76,7 @@ public class CompressionDictionaryDetailsTabularData
 
     private static final String[] ITEM_DESCS = new String[]{ "keyspace",
                                                              "table",
+                                                             "table_id",
                                                              "dictionary_id",
                                                              "dictionary_bytes",
                                                              "kind",
@@ -84,6 +95,7 @@ public class CompressionDictionaryDetailsTabularData
         {
             ITEM_TYPES = new OpenType[]{ SimpleType.STRING, // keyspace
                                          SimpleType.STRING, // table
+                                         SimpleType.STRING, // tableId
                                          SimpleType.LONG, // dict id
                                          new ArrayType<String[]>(SimpleType.BYTE, true), // dict bytes
                                          SimpleType.STRING, // kind
@@ -115,6 +127,7 @@ public class CompressionDictionaryDetailsTabularData
                                             {
                                             dictionary.keyspaceName,
                                             dictionary.tableName,
+                                            dictionary.tableId,
                                             dictionary.dictId.id,
                                             null, // on purpose not returning actual dictionary
                                             dictionary.dictId.kind.name(),
@@ -133,10 +146,11 @@ public class CompressionDictionaryDetailsTabularData
      *
      * @param keyspace   keyspace of a dictionary
      * @param table      table of a dictionary
+     * @param tableId    id of a table dictionary is for
      * @param dictionary dictionary itself
      * @return composite data representing dictionary
      */
-    public static CompositeData fromCompressionDictionary(String keyspace, String table, CompressionDictionary dictionary)
+    public static CompositeData fromCompressionDictionary(String keyspace, String table, String tableId, CompressionDictionary dictionary)
     {
         try
         {
@@ -146,6 +160,7 @@ public class CompressionDictionaryDetailsTabularData
                                             {
                                             keyspace,
                                             table,
+                                            tableId,
                                             dictionary.dictId().id,
                                             dictionary.rawDictionary(),
                                             dictionary.kind().name(),
@@ -176,6 +191,7 @@ public class CompressionDictionaryDetailsTabularData
                                             {
                                             dataObject.keyspace,
                                             dataObject.table,
+                                            dataObject.tableId,
                                             dataObject.dictId,
                                             dataObject.dict,
                                             dataObject.kind,
@@ -200,6 +216,7 @@ public class CompressionDictionaryDetailsTabularData
     {
         return new CompressionDictionaryDataObject((String) compositeData.get(CompressionDictionaryDetailsTabularData.KEYSPACE_NAME),
                                                    (String) compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_NAME),
+                                                   (String) compositeData.get(CompressionDictionaryDetailsTabularData.TABLE_ID_NAME),
                                                    (Long) compositeData.get(CompressionDictionaryDetailsTabularData.DICT_ID_NAME),
                                                    (byte[]) compositeData.get(CompressionDictionaryDetailsTabularData.DICT_NAME),
                                                    (String) compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME),
@@ -211,6 +228,7 @@ public class CompressionDictionaryDetailsTabularData
     {
         public final String keyspace;
         public final String table;
+        public final String tableId;
         public final long dictId;
         public final byte[] dict;
         public final String kind;
@@ -220,6 +238,7 @@ public class CompressionDictionaryDetailsTabularData
         @JsonCreator
         public CompressionDictionaryDataObject(@JsonProperty("keyspace") String keyspace,
                                                @JsonProperty("table") String table,
+                                               @JsonProperty("tableId") String tableId,
                                                @JsonProperty("dictId") long dictId,
                                                @JsonProperty("dict") byte[] dict,
                                                @JsonProperty("kind") String kind,
@@ -228,6 +247,7 @@ public class CompressionDictionaryDetailsTabularData
         {
             this.keyspace = keyspace;
             this.table = table;
+            this.tableId = tableId;
             this.dictId = dictId;
             this.dict = dict;
             this.kind = kind;
@@ -241,7 +261,7 @@ public class CompressionDictionaryDetailsTabularData
          * An object of this class is considered to be valid if:
          *
          * <ul>
-         *     <li>keyspace and table are not null</li>
+         *     <li>keyspace, table and table id are not null</li>
          *     <li>dict id is lower than 0</li>
          *     <li>dict is not null nor empty</li>
          *     <li>dict length is less than or equal to 1MiB</li>
@@ -257,6 +277,8 @@ public class CompressionDictionaryDetailsTabularData
                 throw new IllegalArgumentException("Keyspace not specified.");
             if (table == null)
                 throw new IllegalArgumentException("Table not specified.");
+            if (tableId == null)
+                throw new IllegalArgumentException("Table id not specified");
             if (dictId <= 0)
                 throw new IllegalArgumentException("Provided dictionary id must be positive but it is '" + dictId + "'.");
             if (dict == null || dict.length == 0)

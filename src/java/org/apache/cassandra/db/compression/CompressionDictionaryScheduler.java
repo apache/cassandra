@@ -51,6 +51,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
     private final String keyspaceName;
     private final String tableName;
+    private final String tableId;
     private final ICompressionDictionaryCache cache;
     private final AtomicBoolean manualTrainingInProgress = new AtomicBoolean(false);
 
@@ -59,11 +60,13 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
     public CompressionDictionaryScheduler(String keyspaceName,
                                           String tableName,
+                                          String tableId,
                                           ICompressionDictionaryCache cache,
                                           boolean isEnabled)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
+        this.tableId = tableId;
         this.cache = cache;
         this.isEnabled = isEnabled;
     }
@@ -135,7 +138,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 return;
             }
 
-            CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName);
+            CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName, tableId);
             cache.add(dictionary);
         }
         catch (Exception e)

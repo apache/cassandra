@@ -60,6 +60,7 @@ import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
 
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
@@ -105,6 +106,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
@@ -5781,5 +5784,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
         }
         return sstablesTouched;
+    }
+
+    @Override
+    public TabularData getOrphanedCompressionDictionaries()
+    {
+        List<LightweightCompressionDictionary> dicts = SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries();
+        TabularDataSupport tabularData = new TabularDataSupport(CompressionDictionaryDetailsTabularData.TABULAR_TYPE);
+
+        if (dicts.isEmpty())
+            return tabularData;
+
+        for (LightweightCompressionDictionary dict : dicts)
+            tabularData.put(CompressionDictionaryDetailsTabularData.fromLightweightCompressionDictionary(dict));
+
+        return tabularData;
+    }
+
+    @Override
+    public void clearOrphanedCompressionDictionaries()
+    {
+        SystemDistributedKeyspace.clearOrphanedCompressionDictionaries();
     }
 }

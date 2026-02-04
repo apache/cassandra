@@ -61,9 +61,9 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
-
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cfs.metadata.id.toLongString(), cache, true);
+
         try (CompressionDictionaryManager manager = cfs.compressionDictionaryManager())
         {
             Set<SSTableReader> sstables = new HashSet<>();
@@ -81,9 +81,9 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4'}");
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
-
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cfs.metadata.id.toLongString(), cache, true);
+
         cfs.disableAutoCompaction();
         try (CompressionDictionaryManager manager = cfs.compressionDictionaryManager())
         {

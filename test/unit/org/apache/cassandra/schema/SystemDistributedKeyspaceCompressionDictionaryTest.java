@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -79,12 +80,12 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
     @Test
     public void testStoreCompressionDictionary() throws Exception
     {
+        String tableID = UUID.randomUUID().toString();
         // Store a dictionary
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary1);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary1);
 
         // Verify it was stored
-        CompressionDictionary retrieved = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE);
+        CompressionDictionary retrieved = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID);
 
         assertThat(retrieved)
         .as("Retrieved dictionary should not be null")
@@ -106,15 +107,15 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
     }
 
     @Test
-    public void testStoreMultipleDictionaries() throws Exception
+    public void testStoreMultipleDictionaries()
     {
+        String tableID = UUID.randomUUID().toString();
         // Store multiple dictionaries for the same table
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary1);
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary2);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary1);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary2);
 
         // Should retrieve the latest one (higher ID due to clustering order)
-        CompressionDictionary latest = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE);
+        CompressionDictionary latest = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID);
 
         assertThat(latest)
         .as("Should retrieve the latest dictionary")
@@ -128,17 +129,18 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
     }
 
     @Test
-    public void testRetrieveSpecificDictionary() throws Exception
+    public void testRetrieveSpecificDictionary()
     {
+        String tableID = UUID.randomUUID().toString();
         // Store both dictionaries
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary1);
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary2);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary1);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary2);
 
         // Retrieve specific dictionary by ID
         CompressionDictionary dict1 = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 100L);
+        TEST_KEYSPACE, TEST_TABLE, tableID, 100L);
         CompressionDictionary dict2 = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 200L);
+        TEST_KEYSPACE, TEST_TABLE, tableID, 200L);
 
         assertThat(dict1)
         .as("Should retrieve dictionary 1")
@@ -165,7 +167,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
     {
         // Try to retrieve dictionary that doesn't exist
         CompressionDictionary nonExistent = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(
-        "nonexistent_keyspace", "nonexistent_table");
+        "nonexistent_keyspace", "nonexistent_table", "nonexistingid");
 
         assertThat(nonExistent)
         .as("Should return null for non-existent dictionary")
@@ -173,7 +175,7 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
 
         // Try to retrieve specific dictionary that doesn't exist
         CompressionDictionary nonExistentById = SystemDistributedKeyspace.retrieveCompressionDictionary(
-        TEST_KEYSPACE, TEST_TABLE, 999L);
+        TEST_KEYSPACE, TEST_TABLE, "nonexistingid",999L);
 
         assertThat(nonExistentById)
         .as("Should return null for non-existent dictionary ID")
@@ -181,18 +183,20 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
     }
 
     @Test
-    public void testStoredDictionaryIncludesLengthAndChecksum() throws Exception
+    public void testStoredDictionaryIncludesLengthAndChecksum()
     {
+        String tableID = UUID.randomUUID().toString();
         // Store a dictionary
-        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, testDictionary1);
+        SystemDistributedKeyspace.storeCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, tableID, testDictionary1);
 
         // Query the table directly to verify dict_length and dict_checksum are stored
-        String query = String.format("SELECT dict_length, dict_checksum FROM %s.%s WHERE keyspace_name = '%s' AND table_name = '%s' AND dict_id = %d",
+        String query = String.format("SELECT dict_length, dict_checksum FROM %s.%s WHERE keyspace_name = '%s' AND table_name = '%s' AND dict_id = %d AND table_id = '%s'",
                                      SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                      SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
                                      TEST_KEYSPACE,
                                      TEST_TABLE,
-                                     testDictionary1.dictId().id);
+                                     testDictionary1.dictId().id,
+                                     tableID);
 
         var resultSet = QueryProcessor.executeInternal(query);
 
