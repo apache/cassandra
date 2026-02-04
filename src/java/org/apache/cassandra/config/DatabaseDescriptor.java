@@ -97,6 +97,8 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
+import org.apache.cassandra.io.compress.DefaultCompressionProvider;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -227,6 +229,7 @@ public class DatabaseDescriptor
     private static INetworkAuthorizer networkAuthorizer;
     private static ICIDRAuthorizer cidrAuthorizer;
 
+    private static AbstractCompressionProvider compressionProvider;
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -369,6 +372,8 @@ public class DatabaseDescriptor
 
         applyCompatibilityMode();
 
+        applyCompressionProvider();
+
         applySSTableFormats();
 
         applySimpleConfig();
@@ -435,6 +440,7 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+        applyCompressionProvider();
     }
 
     private static void assertNotDaemonInitialized()
@@ -548,6 +554,8 @@ public class DatabaseDescriptor
 
         applySSTableFormats();
 
+        applyCompressionProvider();
+
         applyCryptoProvider();
 
         applySimpleConfig();
@@ -575,6 +583,63 @@ public class DatabaseDescriptor
         applyAccordProgressLog();
 
         applyStartupChecks();
+    }
+
+    public static void applyCompressionProvider()
+    {
+        // Initialize compression provider configuration with defaults
+        if (conf.compression_provider == null)
+            conf.compression_provider = new ParameterizedClass(DefaultCompressionProvider.class.getName(), null);
+        if (conf.compression_provider.class_name == null)
+            conf.compression_provider.class_name = DefaultCompressionProvider.class.getName();
+        if (conf.compression_provider.parameters == null)
+            conf.compression_provider.parameters = new HashMap<>();
+
+        Map<String, String> compressionProviderParameters = new HashMap<>(conf.compression_provider.parameters);
+        compressionProviderParameters.putIfAbsent(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, "true");
+        try
+        {
+            compressionProvider = FBUtilities.newCompressionProvider(conf.compression_provider.class_name, compressionProviderParameters);
+            if(compressionProvider.isHealthy())
+                return;
+        }
+        catch (ConfigurationException e)
+        {
+            throw e;
+        }
+	    catch (Exception e)
+	    {
+            logger.warn(String.format(
+            "Failed to initialize specified compression provider %s: %s. Will attempt fallback to default if enabled.",
+            conf.compression_provider.class_name,
+            e.getMessage()
+            ));
+        }
+        String fallbackToDefault = conf.compression_provider.parameters.get(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER);
+        if("true".equals(fallbackToDefault))
+        {
+            try
+            {
+                compressionProvider = new DefaultCompressionProvider(compressionProviderParameters);
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException(String.format(
+                "Failed to initialize both specified compression provider %s and default fallback: %s",
+                conf.compression_provider.class_name,
+                e.getMessage()
+                ));
+            }
+        }
+        else
+        {
+            throw new ConfigurationException(String.format("Failed to initialize compression provider %s", conf.compression_provider.class_name));
+        }
+    }
+
+    public static AbstractCompressionProvider getCompressionProvider()
+    {
+        return compressionProvider;
     }
 
     private static void applySimpleConfig()

@@ -15,28 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.compress;
 
 import java.util.Map;
-import com.google.common.collect.ImmutableMap;
 
-public interface ICompressorFactory
+public class MockCompressionProvider extends AbstractCompressionProvider
 {
-    public static final ImmutableMap<String, String> COMPRESSOR_NAME_MAP = ImmutableMap.of(
-		    "deflate", "DeflateCompressor",
-		    "lz4", "LZ4Compressor",
-		    "snappy", "SnappyCompressor",
-		    "zstd", "ZstdCompressor"
-		    );
+    public MockCompressionProvider(Map<String, String> args)
+    {
+        super(args);
+    }
 
-    /**
-     * Used to create a plugin compressor
-     */
-    public ICompressor createCompressor(Map<String, String> options) throws IllegalStateException;
+    @Override
+    public boolean isHealthy()
+    { return false;}
 
-    /**
-     * Services can use COMPRESSOR_NAME_MAP to associate with an existing compressor
-     */
-    public String getSupportedCompressorName();
+    @Override
+    public ICompressor createCompressor(Map<String, String> options) throws IllegalStateException
+    {
+        throw new IllegalStateException("This is a mock compressor for testing! ");
+    }
 
+    @Override
+    public String getProviderName()
+    {
+        return this.getClass().getName();
+    }
+
+    @Override
+    public String getProviderSimpleName()
+    {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getSupportedCompressorName()
+    {
+        return "";
+    }
 }
+

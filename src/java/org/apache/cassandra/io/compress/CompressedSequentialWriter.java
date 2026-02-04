@@ -110,7 +110,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                             .bufferType(parameters.getSstableCompressor().preferredBufferType())
                             .finishOnClose(option.finishOnClose())
                             .build());
-	ICompressor compressor = parameters.getDecoratedSstableCompressor();
+        ICompressor compressor = parameters.getSstableCompressor();
         this.digestFile = Optional.ofNullable(digestFile);
 
         // buffer for compression should be the same size as buffer itself

@@ -211,7 +211,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
             result = resolvedCompressor;
             if (result == null)
             {
-                result = resolveCompressor(parameters.getDecoratedSstableCompressor(), compressionDictionary);
+                result = resolveCompressor(parameters.getSstableCompressor(), compressionDictionary);
                 resolvedCompressor = result;
             }
             return result;

@@ -2678,3 +2678,16 @@ compression_dictionary_training_auto_train_enabled: false
 # Value of 0.01 means 1% of writes are sampled. Lower values reduce overhead but may
 # result in less representative sample data for dictionary training.
 compression_dictionary_training_sampling_rate: 0.01
+
+# Enables configuring plugin compression providers.
+# When enabled, Cassandra will attempt to load the provider with the specified class_name,
+# if jar file is available in the classpath.
+# Parameters:
+#   - fallback_to_default_provider: If "true", falls back to DefaultCompressionProvider
+#     when the plugin fails to load. If "false", throws an exception on failure.
+# If this section is commented out, Cassandra uses DefaultCompressionProvider
+# with built-in compressor implementation.
+#compression_provider:
+#  - class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
+#    parameters:
+#      - fallback_to_default_provider: "true"
